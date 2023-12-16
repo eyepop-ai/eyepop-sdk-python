@@ -1,0 +1,124 @@
+import asyncio
+import functools
+import logging
+import time
+from types import TracebackType
+from typing import Optional, Type
+
+import aiohttp
+
+from eyepop.exceptions import PopNotStartedException
+from eyepop.jobs import Job, UploadJob, LoadFromJob
+
+log = logging.getLogger('eyepop')
+
+
+class Endpoint:
+    def __init__(self, secret_key: str, eyepop_url: str, pop_id: str, auto_start: bool,
+                 stop_jobs: bool):
+        self.secret_key = secret_key
+        self.eyepop_url = eyepop_url
+        self.pop_id = pop_id
+        self.auto_start = auto_start
+        self.stop_jobs = stop_jobs
+
+        self.token = None
+        self.expire_token_time = None
+
+        self.worker_config = None
+
+        self.session = None
+        self.task_group = None
+
+        self.tasks = set()
+
+    def __enter__(self) -> None:
+        raise TypeError("Use async with instead")
+
+    def __exit__(
+            self,
+            exc_type: Optional[Type[BaseException]],
+            exc_val: Optional[BaseException],
+            exc_tb: Optional[TracebackType],
+    ) -> None:
+        # __exit__ should exist in pair with __enter__ but never executed
+        pass  # pragma: no cover
+
+    async def __aenter__(self) -> "Endpoint":
+        await self.connect()
+        return self
+
+    async def __aexit__(
+            self,
+            exc_type: Optional[Type[BaseException]],
+            exc_val: Optional[BaseException],
+            exc_tb: Optional[TracebackType],
+    ) -> None:
+        await self.disconnect()
+
+    async def __authorization_header(self):
+        return f'Bearer {await self.__get_access_token()}'
+
+    async def disconnect(self):
+        tasks = list(self.tasks)
+        if len(tasks) > 0:
+            await asyncio.gather(*tasks)
+        await self.session.close()
+
+    async def connect(self, stop_jobs: bool = True):
+        self.session = aiohttp.ClientSession(raise_for_status=True, connector=aiohttp.TCPConnector(limit=10))
+        config_url = f'{self.eyepop_url}/pops/{self.pop_id}/config?auto_start={self.auto_start}'
+        try:
+            headers = {'Authorization': await self.__authorization_header()}
+            async with self.session.get(config_url, headers=headers) as response:
+                self.worker_config = await response.json()
+        except aiohttp.ClientResponseError as e:
+            if e.status == 401:
+                self.token = None
+                self.expire_token_time = None
+                headers = {'Authorization': await self.__authorization_header()}
+                async with self.session.get(config_url, headers=headers) as retried_response:
+                    self.worker_config = await retried_response.json()
+
+        if self.worker_config['base_url'] is None or self.worker_config['pipeline_id'] is None:
+            raise PopNotStartedException(pop_id=self.pop_id)
+
+        if stop_jobs:
+            stop_jobs_url = f'{self.__pipeline_base_url()}/source?mode=preempt&processing=sync'
+            body = {'sourceType': 'NONE'}
+            headers = {'Authorization': await self.__authorization_header()}
+            async with self.session.patch(stop_jobs_url, headers=headers, json=body):
+                response.raise_for_status()
+
+    def __pipeline_base_url(self):
+        return f'{self.worker_config["base_url"]}/pipelines/{self.worker_config["pipeline_id"]}'
+
+    async def __get_access_token(self):
+        if self.token is None or self.expire_token_time < time.time():
+            body = {
+                'secret_key': self.secret_key
+            }
+            async with self.session.post(f'{self.eyepop_url}/authentication/token', json=body) as response:
+                self.token = await response.json()
+                self.expire_token_time = time.time() + self.token['expires_in'] - 60
+        return self.token['access_token']
+
+    async def upload(self, file_path: str) -> Job:
+        if self.worker_config is None:
+            await self.connect()
+        job = UploadJob(file_path=file_path, pipeline_base_url=self.__pipeline_base_url(),
+                        authorization_header=await self.__authorization_header(), session=self.session)
+        task = asyncio.create_task(job.execute())
+        self.tasks.add(task)
+        task.add_done_callback(self.tasks.discard)
+        return job
+
+    async def load_from(self, url: str) -> Job:
+        if self.worker_config is None:
+            await self.connect()
+        job = LoadFromJob(url=url, pipeline_base_url=self.__pipeline_base_url(),
+                        authorization_header=await self.__authorization_header(), session=self.session)
+        task = asyncio.create_task(job.execute())
+        self.tasks.add(task)
+        task.add_done_callback(self.tasks.discard)
+        return job
