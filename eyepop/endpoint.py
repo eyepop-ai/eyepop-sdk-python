@@ -3,12 +3,13 @@ import functools
 import logging
 import time
 from types import TracebackType
-from typing import Optional, Type
+from typing import Optional, Type, Callable
 
 import aiohttp
 
 from eyepop.exceptions import PopNotStartedException
-from eyepop.jobs import Job, UploadJob, LoadFromJob
+from eyepop.jobs import Job, _UploadJob, _LoadFromJob
+from eyepop.syncify import SyncJob
 
 log = logging.getLogger('eyepop')
 
@@ -31,6 +32,7 @@ class Endpoint:
         self.task_group = None
 
         self.tasks = set()
+        self.sem = asyncio.Semaphore(1024)
 
     def __enter__(self) -> None:
         raise TypeError("Use async with instead")
@@ -66,7 +68,7 @@ class Endpoint:
         await self.session.close()
 
     async def connect(self, stop_jobs: bool = True):
-        self.session = aiohttp.ClientSession(raise_for_status=True, connector=aiohttp.TCPConnector(limit=10))
+        self.session = aiohttp.ClientSession(raise_for_status=True, connector=aiohttp.TCPConnector(limit=5))
         config_url = f'{self.eyepop_url}/pops/{self.pop_id}/config?auto_start={self.auto_start}'
         try:
             headers = {'Authorization': await self.__authorization_header()}
@@ -103,22 +105,30 @@ class Endpoint:
                 self.expire_token_time = time.time() + self.token['expires_in'] - 60
         return self.token['access_token']
 
-    async def upload(self, file_path: str) -> Job:
+    def _task_done(self, task):
+        self.tasks.discard(task)
+        self.sem.release()
+
+    async def upload(self, location: str, on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
         if self.worker_config is None:
             await self.connect()
-        job = UploadJob(file_path=file_path, pipeline_base_url=self.__pipeline_base_url(),
-                        authorization_header=await self.__authorization_header(), session=self.session)
+        await self.sem.acquire()
+        job = _UploadJob(location=location, pipeline_base_url=self.__pipeline_base_url(),
+                         authorization_header=await self.__authorization_header(), session=self.session,
+                         on_ready=on_ready)
         task = asyncio.create_task(job.execute())
         self.tasks.add(task)
-        task.add_done_callback(self.tasks.discard)
+        task.add_done_callback(self._task_done)
         return job
 
-    async def load_from(self, url: str) -> Job:
+    async def load_from(self, location: str, on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
         if self.worker_config is None:
             await self.connect()
-        job = LoadFromJob(url=url, pipeline_base_url=self.__pipeline_base_url(),
-                        authorization_header=await self.__authorization_header(), session=self.session)
+        await self.sem.acquire()
+        job = _LoadFromJob(location=location, pipeline_base_url=self.__pipeline_base_url(),
+                           authorization_header=await self.__authorization_header(), session=self.session,
+                           on_ready=on_ready)
         task = asyncio.create_task(job.execute())
         self.tasks.add(task)
-        task.add_done_callback(self.tasks.discard)
+        task.add_done_callback(self._task_done)
         return job

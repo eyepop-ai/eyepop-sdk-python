@@ -1,14 +1,14 @@
 import os
 
 from eyepop.endpoint import Endpoint
-from eyepop.syncify import syncify_endpoint
+from eyepop.syncify import SyncEndpoint
 
 
 class EyePopSdk:
     @staticmethod
     def connect(pop_id: str | None = None, secret_key: str | None = None, auto_start: bool = True,
                 stop_jobs: bool = True,
-                eyepop_url: str | None = None, is_async: bool = False):
+                eyepop_url: str | None = None, is_async: bool = False) -> Endpoint | SyncEndpoint:
         if secret_key is None:
             secret_key = os.getenv('EYEPOP_SECRET_KEY')
             if secret_key is None:
@@ -28,7 +28,7 @@ class EyePopSdk:
                             eyepop_url=eyepop_url)
 
         if not is_async:
-            endpoint = syncify_endpoint(endpoint)
+            endpoint = SyncEndpoint(endpoint)
 
         return endpoint
 
