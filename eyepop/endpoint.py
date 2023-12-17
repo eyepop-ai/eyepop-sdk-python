@@ -1,10 +1,9 @@
 import asyncio
-import functools
 import logging
 import time
 from types import TracebackType
 from typing import Optional, Type, Callable
-
+from urllib.parse import urljoin
 import aiohttp
 
 from eyepop.exceptions import PopNotStartedException
@@ -93,7 +92,8 @@ class Endpoint:
                 response.raise_for_status()
 
     def __pipeline_base_url(self):
-        return f'{self.worker_config["base_url"]}/pipelines/{self.worker_config["pipeline_id"]}'
+        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+        return f'{base_url}/pipelines/{self.worker_config["pipeline_id"]}'
 
     async def __get_access_token(self):
         if self.token is None or self.expire_token_time < time.time():
