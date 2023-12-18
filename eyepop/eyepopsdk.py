@@ -6,9 +6,9 @@ from eyepop.syncify import SyncEndpoint
 
 class EyePopSdk:
     @staticmethod
-    def connect(pop_id: str | None = None, secret_key: str | None = None, auto_start: bool = True,
-                stop_jobs: bool = True,
-                eyepop_url: str | None = None, is_async: bool = False) -> Endpoint | SyncEndpoint:
+    def endpoint(pop_id: str | None = None, secret_key: str | None = None, auto_start: bool = True,
+                 stop_jobs: bool = True,
+                 eyepop_url: str | None = None, is_async: bool = False) -> Endpoint | SyncEndpoint:
         if secret_key is None:
             secret_key = os.getenv('EYEPOP_SECRET_KEY')
             if secret_key is None:

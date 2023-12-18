@@ -14,7 +14,7 @@ logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
 
 
 def load_video_from_url(url: str):
-    with EyePopSdk.connect() as endpoint:
+    with EyePopSdk.endpoint() as endpoint:
         job = endpoint.load_from(url)
         while result := job.predict():
             print(result)
@@ -23,7 +23,7 @@ def load_video_from_url(url: str):
 
 
 async def async_load_video_from_url(url: str):
-    async with EyePopSdk.connect(is_async=True) as endpoint:
+    async with EyePopSdk.endpoint(is_async=True) as endpoint:
         job = await endpoint.load_from(url)
         while result := await job.predict():
             print(result)
