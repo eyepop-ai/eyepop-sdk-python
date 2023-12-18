@@ -3,7 +3,7 @@ The EyePop.ai Python SDK provides convenient access to the EyePop.ai's inference
 Python language. 
 
 ## Requirements 
-* Python 3.6+ (PyPy supported)
+* Python 3.8+
 
 ## Install
 ```shell

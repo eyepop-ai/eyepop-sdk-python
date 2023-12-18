@@ -14,6 +14,9 @@ log = logging.getLogger('eyepop')
 
 
 class Endpoint:
+    """
+    Endpoint to an EyePop.ai worker.
+    """
     def __init__(self, secret_key: str, eyepop_url: str, pop_id: str, auto_start: bool,
                  stop_jobs: bool):
         self.secret_key = secret_key
