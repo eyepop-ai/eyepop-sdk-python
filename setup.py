@@ -1,18 +1,21 @@
 import os
 from read_version import read_version
 from setuptools import setup, find_packages
-
+from pathlib import Path
 
 here = os.path.abspath(os.path.dirname(__file__))
 
 os.chdir(here)
 
 version = read_version('eyepop', '__init__.py')
+long_description = (Path(here) / "README.md").read_text()
 
 setup(
     name="eyepop-sdk-python",
     version=version,
     description="EyePop.ai Python SDK",
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     author="EyePop.ai",
     author_email="info@eyepop.ai",
     url="https://github.com/eyepop-ai/eyepop-sdk-python",
