@@ -5,6 +5,9 @@ from eyepop.syncify import SyncEndpoint
 
 
 class EyePopSdk:
+    """
+    EyePop.ai Python SDK
+    """
     @staticmethod
     def endpoint(pop_id: str | None = None, secret_key: str | None = None, auto_start: bool = True,
                  stop_jobs: bool = True,

@@ -17,6 +17,9 @@ class JobType(Enum):
 
 
 class Job:
+    """
+    Abstract Job submitted to an EyePop.ai Endpoint.
+    """
     def __init__(self, job_type: JobType, location: str, session: ClientSession,
                  on_ready: Callable[["Job"], None] | None):
         self.on_ready = on_ready
