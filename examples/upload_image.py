@@ -17,7 +17,7 @@ logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
 
 
 def upload_photo(file_path: str):
-    with EyePopSdk.connect() as endpoint:
+    with EyePopSdk.endpoint() as endpoint:
         result = endpoint.upload(file_path).predict()
         print(result)
 
@@ -27,18 +27,18 @@ async def async_upload_photo(file_path: str):
         print('on_ready', job.job_type, job.location)
         print(await job.predict())
 
-    async with EyePopSdk.connect(is_async=True) as endpoint:
+    async with EyePopSdk.endpoint(is_async=True) as endpoint:
         await endpoint.upload(file_path, on_ready)
 
 
 def upload_photos_sequentially(file_paths: list[str]):
-    with EyePopSdk.connect() as endpoint:
+    with EyePopSdk.endpoint() as endpoint:
         for file_path in file_paths:
             endpoint.upload(file_path).predict()
 
 
 def upload_photos(file_paths: list[str]):
-    with EyePopSdk.connect() as endpoint:
+    with EyePopSdk.endpoint() as endpoint:
         jobs = []
         for file_path in file_paths:
             jobs.append(endpoint.upload(file_path))
@@ -50,7 +50,7 @@ async def async_upload_photos(file_paths: list[str]):
     async def on_ready(job: Job):
         await job.predict()
 
-    async with EyePopSdk.connect(is_async=True) as endpoint:
+    async with EyePopSdk.endpoint(is_async=True) as endpoint:
         for file_path in file_paths:
             await endpoint.upload(file_path, on_ready)
 
