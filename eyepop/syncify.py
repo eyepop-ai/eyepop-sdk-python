@@ -27,7 +27,7 @@ class SyncEndpoint:
 
     def __enter__(self) -> "SyncEndpoint":
         self.event_loop = asyncio.new_event_loop()
-        self.event_loop.run_until_complete(self.endpoint.endpoint())
+        self.event_loop.run_until_complete(self.endpoint.connect())
         return self
 
     def __exit__(
