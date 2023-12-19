@@ -5,6 +5,7 @@ from types import TracebackType
 from typing import Optional, Type, Callable
 from urllib.parse import urljoin
 import aiohttp
+from aiohttp import ClientError
 
 from eyepop.exceptions import PopNotStartedException
 from eyepop.jobs import Job, _UploadJob, _LoadFromJob
@@ -49,7 +50,12 @@ class Endpoint:
         pass  # pragma: no cover
 
     async def __aenter__(self) -> "Endpoint":
-        await self.connect()
+        try:
+            await self.connect()
+        except ClientError as e:
+            await self.disconnect()
+            raise e
+
         return self
 
     async def __aexit__(
