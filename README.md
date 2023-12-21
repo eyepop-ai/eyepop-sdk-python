@@ -136,7 +136,6 @@ load_video_from_url('https://demo-eyepop-videos.s3.amazonaws.com/test1_vlog.mp4'
 ### Canceling Jobs
 Any job that has been queued or is in-progress can be cancelled. E.g. stop the video processing after
 predictions have been processed for 10 seconds duration of the video.
-
 ```python
 from eyepop.eyepopsdk import EyePopSdk
 
@@ -150,9 +149,26 @@ def load_video_from_url(url: str):
 
 load_video_from_url('https://demo-eyepop-videos.s3.amazonaws.com/test1_vlog.mp4')
 ```
+### Visualizing Results
+The EyePop SDK contains includes helper classes to visualize the predictions for images using `matplotlib.pyplot`.
+```python
+from PIL import Image
+import matplotlib.pyplot as plt
+from eyepop.eyepopsdk import EyePopSdk
+from eyepop.visualize import EyePopPlot
 
+with EyePopSdk.endpoint() as endpoint:
+    result = endpoint.upload('examples/examples.jpg').predict()
+    with Image.open('examples/examples.jpg') as image:
+        plt.imshow(image)
+        plot = EyePopPlot(plt.gca())
+        if result['objects'] is not None:
+            for obj in result['objects']:
+                plot.object(obj)
+    plt.show()
+```
+Depending on the environment, you might need to install an interactive backend, e.g. with `pip3 install pyqt5`.
 ## Other Usage Options
-### Initialization Behaviour
 #### Auto start workers
 By default, `EyePopSdk.endpoint().connect()` will start a worker if none is running yet. To disable this behavior 
 create an endpoint with `EyePopSdk.endpoint(auto_start=False)`.
