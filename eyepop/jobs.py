@@ -67,7 +67,10 @@ class Job:
             else:
                 await queue.put(e)
         finally:
-            self._response.close().release()
+            if self._response is not None:
+                response = self._response.close()
+                if response is not None:
+                    response.release()
             if self.on_ready:
                 await self.on_ready(self)
 
