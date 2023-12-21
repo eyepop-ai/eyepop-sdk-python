@@ -6,6 +6,7 @@ from asyncio import Queue
 from enum import Enum
 from typing import Callable
 
+import aiohttp
 from aiohttp import ClientSession
 
 log = logging.getLogger('eyepop')
@@ -20,6 +21,7 @@ class Job:
     """
     Abstract Job submitted to an EyePop.ai Endpoint.
     """
+
     def __init__(self, job_type: JobType, location: str, session: ClientSession,
                  on_ready: Callable[["Job"], None] | None):
         self.on_ready = on_ready
@@ -65,6 +67,7 @@ class Job:
             else:
                 await queue.put(e)
         finally:
+            self._response.close().release()
             if self.on_ready:
                 await self.on_ready(self)
 
@@ -87,10 +90,12 @@ class _UploadJob(Job):
             'Accept': 'application/jsonl',
             'Authorization': authorization_header
         }
+        self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
         with open(self.location, 'rb') as file:
-            self._response = await session.post(self._target_url, headers=self._headers, data=file)
+            self._response = await session.post(self._target_url, headers=self._headers, data=file,
+                                                timeout=self.timeouts)
             while line := await self._response.content.readline():
                 prediction = json.loads(line)
                 await queue.put(prediction)
@@ -109,9 +114,11 @@ class _LoadFromJob(Job):
             "sourceType": "URL",
             "url": self.location
         }
+        self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
-        self._response = await session.patch(self._target_url, headers=self._headers, json=self._body)
+        self._response = await session.patch(self._target_url, headers=self._headers, json=self._body,
+                                             timeout=self.timeouts)
         while line := await self._response.content.readline():
             prediction = json.loads(line)
             await queue.put(prediction)
