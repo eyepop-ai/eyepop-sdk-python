@@ -23,7 +23,8 @@ setup(
     keywords="EyePop AI ML CV",
     packages=find_packages(include=["eyepop"], exclude=["tests", "tests.*"]),
     install_requires=[
-        'aiohttp >= 3.9.1'
+        'aiohttp >= 3.9.1',
+        'matplotlib >= 3.8.2'
     ],
     python_requires=">=3.8",
     project_urls={
