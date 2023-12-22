@@ -1,5 +1,5 @@
 import logging
-from pathlib import Path
+import sys
 from PIL import Image
 
 import matplotlib.pyplot as plt
@@ -7,13 +7,10 @@ import matplotlib.pyplot as plt
 from eyepop.eyepopsdk import EyePopSdk
 from eyepop.visualize import EyePopPlot
 
-source_path = Path(__file__).resolve()
-source_dir = source_path.parent
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
 
-example_image_path = f'{source_dir}/example.jpg'
-
-logging.basicConfig(level=logging.INFO)
-logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
+example_image_path = sys.argv[1]
 
 with EyePopSdk.endpoint() as endpoint:
     result = endpoint.upload(example_image_path).predict()
