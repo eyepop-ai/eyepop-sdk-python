@@ -93,8 +93,8 @@ class Endpoint:
     async def connect(self, stop_jobs: bool = True):
         self.session = aiohttp.ClientSession(raise_for_status=True, connector=aiohttp.TCPConnector(limit=5))
         config_url = f'{self.eyepop_url}/pops/{self.pop_id}/config?auto_start={self.auto_start}'
+        headers = {'Authorization': await self.__authorization_header()}
         try:
-            headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before GET %s', config_url)
             async with self.session.get(config_url, headers=headers) as response:
                 self.worker_config = await response.json()
@@ -118,7 +118,7 @@ class Endpoint:
             body = {'sourceType': 'NONE'}
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before PATCH %s', stop_jobs_url)
-            async with self.session.patch(stop_jobs_url, headers=headers, json=body):
+            async with self.session.patch(stop_jobs_url, headers=headers, json=body) as response:
                 response.raise_for_status()
             log_requests.debug('after PATCH %s', stop_jobs_url)
 
@@ -137,7 +137,7 @@ class Endpoint:
             async with self.session.post(post_url, json=body) as response:
                 self.token = await response.json()
                 self.expire_token_time = time.time() + self.token['expires_in'] - 60
-            log_requests.debug('after POST %s expires_id=%d token_type=%s', post_url, self.token['expires_in'],
+            log_requests.debug('after POST %s expires_in=%d token_type=%s', post_url, self.token['expires_in'],
                                self.token['token_type'])
         log.debug('using access token, valid for at least %d seconds', self.expire_token_time - now)
         return self.token['access_token']

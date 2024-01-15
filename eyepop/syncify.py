@@ -24,10 +24,13 @@ class SyncEndpoint:
     def __init__(self, enpoint: "Endpoint"):
         self._on_ready = None
         self.endpoint = enpoint
+        self.event_loop = asyncio.new_event_loop()
+
+    def __del__(self):
+        self.event_loop.close()
 
     def __enter__(self) -> "SyncEndpoint":
-        self.event_loop = asyncio.new_event_loop()
-        self.event_loop.run_until_complete(self.endpoint.connect())
+        self.connect()
         return self
 
     def __exit__(
@@ -36,8 +39,7 @@ class SyncEndpoint:
             exc_val: typing.Optional[BaseException],
             exc_tb: typing.Optional[types.TracebackType],
     ) -> None:
-        self.event_loop.run_until_complete(self.endpoint.disconnect())
-        self.event_loop.close()
+        self.disconnect()
 
     def upload(self, file_path: str, on_ready: typing.Callable[[Job], None] | None = None) -> SyncJob:
         if on_ready is not None:
@@ -54,3 +56,9 @@ class SyncEndpoint:
                 "Use 'EyePopSdk.connect(is_async=True)` to create an async endpoint with callback support")
         job = self.event_loop.run_until_complete(self.endpoint.load_from(location, None))
         return SyncJob(job, self.event_loop)
+
+    def connect(self):
+        self.event_loop.run_until_complete(self.endpoint.connect())
+
+    def disconnect(self):
+        self.event_loop.run_until_complete(self.endpoint.disconnect())
