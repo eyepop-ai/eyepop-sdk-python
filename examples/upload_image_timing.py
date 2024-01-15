@@ -3,8 +3,8 @@ import asyncio
 import logging
 import time
 
-from eyepop.eyepopsdk import EyePopSdk
-from eyepop.jobs import Job
+from eyepop import EyePopSdk
+from eyepop import Job
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
