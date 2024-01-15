@@ -8,6 +8,14 @@ class EyePopPlot:
     def __init__(self, axes: Axes):
         self.axes = axes
 
+    def prediction(self, prediction: dict):
+        if prediction is None:
+            return
+        objects = prediction.get('objects', None)
+        if objects is not None:
+            for obj in objects:
+                self.object(obj)
+
     def object(self, obj: dict):
         label = self._label(obj)
         min_dim = min(obj['height'], obj['width'])

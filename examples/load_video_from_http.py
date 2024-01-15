@@ -3,7 +3,7 @@ import logging
 import time
 from pathlib import Path
 
-from eyepop.eyepopsdk import EyePopSdk
+from eyepop import EyePopSdk
 
 source_path = Path(__file__).resolve()
 source_dir = source_path.parent

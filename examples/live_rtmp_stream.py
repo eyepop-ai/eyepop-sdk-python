@@ -3,8 +3,8 @@ import logging
 import time
 from pathlib import Path
 
-from eyepop.eyepopsdk import EyePopSdk
-from eyepop.jobs import Job
+from eyepop import EyePopSdk
+from eyepop import Job
 
 source_path = Path(__file__).resolve()
 source_dir = source_path.parent
