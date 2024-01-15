@@ -7,14 +7,14 @@ Python language.
 
 ## Install
 ```shell
-pip install eyepop-sdk-python
+pip install eyepop
 ```
 
 ## Configuration
 The EyePop SDK needs to be configured with the __Pop Id__ and your __Secret Api Key__. 
 ```python
 import os
-from eyepop.eyepopsdk import EyePopSdk
+from eyepop import EyePopSdk
 
 endpoint = EyePopSdk.endpoint(
     # This is the default and can be omitted
@@ -36,33 +36,49 @@ to your .env file so that your API Key is not stored in source control. By defau
   
 ### Uploading and processing one single image
 ```python
-from eyepop.eyepopsdk import EyePopSdk
+from eyepop import EyePopSdk
 
 def upload_photo(file_path: str):
     with EyePopSdk.endpoint() as endpoint:
         result = endpoint.upload(file_path).predict()
         print(result)
 
-upload_photo('examples/examples.jpg')
+upload_photo('examples/example.jpg')
 ```
 1. `EyePopSdk.endpoint()` returns a local endpoint object, that will authenticate with the Api Key found in 
 EYEPOP_SECRET_KEY and load the worker configuration for the Pop identified by EYEPOP_POP_ID. 
 2. The usage of `with ... endpoint:` will automatically manage the runtime context, connect to the worker upon entering
 the context and releasing all underlying resources upon exiting the context. Alternatively your code can call 
 endpoint.connect() before any job is submitted and endpoint.disconnect() to release all resources.
-2. `endpoint.upload('examples/examples.jpg')` initiates the upload to the local file to the worker service. The image will
+2. `endpoint.upload('examples/example.jpg')` initiates the upload to the local file to the worker service. The image will
 be queued and processed immediately when the worker becomes available.
 3. `predict()` waits for the first prediction result as reports it as a dict. In case of a single image, there will be 
 one single prediction result and subsequent calls to predict() will return None. If the uploaded file is a video
 e.g. 'video/mp4' or image container format e.g. 'image/gif', subsequent calls to predict() will return a prediction 
 for each individual frame and None when the entire file has been processed. 
+### Visualizing Results
+The EyePop SDK includes helper classes to visualize the predictions for images using `matplotlib.pyplot`.
+```python
+from PIL import Image
+import matplotlib.pyplot as plt
+from eyepop import EyePopSdk
+
+with EyePopSdk.endpoint() as endpoint:
+    result = endpoint.upload('examples/example.jpg').predict()
+with Image.open('examples/example.jpg') as image:
+    plt.imshow(image)
+plot = EyePopSdk.plot(plt.gca())
+plot.prediction(result)    
+plt.show()
+```
+Depending on the environment, you might need to install an interactive backend, e.g. with `pip3 install pyqt5`.
 ### Uploading and processing batches of images
 For batches of images, instead of waiting for each result `predict()` _before_ submitting the next job, you can queue 
 all jobs first, let them process in parallel and collect the results later. This avoids the sequential accumulation of 
 the HTTP roundtrip time.
 
 ```python
-from eyepop.eyepopsdk import EyePopSdk
+from eyepop import EyePopSdk
 
 def upload_photos(file_paths: list[str]):
     with EyePopSdk.endpoint() as endpoint:
@@ -72,7 +88,7 @@ def upload_photos(file_paths: list[str]):
         for job in jobs:
             print(job.predict())
 
-upload_photos(['examples/examples.jpg'] * 100)
+upload_photos(['examples/example.jpg'] * 100)
 ```
 ### Asynchronous uploading and processing of images
 The above _synchronous_ way is great for individual images or reasonable sized batches. If your batch size is 'large'
@@ -88,8 +104,8 @@ are available.
 
 ```python
 import asyncio
-from eyepop.eyepopsdk import EyePopSdk
-from eyepop.jobs import Job
+from eyepop import EyePopSdk
+from eyepop import Job
 
 async def async_upload_photos(file_paths: list[str]):
     async def on_ready(job: Job):
@@ -99,7 +115,7 @@ async def async_upload_photos(file_paths: list[str]):
         for file_path in file_paths:
             await endpoint.upload(file_path, on_ready)
 
-asyncio.run(async_upload_photos(['examples/examples.jpg'] * 100000000))
+asyncio.run(async_upload_photos(['examples/example.jpg'] * 100000000))
 ```
 ### Loading images from URLs
 Alternatively to uploading files, you can also submit a publicly accessible URL for processing. This works for both,
@@ -109,7 +125,7 @@ synchronous and asynchronous mode. Supported protocols are:
 * RTMP (live streaming)
 
 ```python
-from eyepop.eyepopsdk import EyePopSdk
+from eyepop import EyePopSdk
 
 def load_from_url(url: str):
     with EyePopSdk.endpoint() as endpoint:
@@ -123,7 +139,7 @@ You can process videos via upload or public URLs. This example shows how to proc
 retrieved from a public URL. This works for both, synchronous and asynchronous mode.
 
 ```python
-from eyepop.eyepopsdk import EyePopSdk
+from eyepop import EyePopSdk
 
 def load_video_from_url(url: str):
     with EyePopSdk.endpoint() as endpoint:
@@ -137,7 +153,7 @@ load_video_from_url('https://demo-eyepop-videos.s3.amazonaws.com/test1_vlog.mp4'
 Any job that has been queued or is in-progress can be cancelled. E.g. stop the video processing after
 predictions have been processed for 10 seconds duration of the video.
 ```python
-from eyepop.eyepopsdk import EyePopSdk
+from eyepop import EyePopSdk
 
 def load_video_from_url(url: str):
     with EyePopSdk.endpoint() as endpoint:
@@ -149,25 +165,6 @@ def load_video_from_url(url: str):
 
 load_video_from_url('https://demo-eyepop-videos.s3.amazonaws.com/test1_vlog.mp4')
 ```
-### Visualizing Results
-The EyePop SDK contains includes helper classes to visualize the predictions for images using `matplotlib.pyplot`.
-```python
-from PIL import Image
-import matplotlib.pyplot as plt
-from eyepop.eyepopsdk import EyePopSdk
-from eyepop.visualize import EyePopPlot
-
-with EyePopSdk.endpoint() as endpoint:
-    result = endpoint.upload('examples/examples.jpg').predict()
-    with Image.open('examples/examples.jpg') as image:
-        plt.imshow(image)
-        plot = EyePopPlot(plt.gca())
-        if result['objects'] is not None:
-            for obj in result['objects']:
-                plot.object(obj)
-    plt.show()
-```
-Depending on the environment, you might need to install an interactive backend, e.g. with `pip3 install pyqt5`.
 ## Other Usage Options
 #### Auto start workers
 By default, `EyePopSdk.endpoint().connect()` will start a worker if none is running yet. To disable this behavior 

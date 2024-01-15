@@ -1,3 +1,59 @@
 [build-system]
-requires = ["setuptools", "wheel", "read_version"]
+requires = [
+    "setuptools",
+    "setuptools-scm",
+    "wheel",
+    "importlib"
+]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "eyepop"
+version = "0.9.2"
+description="EyePop.ai Python SDK"
+readme = "README.md"
+license.file = "./LICENSE"
+authors = [
+{ name = "EyePop.ai", email = "support@eyepop.ai" },
+]
+keywords=["EyePop", "AI", "ML", "CV"]
+
+dependencies = [
+    "aiohttp>=3.9.1",
+    "build>=1.0.3",
+    "twine>=4.0.2",
+    "matplotlib>=3.8.2",
+    "cryptography==38.0.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/eyepop-ai/eyepop-sdk-python"
+Repository = "https://github.com/eyepop-ai/eyepop-sdk-python"
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "codecov",
+    "pre-commit",
+    "aioresponses"
+]
+doc = [
+    "mkdocs",
+    "mkdocstrings",
+    "mkdocstrings[python]",
+    "mkdocs-material",
+    "Pygments",
+]
+all = ["eyepop[test,doc]"]
+
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib",
+]
+testpaths = [
+    "tests",
+]
+[tool.coverage.run]
+source = ["eyepop"]
