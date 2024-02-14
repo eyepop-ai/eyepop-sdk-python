@@ -16,8 +16,8 @@ logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
 
 async def async_load_from_rtmp(url: str):
     async def on_ready(job: Job):
-        print('on_ready', job.job_type, job.location)
-        while result := job.predict():
+        print('async_load_from_rtmp on_ready')
+        while result := await job.predict():
             print(result)
 
     async with EyePopSdk.endpoint(is_async=True) as endpoint:
