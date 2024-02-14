@@ -3,14 +3,14 @@ import logging
 import time
 from enum import Enum
 from types import TracebackType
-from typing import Optional, Type, Callable
+from typing import Optional, Type, Callable, BinaryIO
 from urllib.parse import urljoin
 
 import aiohttp
 from aiohttp import ClientError
 
 from eyepop.exceptions import PopNotStartedException
-from eyepop.jobs import Job, _UploadJob, _LoadFromJob, _JobStateCallback
+from eyepop.jobs import Job, _UploadJob, _LoadFromJob, _JobStateCallback, _UploadStreamJob
 from eyepop.syncify import SyncJob
 
 log = logging.getLogger('eyepop')
@@ -151,6 +151,18 @@ class Endpoint:
             await self.connect()
         await self.sem.acquire()
         job = _UploadJob(location=location, pipeline_base_url=self.__pipeline_base_url(),
+                         authorization_header=await self.__authorization_header(), session=self.session,
+                         on_ready=on_ready, callback=self.metrics_collector)
+        task = asyncio.create_task(job.execute())
+        self.tasks.add(task)
+        task.add_done_callback(self._task_done)
+        return job
+
+    async def upload_stream(self, stream: BinaryIO, mime_type: str, on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
+        if self.worker_config is None:
+            await self.connect()
+        await self.sem.acquire()
+        job = _UploadStreamJob(stream, mime_type, pipeline_base_url=self.__pipeline_base_url(),
                          authorization_header=await self.__authorization_header(), session=self.session,
                          on_ready=on_ready, callback=self.metrics_collector)
         task = asyncio.create_task(job.execute())
