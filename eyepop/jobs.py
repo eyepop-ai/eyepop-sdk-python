@@ -4,17 +4,12 @@ import logging
 import mimetypes
 from asyncio import Queue
 from enum import Enum
-from typing import Callable
+from typing import Callable, BinaryIO
 
 import aiohttp
 from aiohttp import ClientSession
 
 log_requests = logging.getLogger('eyepop.requests')
-
-
-class JobType(Enum):
-    UPLOAD = 1
-    FROM_URL = 2
 
 
 class _JobStateCallback:
@@ -44,11 +39,11 @@ class Job:
     Abstract Job submitted to an EyePop.ai Endpoint.
     """
 
-    def __init__(self, job_type: JobType, location: str, session: ClientSession,
-                 on_ready: Callable[["Job"], None] | None, callback: _JobStateCallback | None = None):
+    def __init__(self,
+                 session: ClientSession,
+                 on_ready: Callable[["Job"], None] | None,
+                 callback: _JobStateCallback | None = None):
         self.on_ready = on_ready
-        self.job_type = job_type
-        self.location = location
         self._session = session
         self._response = None
         self._queue = asyncio.Queue(maxsize=128)
@@ -127,7 +122,8 @@ class Job:
 class _UploadJob(Job):
     def __init__(self, location: str, pipeline_base_url: str, authorization_header: str, session: ClientSession,
                  on_ready: Callable[[Job], None] | None = None, callback: _JobStateCallback | None = None):
-        super().__init__(JobType.UPLOAD, location, session, on_ready, callback)
+        super().__init__(session, on_ready, callback)
+        self.location = location
         mime_types = mimetypes.guess_type(location)
         if len(mime_types) > 0:
             mime_type = mime_types[0]
@@ -149,11 +145,32 @@ class _UploadJob(Job):
             await self._do_read_response(queue)
             log_requests.debug("after POST %s with file %s as body", self._target_url, self.location)
 
+class _UploadStreamJob(Job):
+    def __init__(self, stream: BinaryIO, mime_type: str, pipeline_base_url: str, authorization_header: str, session: ClientSession,
+                 on_ready: Callable[[Job], None] | None = None, callback: _JobStateCallback | None = None):
+        super().__init__(session, on_ready, callback)
+        self.stream = stream
+        self.mime_type = mime_type
+        self._target_url = f'{pipeline_base_url}/source?mode=queue&processing=sync'
+        self._headers = {
+            'Content-Type': self.mime_type,
+            'Accept': 'application/jsonl',
+            'Authorization': authorization_header
+        }
+        self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
+
+    async def _do_execute_job(self, queue: Queue, session: ClientSession):
+        log_requests.debug("before POST %s with stream as body with mime type %s", self._target_url, self.mime_type)
+        self._response = await session.post(self._target_url, headers=self._headers, data=self.stream,
+                                            timeout=self.timeouts)
+        await self._do_read_response(queue)
+        log_requests.debug("after POST %s with stream as body with mime type %s", self._target_url, self.mime_type)
 
 class _LoadFromJob(Job):
     def __init__(self, location: str, pipeline_base_url: str, authorization_header: str, session: ClientSession,
                  on_ready: Callable[[Job], None] | None = None, callback: _JobStateCallback | None = None):
-        super().__init__(JobType.FROM_URL, location, session, on_ready, callback)
+        super().__init__(session, on_ready, callback)
+        self.location = location
         self._target_url = f'{pipeline_base_url}/source?mode=queue&processing=sync'
         self._headers = {
             'Accept': 'application/jsonl',

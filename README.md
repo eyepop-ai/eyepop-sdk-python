@@ -55,7 +55,22 @@ be queued and processed immediately when the worker becomes available.
 3. `predict()` waits for the first prediction result as reports it as a dict. In case of a single image, there will be 
 one single prediction result and subsequent calls to predict() will return None. If the uploaded file is a video
 e.g. 'video/mp4' or image container format e.g. 'image/gif', subsequent calls to predict() will return a prediction 
-for each individual frame and None when the entire file has been processed. 
+for each individual frame and None when the entire file has been processed.
+
+To upload a binary stream, i.e. a file-like object, you can use the method `upload_stream()` and pass the file-like 
+object and the mime-type:
+```python
+from eyepop import EyePopSdk
+
+def upload_photo_from_stream(file_path: str, mime_type: str):
+    with EyePopSdk.endpoint() as endpoint:
+        with open(file_path, 'rb') as file:
+            result = endpoint.upload_stream(file, mime_type).predict()
+            print(result)
+
+upload_photo_from_stream('examples/example.jpg', 'image/jpeg')
+```
+
 ### Visualizing Results
 The EyePop SDK includes helper classes to visualize the predictions for images using `matplotlib.pyplot`.
 ```python
