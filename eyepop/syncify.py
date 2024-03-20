@@ -68,3 +68,12 @@ class SyncEndpoint:
 
     def disconnect(self):
         self.event_loop.run_until_complete(self.endpoint.disconnect())
+
+    def pop_comp(self) -> dict:
+        return self.event_loop.run_until_complete(self.endpoint.pop_comp())
+    
+    def change_pop_comp(self, popComp: str) -> dict:
+        return self.event_loop.run_until_complete(self.endpoint.change_pop_comp(popComp))
+
+    def list_models(self) -> dict:
+        return self.event_loop.run_until_complete(self.endpoint.list_models())

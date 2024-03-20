@@ -47,6 +47,8 @@ class Endpoint:
         else:
             self.metrics_collector = None
 
+        self.popComp = None
+
     def __enter__(self) -> None:
         raise TypeError("Use async with instead")
 
@@ -121,6 +123,57 @@ class Endpoint:
             async with self.session.patch(stop_jobs_url, headers=headers, json=body) as response:
                 response.raise_for_status()
             log_requests.debug('after PATCH %s', stop_jobs_url)
+        
+        # get current pipeline string and store
+        get_url = f'{self.__pipeline_base_url()}'
+        headers = {'Authorization': await self.__authorization_header()}
+        log_requests.debug('before GET %s', get_url)
+        async with self.session.get(get_url, headers=headers) as response:
+            response.raise_for_status()
+            response_json = await response.json()
+            self.popComp = response_json['inferPipeline']
+        log_requests.debug('after GET %s', get_url)
+        log_requests.debug('current popComp is %s', self.popComp)
+
+    async def pop_comp(self):
+        if self.popComp is None:
+            await self.connect()
+        return self.popComp
+    
+    async def change_pop_comp(self, popComp: str = None):
+        if self.worker_config is None:
+            await self.connect()
+        log_requests.debug('change_pop_comp(%s)', popComp)
+        headers = {
+            'Authorization': await self.__authorization_header(),
+            'Content-Type': 'application/json'
+        }
+        body = {
+            'pipeline': popComp
+        }
+        patch_url = f'{self.__pipeline_base_url()}/inferencePipeline'
+        log_requests.debug('before PATCH %s', patch_url)
+        async with self.session.patch(patch_url, headers=headers, json=body) as response:
+            response.raise_for_status()
+        log_requests.debug('after PATCH %s', patch_url)
+        self.popComp = popComp
+        return response
+    
+    async def list_models(self):
+        if self.worker_config is None:
+            await self.connect()
+        headers = {
+            'Authorization': await self.__authorization_header(),
+            'Content-Type': 'application/json'
+        }
+        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+        get_url = f'{base_url}/models/instances'
+        log_requests.debug('before GET %s', get_url)
+        async with self.session.get(get_url, headers=headers) as response:
+            response.raise_for_status()
+            return await response.json()
+
+    
 
     def __pipeline_base_url(self):
         base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
