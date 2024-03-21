@@ -5,6 +5,7 @@ from enum import Enum
 from types import TracebackType
 from typing import Optional, Type, Callable, BinaryIO
 from urllib.parse import urljoin
+import warnings
 
 import aiohttp
 from aiohttp import ClientError
@@ -158,10 +159,10 @@ class Endpoint:
         self.popComp = popComp
     
     '''
-    Start Block
-    Below methods are not meant for the end user to use directly. They are used by the SDK internally.
+    Deprecated
     '''
     async def list_models(self) -> dict:
+        warnings.warn("list_models for development use only", DeprecationWarning)
         if self.worker_config is None:
             await self.connect()
         headers = {
@@ -175,7 +176,8 @@ class Endpoint:
             response.raise_for_status()
             return await response.json()
     
-    async def get_manifest(self) -> dict: 
+    async def get_manifest(self) -> dict:
+        warnings.warn("list_models for development use only", DeprecationWarning)
         if self.worker_config is None:
             await self.connect()
         headers = {
@@ -189,6 +191,7 @@ class Endpoint:
             return await response.json()
     
     async def set_manifest(self, manifest: dict):
+        warnings.warn("list_models for development use only", DeprecationWarning)
         if self.worker_config is None:
             await self.connect()
         headers = {
@@ -203,6 +206,7 @@ class Endpoint:
         log_requests.debug('after PUT %s', put_url)
 
     async def load_model(self, model:dict, override:bool = False):
+        warnings.warn("list_models for development use only", DeprecationWarning)
         if override:
             await self.purge_model(model)
         if self.worker_config is None:
@@ -219,6 +223,7 @@ class Endpoint:
         log_requests.debug('after POST %s', post_url)
 
     async def purge_model(self, model:dict):
+        warnings.warn("list_models for development use only", DeprecationWarning)
         headers = {
             'Authorization': await self.__authorization_header(),
             'Content-Type': 'application/json'
@@ -229,7 +234,6 @@ class Endpoint:
         async with self.session.delete(delete_url, headers=headers, json=model) as response:
             response.raise_for_status()
     '''
-    End Block
     '''
 
     def __pipeline_base_url(self):
