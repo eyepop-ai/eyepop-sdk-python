@@ -124,21 +124,21 @@ class Endpoint:
             async with self.session.patch(stop_jobs_url, headers=headers, json=body) as response:
                 response.raise_for_status()
             log_requests.debug('after PATCH %s', stop_jobs_url)
-        
-        # get current pipeline string and store
-        get_url = f'{self.__pipeline_base_url()}'
-        headers = {'Authorization': await self.__authorization_header()}
-        log_requests.debug('before GET %s', get_url)
-        async with self.session.get(get_url, headers=headers) as response:
-            response.raise_for_status()
-            response_json = await response.json()
-            self.popComp = response_json['inferPipeline']
-        log_requests.debug('after GET %s', get_url)
-        log_requests.debug('current popComp is %s', self.popComp)
 
     async def get_pop_comp(self) -> str:
         if self.popComp is None:
             await self.connect()
+        if self.popComp is None:
+            # get current pipeline string and store
+            get_url = f'{self.__pipeline_base_url()}'
+            headers = {'Authorization': await self.__authorization_header()}
+            log_requests.debug('before GET %s', get_url)
+            async with self.session.get(get_url, headers=headers) as response:
+                response.raise_for_status()
+                response_json = await response.json()
+                self.popComp = response_json['inferPipeline']
+            log_requests.debug('after GET %s', get_url)
+            log_requests.debug('current popComp is %s', self.popComp)
         return self.popComp
     
     async def set_pop_comp(self, popComp: str = None):

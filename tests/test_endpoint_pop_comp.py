@@ -13,7 +13,7 @@ class TestEndpointPopComp(BaseEndpointTest):
     @aioresponses()
     def test_sync_get_pop_comp(self, mock: aioresponses):
         test_pop_comp = "ep_infer id=1 model=model_name threshold=0.7"
-        
+
         self.setup_base_mock(mock)
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
@@ -39,7 +39,7 @@ class TestEndpointPopComp(BaseEndpointTest):
                                               {'source_id': self.test_source_id, 'seconds': 0,
                                                'system_timestamp': test_timestamp}))
 
-            mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
+            mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                        callback=upload)
 
             job = endpoint.upload(self.test_file)
