@@ -21,7 +21,14 @@ class TestEndpointUploadStream(BaseEndpointTest):
         self.setup_base_mock(mock)
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
-
+        # automatic call to get pop comp and store
+        def get_pop_comp(url, **kwargs) -> CallbackResult:
+            if kwargs['headers']['Authorization'] != f'Bearer {self.test_access_token}':
+                return CallbackResult(status=401, reason='test auth token expired')
+            else:
+                return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
+        mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
+                    callback=get_pop_comp)
         with EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                 pop_id=self.test_eyepop_pop_id) as endpoint:
             self.assertBaseMock(mock)
@@ -65,7 +72,14 @@ class TestEndpointUploadStream(BaseEndpointTest):
         self.setup_base_mock(mock)
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
-
+        # automatic call to get pop comp and store
+        def get_pop_comp(url, **kwargs) -> CallbackResult:
+            if kwargs['headers']['Authorization'] != f'Bearer {self.test_access_token}':
+                return CallbackResult(status=401, reason='test auth token expired')
+            else:
+                return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
+        mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
+                    callback=get_pop_comp)
         async with EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                 pop_id=self.test_eyepop_pop_id, is_async=True) as endpoint:
             self.assertBaseMock(mock)
