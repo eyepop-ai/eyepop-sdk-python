@@ -1,3 +1,4 @@
+import os
 import json
 import unittest
 from aiohttp import ClientResponseError
@@ -10,6 +11,10 @@ from tests.base_endpoint_test import BaseEndpointTest
 class TestEndpointConnect(BaseEndpointTest):
 
     def test_missing_secret(self):
+        env_var = ['EYEPOP_SECRET_KEY', 'EYEPOP_POP_ID', 'EYEPOP_URL']
+        for var in env_var:
+            if var in os.environ:
+                del os.environ[var]
         with self.assertRaises(Exception):
             EyePopSdk.endpoint()
 
