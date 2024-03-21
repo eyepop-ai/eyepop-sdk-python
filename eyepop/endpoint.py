@@ -127,8 +127,6 @@ class Endpoint:
 
     async def get_pop_comp(self) -> str:
         if self.popComp is None:
-            await self.connect()
-        if self.popComp is None:
             # get current pipeline string and store
             get_url = f'{self.__pipeline_base_url()}'
             headers = {'Authorization': await self.__authorization_header()}
