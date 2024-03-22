@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from aioresponses import aioresponses, CallbackResult
 
@@ -12,6 +13,12 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
     test_access_token = '... an access token ...'
     test_worker_url = f'http://example-worker.test'
     test_pipeline_id = 'test_pipeline_id'
+    test_pop_comp = "test_pop_comp"
+    
+    env_var = ['EYEPOP_SECRET_KEY', 'EYEPOP_POP_ID', 'EYEPOP_URL']
+    for var in env_var:
+        if var in os.environ:
+            del os.environ[var]
 
     def setup_base_mock(self, mock: aioresponses):
         def config(url, **kwargs) -> CallbackResult:
