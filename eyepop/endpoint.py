@@ -5,6 +5,7 @@ from enum import Enum
 from types import TracebackType
 from typing import Optional, Type, Callable, BinaryIO
 from urllib.parse import urljoin
+import warnings
 
 import aiohttp
 from aiohttp import ClientError
@@ -46,6 +47,8 @@ class Endpoint:
             self.metrics_collector = _MetricCollector()
         else:
             self.metrics_collector = None
+
+        self.popComp = None
 
     def __enter__(self) -> None:
         raise TypeError("Use async with instead")
@@ -121,6 +124,118 @@ class Endpoint:
             async with self.session.patch(stop_jobs_url, headers=headers, json=body) as response:
                 response.raise_for_status()
             log_requests.debug('after PATCH %s', stop_jobs_url)
+
+        if self.popComp is None:
+            # get current pipeline string and store
+            get_url = f'{self.__pipeline_base_url()}'
+            headers = {'Authorization': await self.__authorization_header()}
+            log_requests.debug('before GET %s', get_url)
+            async with self.session.get(get_url, headers=headers) as response:
+                response.raise_for_status()
+                response_json = await response.json()
+                self.popComp = response_json['inferPipeline']
+            log_requests.debug('after GET %s', get_url)
+            log_requests.debug('current popComp is %s', self.popComp)
+
+    async def get_pop_comp(self) -> str:
+        if self.worker_config is None:
+            await self.connect()
+        return self.popComp
+    
+    async def set_pop_comp(self, popComp: str = None):
+        if self.worker_config is None:
+            await self.connect()
+        headers = {
+            'Authorization': await self.__authorization_header(),
+            'Content-Type': 'application/json'
+        }
+        body = {
+            'pipeline': popComp
+        }
+        patch_url = f'{self.__pipeline_base_url()}/inferencePipeline'
+        log_requests.debug('before PATCH %s', patch_url)
+        async with self.session.patch(patch_url, headers=headers, json=body) as response:
+            response.raise_for_status()
+        log_requests.debug('after PATCH %s', patch_url)
+        self.popComp = popComp
+    
+    '''
+    Deprecated
+    '''
+    async def list_models(self) -> dict:
+        warnings.warn("list_models for development use only", DeprecationWarning)
+        if self.worker_config is None:
+            await self.connect()
+        headers = {
+            'Authorization': await self.__authorization_header(),
+            'Content-Type': 'application/json'
+        }
+        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+        get_url = f'{base_url}/models/instances'
+        log_requests.debug('before GET %s', get_url)
+        async with self.session.get(get_url, headers=headers) as response:
+            response.raise_for_status()
+            return await response.json()
+    
+    async def get_manifest(self) -> dict:
+        warnings.warn("list_models for development use only", DeprecationWarning)
+        if self.worker_config is None:
+            await self.connect()
+        headers = {
+            'Authorization': await self.__authorization_header(),
+        }
+        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+        get_url = f'{base_url}/models/sources'
+        log_requests.debug('before GET %s', get_url)
+        async with self.session.get(get_url, headers=headers) as response:
+            response.raise_for_status()
+            return await response.json()
+    
+    async def set_manifest(self, manifest: dict):
+        warnings.warn("list_models for development use only", DeprecationWarning)
+        if self.worker_config is None:
+            await self.connect()
+        headers = {
+            'Authorization': await self.__authorization_header(),
+            'Content-Type': 'application/json'
+        }
+        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+        put_url = f'{base_url}/models/sources'
+        log_requests.debug('before PUT %s', put_url)
+        async with self.session.put(put_url, headers=headers, json=manifest) as response:
+            response.raise_for_status()
+        log_requests.debug('after PUT %s', put_url)
+
+    async def load_model(self, model:dict, override:bool = False):
+        warnings.warn("list_models for development use only", DeprecationWarning)
+        if override:
+            await self.purge_model(model)
+        if self.worker_config is None:
+            await self.connect()
+        headers = {
+            'Authorization': await self.__authorization_header(),
+            'Content-Type': 'application/json'
+        }
+        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+        post_url = f'{base_url}/models/instances'
+        log_requests.debug('before POST %s', post_url)
+        async with self.session.post(post_url, headers=headers, json=model) as response:
+            response.raise_for_status()
+        log_requests.debug('after POST %s', post_url)
+
+    async def purge_model(self, model:dict):
+        warnings.warn("list_models for development use only", DeprecationWarning)
+        headers = {
+            'Authorization': await self.__authorization_header(),
+            'Content-Type': 'application/json'
+        }
+        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+        delete_url = f'{base_url}/models/instances'
+        log_requests.debug('before DELETE %s', delete_url)
+        async with self.session.delete(delete_url, headers=headers, json=model) as response:
+            response.raise_for_status()
+    '''
+    '''
 
     def __pipeline_base_url(self):
         base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")

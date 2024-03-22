@@ -68,3 +68,28 @@ class SyncEndpoint:
 
     def disconnect(self):
         self.event_loop.run_until_complete(self.endpoint.disconnect())
+
+    def get_pop_comp(self) -> dict:
+        return self.event_loop.run_until_complete(self.endpoint.get_pop_comp())
+    
+    def set_pop_comp(self, popComp: str) -> dict:
+        return self.event_loop.run_until_complete(self.endpoint.set_pop_comp(popComp))
+
+    '''
+    Start Block
+    Below methods are not meant for the end user to use directly. They are used by the SDK internally.
+    '''
+    def list_models(self) -> dict:
+        return self.event_loop.run_until_complete(self.endpoint.list_models())
+    
+    def get_manifest(self) -> dict:
+        return self.event_loop.run_until_complete(self.endpoint.get_manifest())
+    
+    def set_manifest(self, manifest:dict) -> None:
+        return self.event_loop.run_until_complete(self.endpoint.set_manifest(manifest))
+    
+    def load_model(self, model:dict, override:bool = False) -> None:
+        return self.event_loop.run_until_complete(self.endpoint.load_model(model, override))
+    '''
+    End Block
+    '''
