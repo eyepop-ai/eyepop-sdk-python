@@ -21,11 +21,27 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
             del os.environ[var]
 
     def setup_base_mock(self, mock: aioresponses):
+
+        def transient_config(url, **kwargs) -> CallbackResult:
+            if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
+                return CallbackResult(status=200,
+                                      body=json.dumps(
+                                          {'base_url': self.test_worker_url}))
+            else:
+                return CallbackResult(status=401, reason='test auth token expired')
+
         def config(url, **kwargs) -> CallbackResult:
             if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
                 return CallbackResult(status=200,
                                       body=json.dumps(
                                           {'base_url': self.test_worker_url, 'pipeline_id': self.test_pipeline_id}))
+            else:
+                return CallbackResult(status=401, reason='test auth token expired')
+
+        def start(url, **kwargs) -> CallbackResult:
+            if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
+                return CallbackResult(status=200,
+                                      body=json.dumps({'id': self.test_pipeline_id}))
             else:
                 return CallbackResult(status=401, reason='test auth token expired')
 
@@ -35,18 +51,41 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
             else:
                 return CallbackResult(status=401, reason='test auth token expired')
 
+        mock.get(f'{self.test_eyepop_url}/workers/config', callback=transient_config,
+                 repeat=True)
         mock.get(f'{self.test_eyepop_url}/pops/{self.test_eyepop_pop_id}/config?auto_start=True', callback=config,
                  repeat=True)
+        mock.post(f'{self.test_worker_url}/pipelines',
+                   callback=start, repeat=False)
         mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=preempt&processing=sync',
                    callback=stop, repeat=False)
 
-    def assertBaseMock(self, mock: aioresponses):
+    def assertBaseMock(self, mock: aioresponses, is_transient: bool = False):
         mock.assert_called_with(f'{self.test_eyepop_url}/authentication/token', method='POST',
                                 json={'secret_key': self.test_eyepop_secret_key})
-        mock.assert_called_with(f'{self.test_eyepop_url}/pops/{self.test_eyepop_pop_id}/config?auto_start=True',
-                                method='GET',
-                                headers={'Authorization': f'Bearer {self.test_access_token}'})
-        mock.assert_called_with(
-            f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=preempt&processing=sync',
-            method='PATCH', headers={'Authorization': f'Bearer {self.test_access_token}'}, data=None,
-            json={'sourceType': 'NONE'})
+        if is_transient:
+            mock.assert_called_with(f'{self.test_eyepop_url}/workers/config',
+                                    method='GET',
+                                    headers={'Authorization': f'Bearer {self.test_access_token}'})
+            mock.assert_called_with(
+                f'{self.test_worker_url}/pipelines',
+                method='POST', headers={'Authorization': f'Bearer {self.test_access_token}'}, data=None,
+                json={
+                'inferPipelineDef': {
+                    'pipeline': 'identity'
+                },
+                "source": {
+                    "sourceType": "NONE",
+                },
+                "idleTimeoutSeconds": 60,
+                "logging": ["out_meta"],
+                "videoOutput": "no_output"
+            })
+        else:
+            mock.assert_called_with(f'{self.test_eyepop_url}/pops/{self.test_eyepop_pop_id}/config?auto_start=True',
+                                    method='GET',
+                                    headers={'Authorization': f'Bearer {self.test_access_token}'})
+            mock.assert_called_with(
+                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=preempt&processing=sync',
+                method='PATCH', headers={'Authorization': f'Bearer {self.test_access_token}'}, data=None,
+                json={'sourceType': 'NONE'})
