@@ -95,7 +95,10 @@ class Endpoint:
 
     async def connect(self, stop_jobs: bool = True):
         self.session = aiohttp.ClientSession(raise_for_status=True, connector=aiohttp.TCPConnector(limit=5))
-        config_url = f'{self.eyepop_url}/pops/{self.pop_id}/config?auto_start={self.auto_start}'
+        if self.pop_id == 'transient':
+            config_url = f'{self.eyepop_url}/workers/config'
+        else:
+            config_url = f'{self.eyepop_url}/pops/{self.pop_id}/config?auto_start={self.auto_start}'
         headers = {'Authorization': await self.__authorization_header()}
         try:
             log_requests.debug('before GET %s', config_url)
@@ -113,6 +116,30 @@ class Endpoint:
                     self.worker_config = await retried_response.json()
 
         log_requests.debug(f'after GET {config_url}: {self.worker_config}')
+
+        if self.pop_id == 'transient':
+            self.popComp = 'identity'
+            base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+            start_pipeline_url = f'{base_url}/pipelines'
+            body = {
+                'inferPipelineDef': {
+                    'pipeline': self.popComp
+                },
+                "source": {
+                    "sourceType": "NONE",
+                },
+                "idleTimeoutSeconds": 60,
+                "logging": ["out_meta"],
+                "videoOutput": "no_output"
+            }
+            headers = {'Authorization': await self.__authorization_header()}
+            log_requests.debug('before POST %s', start_pipeline_url)
+            async with self.session.post(start_pipeline_url, headers=headers, json=body) as response:
+                response.raise_for_status()
+                response_json = await response.json()
+            log_requests.debug('after POST %s', start_pipeline_url)
+            self.worker_config['pipeline_id'] = response_json['id']
+
         if self.worker_config['base_url'] is None or self.worker_config['pipeline_id'] is None:
             raise PopNotStartedException(pop_id=self.pop_id)
 
