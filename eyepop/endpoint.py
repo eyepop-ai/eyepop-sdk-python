@@ -25,12 +25,15 @@ class Endpoint:
     """
 
     def __init__(self, secret_key: str, eyepop_url: str, pop_id: str, auto_start: bool,
-                 stop_jobs: bool, job_queue_length: int):
+                 stop_jobs: bool, job_queue_length: int, is_sandbox: bool):
         self.secret_key = secret_key
         self.eyepop_url = eyepop_url
         self.pop_id = pop_id
         self.auto_start = auto_start
         self.stop_jobs = stop_jobs
+        self.is_sandbox = is_sandbox
+
+        self.sandbox_id = None
 
         self.token = None
         self.expire_token_time = None
@@ -86,6 +89,17 @@ class Endpoint:
         tasks = list(self.tasks)
         if len(tasks) > 0:
             await asyncio.gather(*tasks)
+
+        if self.sandbox_id is not None:
+            base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+            delete_sandbox_url = f'{base_url}/sandboxes/{self.sandbox_id}'
+            headers = {'Authorization': await self.__authorization_header()}
+            log_requests.debug('before DELETE %s', delete_sandbox_url)
+            async with self.session.delete(delete_sandbox_url, headers=headers) as response:
+                response.raise_for_status()
+            log_requests.debug('after DELETE %s', delete_sandbox_url)
+            self.sandbox_id = None
+
         await self.session.close()
         if self.metrics_collector is not None:
             log_metrics.debug('endpoint disconnected, collected session metrics:')
@@ -117,10 +131,26 @@ class Endpoint:
 
         log_requests.debug(f'after GET {config_url}: {self.worker_config}')
 
+        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+
+        if self.is_sandbox:
+            create_sandbox_url = f'{base_url}/sandboxes'
+            headers = {'Authorization': await self.__authorization_header()}
+            log_requests.debug('before POST %s', create_sandbox_url)
+            async with self.session.post(create_sandbox_url, headers=headers) as response:
+                response.raise_for_status()
+                response_json = await response.json()
+            log_requests.debug('after POST %s', create_sandbox_url)
+            self.sandbox_id = response_json
+
         if self.pop_id == 'transient':
             self.popComp = 'identity'
-            base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-            start_pipeline_url = f'{base_url}/pipelines'
+
+            if self.sandbox_id is None:
+                start_pipeline_url = f'{base_url}/pipelines'
+            else:
+                start_pipeline_url = f'{base_url}/pipelines?sandboxId={self.sandbox_id}'
+
             body = {
                 'inferPipelineDef': {
                     'pipeline': self.popComp
@@ -197,8 +227,13 @@ class Endpoint:
             'Authorization': await self.__authorization_header(),
             'Content-Type': 'application/json'
         }
+
         base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-        get_url = f'{base_url}/models/instances'
+        if self.sandbox_id is None:
+            get_url = f'{base_url}/models/instances'
+        else:
+            get_url = f'{base_url}/models/instances?sandboxId={self.sandbox_id}'
+
         log_requests.debug('before GET %s', get_url)
         async with self.session.get(get_url, headers=headers) as response:
             response.raise_for_status()
@@ -212,7 +247,12 @@ class Endpoint:
             'Authorization': await self.__authorization_header(),
         }
         base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-        get_url = f'{base_url}/models/sources'
+
+        if self.sandbox_id is None:
+            get_url = f'{base_url}/models/sources'
+        else:
+            get_url = f'{base_url}/models/sources?sandboxId={self.sandbox_id}'
+
         log_requests.debug('before GET %s', get_url)
         async with self.session.get(get_url, headers=headers) as response:
             response.raise_for_status()
@@ -227,7 +267,12 @@ class Endpoint:
             'Content-Type': 'application/json'
         }
         base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-        put_url = f'{base_url}/models/sources'
+
+        if self.sandbox_id is None:
+            put_url = f'{base_url}/models/sources'
+        else:
+            put_url = f'{base_url}/models/sources?sandboxId={self.sandbox_id}'
+
         log_requests.debug('before PUT %s', put_url)
         async with self.session.put(put_url, headers=headers, json=manifest) as response:
             response.raise_for_status()
@@ -244,7 +289,12 @@ class Endpoint:
             'Content-Type': 'application/json'
         }
         base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-        post_url = f'{base_url}/models/instances'
+
+        if self.sandbox_id is None:
+            post_url = f'{base_url}/models/instances'
+        else:
+            post_url = f'{base_url}/models/instances?sandboxId={self.sandbox_id}'
+
         log_requests.debug('before POST %s', post_url)
         async with self.session.post(post_url, headers=headers, json=model) as response:
             response.raise_for_status()
@@ -257,7 +307,12 @@ class Endpoint:
             'Content-Type': 'application/json'
         }
         base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-        delete_url = f'{base_url}/models/instances'
+
+        if self.sandbox_id is None:
+            delete_url = f'{base_url}/models/instances'
+        else:
+            delete_url = f'{base_url}/models/instances?sandboxId={self.sandbox_id}'
+
         log_requests.debug('before DELETE %s', delete_url)
         async with self.session.delete(delete_url, headers=headers, json=model) as response:
             response.raise_for_status()
