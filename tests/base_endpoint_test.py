@@ -20,7 +20,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         if var in os.environ:
             del os.environ[var]
 
-    def setup_base_mock(self, mock: aioresponses):
+    def setup_base_mock(self, mock: aioresponses, sandbox_id: str | None = None):
 
         def transient_config(url, **kwargs) -> CallbackResult:
             if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
@@ -55,20 +55,27 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
                  repeat=True)
         mock.get(f'{self.test_eyepop_url}/pops/{self.test_eyepop_pop_id}/config?auto_start=True', callback=config,
                  repeat=True)
-        mock.post(f'{self.test_worker_url}/pipelines',
-                   callback=start, repeat=False)
+        if sandbox_id is None:
+            mock.post(f'{self.test_worker_url}/pipelines', callback=start, repeat=False)
+        else:
+            mock.post(f'{self.test_worker_url}/pipelines?sandboxId={sandbox_id}', callback=start, repeat=False)
+
         mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=preempt&processing=sync',
                    callback=stop, repeat=False)
 
-    def assertBaseMock(self, mock: aioresponses, is_transient: bool = False):
+    def assertBaseMock(self, mock: aioresponses, is_transient: bool = False, sandbox_id: str | None = None):
         mock.assert_called_with(f'{self.test_eyepop_url}/authentication/token', method='POST',
                                 json={'secret_key': self.test_eyepop_secret_key})
         if is_transient:
             mock.assert_called_with(f'{self.test_eyepop_url}/workers/config',
                                     method='GET',
                                     headers={'Authorization': f'Bearer {self.test_access_token}'})
+            if sandbox_id is None:
+                start_url = f'{self.test_worker_url}/pipelines'
+            else:
+                start_url = f'{self.test_worker_url}/pipelines?sandboxId={sandbox_id}'
             mock.assert_called_with(
-                f'{self.test_worker_url}/pipelines',
+                start_url,
                 method='POST', headers={'Authorization': f'Bearer {self.test_access_token}'}, data=None,
                 json={
                 'inferPipelineDef': {
