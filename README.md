@@ -72,7 +72,7 @@ upload_photo_from_stream('examples/example.jpg', 'image/jpeg')
 ```
 
 ### Visualizing Results
-The EyePop SDK includes helper classes to visualize the predictions for images using `matplotlib.pyplot`.
+The EyePop SDK includes helper classes to to visualize bounding boxes `matplotlib.pyplot`.
 ```python
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -86,7 +86,10 @@ plot = EyePopSdk.plot(plt.gca())
 plot.prediction(result)    
 plt.show()
 ```
-Depending on the environment, you might need to install an interactive backend, e.g. with `pip3 install pyqt5`.
+Depending on the environment, you might need to install an interactive backend, e.g. with `pip3 install pyqt5`. 
+EyePop's Python Sdk does not include visualization helpers for any other prediction types than object bounding boxes.
+Check out [visualize_with_webui2.py](examples/visualize_with_webui2.py) for an example how to use the comprehensive visualization support provided by the EyePop Node Sdk.
+
 ### Uploading and processing batches of images
 For batches of images, instead of waiting for each result `predict()` _before_ submitting the next job, you can queue 
 all jobs first, let them process in parallel and collect the results later. This avoids the sequential accumulation of 
