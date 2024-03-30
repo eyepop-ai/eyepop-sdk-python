@@ -46,6 +46,11 @@ doc = [
     "mkdocs-material",
     "Pygments",
 ]
+example = [
+    "pyqt5",
+    "webui2",
+    "pybars3"
+]
 all = ["eyepop[test,doc]"]
 
 [tool.pytest.ini_options]
