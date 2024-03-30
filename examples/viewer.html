@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EyePop Example</title>
+    <script src="https://cdn.jsdelivr.net/npm/@eyepop.ai/eyepop-render-2d/dist/eyepop.render2d.min.js"></script>
+    <script>
+        const result = JSON.parse('{{{ result_json }}}');
+        document.addEventListener("DOMContentLoaded", async (event) => {
+            console.log(result);
+            const imagePreview = document.getElementById('image-preview');
+            const resultOverlay = document.getElementById('result-overlay');
+            const context = resultOverlay.getContext('2d');
+
+            resultOverlay.width = imagePreview.naturalWidth;
+            resultOverlay.height = imagePreview.naturalHeight;
+
+            context.clearRect(0,0,resultOverlay.width, resultOverlay.height);
+            const renderer = Render2d.renderer(context,[
+              Render2d.renderBox(),
+              Render2d.renderMask(),
+              Render2d.renderContour(),
+              Render2d.renderPose(),
+              Render2d.renderHand(),
+              Render2d.renderFace()
+            ]);
+            renderer.draw(result);
+        });
+    </script>
+    <style>
+        .image-preview {
+            max-height: 100%;
+           max-width: 100%;
+            border: #eee solid 1px;
+        }
+        .result-overlay {
+            width:100%;
+            height:100%;
+            position:absolute; top:0px; left:0px;
+            border: #eee solid 1px;
+        }
+        .preview-wrapper {
+            max-height: fit-content;
+            max-width: fit-content;
+            position:relative;
+        }
+    </style>
+</head>
+<body>
+    <h1>EyePop Example: Visualize with WebUI2</h1>
+    <div class="preview-wrapper">
+        <img id="image-preview" class="image-preview" src="{{{ image_src }}}" alt="Image Preview">
+        <canvas class="result-overlay" id="result-overlay"></canvas>
+    </div>
+</body>
+
+<!-- Connect this window to the background app -->
+<script src="/webui.js"></script>
+
+</html>
