@@ -41,10 +41,12 @@ class Job:
 
     def __init__(self,
                  session: ClientSession,
+                 params: dict | None,
                  on_ready: Callable[["Job"], None] | None,
                  callback: _JobStateCallback | None = None):
         self.on_ready = on_ready
         self._session = session
+        self._params = params
         self._response = None
         self._queue = asyncio.Queue(maxsize=128)
         if callback is not None:
@@ -120,9 +122,9 @@ class Job:
 
 
 class _UploadJob(Job):
-    def __init__(self, location: str, pipeline_base_url: str, authorization_header: str, session: ClientSession,
+    def __init__(self, location: str, params: dict | None, pipeline_base_url: str, authorization_header: str, session: ClientSession,
                  on_ready: Callable[[Job], None] | None = None, callback: _JobStateCallback | None = None):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, params, on_ready, callback)
         self.location = location
         mime_types = mimetypes.guess_type(location)
         if len(mime_types) > 0:
@@ -131,24 +133,30 @@ class _UploadJob(Job):
             mime_type = 'application/octet-stream'
         self._target_url = f'{pipeline_base_url}/source?mode=queue&processing=sync'
         self._headers = {
-            'Content-Type': mime_type,
             'Accept': 'application/jsonl',
             'Authorization': authorization_header
         }
+        if self._params is None:
+            self._headers['Content-Type'] = mime_type
+
         self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
         with open(self.location, 'rb') as file:
             log_requests.debug("before POST %s with file %s as body", self._target_url, self.location)
-            self._response = await session.post(self._target_url, headers=self._headers, data=file,
-                                                timeout=self.timeouts)
+            if self._params is None:
+                self._response = await session.post(self._target_url, headers=self._headers, data=file,
+                                                    timeout=self.timeouts)
+            else:
+                with aiohttp.MultipartWriter() as mpwriter:
+
             await self._do_read_response(queue)
             log_requests.debug("after POST %s with file %s as body", self._target_url, self.location)
 
 class _UploadStreamJob(Job):
-    def __init__(self, stream: BinaryIO, mime_type: str, pipeline_base_url: str, authorization_header: str, session: ClientSession,
+    def __init__(self, stream: BinaryIO, mime_type: str, params: dict | None, pipeline_base_url: str, authorization_header: str, session: ClientSession,
                  on_ready: Callable[[Job], None] | None = None, callback: _JobStateCallback | None = None):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, params, on_ready, callback)
         self.stream = stream
         self.mime_type = mime_type
         self._target_url = f'{pipeline_base_url}/source?mode=queue&processing=sync'
@@ -166,10 +174,11 @@ class _UploadStreamJob(Job):
         await self._do_read_response(queue)
         log_requests.debug("after POST %s with stream as body with mime type %s", self._target_url, self.mime_type)
 
+
 class _LoadFromJob(Job):
-    def __init__(self, location: str, pipeline_base_url: str, authorization_header: str, session: ClientSession,
+    def __init__(self, location: str, params: dict | None, pipeline_base_url: str, authorization_header: str, session: ClientSession,
                  on_ready: Callable[[Job], None] | None = None, callback: _JobStateCallback | None = None):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, params, on_ready, callback)
         self.location = location
         self._target_url = f'{pipeline_base_url}/source?mode=queue&processing=sync'
         self._headers = {
@@ -178,8 +187,11 @@ class _LoadFromJob(Job):
         }
         self._body = {
             "sourceType": "URL",
-            "url": self.location
+            "url": self.location,
         }
+        if self._params is not None:
+            self._body['params'] = self._params
+
         self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
