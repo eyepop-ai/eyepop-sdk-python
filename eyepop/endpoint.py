@@ -343,11 +343,11 @@ class Endpoint:
         self.tasks.discard(task)
         self.sem.release()
 
-    async def upload(self, location: str, on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
+    async def upload(self, location: str, params: dict | None = None, on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
         if self.worker_config is None:
             await self.connect()
         await self.sem.acquire()
-        job = _UploadJob(location=location, pipeline_base_url=self.__pipeline_base_url(),
+        job = _UploadJob(location=location, params=params, pipeline_base_url=self.__pipeline_base_url(),
                          authorization_header=await self.__authorization_header(), session=self.session,
                          on_ready=on_ready, callback=self.metrics_collector)
         task = asyncio.create_task(job.execute())
@@ -355,11 +355,11 @@ class Endpoint:
         task.add_done_callback(self._task_done)
         return job
 
-    async def upload_stream(self, stream: BinaryIO, mime_type: str, on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
+    async def upload_stream(self, stream: BinaryIO, mime_type: str, params: dict | None = None, on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
         if self.worker_config is None:
             await self.connect()
         await self.sem.acquire()
-        job = _UploadStreamJob(stream, mime_type, pipeline_base_url=self.__pipeline_base_url(),
+        job = _UploadStreamJob(stream, mime_type, params=params, pipeline_base_url=self.__pipeline_base_url(),
                          authorization_header=await self.__authorization_header(), session=self.session,
                          on_ready=on_ready, callback=self.metrics_collector)
         task = asyncio.create_task(job.execute())
@@ -367,11 +367,11 @@ class Endpoint:
         task.add_done_callback(self._task_done)
         return job
 
-    async def load_from(self, location: str, on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
+    async def load_from(self, location: str, params: dict | None = None, on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
         if self.worker_config is None:
             await self.connect()
         await self.sem.acquire()
-        job = _LoadFromJob(location=location, pipeline_base_url=self.__pipeline_base_url(),
+        job = _LoadFromJob(location=location, params=params, pipeline_base_url=self.__pipeline_base_url(),
                            authorization_header=await self.__authorization_header(), session=self.session,
                            on_ready=on_ready, callback=self.metrics_collector)
         task = asyncio.create_task(job.execute())
