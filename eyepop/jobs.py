@@ -136,8 +136,7 @@ class _UploadJob(Job):
             'Accept': 'application/jsonl',
             'Authorization': authorization_header
         }
-        if self._params is None:
-            self._headers['Content-Type'] = mime_type
+        self.mime_type = mime_type
 
         self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
 
@@ -145,13 +144,22 @@ class _UploadJob(Job):
         with open(self.location, 'rb') as file:
             log_requests.debug("before POST %s with file %s as body", self._target_url, self.location)
             if self._params is None:
+                self._headers['Content-Type'] = self.mime_type
                 self._response = await session.post(self._target_url, headers=self._headers, data=file,
                                                     timeout=self.timeouts)
             else:
-                with aiohttp.MultipartWriter() as mpwriter:
+                # self._headers['Content-Type'] = 'multipart/form-data'
+                with aiohttp.MultipartWriter('form-data') as mp_writer:
+                    params_part = mp_writer.append_json(self._params)
+                    params_part.set_content_disposition('form-data', name='params', filename='blob')
+                    file_part = mp_writer.append(file, {'Content-Type': self.mime_type})
+                    file_part.set_content_disposition('form-data', name='file', filename='blob')
+                    self._response = await session.post(self._target_url, headers=self._headers, data=mp_writer,
+                                                        timeout=self.timeouts)
 
             await self._do_read_response(queue)
             log_requests.debug("after POST %s with file %s as body", self._target_url, self.location)
+
 
 class _UploadStreamJob(Job):
     def __init__(self, stream: BinaryIO, mime_type: str, params: dict | None, pipeline_base_url: str, authorization_header: str, session: ClientSession,
@@ -161,7 +169,6 @@ class _UploadStreamJob(Job):
         self.mime_type = mime_type
         self._target_url = f'{pipeline_base_url}/source?mode=queue&processing=sync'
         self._headers = {
-            'Content-Type': self.mime_type,
             'Accept': 'application/jsonl',
             'Authorization': authorization_header
         }
@@ -169,8 +176,20 @@ class _UploadStreamJob(Job):
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
         log_requests.debug("before POST %s with stream as body with mime type %s", self._target_url, self.mime_type)
-        self._response = await session.post(self._target_url, headers=self._headers, data=self.stream,
-                                            timeout=self.timeouts)
+        if self._params is None:
+            self._headers['Content-Type'] = self.mime_type
+            self._response = await session.post(self._target_url, headers=self._headers, data=self.stream,
+                                                timeout=self.timeouts)
+        else:
+            # self._headers['Content-Type'] = 'multipart/form-data'
+            with aiohttp.MultipartWriter('form-data') as mp_writer:
+                params_part = mp_writer.append_json(self._params)
+                params_part.set_content_disposition('form-data', name='params')
+                file_part = mp_writer.append(self.stream, {'Content-Type': self.mime_type})
+                file_part.set_content_disposition('form-data', name='file')
+                self._response = await session.post(self._target_url, headers=self._headers, data=mp_writer,
+                                                    timeout=self.timeouts)
+
         await self._do_read_response(queue)
         log_requests.debug("after POST %s with stream as body with mime type %s", self._target_url, self.mime_type)
 
