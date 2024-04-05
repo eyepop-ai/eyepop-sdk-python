@@ -8,7 +8,7 @@ from urllib.parse import urljoin
 import warnings
 
 import aiohttp
-from aiohttp import ClientError
+from aiohttp import ClientError, ClientResponseError, ClientResponse
 
 from eyepop.exceptions import PopNotStartedException
 from eyepop.jobs import Job, _UploadJob, _LoadFromJob, _JobStateCallback, _UploadStreamJob
@@ -17,6 +17,20 @@ from eyepop.syncify import SyncJob
 log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
 log_metrics = logging.getLogger('eyepop.metrics')
+
+
+async def response_check_with_error_body(response: ClientResponse):
+    if not response.ok:
+        message = await response.text()
+        if message is None or len(message) == 0:
+            message = response.reason
+        raise ClientResponseError(
+            response.request_info,
+            response.history,
+            status=response.status,
+            message=message,
+            headers=response.headers,
+        )
 
 
 class Endpoint:
@@ -108,7 +122,8 @@ class Endpoint:
             log_metrics.debug(f'average wait time until state: {self.metrics_collector.get_average_times()}')
 
     async def connect(self, stop_jobs: bool = True):
-        self.session = aiohttp.ClientSession(raise_for_status=True, connector=aiohttp.TCPConnector(limit=5))
+        self.session = aiohttp.ClientSession(raise_for_status=response_check_with_error_body,
+                                             connector=aiohttp.TCPConnector(limit=5))
         if self.pop_id == 'transient':
             config_url = f'{self.eyepop_url}/workers/config'
         else:
