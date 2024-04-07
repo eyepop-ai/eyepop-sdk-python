@@ -195,7 +195,7 @@ class Endpoint(_WorkerClientSession):
 
     async def set_pop_comp(self, pop_comp: str = None):
         response = await self.pipeline_patch('inferencePipeline', content_type='application/json',
-                                             data={'pipeline': pop_comp})
+                                             data=json.dumps({'pipeline': pop_comp}))
         self.pop_comp = pop_comp
         return response
 

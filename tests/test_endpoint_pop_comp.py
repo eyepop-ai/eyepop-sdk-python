@@ -110,7 +110,10 @@ class TestEndpointPopComp(BaseEndpointTest):
             def set_pop_comp(url, **kwargs) -> CallbackResult:
                 if kwargs['headers']['Authorization'] != f'Bearer {self.test_access_token}':
                     return CallbackResult(status=401, reason='test auth token expired')
+                elif kwargs['headers']['Content-Type'] != 'application/json':
+                    return CallbackResult(status=400, reason='unsupported content type')
                 else:
+                    self.test_pop_comp = json.loads(kwargs['data'])
                     return CallbackResult(status=204)
 
             mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/inferencePipeline',
