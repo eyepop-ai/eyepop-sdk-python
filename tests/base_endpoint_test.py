@@ -21,7 +21,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
             del os.environ[var]
 
     def setup_base_mock(self, mock: aioresponses, sandbox_id: str | None = None):
-
+        mock.clear()
         def transient_config(url, **kwargs) -> CallbackResult:
             if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
                 return CallbackResult(status=200,
