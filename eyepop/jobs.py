@@ -3,13 +3,44 @@ import json
 import logging
 import mimetypes
 from asyncio import Queue
-from enum import Enum
-from typing import Callable, BinaryIO
+from typing import Callable, BinaryIO, Any
 
 import aiohttp
-from aiohttp import ClientSession
 
 log_requests = logging.getLogger('eyepop.requests')
+
+
+class _WorkerClientSession:
+    async def pipeline_get(
+            self, url_path_and_query: str,
+            accept: str | None = None,
+            timeout: aiohttp.ClientTimeout | None = None
+    ) -> "_RequestContextManager":
+        pass
+
+    async def pipeline_post(
+            self, url_path_and_query: str,
+            accept: str | None = None,
+            data: Any = None,
+            content_type: str | None = None,
+            timeout: aiohttp.ClientTimeout | None = None
+    ) -> "_RequestContextManager":
+        pass
+
+    async def pipeline_patch(
+            self, url_path_and_query: str,
+            accept: str | None = None,
+            data: Any = None,
+            content_type: str | None = None,
+            timeout: aiohttp.ClientTimeout | None = None
+    ) -> "_RequestContextManager":
+        pass
+
+    async def pipeline_delete(
+            self, url_path_and_query: str,
+            timeout: aiohttp.ClientTimeout | None = None
+    ) -> "_RequestContextManager":
+        pass
 
 
 class _JobStateCallback:
@@ -34,13 +65,14 @@ class _JobStateCallback:
     def finalized(self, job):
         pass
 
+
 class Job:
     """
     Abstract Job submitted to an EyePop.ai Endpoint.
     """
 
     def __init__(self,
-                 session: ClientSession,
+                 session: _WorkerClientSession,
                  params: dict | None,
                  on_ready: Callable[["Job"], None] | None,
                  callback: _JobStateCallback | None = None):
@@ -107,7 +139,7 @@ class Job:
             if self.on_ready:
                 await self.on_ready(self)
 
-    async def _do_execute_job(self, queue: Queue, session: ClientSession):
+    async def _do_execute_job(self, queue: Queue, session: _WorkerClientSession):
         raise NotImplementedError("can't execute abstract jobs")
 
     async def _do_read_response(self, queue: Queue):
@@ -122,100 +154,93 @@ class Job:
 
 
 class _UploadJob(Job):
-    def __init__(self, location: str, params: dict | None, pipeline_base_url: str, authorization_header: str, session: ClientSession,
-                 on_ready: Callable[[Job], None] | None = None, callback: _JobStateCallback | None = None):
+    def __init__(self, location: str, params: dict | None,
+                 session: _WorkerClientSession,
+                 on_ready: Callable[[Job], None] | None = None,
+                 callback: _JobStateCallback | None = None):
         super().__init__(session, params, on_ready, callback)
         self.location = location
+        self.target_url = 'source?mode=queue&processing=sync'
         mime_types = mimetypes.guess_type(location)
         if len(mime_types) > 0:
-            mime_type = mime_types[0]
+            self.mime_type = mime_types[0]
         else:
-            mime_type = 'application/octet-stream'
-        self._target_url = f'{pipeline_base_url}/source?mode=queue&processing=sync'
-        self._headers = {
-            'Accept': 'application/jsonl',
-            'Authorization': authorization_header
-        }
-        self.mime_type = mime_type
+            self.mime_type = 'application/octet-stream'
 
-        self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
-
-    async def _do_execute_job(self, queue: Queue, session: ClientSession):
+    async def _do_execute_job(self, queue: Queue, session: _WorkerClientSession):
         with open(self.location, 'rb') as file:
-            log_requests.debug("before POST %s with file %s as body", self._target_url, self.location)
             if self._params is None:
-                self._headers['Content-Type'] = self.mime_type
-                self._response = await session.post(self._target_url, headers=self._headers, data=file,
-                                                    timeout=self.timeouts)
+                self._response = await session.pipeline_post(self.target_url,
+                                                             accept='application/jsonl',
+                                                             data=file,
+                                                             content_type=self.mime_type,
+                                                             timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
             else:
-                # self._headers['Content-Type'] = 'multipart/form-data'
                 with aiohttp.MultipartWriter('form-data') as mp_writer:
                     params_part = mp_writer.append_json(self._params)
                     params_part.set_content_disposition('form-data', name='params', filename='blob')
                     file_part = mp_writer.append(file, {'Content-Type': self.mime_type})
                     file_part.set_content_disposition('form-data', name='file', filename='blob')
-                    self._response = await session.post(self._target_url, headers=self._headers, data=mp_writer,
-                                                        timeout=self.timeouts)
+                    self._response = await session.pipeline_post(self.target_url,
+                                                                 accept='application/jsonl',
+                                                                 data=file,
+                                                                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
 
             await self._do_read_response(queue)
-            log_requests.debug("after POST %s with file %s as body", self._target_url, self.location)
 
 
 class _UploadStreamJob(Job):
-    def __init__(self, stream: BinaryIO, mime_type: str, params: dict | None, pipeline_base_url: str, authorization_header: str, session: ClientSession,
-                 on_ready: Callable[[Job], None] | None = None, callback: _JobStateCallback | None = None):
+    def __init__(self, stream: BinaryIO, mime_type: str, params: dict | None,
+                 session: _WorkerClientSession,
+                 on_ready: Callable[[Job], None] | None = None,
+                 callback: _JobStateCallback | None = None):
         super().__init__(session, params, on_ready, callback)
         self.stream = stream
         self.mime_type = mime_type
-        self._target_url = f'{pipeline_base_url}/source?mode=queue&processing=sync'
-        self._headers = {
-            'Accept': 'application/jsonl',
-            'Authorization': authorization_header
-        }
-        self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
+        self.target_url = 'source?mode=queue&processing=sync'
 
-    async def _do_execute_job(self, queue: Queue, session: ClientSession):
-        log_requests.debug("before POST %s with stream as body with mime type %s", self._target_url, self.mime_type)
+    async def _do_execute_job(self, queue: Queue, session: _WorkerClientSession):
         if self._params is None:
-            self._headers['Content-Type'] = self.mime_type
-            self._response = await session.post(self._target_url, headers=self._headers, data=self.stream,
-                                                timeout=self.timeouts)
+            self._response = await session.pipeline_post(self.target_url,
+                                                         accept='application/jsonl',
+                                                         content_type=self.mime_type,
+                                                         data=self.stream,
+                                                         timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
         else:
-            # self._headers['Content-Type'] = 'multipart/form-data'
             with aiohttp.MultipartWriter('form-data') as mp_writer:
                 params_part = mp_writer.append_json(self._params)
                 params_part.set_content_disposition('form-data', name='params')
                 file_part = mp_writer.append(self.stream, {'Content-Type': self.mime_type})
                 file_part.set_content_disposition('form-data', name='file')
-                self._response = await session.post(self._target_url, headers=self._headers, data=mp_writer,
-                                                    timeout=self.timeouts)
+                self._response = await session.pipeline_post(self.target_url,
+                                                             accept='application/jsonl',
+                                                             data=mp_writer,
+                                                             timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
 
         await self._do_read_response(queue)
-        log_requests.debug("after POST %s with stream as body with mime type %s", self._target_url, self.mime_type)
 
 
 class _LoadFromJob(Job):
-    def __init__(self, location: str, params: dict | None, pipeline_base_url: str, authorization_header: str, session: ClientSession,
-                 on_ready: Callable[[Job], None] | None = None, callback: _JobStateCallback | None = None):
+    def __init__(self, location: str, params: dict | None,
+                 session: _WorkerClientSession,
+                 on_ready: Callable[[Job], None] | None = None,
+                 callback: _JobStateCallback | None = None):
         super().__init__(session, params, on_ready, callback)
         self.location = location
-        self._target_url = f'{pipeline_base_url}/source?mode=queue&processing=sync'
-        self._headers = {
-            'Accept': 'application/jsonl',
-            'Authorization': authorization_header
-        }
-        self._body = {
+        self.target_url = 'source?mode=queue&processing=sync'
+        self.body = {
             "sourceType": "URL",
             "url": self.location,
         }
         if self._params is not None:
-            self._body['params'] = self._params
+            self.body['params'] = self._params
 
         self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
 
-    async def _do_execute_job(self, queue: Queue, session: ClientSession):
-        log_requests.debug("before PATCH %s with url %s as source", self._target_url, self.location)
-        self._response = await session.patch(self._target_url, headers=self._headers, json=self._body,
-                                             timeout=self.timeouts)
+    async def _do_execute_job(self, queue: Queue, session: _WorkerClientSession):
+        self._response = await session.pipeline_patch(self.target_url,
+                                                      accept='application/jsonl',
+                                                      data=json.dumps(self.body),
+                                                      content_type='application/json',
+                                                      timeout=self.timeouts)
         await self._do_read_response(queue)
-        log_requests.debug("after PATCH %s with url %s as source", self._target_url, self.location)

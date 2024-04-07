@@ -1,17 +1,18 @@
 import asyncio
+import json
 import logging
 import time
 from enum import Enum
 from types import TracebackType
-from typing import Optional, Type, Callable, BinaryIO
+from typing import Optional, Type, Callable, BinaryIO, Any
 from urllib.parse import urljoin
 import warnings
 
 import aiohttp
-from aiohttp import ClientError, ClientResponseError, ClientResponse
+from aiohttp import ClientError, ClientResponseError, ClientResponse, ClientConnectionError
 
 from eyepop.exceptions import PopNotStartedException
-from eyepop.jobs import Job, _UploadJob, _LoadFromJob, _JobStateCallback, _UploadStreamJob
+from eyepop.jobs import Job, _UploadJob, _LoadFromJob, _JobStateCallback, _UploadStreamJob, _WorkerClientSession
 from eyepop.syncify import SyncJob
 
 log = logging.getLogger('eyepop')
@@ -24,22 +25,17 @@ async def response_check_with_error_body(response: ClientResponse):
         message = await response.text()
         if message is None or len(message) == 0:
             message = response.reason
-        raise ClientResponseError(
-            response.request_info,
-            response.history,
-            status=response.status,
-            message=message,
-            headers=response.headers,
-        )
+        raise ClientResponseError(response.request_info, response.history, status=response.status, message=message,
+            headers=response.headers, )
 
 
-class Endpoint:
+class Endpoint(_WorkerClientSession):
     """
     Endpoint to an EyePop.ai worker.
     """
 
-    def __init__(self, secret_key: str, eyepop_url: str, pop_id: str, auto_start: bool,
-                 stop_jobs: bool, job_queue_length: int, is_sandbox: bool):
+    def __init__(self, secret_key: str, eyepop_url: str, pop_id: str, auto_start: bool, stop_jobs: bool,
+                 job_queue_length: int, is_sandbox: bool):
         self.secret_key = secret_key
         self.eyepop_url = eyepop_url
         self.pop_id = pop_id
@@ -65,17 +61,13 @@ class Endpoint:
         else:
             self.metrics_collector = None
 
-        self.popComp = None
+        self.pop_comp = None
 
     def __enter__(self) -> None:
         raise TypeError("Use async with instead")
 
-    def __exit__(
-            self,
-            exc_type: Optional[Type[BaseException]],
-            exc_val: Optional[BaseException],
-            exc_tb: Optional[TracebackType],
-    ) -> None:
+    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
+            exc_tb: Optional[TracebackType], ) -> None:
         # __exit__ should exist in pair with __enter__ but never executed
         pass  # pragma: no cover
 
@@ -88,12 +80,8 @@ class Endpoint:
 
         return self
 
-    async def __aexit__(
-            self,
-            exc_type: Optional[Type[BaseException]],
-            exc_val: Optional[BaseException],
-            exc_tb: Optional[TracebackType],
-    ) -> None:
+    async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
+            exc_tb: Optional[TracebackType], ) -> None:
         await self.disconnect()
 
     async def __authorization_header(self):
@@ -105,12 +93,11 @@ class Endpoint:
             await asyncio.gather(*tasks)
 
         if self.sandbox_id is not None:
-            base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+            base_url = await self.base_url()
             delete_sandbox_url = f'{base_url}/sandboxes/{self.sandbox_id}'
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before DELETE %s', delete_sandbox_url)
-            async with self.session.delete(delete_sandbox_url, headers=headers) as response:
-                response.raise_for_status()
+            await self.session.delete(delete_sandbox_url, headers=headers)
             log_requests.debug('after DELETE %s', delete_sandbox_url)
             self.sandbox_id = None
 
@@ -121,9 +108,15 @@ class Endpoint:
             log_metrics.debug(f'max concurrent number of jobs: {self.metrics_collector.max_number_of_jobs_by_state}')
             log_metrics.debug(f'average wait time until state: {self.metrics_collector.get_average_times()}')
 
-    async def connect(self, stop_jobs: bool = True):
+    async def connect(self):
         self.session = aiohttp.ClientSession(raise_for_status=response_check_with_error_body,
                                              connector=aiohttp.TCPConnector(limit=5))
+        await self._reconnect()
+
+    async def _reconnect(self):
+        if self.worker_config is not None:
+            return
+
         if self.pop_id == 'transient':
             config_url = f'{self.eyepop_url}/workers/config'
         else:
@@ -146,41 +139,30 @@ class Endpoint:
 
         log_requests.debug(f'after GET {config_url}: {self.worker_config}')
 
-        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+        base_url = await self.base_url()
 
         if self.is_sandbox:
             create_sandbox_url = f'{base_url}/sandboxes'
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before POST %s', create_sandbox_url)
             async with self.session.post(create_sandbox_url, headers=headers) as response:
-                response.raise_for_status()
                 response_json = await response.json()
             log_requests.debug('after POST %s', create_sandbox_url)
             self.sandbox_id = response_json
 
         if self.pop_id == 'transient':
-            self.popComp = 'identity'
+            self.pop_comp = 'identity'
 
             if self.sandbox_id is None:
                 start_pipeline_url = f'{base_url}/pipelines'
             else:
                 start_pipeline_url = f'{base_url}/pipelines?sandboxId={self.sandbox_id}'
 
-            body = {
-                'inferPipelineDef': {
-                    'pipeline': self.popComp
-                },
-                "source": {
-                    "sourceType": "NONE",
-                },
-                "idleTimeoutSeconds": 60,
-                "logging": ["out_meta"],
-                "videoOutput": "no_output"
-            }
+            body = {'inferPipelineDef': {'pipeline': self.pop_comp}, "source": {"sourceType": "NONE", },
+                "idleTimeoutSeconds": 60, "logging": ["out_meta"], "videoOutput": "no_output"}
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before POST %s', start_pipeline_url)
             async with self.session.post(start_pipeline_url, headers=headers, json=body) as response:
-                response.raise_for_status()
                 response_json = await response.json()
             log_requests.debug('after POST %s', start_pipeline_url)
             self.worker_config['pipeline_id'] = response_json['id']
@@ -188,162 +170,97 @@ class Endpoint:
         if self.worker_config['base_url'] is None or self.worker_config['pipeline_id'] is None:
             raise PopNotStartedException(pop_id=self.pop_id)
 
-        if stop_jobs:
-            stop_jobs_url = f'{self.__pipeline_base_url()}/source?mode=preempt&processing=sync'
+        if self.stop_jobs:
+            stop_jobs_url = f'{await self.__pipeline_base_url()}/source?mode=preempt&processing=sync'
             body = {'sourceType': 'NONE'}
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before PATCH %s', stop_jobs_url)
             async with self.session.patch(stop_jobs_url, headers=headers, json=body) as response:
-                response.raise_for_status()
+                pass
             log_requests.debug('after PATCH %s', stop_jobs_url)
 
-        if self.popComp is None:
+        if self.pop_comp is None:
             # get current pipeline string and store
-            get_url = f'{self.__pipeline_base_url()}'
+            get_url = await self.__pipeline_base_url()
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before GET %s', get_url)
             async with self.session.get(get_url, headers=headers) as response:
-                response.raise_for_status()
                 response_json = await response.json()
-                self.popComp = response_json['inferPipeline']
+                self.pop_comp = response_json['inferPipeline']
             log_requests.debug('after GET %s', get_url)
-            log_requests.debug('current popComp is %s', self.popComp)
+            log_requests.debug('current popComp is %s', self.pop_comp)
 
     async def get_pop_comp(self) -> str:
-        if self.worker_config is None:
-            await self.connect()
-        return self.popComp
-    
-    async def set_pop_comp(self, popComp: str = None):
-        if self.worker_config is None:
-            await self.connect()
-        headers = {
-            'Authorization': await self.__authorization_header(),
-            'Content-Type': 'application/json'
-        }
-        body = {
-            'pipeline': popComp
-        }
-        patch_url = f'{self.__pipeline_base_url()}/inferencePipeline'
-        log_requests.debug('before PATCH %s', patch_url)
-        async with self.session.patch(patch_url, headers=headers, json=body) as response:
-            response.raise_for_status()
-        log_requests.debug('after PATCH %s', patch_url)
-        self.popComp = popComp
-    
+        return self.pop_comp
+
+    async def set_pop_comp(self, pop_comp: str = None):
+        response = await self.pipeline_patch('inferencePipeline', content_type='application/json',
+                                             data={'pipeline': pop_comp})
+        self.pop_comp = pop_comp
+        return response
+
     '''
     Deprecated
     '''
-    async def list_models(self) -> dict:
-        warnings.warn("list_models for development use only", DeprecationWarning)
-        if self.worker_config is None:
-            await self.connect()
-        headers = {
-            'Authorization': await self.__authorization_header(),
-            'Content-Type': 'application/json'
-        }
 
-        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+    async def list_models(self) -> list[dict]:
+        warnings.warn("list_models for development use only", DeprecationWarning)
         if self.sandbox_id is None:
-            get_url = f'{base_url}/models/instances'
+            get_path = 'models/instances'
         else:
-            get_url = f'{base_url}/models/instances?sandboxId={self.sandbox_id}'
+            get_path = f'models/instances?sandboxId={self.sandbox_id}'
 
-        log_requests.debug('before GET %s', get_url)
-        async with self.session.get(get_url, headers=headers) as response:
-            response.raise_for_status()
-            return await response.json()
-    
-    async def get_manifest(self) -> dict:
-        warnings.warn("list_models for development use only", DeprecationWarning)
-        if self.worker_config is None:
-            await self.connect()
-        headers = {
-            'Authorization': await self.__authorization_header(),
-        }
-        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+        response = await self._worker_request_with_retry('GET', url_path_and_query=get_path)
+        return await response.json()
 
+    async def get_manifest(self) -> list[dict]:
+        warnings.warn("get_manifest for development use only", DeprecationWarning)
         if self.sandbox_id is None:
-            get_url = f'{base_url}/models/sources'
+            get_path = 'models/sources'
         else:
-            get_url = f'{base_url}/models/sources?sandboxId={self.sandbox_id}'
+            get_path = f'models/sources?sandboxId={self.sandbox_id}'
+        response = await self._worker_request_with_retry('GET', url_path_and_query=get_path)
+        return await response.json()
 
-        log_requests.debug('before GET %s', get_url)
-        async with self.session.get(get_url, headers=headers) as response:
-            response.raise_for_status()
-            return await response.json()
-    
-    async def set_manifest(self, manifest: dict):
-        warnings.warn("list_models for development use only", DeprecationWarning)
-        if self.worker_config is None:
-            await self.connect()
-        headers = {
-            'Authorization': await self.__authorization_header(),
-            'Content-Type': 'application/json'
-        }
-        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-
+    async def set_manifest(self, manifests: list[dict]):
+        warnings.warn("set_manifest for development use only", DeprecationWarning)
         if self.sandbox_id is None:
-            put_url = f'{base_url}/models/sources'
+            put_path = 'models/sources'
         else:
-            put_url = f'{base_url}/models/sources?sandboxId={self.sandbox_id}'
+            put_path = f'models/sources?sandboxId={self.sandbox_id}'
+        await self._worker_request_with_retry('PUT', url_path_and_query=put_path, content_type='application/json',
+                                              data=json.dumps(manifests))
 
-        log_requests.debug('before PUT %s', put_url)
-        async with self.session.put(put_url, headers=headers, json=manifest) as response:
-            response.raise_for_status()
-        log_requests.debug('after PUT %s', put_url)
-
-    async def load_model(self, model:dict, override:bool = False):
-        warnings.warn("list_models for development use only", DeprecationWarning)
+    async def load_model(self, model: dict, override: bool = False):
+        warnings.warn("load_model for development use only", DeprecationWarning)
         if override:
             await self.purge_model(model)
-        if self.worker_config is None:
-            await self.connect()
-        headers = {
-            'Authorization': await self.__authorization_header(),
-            'Content-Type': 'application/json'
-        }
-        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-
         if self.sandbox_id is None:
-            post_url = f'{base_url}/models/instances'
+            post_path = f'models/instances'
         else:
-            post_url = f'{base_url}/models/instances?sandboxId={self.sandbox_id}'
+            post_path = f'models/instances?sandboxId={self.sandbox_id}'
+        await self._worker_request_with_retry('POST', url_path_and_query=post_path, content_type='application/json',
+                                              data=json.dumps(model))
 
-        log_requests.debug('before POST %s', post_url)
-        async with self.session.post(post_url, headers=headers, json=model) as response:
-            response.raise_for_status()
-        log_requests.debug('after POST %s', post_url)
-
-    async def purge_model(self, model:dict):
-        warnings.warn("list_models for development use only", DeprecationWarning)
-        headers = {
-            'Authorization': await self.__authorization_header(),
-            'Content-Type': 'application/json'
-        }
-        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-
+    async def purge_model(self, model: dict):
+        warnings.warn("purge_model for development use only", DeprecationWarning)
         if self.sandbox_id is None:
-            delete_url = f'{base_url}/models/instances'
+            delete_path = 'models/instances/{model["id"]}'
         else:
-            delete_url = f'{base_url}/models/instances?sandboxId={self.sandbox_id}'
+            delete_path = f'models/instances/{model["id"]}?sandboxId={self.sandbox_id}'
 
-        log_requests.debug('before DELETE %s', delete_url)
-        async with self.session.delete(delete_url, headers=headers, json=model) as response:
-            response.raise_for_status()
+        await self._worker_request_with_retry('DELETE', url_path_and_query=delete_path)
+
     '''
     '''
 
-    def __pipeline_base_url(self):
-        base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-        return f'{base_url}/pipelines/{self.worker_config["pipeline_id"]}'
+    async def __pipeline_base_url(self):
+        return f'{await self.base_url()}/pipelines/{self.worker_config["pipeline_id"]}'
 
     async def __get_access_token(self):
         now = time.time()
         if self.token is None or self.expire_token_time < now:
-            body = {
-                'secret_key': self.secret_key
-            }
+            body = {'secret_key': self.secret_key}
             post_url = f'{self.eyepop_url}/authentication/token'
             log_requests.debug('before POST %s', post_url)
             async with self.session.post(post_url, json=body) as response:
@@ -358,41 +275,137 @@ class Endpoint:
         self.tasks.discard(task)
         self.sem.release()
 
-    async def upload(self, location: str, params: dict | None = None, on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
-        if self.worker_config is None:
-            await self.connect()
+    async def upload(self, location: str, params: dict | None = None,
+                     on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
         await self.sem.acquire()
-        job = _UploadJob(location=location, params=params, pipeline_base_url=self.__pipeline_base_url(),
-                         authorization_header=await self.__authorization_header(), session=self.session,
-                         on_ready=on_ready, callback=self.metrics_collector)
+        job = _UploadJob(location=location, params=params, session=self, on_ready=on_ready,
+                         callback=self.metrics_collector)
         task = asyncio.create_task(job.execute())
         self.tasks.add(task)
         task.add_done_callback(self._task_done)
         return job
 
-    async def upload_stream(self, stream: BinaryIO, mime_type: str, params: dict | None = None, on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
-        if self.worker_config is None:
-            await self.connect()
+    async def upload_stream(self, stream: BinaryIO, mime_type: str, params: dict | None = None,
+                            on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
         await self.sem.acquire()
-        job = _UploadStreamJob(stream, mime_type, params=params, pipeline_base_url=self.__pipeline_base_url(),
-                         authorization_header=await self.__authorization_header(), session=self.session,
-                         on_ready=on_ready, callback=self.metrics_collector)
+        job = _UploadStreamJob(stream, mime_type, params=params, session=self, on_ready=on_ready,
+                               callback=self.metrics_collector)
         task = asyncio.create_task(job.execute())
         self.tasks.add(task)
         task.add_done_callback(self._task_done)
         return job
 
-    async def load_from(self, location: str, params: dict | None = None, on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
-        if self.worker_config is None:
-            await self.connect()
+    async def load_from(self, location: str, params: dict | None = None,
+                        on_ready: Callable[[Job], None] | None = None) -> Job | SyncJob:
         await self.sem.acquire()
-        job = _LoadFromJob(location=location, params=params, pipeline_base_url=self.__pipeline_base_url(),
-                           authorization_header=await self.__authorization_header(), session=self.session,
-                           on_ready=on_ready, callback=self.metrics_collector)
+        job = _LoadFromJob(location=location, params=params, session=self, on_ready=on_ready,
+                           callback=self.metrics_collector)
         task = asyncio.create_task(job.execute())
         self.tasks.add(task)
         task.add_done_callback(self._task_done)
         return job
+
+    async def base_url(self) -> str:
+        if self.worker_config is None:
+            await self._reconnect()
+        return urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+
+    #
+    # Implements: _WorkerClientSession
+    #
+
+    async def pipeline_get(self, url_path_and_query: str, accept: str | None = None,
+            timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+        return await self._pipeline_request_with_retry('GET', url_path_and_query, accept=accept, timeout=timeout)
+
+    async def pipeline_post(self, url_path_and_query: str, accept: str | None = None, data: Any = None,
+            content_type: str | None = None, timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+        return await self._pipeline_request_with_retry('POST', url_path_and_query, accept=accept, data=data,
+                                                       content_type=content_type, timeout=timeout)
+
+    async def pipeline_patch(self, url_path_and_query: str, accept: str | None = None, data: Any = None,
+            content_type: str | None = None, timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+        return await self._pipeline_request_with_retry('PATCH', url_path_and_query, accept=accept, data=data,
+                                                       content_type=content_type, timeout=timeout)
+
+    async def pipeline_delete(self, url_path_and_query: str,
+            timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+        return await self._pipeline_request_with_retry('DELETE', url_path_and_query, timeout=timeout)
+
+    async def _pipeline_request_with_retry(self, method: str, url_path_and_query: str, accept: str | None = None,
+            data: Any = None, content_type: str | None = None,
+            timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+        retried_auth = False
+        retried_pipeline = False
+        while True:
+            url = f'{await self.__pipeline_base_url()}/{url_path_and_query}'
+            headers = {'Authorization': await self.__authorization_header()}
+            if accept is not None:
+                headers['Accept'] = accept
+            if content_type is not None:
+                headers['Content-Type'] = content_type
+            try:
+                log_requests.debug('before %s %s', method, url)
+                response = await self.session.request(method, url, headers=headers, data=data, timeout=timeout)
+                log_requests.debug('after %s %s', method, url)
+                return response
+            except aiohttp.ClientResponseError as e:
+                if not retried_auth and e.status == 401:
+                    # auth token might have just expired
+                    log_requests.debug('after %s %s: 401, about to retry with fresh access token', method, url)
+                    self.token = None
+                    self.expire_token_time = None
+                    retried_auth = True
+                elif not retried_pipeline and e.status == 404:
+                    # pipeline might have just shut down
+                    log_requests.debug('after %s %s: 404, about to retry with fresh config', method, url)
+                    self.worker_config = None
+                    retried_pipeline = True
+                else:
+                    raise e
+            except ClientConnectionError as e:
+                if not retried_pipeline:
+                    # worker might have just shutdown
+                    log_requests.debug('after %s %s: connection error, about to retry with fresh config', method, url)
+                    self.worker_config = None
+                    retried_pipeline = True
+                else:
+                    raise e
+
+    async def _worker_request_with_retry(self, method: str, url_path_and_query: str, accept: str | None = None,
+            data: Any = None, content_type: str | None = None,
+            timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+        retried_auth = False
+        retried_pipeline = False
+        while True:
+            url = f'{await self.base_url()}/{url_path_and_query}'
+            headers = {'Authorization': await self.__authorization_header()}
+            if accept is not None:
+                headers['Accept'] = accept
+            if content_type is not None:
+                headers['Content-Type'] = content_type
+            try:
+                log_requests.debug('before %s %s', method, url)
+                response = await self.session.request(method, url, headers=headers, data=data, timeout=timeout)
+                log_requests.debug('after %s %s', method, url)
+                return response
+            except aiohttp.ClientResponseError as e:
+                if not retried_auth and e.status == 401:
+                    # auth token might have just expired
+                    log_requests.debug('after %s %s: 401, about to retry with fresh access token', method, url)
+                    self.token = None
+                    self.expire_token_time = None
+                    retried_auth = True
+                else:
+                    raise e
+            except ClientConnectionError as e:
+                if not retried_pipeline:
+                    # worker might have just shutdown
+                    log_requests.debug('after %s %s: connection error, about to retry with fresh config', method, url)
+                    self.worker_config = None
+                    retried_pipeline = True
+                else:
+                    raise e
 
 
 class JobState(Enum):
@@ -412,25 +425,12 @@ class _MetricCollector(_JobStateCallback):
         self.jobs_to_state = {}
         self.jobs_to_last_updated = {}
         self.total_number_of_jobs = 0
-        self.max_number_of_jobs_by_state = {
-            JobState.STARTED: 0,
-            JobState.IN_PROGRESS: 0,
-            JobState.FINISHED: 0,
-            JobState.DRAINED: 0,
-            JobState.FAILED: 0,
-        }
-        self.number_of_jobs_reached_state = {
-            JobState.IN_PROGRESS: 0,
-            JobState.FINISHED: 0,
-            JobState.DRAINED: 0,
-            JobState.FAILED: 0,
-        }
-        self.total_time_to_reached_state = {
-            JobState.IN_PROGRESS: 0.0,
-            JobState.FINISHED: 0.0,
-            JobState.DRAINED: 0.0,
-            JobState.FAILED: 0.0,
-        }
+        self.max_number_of_jobs_by_state = {JobState.STARTED: 0, JobState.IN_PROGRESS: 0, JobState.FINISHED: 0,
+            JobState.DRAINED: 0, JobState.FAILED: 0, }
+        self.number_of_jobs_reached_state = {JobState.IN_PROGRESS: 0, JobState.FINISHED: 0, JobState.DRAINED: 0,
+            JobState.FAILED: 0, }
+        self.total_time_to_reached_state = {JobState.IN_PROGRESS: 0.0, JobState.FINISHED: 0.0, JobState.DRAINED: 0.0,
+            JobState.FAILED: 0.0, }
 
     def get_average_time(self, state: JobState) -> float:
         if self.number_of_jobs_reached_state[state] == 0:
@@ -439,12 +439,10 @@ class _MetricCollector(_JobStateCallback):
             return self.total_time_to_reached_state[state] / self.number_of_jobs_reached_state[state]
 
     def get_average_times(self) -> dict:
-        times = {
-            JobState.IN_PROGRESS: self.get_average_time(JobState.IN_PROGRESS),
+        times = {JobState.IN_PROGRESS: self.get_average_time(JobState.IN_PROGRESS),
             JobState.FINISHED: self.get_average_time(JobState.FINISHED),
             JobState.DRAINED: self.get_average_time(JobState.DRAINED),
-            JobState.FAILED: self.get_average_time(JobState.FAILED),
-        }
+            JobState.FAILED: self.get_average_time(JobState.FAILED), }
         return times
 
     def update_count_by_state(self, state: JobState):
