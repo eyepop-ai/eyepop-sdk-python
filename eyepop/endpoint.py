@@ -141,7 +141,7 @@ class Endpoint(_WorkerClientSession):
 
         base_url = await self.base_url()
 
-        if self.is_sandbox:
+        if self.is_sandbox and self.sandbox_id is None:
             create_sandbox_url = f'{base_url}/sandboxes'
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before POST %s', create_sandbox_url)
