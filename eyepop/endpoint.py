@@ -50,7 +50,7 @@ class Endpoint(_WorkerClientSession):
 
         self.worker_config = None
 
-        self.session = None
+        self.client_session = None
         self.task_group = None
 
         self.tasks = set()
@@ -97,11 +97,11 @@ class Endpoint(_WorkerClientSession):
             delete_sandbox_url = f'{base_url}/sandboxes/{self.sandbox_id}'
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before DELETE %s', delete_sandbox_url)
-            await self.session.delete(delete_sandbox_url, headers=headers)
+            await self.client_session.delete(delete_sandbox_url, headers=headers)
             log_requests.debug('after DELETE %s', delete_sandbox_url)
             self.sandbox_id = None
 
-        await self.session.close()
+        await self.client_session.close()
         if self.metrics_collector is not None:
             log_metrics.debug('endpoint disconnected, collected session metrics:')
             log_metrics.debug('total number of jobs: %d', self.metrics_collector.total_number_of_jobs)
@@ -109,9 +109,26 @@ class Endpoint(_WorkerClientSession):
             log_metrics.debug(f'average wait time until state: {self.metrics_collector.get_average_times()}')
 
     async def connect(self):
-        self.session = aiohttp.ClientSession(raise_for_status=response_check_with_error_body,
-                                             connector=aiohttp.TCPConnector(limit=5))
+        self.client_session = aiohttp.ClientSession(raise_for_status=response_check_with_error_body,
+                                                    connector=aiohttp.TCPConnector(limit=5))
         await self._reconnect()
+
+    async def session(self) -> dict:
+        token = await self.__get_access_token()
+        base_url = await self.base_url()
+        session = {
+            'eyepopUrl': self.eyepop_url,
+            'popId': self.pop_id,
+            'accessToken': token,
+            'validUntil': self.expire_token_time * 1000,
+            'baseUrl': base_url,
+            'pipelineId': self.worker_config['pipeline_id']
+        }
+
+        if self.sandbox_id is not None:
+            session['sandboxId'] = self.sandbox_id
+
+        return session
 
     async def _reconnect(self):
         if self.worker_config is not None:
@@ -124,7 +141,7 @@ class Endpoint(_WorkerClientSession):
         headers = {'Authorization': await self.__authorization_header()}
         try:
             log_requests.debug('before GET %s', config_url)
-            async with self.session.get(config_url, headers=headers) as response:
+            async with self.client_session.get(config_url, headers=headers) as response:
                 self.worker_config = await response.json()
         except aiohttp.ClientResponseError as e:
             if e.status != 401:
@@ -134,7 +151,7 @@ class Endpoint(_WorkerClientSession):
                 self.token = None
                 self.expire_token_time = None
                 headers = {'Authorization': await self.__authorization_header()}
-                async with self.session.get(config_url, headers=headers) as retried_response:
+                async with self.client_session.get(config_url, headers=headers) as retried_response:
                     self.worker_config = await retried_response.json()
 
         log_requests.debug(f'after GET {config_url}: {self.worker_config}')
@@ -145,7 +162,7 @@ class Endpoint(_WorkerClientSession):
             create_sandbox_url = f'{base_url}/sandboxes'
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before POST %s', create_sandbox_url)
-            async with self.session.post(create_sandbox_url, headers=headers) as response:
+            async with self.client_session.post(create_sandbox_url, headers=headers) as response:
                 response_json = await response.json()
             log_requests.debug('after POST %s', create_sandbox_url)
             self.sandbox_id = response_json
@@ -162,7 +179,7 @@ class Endpoint(_WorkerClientSession):
                 "idleTimeoutSeconds": 60, "logging": ["out_meta"], "videoOutput": "no_output"}
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before POST %s', start_pipeline_url)
-            async with self.session.post(start_pipeline_url, headers=headers, json=body) as response:
+            async with self.client_session.post(start_pipeline_url, headers=headers, json=body) as response:
                 response_json = await response.json()
             log_requests.debug('after POST %s', start_pipeline_url)
             self.worker_config['pipeline_id'] = response_json['id']
@@ -175,7 +192,7 @@ class Endpoint(_WorkerClientSession):
             body = {'sourceType': 'NONE'}
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before PATCH %s', stop_jobs_url)
-            async with self.session.patch(stop_jobs_url, headers=headers, json=body) as response:
+            async with self.client_session.patch(stop_jobs_url, headers=headers, json=body) as response:
                 pass
             log_requests.debug('after PATCH %s', stop_jobs_url)
 
@@ -184,7 +201,7 @@ class Endpoint(_WorkerClientSession):
             get_url = await self.__pipeline_base_url()
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before GET %s', get_url)
-            async with self.session.get(get_url, headers=headers) as response:
+            async with self.client_session.get(get_url, headers=headers) as response:
                 response_json = await response.json()
                 self.pop_comp = response_json['inferPipeline']
             log_requests.debug('after GET %s', get_url)
@@ -228,26 +245,29 @@ class Endpoint(_WorkerClientSession):
             put_path = 'models/sources'
         else:
             put_path = f'models/sources?sandboxId={self.sandbox_id}'
-        await self._worker_request_with_retry('PUT', url_path_and_query=put_path, content_type='application/json',
+        await self._worker_request_with_retry('PUT',
+                                              url_path_and_query=put_path, content_type='application/json',
                                               data=json.dumps(manifests))
 
-    async def load_model(self, model: dict, override: bool = False):
+    async def load_model(self, model: dict, override: bool = False) -> dict:
         warnings.warn("load_model for development use only", DeprecationWarning)
         if override:
-            await self.purge_model(model)
+            await self.unload_model(model)
         if self.sandbox_id is None:
             post_path = f'models/instances'
         else:
             post_path = f'models/instances?sandboxId={self.sandbox_id}'
-        await self._worker_request_with_retry('POST', url_path_and_query=post_path, content_type='application/json',
-                                              data=json.dumps(model))
+        response = await self._worker_request_with_retry('POST',
+                                                         url_path_and_query=post_path, content_type='application/json',
+                                                         data=json.dumps(model))
+        return await response.json()
 
-    async def purge_model(self, model: dict):
+    async def unload_model(self, model_id: str):
         warnings.warn("purge_model for development use only", DeprecationWarning)
         if self.sandbox_id is None:
             delete_path = 'models/instances/{model["id"]}'
         else:
-            delete_path = f'models/instances/{model["id"]}?sandboxId={self.sandbox_id}'
+            delete_path = f'models/instances/{model_id}?sandboxId={self.sandbox_id}'
 
         await self._worker_request_with_retry('DELETE', url_path_and_query=delete_path)
 
@@ -263,7 +283,7 @@ class Endpoint(_WorkerClientSession):
             body = {'secret_key': self.secret_key}
             post_url = f'{self.eyepop_url}/authentication/token'
             log_requests.debug('before POST %s', post_url)
-            async with self.session.post(post_url, json=body) as response:
+            async with self.client_session.post(post_url, json=body) as response:
                 self.token = await response.json()
                 self.expire_token_time = time.time() + self.token['expires_in'] - 60
             log_requests.debug('after POST %s expires_in=%d token_type=%s', post_url, self.token['expires_in'],
@@ -346,7 +366,7 @@ class Endpoint(_WorkerClientSession):
                 headers['Content-Type'] = content_type
             try:
                 log_requests.debug('before %s %s', method, url)
-                response = await self.session.request(method, url, headers=headers, data=data, timeout=timeout)
+                response = await self.client_session.request(method, url, headers=headers, data=data, timeout=timeout)
                 log_requests.debug('after %s %s', method, url)
                 return response
             except aiohttp.ClientResponseError as e:
@@ -386,7 +406,7 @@ class Endpoint(_WorkerClientSession):
                 headers['Content-Type'] = content_type
             try:
                 log_requests.debug('before %s %s', method, url)
-                response = await self.session.request(method, url, headers=headers, data=data, timeout=timeout)
+                response = await self.client_session.request(method, url, headers=headers, data=data, timeout=timeout)
                 log_requests.debug('after %s %s', method, url)
                 return response
             except aiohttp.ClientResponseError as e:
