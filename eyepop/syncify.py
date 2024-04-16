@@ -69,6 +69,9 @@ class SyncEndpoint:
     def disconnect(self):
         self.event_loop.run_until_complete(self.endpoint.disconnect())
 
+    def session(self) -> dict:
+        return self.event_loop.run_until_complete(self.endpoint.session())
+
     def get_pop_comp(self) -> dict:
         return self.event_loop.run_until_complete(self.endpoint.get_pop_comp())
     
@@ -88,8 +91,12 @@ class SyncEndpoint:
     def set_manifest(self, manifest:dict) -> None:
         return self.event_loop.run_until_complete(self.endpoint.set_manifest(manifest))
     
-    def load_model(self, model:dict, override:bool = False) -> None:
+    def load_model(self, model:dict, override:bool = False) -> dict:
         return self.event_loop.run_until_complete(self.endpoint.load_model(model, override))
+
+    def unload_model(self, model_id: str) -> None:
+        return self.event_loop.run_until_complete(self.endpoint.unload_model(model_id))
+
     '''
     End Block
     '''
