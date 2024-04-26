@@ -78,6 +78,12 @@ class SyncEndpoint:
     def set_pop_comp(self, popComp: str) -> dict:
         return self.event_loop.run_until_complete(self.endpoint.set_pop_comp(popComp))
 
+    def get_post_transform(self) -> dict:
+        return self.event_loop.run_until_complete(self.endpoint.get_post_transform())
+
+    def set_post_transform(self, transform: str) -> dict:
+        return self.event_loop.run_until_complete(self.endpoint.set_post_transform(transform))
+
     '''
     Start Block
     Below methods are not meant for the end user to use directly. They are used by the SDK internally.

@@ -81,6 +81,9 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
                 'inferPipelineDef': {
                     'pipeline': 'identity'
                 },
+                'postTransformDef': {
+                  'transform': None,
+                },
                 "source": {
                     "sourceType": "NONE",
                 },
