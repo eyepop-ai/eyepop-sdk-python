@@ -62,6 +62,7 @@ class Endpoint(_WorkerClientSession):
             self.metrics_collector = None
 
         self.pop_comp = None
+        self.post_transform = None
 
     def __enter__(self) -> None:
         raise TypeError("Use async with instead")
@@ -175,8 +176,13 @@ class Endpoint(_WorkerClientSession):
             else:
                 start_pipeline_url = f'{base_url}/pipelines?sandboxId={self.sandbox_id}'
 
-            body = {'inferPipelineDef': {'pipeline': self.pop_comp}, "source": {"sourceType": "NONE", },
-                "idleTimeoutSeconds": 60, "logging": ["out_meta"], "videoOutput": "no_output"}
+            body = {'inferPipelineDef': {'pipeline': self.pop_comp},
+                    'postTransformDef': {'transform': self.post_transform},
+                    "source": {"sourceType": "NONE", },
+                    "idleTimeoutSeconds": 60,
+                    "logging": ["out_meta"],
+                    "videoOutput": "no_output"}
+
             headers = {'Authorization': await self.__authorization_header()}
             log_requests.debug('before POST %s', start_pipeline_url)
             async with self.client_session.post(start_pipeline_url, headers=headers, json=body) as response:
@@ -203,7 +209,8 @@ class Endpoint(_WorkerClientSession):
             log_requests.debug('before GET %s', get_url)
             async with self.client_session.get(get_url, headers=headers) as response:
                 response_json = await response.json()
-                self.pop_comp = response_json['inferPipeline']
+                self.pop_comp = response_json.get('inferPipeline')
+                self.post_transform = response_json.get('postTransform')
             log_requests.debug('after GET %s', get_url)
             log_requests.debug('current popComp is %s', self.pop_comp)
 
@@ -214,6 +221,15 @@ class Endpoint(_WorkerClientSession):
         response = await self.pipeline_patch('inferencePipeline', content_type='application/json',
                                              data=json.dumps({'pipeline': pop_comp}))
         self.pop_comp = pop_comp
+        return response
+
+    async def get_post_transform(self) -> str:
+        return self.post_transform
+
+    async def set_post_transform(self, transform: str = None):
+        response = await self.pipeline_patch('postTransform', content_type='application/json',
+                                             data=json.dumps({'transform': transform}))
+        self.post_transform = transform
         return response
 
     '''
