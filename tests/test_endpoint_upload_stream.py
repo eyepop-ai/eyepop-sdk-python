@@ -104,8 +104,10 @@ class TestEndpointUploadStream(BaseEndpointTest):
             mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
                        callback=upload)
 
-            job = await endpoint.upload(self.test_file)
-            result = await job.predict()
+            with open(self.test_file, 'rb') as file:
+                job = await endpoint.upload_stream(file, 'image/jpeg')
+                result = await job.predict()
+
             self.assertIsNotNone(result)
             self.assertEqual(result['source_id'], self.test_source_id)
             self.assertEqual(result['seconds'], 0)

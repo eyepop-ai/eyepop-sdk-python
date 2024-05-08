@@ -21,7 +21,7 @@ class _WorkerClientSession:
     async def pipeline_post(
             self, url_path_and_query: str,
             accept: str | None = None,
-            data: Any = None,
+            open_data: Callable = None,
             content_type: str | None = None,
             timeout: aiohttp.ClientTimeout | None = None
     ) -> "_RequestContextManager":
@@ -136,21 +136,23 @@ class Job:
                 if response is not None:
                     response.release()
             self._callback.finished(self)
-            if self.on_ready:
+            if self.on_ready is not None:
                 await self.on_ready(self)
 
     async def _do_execute_job(self, queue: Queue, session: _WorkerClientSession):
         raise NotImplementedError("can't execute abstract jobs")
 
-    async def _do_read_response(self, queue: Queue):
+    async def _do_read_response(self, queue: Queue) -> bool:
         got_results = False
-        async with self._response as response:
-            self._callback.first_result(self)
-            while line := await response.content.readline():
-                if not got_results:
-                    got_results = True
-                prediction = json.loads(line)
-                await queue.put(prediction)
+        if self._response is not None:
+            async with self._response as response:
+                self._callback.first_result(self)
+                while line := await response.content.readline():
+                    if not got_results:
+                        got_results = True
+                    prediction = json.loads(line)
+                    await queue.put(prediction)
+        return got_results
 
 
 class _UploadJob(Job):
@@ -168,25 +170,35 @@ class _UploadJob(Job):
             self.mime_type = 'application/octet-stream'
 
     async def _do_execute_job(self, queue: Queue, session: _WorkerClientSession):
-        with open(self.location, 'rb') as file:
+        def open_file():
+            return open(self.location, 'rb')
+
+        def open_mp_writer():
+            mp_writer = aiohttp.MultipartWriter('form-data')
+            params_part = mp_writer.append_json(self._params)
+            params_part.set_content_disposition('form-data', name='params', filename='blob')
+            file_part = mp_writer.append(open_file(), {'Content-Type': self.mime_type})
+            file_part.set_content_disposition('form-data', name='file', filename='blob')
+
+        try:
+            got_result = False
             if self._params is None:
                 self._response = await session.pipeline_post(self.target_url,
                                                              accept='application/jsonl',
-                                                             data=file,
+                                                             open_data=open_file,
                                                              content_type=self.mime_type,
                                                              timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
             else:
-                with aiohttp.MultipartWriter('form-data') as mp_writer:
-                    params_part = mp_writer.append_json(self._params)
-                    params_part.set_content_disposition('form-data', name='params', filename='blob')
-                    file_part = mp_writer.append(file, {'Content-Type': self.mime_type})
-                    file_part.set_content_disposition('form-data', name='file', filename='blob')
-                    self._response = await session.pipeline_post(self.target_url,
-                                                                 accept='application/jsonl',
-                                                                 data=file,
-                                                                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
+                self._response = await session.pipeline_post(self.target_url,
+                                                             accept='application/jsonl',
+                                                             open_data=open_mp_writer,
+                                                             timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
 
-            await self._do_read_response(queue)
+            got_result = await self._do_read_response(queue)
+        finally:
+            if not got_result:
+                pass
+                # await queue.put(None)
 
 
 class _UploadStreamJob(Job):
@@ -200,24 +212,29 @@ class _UploadStreamJob(Job):
         self.target_url = 'source?mode=queue&processing=sync'
 
     async def _do_execute_job(self, queue: Queue, session: _WorkerClientSession):
-        if self._params is None:
-            self._response = await session.pipeline_post(self.target_url,
-                                                         accept='application/jsonl',
-                                                         content_type=self.mime_type,
-                                                         data=self.stream,
-                                                         timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
-        else:
-            with aiohttp.MultipartWriter('form-data') as mp_writer:
-                params_part = mp_writer.append_json(self._params)
-                params_part.set_content_disposition('form-data', name='params')
-                file_part = mp_writer.append(self.stream, {'Content-Type': self.mime_type})
-                file_part.set_content_disposition('form-data', name='file')
+        try:
+            got_result = False
+            if self._params is None:
                 self._response = await session.pipeline_post(self.target_url,
                                                              accept='application/jsonl',
-                                                             data=mp_writer,
+                                                             content_type=self.mime_type,
+                                                             open_data=lambda: self.stream,
                                                              timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
+            else:
+                with aiohttp.MultipartWriter('form-data') as mp_writer:
+                    params_part = mp_writer.append_json(self._params)
+                    params_part.set_content_disposition('form-data', name='params')
+                    file_part = mp_writer.append(self.stream, {'Content-Type': self.mime_type})
+                    file_part.set_content_disposition('form-data', name='file')
+                    self._response = await session.pipeline_post(self.target_url,
+                                                                 accept='application/jsonl',
+                                                                 open_data=lambda: mp_writer,
+                                                                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
 
-        await self._do_read_response(queue)
+            got_result = await self._do_read_response(queue)
+        finally:
+            if not got_result:
+                await queue.put(None)
 
 
 class _LoadFromJob(Job):
@@ -238,9 +255,15 @@ class _LoadFromJob(Job):
         self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
 
     async def _do_execute_job(self, queue: Queue, session: _WorkerClientSession):
-        self._response = await session.pipeline_patch(self.target_url,
-                                                      accept='application/jsonl',
-                                                      data=json.dumps(self.body),
-                                                      content_type='application/json',
-                                                      timeout=self.timeouts)
-        await self._do_read_response(queue)
+        try:
+            got_result = False
+            self._response = await session.pipeline_patch(self.target_url,
+                                                          accept='application/jsonl',
+                                                          data=json.dumps(self.body),
+                                                          content_type='application/json',
+                                                          timeout=self.timeouts)
+            got_result = await self._do_read_response(queue)
+        finally:
+            if not got_result:
+                await queue.put(None)
+

@@ -8,7 +8,7 @@ from eyepop import Job
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
+# logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
 logging.getLogger('eyepop.metrics').setLevel(level=logging.DEBUG)
 
 
@@ -40,13 +40,25 @@ async def async_upload_photos(file_paths: list[str]):
     '''
     Async processing of batch uploads - fast and memory efficient
     '''
-    async def on_ready(job: Job):
-        while await job.predict() is not None:
-            pass
+    sem = asyncio.Semaphore(0)
 
-    async with EyePopSdk.endpoint(is_async=True) as endpoint:
+    async def on_ready(job: Job):
+        nonlocal sem
+        try:
+            while await job.predict() is not None:
+                pass
+        except Exception as e:
+            logging.exception(e)
+        finally:
+            sem.release()
+
+    async with EyePopSdk.endpoint(is_async=True, job_queue_length=512) as endpoint:
+        n = 0
         for file_path in file_paths:
-            await endpoint.upload(file_path, on_ready)
+            await endpoint.upload(file_path, on_ready=on_ready)
+            n += 1
+        for i in range(n):
+            await sem.acquire()
 
 
 example_image_path = sys.argv[1]

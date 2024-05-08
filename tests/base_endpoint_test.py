@@ -34,7 +34,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
             if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
                 return CallbackResult(status=200,
                                       body=json.dumps(
-                                          {'base_url': self.test_worker_url, 'pipeline_id': self.test_pipeline_id}))
+                                          {'base_url': self.test_worker_url, 'status': 'active_dev', 'pipeline_id': self.test_pipeline_id}))
             else:
                 return CallbackResult(status=401, reason='test auth token expired')
 
