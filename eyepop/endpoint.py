@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import time
-from enum import Enum
 from io import StringIO
 from types import TracebackType
 from typing import Optional, Type, Callable, BinaryIO, Any
@@ -13,8 +12,11 @@ import aiohttp
 from aiohttp import ClientError, ClientResponseError, ClientResponse, ClientConnectionError
 
 from eyepop.exceptions import PopNotStartedException, PopConfigurationException, PopNotReachableException
-from eyepop.jobs import Job, _UploadJob, _LoadFromJob, _JobStateCallback, _UploadStreamJob, _WorkerClientSession
+from eyepop.jobs import Job, _UploadJob, _LoadFromJob, _UploadStreamJob, _WorkerClientSession
 from eyepop.load_balancer import EndpointLoadBalancer
+from eyepop.metrics import MetricCollector
+from eyepop.periodic import Periodic
+from eyepop.request_tracer import RequestTracer
 from eyepop.syncify import SyncJob
 
 log = logging.getLogger('eyepop')
@@ -25,6 +27,7 @@ MIN_CONFIG_RECONNECT_SECS = 10.0
 MAX_RETRY_TIME_SECS = 30.0
 FORCE_REFRESH_CONFIG_SECS = (61.0 * 61.0)
 
+SEND_TRACE_THRESHOLD_SECS = 10.0
 
 async def response_check_with_error_body(response: ClientResponse):
     if not response.ok:
@@ -61,6 +64,9 @@ class Endpoint(_WorkerClientSession):
         self.last_fetch_config_error = None
         self.last_fetch_config_error_time = None
 
+        self.request_tracer = RequestTracer(max_events=1024)
+        self.event_sender = Periodic(self.send_trace_recordings, SEND_TRACE_THRESHOLD_SECS / 2)
+
         self.client_session = None
         self.task_group = None
 
@@ -68,7 +74,7 @@ class Endpoint(_WorkerClientSession):
         self.sem = asyncio.Semaphore(job_queue_length)
 
         if log_metrics.getEffectiveLevel() == logging.DEBUG:
-            self.metrics_collector = _MetricCollector()
+            self.metrics_collector = MetricCollector()
         else:
             self.metrics_collector = None
 
@@ -125,6 +131,10 @@ class Endpoint(_WorkerClientSession):
             finally:
                 self.client_session = None
 
+        if self.request_tracer is not None:
+            await self.event_sender.stop()
+            await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events', await self.__authorization_header(), None)
+
         if self.metrics_collector is not None:
             log_metrics.debug('endpoint disconnected, collected session metrics:')
             log_metrics.debug('total number of jobs: %d', self.metrics_collector.total_number_of_jobs)
@@ -132,7 +142,9 @@ class Endpoint(_WorkerClientSession):
             log_metrics.debug(f'average wait time until state: {self.metrics_collector.get_average_times()}')
 
     async def connect(self):
+
         self.client_session = aiohttp.ClientSession(raise_for_status=response_check_with_error_body,
+                                                    trace_configs=[self.request_tracer.get_trace_config()],
                                                     connector=aiohttp.TCPConnector(limit_per_host=5))
         try:
             await self._reconnect()
@@ -140,6 +152,8 @@ class Endpoint(_WorkerClientSession):
             await self.client_session.close()
             self.client_session = None
             raise e
+
+        await self.event_sender.start()
 
     async def session(self) -> dict:
         token = await self.__get_access_token()
@@ -538,99 +552,7 @@ class Endpoint(_WorkerClientSession):
                 else:
                     raise e
 
+    async def send_trace_recordings(self):
+        if self.request_tracer is not None:
+            await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events', await self.__authorization_header(), SEND_TRACE_THRESHOLD_SECS)
 
-class JobState(Enum):
-    CREATED = 1
-    STARTED = 2
-    IN_PROGRESS = 3
-    FINISHED = 4
-    FAILED = 5
-    DRAINED = 6
-
-    def __repr__(self):
-        return self._name_
-
-
-class _MetricCollector(_JobStateCallback):
-    def __init__(self):
-        self.jobs_to_state = {}
-        self.jobs_to_last_updated = {}
-        self.total_number_of_jobs = 0
-        self.max_number_of_jobs_by_state = {JobState.STARTED: 0, JobState.IN_PROGRESS: 0, JobState.FINISHED: 0,
-                                            JobState.DRAINED: 0, JobState.FAILED: 0, }
-        self.number_of_jobs_reached_state = {JobState.IN_PROGRESS: 0, JobState.FINISHED: 0, JobState.DRAINED: 0,
-                                             JobState.FAILED: 0, }
-        self.total_time_to_reached_state = {JobState.IN_PROGRESS: 0.0, JobState.FINISHED: 0.0, JobState.DRAINED: 0.0,
-                                            JobState.FAILED: 0.0, }
-
-    def get_average_time(self, state: JobState) -> float:
-        if self.number_of_jobs_reached_state[state] == 0:
-            return 0.0
-        else:
-            return self.total_time_to_reached_state[state] / self.number_of_jobs_reached_state[state]
-
-    def get_average_times(self) -> dict:
-        times = {JobState.IN_PROGRESS: self.get_average_time(JobState.IN_PROGRESS),
-                 JobState.FINISHED: self.get_average_time(JobState.FINISHED),
-                 JobState.DRAINED: self.get_average_time(JobState.DRAINED),
-                 JobState.FAILED: self.get_average_time(JobState.FAILED), }
-        return times
-
-    def update_count_by_state(self, state: JobState):
-        count = 0
-        for job, job_state in self.jobs_to_state.items():
-            if state == job_state:
-                count += 1
-        if count > self.max_number_of_jobs_by_state[state]:
-            self.max_number_of_jobs_by_state[state] = count
-
-    def collect_execution_time(self, job: Job, new_state: JobState):
-        now = time.time()
-        duration = now - self.jobs_to_last_updated[job]
-        self.jobs_to_last_updated[job] = now
-        self.number_of_jobs_reached_state[new_state] += 1
-        self.total_time_to_reached_state[new_state] += duration
-
-    def created(self, job):
-        self.total_number_of_jobs += 1
-        self.jobs_to_state[job] = JobState.CREATED
-        self.jobs_to_last_updated[job] = time.time()
-
-    def started(self, job):
-        current_state = self.jobs_to_state[job]
-        if current_state != JobState.CREATED:
-            log.debug("invalid job state %v in metrics collector for started(%v)", current_state, job)
-        else:
-            self.jobs_to_state[job] = JobState.STARTED
-        self.jobs_to_last_updated[job] = time.time()
-        self.update_count_by_state(JobState.STARTED)
-
-    def first_result(self, job):
-        current_state = self.jobs_to_state[job]
-        if current_state != JobState.STARTED:
-            log.debug("invalid job state %v in metrics collector for first_result(%v)", current_state, job)
-        else:
-            self.jobs_to_state[job] = JobState.IN_PROGRESS
-        self.collect_execution_time(job, JobState.IN_PROGRESS)
-        self.update_count_by_state(JobState.IN_PROGRESS)
-
-    def failed(self, job):
-        self.jobs_to_state[job] = JobState.FAILED
-        self.collect_execution_time(job, JobState.FAILED)
-        self.update_count_by_state(JobState.FAILED)
-        self.jobs_to_last_updated[job] = time.time()
-
-    def finished(self, job):
-        self.jobs_to_state[job] = JobState.FINISHED
-        self.collect_execution_time(job, JobState.FINISHED)
-        self.update_count_by_state(JobState.FINISHED)
-        self.jobs_to_last_updated[job] = time.time()
-
-    def drained(self, job):
-        self.jobs_to_state[job] = JobState.DRAINED
-        self.collect_execution_time(job, JobState.DRAINED)
-        self.update_count_by_state(JobState.DRAINED)
-        self.jobs_to_last_updated[job] = time.time()
-
-    def finalized(self, job):
-        del self.jobs_to_state[job]

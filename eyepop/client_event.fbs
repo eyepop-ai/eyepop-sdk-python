@@ -1,0 +1,30 @@
+namespace eyepop.events;
+
+enum Method:byte { other = 0, get = 1, head = 2, options = 3, post = 4, put = 5, patch = 6, delete = 7 }
+
+enum Result:byte { other = 0, success = 1, connection = 2, timeout = 3, status = 4 }
+
+enum ClientType:byte { other = 0, python = 1, node = 2, web = 3 }
+
+table Event {
+    method: Method;
+    event_time_epoch_ms: uint64;
+    x_request_id: string;
+    result: Result;
+    status: int16;
+    host_index: int16;
+    path_index: int16;
+    wait_ms: uint32;
+    process_ms: uint32;
+    body_bytes_sent: uint32;
+    body_bytes_received: uint32;
+}
+
+table Record {
+    client_type: ClientType;
+    client_version: string;
+    hosts: [string];
+    paths: [string];
+    events: [Event];
+}
+
