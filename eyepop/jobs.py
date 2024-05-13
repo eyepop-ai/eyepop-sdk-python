@@ -3,6 +3,7 @@ import json
 import logging
 import mimetypes
 from asyncio import Queue
+from enum import Enum
 from typing import Callable, BinaryIO, Any
 
 import aiohttp
@@ -43,7 +44,19 @@ class _WorkerClientSession:
         pass
 
 
-class _JobStateCallback:
+class JobState(Enum):
+    CREATED = 1
+    STARTED = 2
+    IN_PROGRESS = 3
+    FINISHED = 4
+    FAILED = 5
+    DRAINED = 6
+
+    def __repr__(self):
+        return self._name_
+
+
+class JobStateCallback:
     def created(self, job):
         pass
 
@@ -75,7 +88,7 @@ class Job:
                  session: _WorkerClientSession,
                  params: dict | None,
                  on_ready: Callable[["Job"], None] | None,
-                 callback: _JobStateCallback | None = None):
+                 callback: JobStateCallback | None = None):
         self.on_ready = on_ready
         self._session = session
         self._params = params
@@ -84,7 +97,7 @@ class Job:
         if callback is not None:
             self._callback = callback
         else:
-            self._callback = _JobStateCallback()
+            self._callback = JobStateCallback()
         self._callback.created(self)
 
     def __del__(self):
@@ -148,6 +161,13 @@ class Job:
             async with self._response as response:
                 self._callback.first_result(self)
                 while line := await response.content.readline():
+
+                    # TODO aiohttp should do do this internally
+                    for trace in response._traces:
+                        await trace.send_response_chunk_received(
+                            response.method, response.url, line
+                        )
+
                     if not got_results:
                         got_results = True
                     prediction = json.loads(line)
@@ -159,7 +179,7 @@ class _UploadJob(Job):
     def __init__(self, location: str, params: dict | None,
                  session: _WorkerClientSession,
                  on_ready: Callable[[Job], None] | None = None,
-                 callback: _JobStateCallback | None = None):
+                 callback: JobStateCallback | None = None):
         super().__init__(session, params, on_ready, callback)
         self.location = location
         self.target_url = 'source?mode=queue&processing=sync'
@@ -205,7 +225,7 @@ class _UploadStreamJob(Job):
     def __init__(self, stream: BinaryIO, mime_type: str, params: dict | None,
                  session: _WorkerClientSession,
                  on_ready: Callable[[Job], None] | None = None,
-                 callback: _JobStateCallback | None = None):
+                 callback: JobStateCallback | None = None):
         super().__init__(session, params, on_ready, callback)
         self.stream = stream
         self.mime_type = mime_type
@@ -241,7 +261,7 @@ class _LoadFromJob(Job):
     def __init__(self, location: str, params: dict | None,
                  session: _WorkerClientSession,
                  on_ready: Callable[[Job], None] | None = None,
-                 callback: _JobStateCallback | None = None):
+                 callback: JobStateCallback | None = None):
         super().__init__(session, params, on_ready, callback)
         self.location = location
         self.target_url = 'source?mode=queue&processing=sync'
