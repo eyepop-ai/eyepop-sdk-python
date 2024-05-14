@@ -44,7 +44,7 @@ class Endpoint(_WorkerClientSession):
     """
 
     def __init__(self, secret_key: str, eyepop_url: str, pop_id: str, auto_start: bool, stop_jobs: bool,
-                 job_queue_length: int, is_sandbox: bool):
+                 job_queue_length: int, is_sandbox: bool, request_tracer_max_buffer: int):
         self.secret_key = secret_key
         self.eyepop_url = eyepop_url
         self.pop_id = pop_id
@@ -64,8 +64,12 @@ class Endpoint(_WorkerClientSession):
         self.last_fetch_config_error = None
         self.last_fetch_config_error_time = None
 
-        self.request_tracer = RequestTracer(max_events=1024)
-        self.event_sender = Periodic(self.send_trace_recordings, SEND_TRACE_THRESHOLD_SECS / 2)
+        if request_tracer_max_buffer > 0:
+            self.request_tracer = RequestTracer(max_events=request_tracer_max_buffer)
+            self.event_sender = Periodic(self.send_trace_recordings, SEND_TRACE_THRESHOLD_SECS / 2)
+        else:
+            self.request_tracer = None
+            self.event_sender = None
 
         self.client_session = None
         self.task_group = None
