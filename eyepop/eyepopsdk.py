@@ -14,7 +14,8 @@ class EyePopSdk:
     @staticmethod
     def endpoint(pop_id: str | None = None, secret_key: str | None = None, auto_start: bool = True,
                  stop_jobs: bool = True, eyepop_url: str | None = None, job_queue_length: int = 1024,
-                 is_async: bool = False, is_sandbox: bool = False) -> Endpoint | SyncEndpoint:
+                 is_async: bool = False, is_sandbox: bool = False, request_tracer_max_buffer: int = 1204) \
+            -> Endpoint | SyncEndpoint:
         if secret_key is None:
             secret_key = os.getenv('EYEPOP_SECRET_KEY')
             if secret_key is None:
@@ -31,7 +32,8 @@ class EyePopSdk:
                 raise Exception('parameter \'pop_id\' is required')
 
         endpoint = Endpoint(secret_key=secret_key, pop_id=pop_id, auto_start=auto_start, stop_jobs=stop_jobs,
-                            eyepop_url=eyepop_url, job_queue_length=job_queue_length, is_sandbox=is_sandbox)
+                            eyepop_url=eyepop_url, job_queue_length=job_queue_length, is_sandbox=is_sandbox,
+                            request_tracer_max_buffer=request_tracer_max_buffer)
 
         if not is_async:
             endpoint = SyncEndpoint(endpoint)
