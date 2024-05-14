@@ -20,7 +20,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         if var in os.environ:
             del os.environ[var]
 
-    def setup_base_mock(self, mock: aioresponses, sandbox_id: str | None = None):
+    def setup_base_mock(self, mock: aioresponses, sandbox_id: str | None = None, status: str = 'active_dev', num_endpoints: int = 1):
         mock.clear()
         def transient_config(url, **kwargs) -> CallbackResult:
             if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
@@ -32,9 +32,30 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
 
         def config(url, **kwargs) -> CallbackResult:
             if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
-                return CallbackResult(status=200,
-                                      body=json.dumps(
-                                          {'base_url': self.test_worker_url, 'status': 'active_dev', 'pipeline_id': self.test_pipeline_id}))
+                if status == 'active_dev':
+                    return CallbackResult(status=200,
+                                          body=json.dumps({
+                                              'base_url': self.test_worker_url,
+                                              'status': status,
+                                              'pipeline_id': self.test_pipeline_id
+                                          }))
+                elif status == 'active_prod':
+                    endpoints = []
+                    for i in range(num_endpoints):
+                        endpoints.append({
+                            'base_url': self.test_worker_url,
+                            'pipeline_id': f'{self.test_pipeline_id}-{i}'
+                        })
+                    return CallbackResult(status=200,
+                                          body=json.dumps({
+                                              'status': status,
+                                              'base_url': None,
+                                              'pipeline_id': None,
+                                              'endpoints': endpoints
+                                          }))
+
+                else:
+                    raise ValueError(f'unsupported status {status}')
             else:
                 return CallbackResult(status=401, reason='test auth token expired')
 
@@ -63,7 +84,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=preempt&processing=sync',
                    callback=stop, repeat=False)
 
-    def assertBaseMock(self, mock: aioresponses, is_transient: bool = False, sandbox_id: str | None = None):
+    def assertBaseMock(self, mock: aioresponses, is_transient: bool = False, sandbox_id: str | None = None, status: str = 'active_dev', num_endpoints: int = 1):
         mock.assert_called_with(f'{self.test_eyepop_url}/authentication/token', method='POST',
                                 json={'secret_key': self.test_eyepop_secret_key})
         if is_transient:
@@ -95,7 +116,8 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
             mock.assert_called_with(f'{self.test_eyepop_url}/pops/{self.test_eyepop_pop_id}/config?auto_start=True',
                                     method='GET',
                                     headers={'Authorization': f'Bearer {self.test_access_token}'})
-            mock.assert_called_with(
+            if status == 'active_dev':
+                mock.assert_called_with(
                 f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=preempt&processing=sync',
                 method='PATCH', headers={'Authorization': f'Bearer {self.test_access_token}'}, data=None,
                 json={'sourceType': 'NONE'})
