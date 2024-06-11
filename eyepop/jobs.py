@@ -232,29 +232,26 @@ class _UploadStreamJob(Job):
         self.target_url = 'source?mode=queue&processing=sync'
 
     async def _do_execute_job(self, queue: Queue, session: _WorkerClientSession):
-        try:
-            got_result = False
-            if self._params is None:
+        if self._params is None:
+            self._response = await session.pipeline_post(self.target_url,
+                                                         accept='application/jsonl',
+                                                         content_type=self.mime_type,
+                                                         open_data=lambda: self.stream,
+                                                         timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
+        else:
+            with aiohttp.MultipartWriter('form-data') as mp_writer:
+                params_part = mp_writer.append_json(self._params)
+                params_part.set_content_disposition('form-data', name='params')
+                file_part = mp_writer.append(self.stream, {'Content-Type': self.mime_type})
+                file_part.set_content_disposition('form-data', name='file')
                 self._response = await session.pipeline_post(self.target_url,
                                                              accept='application/jsonl',
-                                                             content_type=self.mime_type,
-                                                             open_data=lambda: self.stream,
+                                                             open_data=lambda: mp_writer,
                                                              timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
-            else:
-                with aiohttp.MultipartWriter('form-data') as mp_writer:
-                    params_part = mp_writer.append_json(self._params)
-                    params_part.set_content_disposition('form-data', name='params')
-                    file_part = mp_writer.append(self.stream, {'Content-Type': self.mime_type})
-                    file_part.set_content_disposition('form-data', name='file')
-                    self._response = await session.pipeline_post(self.target_url,
-                                                                 accept='application/jsonl',
-                                                                 open_data=lambda: mp_writer,
-                                                                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
 
-            got_result = await self._do_read_response(queue)
-        finally:
-            if not got_result:
-                await queue.put(None)
+        got_result = await self._do_read_response(queue)
+        if not got_result:
+            await queue.put(None)
 
 
 class _LoadFromJob(Job):
