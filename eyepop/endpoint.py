@@ -514,10 +514,14 @@ class Endpoint(_WorkerClientSession):
                     entry.mark_error()
                     log_requests.debug('after %s %s: 404, about to retry fail-over', method, url)
                 else:
+                    log_requests.exception('unexpected error', e)
                     raise e
             except ClientConnectionError:
                 entry.mark_error()
                 log_requests.debug('after %s %s: 404, about to retry fail-over', method, url)
+            except Exception as e:
+                log_requests.exception('unexpected error', e)
+                raise e
 
         raise PopNotReachableException(self.pop_id, f"no success after {MAX_RETRY_TIME_SECS} secs")
 
