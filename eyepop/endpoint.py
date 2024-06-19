@@ -149,7 +149,7 @@ class Endpoint(_WorkerClientSession):
 
         self.client_session = aiohttp.ClientSession(raise_for_status=response_check_with_error_body,
                                                     trace_configs=[self.request_tracer.get_trace_config()],
-                                                    connector=aiohttp.TCPConnector(limit_per_host=5))
+                                                    connector=aiohttp.TCPConnector(limit_per_host=8))
         try:
             await self._reconnect()
         except Exception as e:
