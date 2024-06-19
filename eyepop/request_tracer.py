@@ -181,8 +181,7 @@ class RequestTracer():
                 }
 
                 async with session.post(url, data=buf, headers=headers) as resp:
-                    print(resp.status)
-                    print(await resp.text())
+                    pass
 
 
     async def on_request_start(self, session, trace_config_ctx: SimpleNamespace, params: TraceRequestStartParams):
