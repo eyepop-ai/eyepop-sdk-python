@@ -5,10 +5,9 @@ import time
 
 from eyepop import EyePopSdk
 from eyepop import Job
-
+from eyepop.endpoint import Endpoint
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
 logging.getLogger('eyepop.metrics').setLevel(level=logging.DEBUG)
 
 
@@ -34,6 +33,28 @@ def upload_photos(file_paths: list[str]):
         for job in jobs:
             while job.predict() is not None:
                 pass
+
+def upload_photos_threaded(file_paths: list[str]):
+    '''
+    Parallel processing in separate threads - fast but limited by parallelism doesn't adjust to network response times
+    '''
+    import concurrent.futures
+
+    def run_upload(e: Endpoint, file_path: str):
+        job = e.upload(file_path)
+        while job.predict() is not None:
+            pass
+
+    with EyePopSdk.endpoint() as endpoint:
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [executor.submit(run_upload, endpoint, file_path) for file_path in file_paths]
+
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except Exception as exc:
+                    print(f"Exception: {exc}")
+                    raise exc
 
 
 async def async_upload_photos(file_paths: list[str]):
@@ -73,6 +94,11 @@ t1 = time.time()
 upload_photos(example_image_paths)
 t2 = time.time()
 print("%d x photo sync took %.3f seconds\n\n" % (len(example_image_paths), (t2 - t1)))
+
+t1 = time.time()
+upload_photos_threaded(example_image_paths)
+t2 = time.time()
+print("%d x photo threaded took %.3f seconds\n\n" % (len(example_image_paths), (t2 - t1)))
 
 t1 = time.time()
 asyncio.run(async_upload_photos(example_image_paths))
