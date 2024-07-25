@@ -99,7 +99,9 @@ class RequestTracer():
             paths = []
             client_events = []
             for event in matured_events:
-                if event.host in host_to_index.keys():
+                if not event.host:
+                    host_index = -1
+                elif event.host in host_to_index.keys():
                     host_index = host_to_index[event.host]
                 else:
                     host = builder.CreateString(event.host)

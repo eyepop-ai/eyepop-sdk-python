@@ -12,7 +12,7 @@ logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
 
 
 def upload_video(location: str):
-    with EyePopSdk.endpoint() as endpoint:
+    with EyePopSdk.workerEndpoint() as endpoint:
         job = endpoint.upload(location)
         while result := job.predict():
             print(result)

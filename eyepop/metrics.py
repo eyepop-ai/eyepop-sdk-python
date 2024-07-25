@@ -2,7 +2,8 @@ import logging
 import time
 from enum import Enum
 
-from eyepop.jobs import JobStateCallback, Job, JobState
+from eyepop.jobs import JobState
+from eyepop.worker.worker_jobs import JobStateCallback, WorkerJob
 
 log = logging.getLogger('eyepop')
 
@@ -39,7 +40,7 @@ class MetricCollector(JobStateCallback):
         if count > self.max_number_of_jobs_by_state[state]:
             self.max_number_of_jobs_by_state[state] = count
 
-    def collect_execution_time(self, job: Job, new_state: JobState):
+    def collect_execution_time(self, job: WorkerJob, new_state: JobState):
         now = time.time()
         duration = now - self.jobs_to_last_updated[job]
         self.jobs_to_last_updated[job] = now

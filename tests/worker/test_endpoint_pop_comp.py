@@ -1,11 +1,9 @@
 import json
-import time
-import aiohttp
 import pytest
 from aioresponses import aioresponses, CallbackResult
 
 from eyepop import EyePopSdk
-from tests.base_endpoint_test import BaseEndpointTest
+from tests.worker.base_endpoint_test import BaseEndpointTest
 
 
 class TestEndpointPopComp(BaseEndpointTest):
@@ -28,8 +26,8 @@ class TestEndpointPopComp(BaseEndpointTest):
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop_comp)
 
-        with EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                pop_id=self.test_eyepop_pop_id) as endpoint:
+        with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                      pop_id=self.test_eyepop_pop_id) as endpoint:
             self.assertBaseMock(mock)
             cur_pop_comp = endpoint.get_pop_comp()
             self.assertEqual(cur_pop_comp, self.test_pop_comp)
@@ -48,8 +46,8 @@ class TestEndpointPopComp(BaseEndpointTest):
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop_comp)
         
-        with EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                pop_id=self.test_eyepop_pop_id) as endpoint:
+        with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                      pop_id=self.test_eyepop_pop_id) as endpoint:
             self.assertBaseMock(mock)
 
             pop_comp = self.test_pop_comp
@@ -85,8 +83,8 @@ class TestEndpointPopComp(BaseEndpointTest):
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop_comp)
         
-        async with EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                pop_id=self.test_eyepop_pop_id, is_async=True) as endpoint:
+        async with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                            pop_id=self.test_eyepop_pop_id, is_async=True) as endpoint:
             self.assertBaseMock(mock)
             cur_pop_comp = await endpoint.get_pop_comp()
             self.assertEqual(cur_pop_comp, self.test_pop_comp)
@@ -108,8 +106,8 @@ class TestEndpointPopComp(BaseEndpointTest):
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop_comp)
         
-        async with EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                pop_id=self.test_eyepop_pop_id, is_async=True) as endpoint:
+        async with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                            pop_id=self.test_eyepop_pop_id, is_async=True) as endpoint:
             self.assertBaseMock(mock)
 
             pop_comp = self.test_pop_comp

@@ -20,7 +20,7 @@ async def async_load_from_rtmp(url: str):
         while result := await job.predict():
             print(result)
 
-    async with EyePopSdk.endpoint(is_async=True) as endpoint:
+    async with EyePopSdk.workerEndpoint(is_async=True) as endpoint:
         await endpoint.load_from(url, on_ready)
 
 
