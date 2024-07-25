@@ -2,15 +2,14 @@ import json
 import time
 from importlib import resources
 
-import aiohttp
 import pytest
 from aioresponses import aioresponses, CallbackResult
 
 from eyepop import EyePopSdk
-from tests.base_endpoint_test import BaseEndpointTest
+from tests.worker.base_endpoint_test import BaseEndpointTest
 import tests
 
-class TestEndpointUploadStream(BaseEndpointTest):
+class TestEndpointUpload(BaseEndpointTest):
     test_source_id = 'test_source_id'
     test_file = resources.files(tests) / 'test.jpg'
     test_content_type = 'image/jpeg'
@@ -29,8 +28,8 @@ class TestEndpointUploadStream(BaseEndpointTest):
                 return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop_comp)
-        with EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                pop_id=self.test_eyepop_pop_id) as endpoint:
+        with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                      pop_id=self.test_eyepop_pop_id) as endpoint:
             self.assertBaseMock(mock)
             test_timestamp = time.time() * 1000 * 1000 * 1000
 
@@ -53,10 +52,8 @@ class TestEndpointUploadStream(BaseEndpointTest):
             mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
                        callback=upload)
 
-            with open(self.test_file, 'rb') as file:
-                job = endpoint.upload_stream(file, 'image/jpeg')
-                result = job.predict()
-
+            job = endpoint.upload(self.test_file)
+            result = job.predict()
             self.assertIsNotNone(result)
             self.assertEqual(result['source_id'], self.test_source_id)
             self.assertEqual(result['seconds'], 0)
@@ -80,8 +77,8 @@ class TestEndpointUploadStream(BaseEndpointTest):
                 return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop_comp)
-        async with EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                pop_id=self.test_eyepop_pop_id, is_async=True) as endpoint:
+        async with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                            pop_id=self.test_eyepop_pop_id, is_async=True) as endpoint:
             self.assertBaseMock(mock)
             test_timestamp = time.time() * 1000 * 1000 * 1000
 
@@ -104,10 +101,8 @@ class TestEndpointUploadStream(BaseEndpointTest):
             mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
                        callback=upload)
 
-            with open(self.test_file, 'rb') as file:
-                job = await endpoint.upload_stream(file, 'image/jpeg')
-                result = await job.predict()
-
+            job = await endpoint.upload(self.test_file)
+            result = await job.predict()
             self.assertIsNotNone(result)
             self.assertEqual(result['source_id'], self.test_source_id)
             self.assertEqual(result['seconds'], 0)
