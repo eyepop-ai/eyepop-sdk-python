@@ -5,14 +5,14 @@ import time
 
 from eyepop import EyePopSdk
 from eyepop import Job
-from eyepop.endpoint import Endpoint
+from eyepop.worker.worker_endpoint import WorkerEndpoint
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 # logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
 logging.getLogger('eyepop.metrics').setLevel(level=logging.DEBUG)
 
 
-async def async_load_from_photos(endpoint: Endpoint, urls: list[str]):
+async def async_load_from_photos(endpoint: WorkerEndpoint, urls: list[str]):
     '''
     Async processing of batch uploads - fast and memory efficient
     '''
@@ -38,7 +38,7 @@ async def async_load_from_photos(endpoint: Endpoint, urls: list[str]):
 
 async def run_test_async(urls: list[str]):
     t0 = time.time()
-    async with EyePopSdk.endpoint(is_async=True, pop_id='transient', job_queue_length=10124) as endpoint:
+    async with EyePopSdk.workerEndpoint(is_async=True, pop_id='transient', job_queue_length=10124) as endpoint:
         await endpoint.set_pop_comp('ep_infer model=eyepop-person:EPPersonB1_Person_TorchScriptCpu_float32')
         t1 = time.time()
         await async_load_from_photos(endpoint, urls)
