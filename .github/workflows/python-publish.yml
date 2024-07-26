@@ -34,7 +34,7 @@ jobs:
       run: python -m build
     - name: Test package
       run: |
-        pip install -e .[test]
+        pip install -e .[test,doc,example]
         python -m pytest
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29

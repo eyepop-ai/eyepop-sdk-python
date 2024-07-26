@@ -1,18 +1,17 @@
-import os
 import json
 import unittest
 from aiohttp import ClientResponseError
 from aioresponses import aioresponses, CallbackResult
 
 from eyepop import EyePopSdk
-from tests.base_endpoint_test import BaseEndpointTest
+from tests.worker.base_endpoint_test import BaseEndpointTest
 
 
 class TestEndpointConnect(BaseEndpointTest):
 
     def test_missing_secret(self):
         with self.assertRaises(Exception):
-            EyePopSdk.endpoint()
+            EyePopSdk.workerEndpoint()
 
     @aioresponses()
     def test_connect_ok(self, mock: aioresponses):
@@ -29,8 +28,8 @@ class TestEndpointConnect(BaseEndpointTest):
                 return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop_comp)
-        endpoint = EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                      pop_id=self.test_eyepop_pop_id)
+        endpoint = EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                            pop_id=self.test_eyepop_pop_id)
         try:
             endpoint.connect()
         finally:
@@ -53,8 +52,8 @@ class TestEndpointConnect(BaseEndpointTest):
                 return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop_comp)
-        endpoint = EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                      pop_id='transient')
+        endpoint = EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                            pop_id='transient')
         try:
             endpoint.connect()
         finally:
@@ -75,8 +74,8 @@ class TestEndpointConnect(BaseEndpointTest):
                 return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop_comp)
-        endpoint = EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                      pop_id=self.test_eyepop_pop_id)
+        endpoint = EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                            pop_id=self.test_eyepop_pop_id)
         with self.assertRaises(ClientResponseError) as context:
             try:
                 endpoint.connect()
@@ -113,8 +112,8 @@ class TestEndpointConnect(BaseEndpointTest):
                 return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop_comp)
-        endpoint = EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                      pop_id=self.test_eyepop_pop_id)
+        endpoint = EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                            pop_id=self.test_eyepop_pop_id)
         try:
             endpoint.connect()
         finally:
@@ -150,8 +149,8 @@ class TestEndpointConnect(BaseEndpointTest):
                 return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop_comp)
-        endpoint = EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                      pop_id=self.test_eyepop_pop_id)
+        endpoint = EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                            pop_id=self.test_eyepop_pop_id)
         try:
             endpoint.connect()
         finally:

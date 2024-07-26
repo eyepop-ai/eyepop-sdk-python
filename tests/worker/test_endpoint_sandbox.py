@@ -1,11 +1,9 @@
-import os
 import json
 import unittest
-from aiohttp import ClientResponseError
 from aioresponses import aioresponses, CallbackResult
 
 from eyepop import EyePopSdk
-from tests.base_endpoint_test import BaseEndpointTest
+from tests.worker.base_endpoint_test import BaseEndpointTest
 
 
 class TestEndpointConnect(BaseEndpointTest):
@@ -56,8 +54,8 @@ class TestEndpointConnect(BaseEndpointTest):
         mock.get(f'{self.test_worker_url}/models/instances?sandboxId={test_sandbox_id}',
                     callback=get_models, repeat=True)
 
-        endpoint = EyePopSdk.endpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                      pop_id='transient', is_sandbox=True)
+        endpoint = EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                            pop_id='transient', is_sandbox=True)
         try:
             endpoint.connect()
             manifesta = endpoint.get_manifest()
