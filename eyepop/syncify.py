@@ -108,19 +108,20 @@ def _async_queue_to_stream(event_loop, queue: asyncio.Queue):
     class GeneratorStream(io.RawIOBase):
         def __init__(self):
             self.leftover = None
+            self.eof = False
 
         def readable(self):
             return True
 
         def readinto(self, b):
-            try:
-                _l = len(b)  # : We're supposed to return at most this much
-                chunk = self.leftover or asyncio.run_coroutine_threadsafe(queue.get(), event_loop).result()
-                if not chunk:
-                    return None
-                output, self.leftover = chunk[:_l], chunk[_l:]
-                b[:len(output)] = output
-                return len(output)
-            except StopIteration:
-                return None  # : Indicate EOF
+            _l = len(b)  # : We're supposed to return at most this much
+            chunk = self.leftover
+            if not chunk and not self.eof:
+                chunk = asyncio.run_coroutine_threadsafe(queue.get(), event_loop).result()
+            if not chunk:
+                self.eof = True
+                return 0
+            output, self.leftover = chunk[:_l], chunk[_l:]
+            b[:len(output)] = output
+            return len(output)
     return io.BufferedReader(GeneratorStream())
