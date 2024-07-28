@@ -1,8 +1,10 @@
 import asyncio
+import io
 import logging
 import threading
 import types
 import typing
+from asyncio import StreamReader
 
 log = logging.getLogger(__name__)
 
@@ -31,13 +33,13 @@ class SyncEndpoint:
         self.disconnect()
 
     def connect(self):
-        _run_coro_thread_save(self.event_loop, self.endpoint.connect())
+        run_coro_thread_save(self.event_loop, self.endpoint.connect())
 
     def disconnect(self):
-        _run_coro_thread_save(self.event_loop, self.endpoint.disconnect())
+        run_coro_thread_save(self.event_loop, self.endpoint.disconnect())
 
     def session(self) -> dict:
-        return _run_coro_thread_save(self.event_loop, self.endpoint.session())
+        return run_coro_thread_save(self.event_loop, self.endpoint.session())
 
     def _run_event_loop(self, event_loop):
         log.debug("_run_event_loop start")
@@ -45,8 +47,18 @@ class SyncEndpoint:
         event_loop.run_forever()
         log.debug("_run_event_loop done")
 
+    def _async_reader_to_sync_binary_io(self, async_stream_reader):
+        queue = run_coro_thread_save(
+            self.event_loop, _create_queue()
+        )
+        submit_coro_thread_save(
+            self.event_loop, _drain_stream_reader_into_queue(async_stream_reader, queue)
+        )
+        sync_io = _async_queue_to_stream(self.event_loop, queue)
+        return sync_io
 
-def _run_coro_thread_save(event_loop, coro):
+
+def run_coro_thread_save(event_loop, coro):
     try:
         result = asyncio.run_coroutine_threadsafe(coro, event_loop).result()
         coro = None
@@ -55,3 +67,61 @@ def _run_coro_thread_save(event_loop, coro):
         if coro is not None:
             coro.close()
 
+
+def submit_coro_thread_save(event_loop, coro):
+    try:
+        future = asyncio.run_coroutine_threadsafe(coro, event_loop)
+        coro = None
+        future.add_done_callback(lambda f: f.result())
+    finally:
+        if coro is not None:
+            coro.close()
+
+
+async def _create_queue() -> asyncio.Queue:
+    return asyncio.Queue(maxsize=128)
+
+
+async def _drain_stream_reader_into_queue(stream_reader: StreamReader, queue: asyncio.Queue):
+    try:
+        n = 0
+        while True:
+            buffer = await stream_reader.read(4096)
+            if not buffer:
+                break
+            n += len(buffer)
+            await queue.put(buffer)
+    except Exception as e:
+        await queue.put(e)
+    finally:
+        await queue.put(None)
+
+
+# https://discuss.python.org/t/asynchronous-generator-to-io-bufferedreader/20503
+# iterate over the request.stream(),
+# putting the blocks into a queue
+# have a separate thread that consumes the queue yielding bytes
+# convert the generator into a buffered reader as per below>
+# pass the buffered reader into tarfile.open(fileobj=...)
+
+def _async_queue_to_stream(event_loop, queue: asyncio.Queue):
+    class GeneratorStream(io.RawIOBase):
+        def __init__(self):
+            self.leftover = None
+
+        def readable(self):
+            return True
+
+        def readinto(self, b):
+            try:
+                _l = len(b)  # : We're supposed to return at most this much
+                if not self.leftover:
+                    chunk = asyncio.run_coroutine_threadsafe(queue.get(), event_loop).result()
+                if not chunk:
+                    return None
+                output, self.leftover = chunk[:_l], chunk[_l:]
+                b[:len(output)] = output
+                return len(output)
+            except StopIteration:
+                return None  # : Indicate EOF
+    return io.BufferedReader(GeneratorStream())

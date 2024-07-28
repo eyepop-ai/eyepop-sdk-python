@@ -1,7 +1,7 @@
 import logging
 import typing
 
-from eyepop.syncify import _run_coro_thread_save, SyncEndpoint
+from eyepop.syncify import run_coro_thread_save, SyncEndpoint
 from eyepop.worker.worker_jobs import WorkerJob
 
 if typing.TYPE_CHECKING:
@@ -16,11 +16,11 @@ class SyncWorkerJob:
         self.event_loop = event_loop
 
     def predict(self) -> dict:
-        prediction = _run_coro_thread_save(self.event_loop, self.job.predict())
+        prediction = run_coro_thread_save(self.event_loop, self.job.predict())
         return prediction
 
     def cancel(self):
-        _run_coro_thread_save(self.event_loop, self.job.cancel())
+        run_coro_thread_save(self.event_loop, self.job.cancel())
 
 
 class SyncWorkerEndpoint(SyncEndpoint):
@@ -33,7 +33,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
                 "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
-        job = _run_coro_thread_save(self.event_loop, self.endpoint.upload(file_path, params, None))
+        job = run_coro_thread_save(self.event_loop, self.endpoint.upload(file_path, params, None))
         return SyncWorkerJob(job, self.event_loop)
 
     def upload_stream(self, stream: typing.BinaryIO, mime_type: str, params: dict | None = None,
@@ -42,7 +42,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
                 "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
-        job = _run_coro_thread_save(self.event_loop, self.endpoint.upload_stream(stream, mime_type, params, None))
+        job = run_coro_thread_save(self.event_loop, self.endpoint.upload_stream(stream, mime_type, params, None))
         return SyncWorkerJob(job, self.event_loop)
 
     def load_from(self, location: str, params: dict | None = None,
@@ -51,20 +51,20 @@ class SyncWorkerEndpoint(SyncEndpoint):
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
                 "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
-        job = _run_coro_thread_save(self.event_loop, self.endpoint.load_from(location, params, None))
+        job = run_coro_thread_save(self.event_loop, self.endpoint.load_from(location, params, None))
         return SyncWorkerJob(job, self.event_loop)
 
     def get_pop_comp(self) -> dict:
-        return _run_coro_thread_save(self.event_loop, self.endpoint.get_pop_comp())
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_pop_comp())
 
     def set_pop_comp(self, popComp: str) -> dict:
-        return _run_coro_thread_save(self.event_loop, self.endpoint.set_pop_comp(popComp))
+        return run_coro_thread_save(self.event_loop, self.endpoint.set_pop_comp(popComp))
 
     def get_post_transform(self) -> dict:
-        return _run_coro_thread_save(self.event_loop, self.endpoint.get_post_transform())
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_post_transform())
 
     def set_post_transform(self, transform: str) -> dict:
-        return _run_coro_thread_save(self.event_loop, self.endpoint.set_post_transform(transform))
+        return run_coro_thread_save(self.event_loop, self.endpoint.set_post_transform(transform))
 
     '''
     Start Block
@@ -72,19 +72,19 @@ class SyncWorkerEndpoint(SyncEndpoint):
     '''
 
     def list_models(self) -> dict:
-        return _run_coro_thread_save(self.event_loop, self.endpoint.list_models())
+        return run_coro_thread_save(self.event_loop, self.endpoint.list_models())
 
     def get_manifest(self) -> dict:
-        return _run_coro_thread_save(self.event_loop, self.endpoint.get_manifest())
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_manifest())
 
     def set_manifest(self, manifest: dict) -> None:
-        return _run_coro_thread_save(self.event_loop, self.endpoint.set_manifest(manifest))
+        return run_coro_thread_save(self.event_loop, self.endpoint.set_manifest(manifest))
 
     def load_model(self, model: dict, override: bool = False) -> dict:
-        return _run_coro_thread_save(self.event_loop, self.endpoint.load_model(model, override))
+        return run_coro_thread_save(self.event_loop, self.endpoint.load_model(model, override))
 
     def unload_model(self, model_id: str) -> None:
-        return _run_coro_thread_save(self.event_loop, self.endpoint.unload_model(model_id))
+        return run_coro_thread_save(self.event_loop, self.endpoint.unload_model(model_id))
 
     '''
     End Block
