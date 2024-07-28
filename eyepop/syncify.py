@@ -115,8 +115,7 @@ def _async_queue_to_stream(event_loop, queue: asyncio.Queue):
         def readinto(self, b):
             try:
                 _l = len(b)  # : We're supposed to return at most this much
-                if not self.leftover:
-                    chunk = asyncio.run_coroutine_threadsafe(queue.get(), event_loop).result()
+                chunk = self.leftover or asyncio.run_coroutine_threadsafe(queue.get(), event_loop).result()
                 if not chunk:
                     return None
                 output, self.leftover = chunk[:_l], chunk[_l:]
