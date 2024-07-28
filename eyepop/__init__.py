@@ -1,4 +1,4 @@
-__version__ = '0.19.2'
+__version__ = '0.19.3'
 
 import eyepop.eyepopsdk
 import eyepop.worker.worker_jobs
