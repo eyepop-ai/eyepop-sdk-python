@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eyepop"
-version = "0.19.0"
+version = "0.19.1"
 description="EyePop.ai Python SDK"
 readme = "README.md"
 license.file = "./LICENSE"
@@ -53,7 +53,7 @@ example = [
     "webui2",
     "pybars3"
 ]
-all = ["eyepop[test,doc]"]
+all = ["eyepop[test,doc,example]"]
 
 [tool.pytest.ini_options]
 addopts = [

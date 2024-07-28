@@ -1,5 +1,7 @@
 import logging
+import os.path
 import sys
+import tempfile
 
 from eyepop import EyePopSdk
 from eyepop.data.data_types import DatasetCreate, Prediction, PredictedObject, AssetImport
@@ -20,12 +22,24 @@ with (EyePopSdk.dataEndpoint(job_queue_length=1000) as endpoint):
             ])
         )
         jobs = []
-        for i in range(1000):
+        for i in range(100):
             jobs.append(endpoint.import_asset_job(asset_import=asset_import, dataset_uuid=dataset.uuid, external_id=f"#{i}"))
         for job in jobs:
             asset = job.result()
             print(asset)
 
+        assets = endpoint.list_assets(dataset_uuid=dataset.uuid)
+        print(f"found {len(assets)} assets")
+
+        asset = endpoint.get_asset(assets[0].uuid)
+        print(asset)
+
+        tmp_dir = tempfile.mkdtemp()
+        tmp_file = os.path.join(tmp_dir, f"asset_{asset.uuid}.jpg")
+        with open(tmp_file, "wb") as f:
+            asset_stream = endpoint.download_asset(asset.uuid)
+            f.write(asset_stream.read())
+        print(f"downloaded asset {asset.uuid} to {tmp_file}")
     finally:
         endpoint.delete_dataset(dataset.uuid)
 
