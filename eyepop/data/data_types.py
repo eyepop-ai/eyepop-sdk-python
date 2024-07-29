@@ -24,7 +24,7 @@ class TranscodeMode(enum.StrEnum):
     image_cover_224 = enum.auto()
 
 
-AutoAnnotate = Type[str]
+AutoAnnotate = str
 
 
 class ModelType(enum.StrEnum):
