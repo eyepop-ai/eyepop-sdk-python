@@ -24,7 +24,7 @@ class EyePopSdk:
         if secret_key is None:
             secret_key = os.getenv('EYEPOP_SECRET_KEY')
             if secret_key is None:
-                raise Exception('parameter \'secret_key\' or environment \'EYEPOP_SECRET_KEY\' is required')
+                raise KeyError('parameter \'secret_key\' or environment \'EYEPOP_SECRET_KEY\' is required')
 
         if eyepop_url is None:
             eyepop_url = os.getenv('EYEPOP_URL')
@@ -34,7 +34,7 @@ class EyePopSdk:
         if pop_id is None:
             pop_id = os.getenv('EYEPOP_POP_ID')
             if pop_id is None:
-                raise Exception('parameter \'pop_id\' is required')
+                raise KeyError('parameter \'pop_id\' is required')
 
         endpoint = WorkerEndpoint(secret_key=secret_key, pop_id=pop_id, auto_start=auto_start, stop_jobs=stop_jobs,
                                   eyepop_url=eyepop_url, job_queue_length=job_queue_length, is_sandbox=is_sandbox,
@@ -56,7 +56,7 @@ class EyePopSdk:
         if secret_key is None:
             secret_key = os.getenv('EYEPOP_SECRET_KEY')
             if secret_key is None:
-                raise Exception('parameter \'secret_key\' or environment \'EYEPOP_SECRET_KEY\' is required')
+                raise KeyError('parameter \'secret_key\' or environment \'EYEPOP_SECRET_KEY\' is required')
 
         if eyepop_url is None:
             eyepop_url = os.getenv('EYEPOP_URL')
@@ -66,7 +66,7 @@ class EyePopSdk:
         if account_id is None:
             account_id = os.getenv('EYEPOP_ACCOUNT_ID')
             if account_id is None:
-                raise Exception('parameter \'account_id\' is required')
+                raise KeyError('parameter \'account_id\' is required')
 
         endpoint = DataEndpoint(secret_key=secret_key, account_id=account_id, eyepop_url=eyepop_url,
                                 job_queue_length=job_queue_length, request_tracer_max_buffer=request_tracer_max_buffer)
