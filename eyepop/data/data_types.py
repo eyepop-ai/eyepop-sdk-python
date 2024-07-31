@@ -41,7 +41,7 @@ class ModelStatus(enum.StrEnum):
 
 
 class AnnotationType(enum.StrEnum):
-    manual = enum.auto()
+    ground_truth = enum.auto()
     prediction = enum.auto()
     auto = enum.auto()
 
@@ -190,7 +190,7 @@ class AssetResponse(BaseModel):
 
 class AssetImport(BaseModel):
     url: str
-    manual_annotation: Optional[Prediction] = None
+    ground_truth: Optional[Prediction] = None
 
 
 class ModelResponse(BaseModel):
