@@ -97,12 +97,12 @@ class SyncDataEndpoint(SyncEndpoint):
                                     self.endpoint.resurrect_asset(asset_uuid, dataset_uuid, from_dataset_version,
                                                                    into_dataset_version))
 
-    def update_asset_manual_annotation(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
-                                       dataset_version: Optional[int] = None,
-                                       manual_annotation: Optional[Prediction] = None) -> None:
+    def update_asset_ground_truth(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
+                                  dataset_version: Optional[int] = None,
+                                  ground_truth: Optional[Prediction] = None) -> None:
         return run_coro_thread_save(self.event_loop,
-                                    self.endpoint.update_asset_manual_annotation(asset_uuid, dataset_uuid,
-                                                                                  dataset_version, manual_annotation))
+                                    self.endpoint.update_asset_ground_truth(asset_uuid, dataset_uuid,
+                                                                            dataset_version, ground_truth))
 
     def update_asset_auto_annotation_status(self, asset_uuid: str, auto_annotate: AutoAnnotate,
                                             user_review: UserReview, dataset_uuid: Optional[str] = None,
