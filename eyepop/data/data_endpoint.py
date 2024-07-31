@@ -156,15 +156,15 @@ class DataEndpoint(Endpoint):
         async with await self.request_with_retry("POST", post_url) as resp:
             return
 
-    async def update_asset_manual_annotation(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
-                                             dataset_version: Optional[int] = None,
-                                             manual_annotation: Optional[Prediction] = None) -> None:
+    async def update_asset_ground_truth(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
+                                        dataset_version: Optional[int] = None,
+                                        ground_truth: Optional[Prediction] = None) -> None:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
-        patch_url = f'{await self.data_base_url()}/assets/{asset_uuid}/manual_annotate?{dataset_query}{version_query}'
+        patch_url = f'{await self.data_base_url()}/assets/{asset_uuid}/ground_truth?{dataset_query}{version_query}'
         async with await self.request_with_retry("PATCH", patch_url,
-                                                 content_type=APPLICATION_JSON if manual_annotation else None,
-                                                 data=manual_annotation.json() if manual_annotation else None) as resp:
+                                                 content_type=APPLICATION_JSON if ground_truth else None,
+                                                 data=ground_truth.json() if ground_truth else None) as resp:
             return
 
     async def update_asset_auto_annotation_status(self, asset_uuid: str, auto_annotate: AutoAnnotate,
