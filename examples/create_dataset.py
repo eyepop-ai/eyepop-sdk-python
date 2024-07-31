@@ -17,7 +17,7 @@ with (EyePopSdk.dataEndpoint(job_queue_length=1000) as endpoint):
         print(dataset)
         asset_import = AssetImport(
             url="https://nmaahc.si.edu/sites/default/files/styles/max_1300x1300/public/images/header/audience-citizen_0.jpg",
-            manual_annotation=Prediction(source_width=1.0, source_height=1.0, objects=[
+            ground_truth=Prediction(source_width=1.0, source_height=1.0, objects=[
                 PredictedObject(classLabel="stuff", confidence=0.99, x=0.4, y=0.4, width=0.2, height=0.2)
             ])
         )
