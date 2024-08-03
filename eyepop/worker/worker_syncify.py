@@ -57,8 +57,8 @@ class SyncWorkerEndpoint(SyncEndpoint):
     def get_pop_comp(self) -> dict:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_pop_comp())
 
-    def set_pop_comp(self, popComp: str) -> dict:
-        return run_coro_thread_save(self.event_loop, self.endpoint.set_pop_comp(popComp))
+    def set_pop_comp(self, popComp: str, model_refs: list[dict] = []) -> dict:
+        return run_coro_thread_save(self.event_loop, self.endpoint.set_pop_comp(popComp, model_refs))
 
     def get_post_transform(self) -> dict:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_post_transform())
