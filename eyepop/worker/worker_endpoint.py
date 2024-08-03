@@ -46,6 +46,7 @@ class WorkerEndpoint(Endpoint):
         self.last_fetch_config_error_time = None
 
         self.pop_comp = None
+        self.model_refs = []
         self.post_transform = None
         self.add_retry_handler(404, self._retry_404)
 
@@ -133,8 +134,8 @@ class WorkerEndpoint(Endpoint):
             else:
                 start_pipeline_url = f'{base_url}/pipelines?sandboxId={self.sandbox_id}'
 
-            body = {'inferPipelineDef': {'pipeline': self.pop_comp},
-                    'postTransformDef': {'transform': self.post_transform}, "source": {"sourceType": "NONE", },
+            body = {'inferPipelineDef': {'pipeline': self.pop_comp, 'modelRefs': self.model_refs},
+                    'postTransformDef': {'transform': self.post_transform}, "source": {"sourceType": "NONE"},
                     "idleTimeoutSeconds": 60, "logging": ["out_meta"], "videoOutput": "no_output"}
 
             headers = {'Authorization': await self._authorization_header()}
@@ -178,12 +179,13 @@ class WorkerEndpoint(Endpoint):
     async def get_pop_comp(self) -> str:
         return self.pop_comp
 
-    async def set_pop_comp(self, pop_comp: str = None):
+    async def set_pop_comp(self, pop_comp: str = None, model_refs: list[dict] = []):
         if not self.is_dev_mode:
             raise PopConfigurationException(self.pop_id, 'set_pop_comp not supported in production mode')
         response = await self.pipeline_patch('inferencePipeline', content_type='application/json',
-                                             data=json.dumps({'pipeline': pop_comp}))
+                                             data=json.dumps({'pipeline': pop_comp, 'modelRefs': model_refs}))
         self.pop_comp = pop_comp
+        self.model_refs = model_refs
         return response
 
     async def get_post_transform(self) -> str:
