@@ -100,7 +100,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
                 method='POST', headers={'Authorization': f'Bearer {self.test_access_token}'}, data=None,
                 json={
                 'inferPipelineDef': {
-                    'pipeline': 'identity'
+                    'pipeline': 'identity', 'modelRefs': []
                 },
                 'postTransformDef': {
                   'transform': None,
