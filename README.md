@@ -218,4 +218,7 @@ It is assumed that the caller _takes full control_ of that worker. To disable th
 To support managing your own datasets and control model optimization v0.19.0 introduces `EyePopSdk.dataEndpoint()`,
 an experimental pre-release which is subject to change. An officially supported version will be released with v1.0.0
 
+## Composable Pops (PREVIEW)
+See [Composable Pops](https://github.com/eyepop-ai/eyepop-sdk-node/blob/main/src/eyepop/composable-pops.md) 
+for a preview of client side composability of pops, introduced in v1.0.0.
 

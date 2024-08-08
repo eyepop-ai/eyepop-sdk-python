@@ -1,3 +1,4 @@
+from deprecated import deprecated
 import json
 import logging
 import time
@@ -13,6 +14,7 @@ from eyepop.exceptions import PopNotStartedException, PopConfigurationException,
 from eyepop.worker.worker_jobs import WorkerJob, _UploadJob, _LoadFromJob, _UploadStreamJob
 from eyepop.worker.load_balancer import EndpointLoadBalancer
 from eyepop.worker.worker_syncify import SyncWorkerJob
+from eyepop.worker.worker_types import Pop
 
 log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
@@ -45,9 +47,14 @@ class WorkerEndpoint(Endpoint):
         self.last_fetch_config_error = None
         self.last_fetch_config_error_time = None
 
+        # old way, TODO remove
         self.pop_comp = None
         self.model_refs = []
         self.post_transform = None
+
+        # new way
+        self.pop = None
+
         self.add_retry_handler(404, self._retry_404)
 
     async def _retry_404(self, status_code: int, failed_attempts: int) -> bool:
@@ -128,15 +135,19 @@ class WorkerEndpoint(Endpoint):
             self.sandbox_id = response_json
 
         if self.pop_id == 'transient':
-            self.pop_comp = 'identity'
             if self.sandbox_id is None:
                 start_pipeline_url = f'{base_url}/pipelines'
             else:
                 start_pipeline_url = f'{base_url}/pipelines?sandboxId={self.sandbox_id}'
-
-            body = {'inferPipelineDef': {'pipeline': self.pop_comp, 'modelRefs': self.model_refs},
-                    'postTransformDef': {'transform': self.post_transform}, "source": {"sourceType": "NONE"},
-                    "idleTimeoutSeconds": 60, "logging": ["out_meta"], "videoOutput": "no_output"}
+            if self.pop is not None:
+                body = {"pop": self.pop, "source": {"sourceType": "NONE"},
+                        "idleTimeoutSeconds": 60, "logging": ["out_meta"], "videoOutput": "no_output"}
+            else:
+                if self.pop_comp is None:
+                    self.pop_comp = 'identity'
+                body = {'inferPipelineDef': {'pipeline': self.pop_comp, 'modelRefs': self.model_refs},
+                        'postTransformDef': {'transform': self.post_transform}, "source": {"sourceType": "NONE"},
+                        "idleTimeoutSeconds": 60, "logging": ["out_meta"], "videoOutput": "no_output"}
 
             headers = {'Authorization': await self._authorization_header()}
             log_requests.debug('before POST %s', start_pipeline_url)
@@ -176,9 +187,26 @@ class WorkerEndpoint(Endpoint):
         else:
             self.load_balancer = EndpointLoadBalancer(self.worker_config['endpoints'])
 
+    async def get_pop(self) -> Pop | None:
+        return self.pop
+
+    async def set_pop(self, pop: Pop):
+        if not self.is_dev_mode:
+            raise PopConfigurationException(self.pop_id, 'set_pop_comp not supported in production mode')
+        response = await self.pipeline_patch('pop', content_type='application/json',
+                                             data=pop.model_dump_json())
+        self.pop = pop
+        self.pop_comp = None
+        self.model_refs = []
+        self.post_transform = None
+
+        return response
+
+    @deprecated(version='1.0.0', reason='Use get_pop() instead')
     async def get_pop_comp(self) -> str:
         return self.pop_comp
 
+    @deprecated(version='1.0.0', reason='Use set_pop() instead')
     async def set_pop_comp(self, pop_comp: str = None, model_refs: list[dict] = []):
         if not self.is_dev_mode:
             raise PopConfigurationException(self.pop_id, 'set_pop_comp not supported in production mode')
@@ -188,9 +216,11 @@ class WorkerEndpoint(Endpoint):
         self.model_refs = model_refs
         return response
 
+    @deprecated(version='1.0.0', reason='Use get_pop() instead')
     async def get_post_transform(self) -> str:
         return self.post_transform
 
+    @deprecated(version='1.0.0', reason='Use set_pop() instead')
     async def set_post_transform(self, transform: str = None):
         if not self.is_dev_mode:
             raise PopConfigurationException(self.pop_id, 'set_post_transform not supported in production mode')
@@ -198,10 +228,6 @@ class WorkerEndpoint(Endpoint):
                                              data=json.dumps({'transform': transform}))
         self.post_transform = transform
         return response
-
-    '''
-    Deprecated
-    '''
 
     async def list_models(self) -> list[dict]:
         warnings.warn("list_models for development use only", DeprecationWarning)
