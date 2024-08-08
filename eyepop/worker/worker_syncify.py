@@ -3,6 +3,7 @@ import typing
 
 from eyepop.syncify import run_coro_thread_save, SyncEndpoint
 from eyepop.worker.worker_jobs import WorkerJob
+from eyepop.worker.worker_types import Pop
 
 if typing.TYPE_CHECKING:
     from eyepop.worker.worker_endpoint import WorkerEndpoint
@@ -53,6 +54,12 @@ class SyncWorkerEndpoint(SyncEndpoint):
                 "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
         job = run_coro_thread_save(self.event_loop, self.endpoint.load_from(location, params, None))
         return SyncWorkerJob(job, self.event_loop)
+
+    def get_pop(self) -> Pop | None:
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_pop())
+
+    def set_pop(self, pop: Pop) -> dict:
+        return run_coro_thread_save(self.event_loop, self.endpoint.set_pop(pop))
 
     def get_pop_comp(self) -> dict:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_pop_comp())
