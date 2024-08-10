@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eyepop"
-version = "1.0.0"
+version = "1.0.1"
 description="EyePop.ai Python SDK"
 readme = "README.md"
 license.file = "./LICENSE"
@@ -22,8 +22,8 @@ dependencies = [
     "build>=1.0.3",
     "twine>=4.0.2",
     "matplotlib>=3.8.2",
-    "cryptography==38.0.4",
-    "flatbuffers==24.3.25",
+    "cryptography>=38.0.4",
+    "flatbuffers>=24.3.25",
     "deprecated>=1.2.14",
     "pydantic>=2.8.2",
     "deprecated>=1.2.14"
