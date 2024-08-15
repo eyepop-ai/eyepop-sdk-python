@@ -52,13 +52,21 @@ class UserReview(enum.StrEnum):
     unknown = enum.auto()
 
 
+class DatasetVersionAssetStats(BaseModel):
+    total: int | None = None
+    annotated: int | None = None
+    auto_annotated: int | None = None
+    auto_annotated_approved: int | None = None
+    ground_truth_annotated: int | None = None
+
+
 class DatasetVersionResponse(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
-    asset_count: int
     modifiable: bool
-    hero_asset_uuid: Optional[str] = None
+    hero_asset_uuid: str | None = None
+    asset_stats: DatasetVersionAssetStats | None = None
 
 
 class DatasetResponse(BaseModel):
