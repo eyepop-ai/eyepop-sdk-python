@@ -51,7 +51,8 @@ class _UploadStreamJob(DataJob):
 
 
 class _ImportFromJob(DataJob):
-    def __init__(self, asset_import: AssetImport, dataset_uuid: str, dataset_version: int | None, external_id: str | None,
+    def __init__(self, asset_import: AssetImport, dataset_uuid: str, dataset_version: int | None,
+                 external_id: str | None, partition: str | None,
                  session: ClientSession, on_ready: Callable[[DataJob], None] | None = None,
                  callback: JobStateCallback | None = None):
         super().__init__(session, on_ready, callback)
@@ -59,14 +60,15 @@ class _ImportFromJob(DataJob):
         self.dataset_uuid = dataset_uuid
         self.dataset_version = dataset_version
         self.external_id = external_id
+        self.partition = partition
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
         dataset_version_query = f"&dataset_version={self.dataset_version}" if self.dataset_version else ""
-        post_path: str
-        if self.external_id:
-            post_path = f"/assets/imports?dataset_uuid={self.dataset_uuid}{dataset_version_query}&external_id={self.external_id}"
-        else:
-            post_path = f"/assets/imports?dataset_uuid={self.dataset_uuid}{dataset_version_query}"
+        external_id_query = f"&external_id={self.external_id}" if self.external_id else ""
+        partition_query = f"&partition={self.partition}" if self.partition else ""
+
+        post_path = (f"/assets/imports?dataset_uuid={self.dataset_uuid}"
+                     f"{dataset_version_query}{external_id_query}{partition_query}")
 
         async with await session.request_with_retry("POST", post_path, data=self.asset_import.json(),
                                                     content_type="application/json",
