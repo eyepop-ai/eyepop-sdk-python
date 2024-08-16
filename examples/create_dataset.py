@@ -23,7 +23,8 @@ with (EyePopSdk.dataEndpoint(job_queue_length=1000) as endpoint):
         )
         jobs = []
         for i in range(100):
-            jobs.append(endpoint.import_asset_job(asset_import=asset_import, dataset_uuid=dataset.uuid, external_id=f"#{i}"))
+            jobs.append(endpoint.import_asset_job(asset_import=asset_import, dataset_uuid=dataset.uuid,
+                                                  external_id=f"#{i}", partition="foo"))
         for job in jobs:
             asset = job.result()
             print(asset)

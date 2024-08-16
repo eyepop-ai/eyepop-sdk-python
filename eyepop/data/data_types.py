@@ -185,6 +185,7 @@ class AssetResponse(BaseModel):
     status: Optional[AssetStatus] = None
     status_message: Optional[str] = None
     external_id: Optional[str] = None
+    partition: Optional[str] = None
     annotations: Optional[List[AssetAnnotationResponse]] = []
 
 
