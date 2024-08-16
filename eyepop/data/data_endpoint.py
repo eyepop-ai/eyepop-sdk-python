@@ -117,11 +117,11 @@ class DataEndpoint(Endpoint):
         return job
 
     async def import_asset_job(self, asset_import: AssetImport, dataset_uuid: str, dataset_version: Optional[int] = None,
-                               external_id: Optional[str] = None,
+                               external_id: Optional[str] = None, partition: Optional[str] = None,
                                on_ready: Callable[[DataJob], None] | None = None) -> DataJob | SyncDataJob:
         session = DataClientSession(self, await self.data_base_url())
         job = _ImportFromJob(asset_import=asset_import, dataset_uuid=dataset_uuid, dataset_version=dataset_version,
-                             external_id=external_id,session=session,
+                             external_id=external_id, session=session, partition=partition,
                              on_ready=on_ready, callback=self.metrics_collector)
         await self._task_start(job.execute())
         return job
