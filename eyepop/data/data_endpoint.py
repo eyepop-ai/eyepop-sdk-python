@@ -168,11 +168,14 @@ class DataEndpoint(Endpoint):
             return
 
     async def update_asset_auto_annotation_status(self, asset_uuid: str, auto_annotate: AutoAnnotate,
-                                                  user_review: UserReview, dataset_uuid: Optional[str] = None,
+                                                  user_review: UserReview, approved_threshold: Optional[float] = None,
+                                                  dataset_uuid: Optional[str] = None,
                                                   dataset_version: Optional[int] = None) -> None:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
-        patch_url = f'{await self.data_base_url()}/assets/{asset_uuid}/auto_annotations/{auto_annotate}/user_review/{user_review}?{dataset_query}{version_query}'
+        threshold_query = f'&approved_threshold={approved_threshold}' if approved_threshold is not None else ''
+        patch_url = (f'{await self.data_base_url()}/assets/{asset_uuid}/auto_annotations/{auto_annotate}/user_review/'
+                     f'{user_review}?{dataset_query}{version_query}{threshold_query}')
         async with await self.request_with_retry("PATCH", patch_url) as resp:
             return
 

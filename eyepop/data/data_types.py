@@ -179,6 +179,7 @@ class Prediction(BaseModel):
 class AssetAnnotationResponse(BaseModel):
     type: AnnotationType
     user_review: UserReview
+    approved_threshold: float | None = None
     auto_annotate: Optional[AutoAnnotate] = []
     annotation: Optional[Prediction] = None
     uncertainty_score: Optional[float] = None
