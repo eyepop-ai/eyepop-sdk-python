@@ -50,6 +50,10 @@ class Endpoint(ClientSession):
 
         self.retry_handlers = dict()
         self.retry_handlers[401] = self._retry_401
+        self.retry_handlers[500] = self._retry_50x
+        self.retry_handlers[502] = self._retry_50x
+        self.retry_handlers[503] = self._retry_50x
+        self.retry_handlers[504] = self._retry_50x
 
         self.client_session = None
         self.task_group = None
@@ -170,9 +174,19 @@ class Endpoint(ClientSession):
         if failed_attempts > 1:
             return False
         else:
-            log_requests.debug('after 401, about to retry with fresh access token')
+            log_requests.debug('retry handler: after 401, about to retry with fresh access token')
             self.token = None
             self.expire_token_time = None
+            return True
+
+    async def _retry_50x(self, status_code: int, failed_attempts: int) -> bool:
+        if failed_attempts > 3:
+            return False
+        else:
+            wait_time = 2 ** (failed_attempts - 1)
+            log_requests.info('retry handler: after %d, about to retry after %f seconds',
+                              status_code, wait_time)
+            await asyncio.sleep(wait_time)
             return True
 
     async def request_with_retry(self, method: str, url: str, accept: str | None = None,
