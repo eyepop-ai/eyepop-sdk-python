@@ -3,7 +3,7 @@ from typing import BinaryIO, Callable, Optional, List
 
 from eyepop.data.data_jobs import DataJob
 from eyepop.data.data_types import AssetImport, DatasetResponse, DatasetCreate, DatasetUpdate, AssetResponse, \
-    Prediction, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate
+    Prediction, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate, ModelTrainingProgress
 from eyepop.syncify import run_coro_thread_save, SyncEndpoint, submit_coro_thread_save
 
 
@@ -136,6 +136,9 @@ class SyncDataEndpoint(SyncEndpoint):
 
     def get_model(self, model_uuid: str) -> ModelResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_model(model_uuid))
+
+    def get_model_progress(self, model_uuid: str) -> ModelTrainingProgress:
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_model_progress(model_uuid))
 
     def update_model(self, model_uuid: str, model: ModelUpdate) -> ModelResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.update_model(model_uuid, model))
