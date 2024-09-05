@@ -9,7 +9,7 @@ from eyepop.client_session import ClientSession
 from eyepop.data.data_jobs import DataJob, _UploadStreamJob, _ImportFromJob
 from eyepop.data.data_syncify import SyncDataJob
 from eyepop.data.data_types import DatasetResponse, DatasetCreate, DatasetUpdate, AssetResponse, Prediction, \
-    AssetImport, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate
+    AssetImport, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate, ModelTrainingProgress
 from eyepop.endpoint import Endpoint, log_requests
 
 APPLICATION_JSON = "application/json"
@@ -205,6 +205,11 @@ class DataEndpoint(Endpoint):
         get_url = f'{await self.data_base_url()}/models/{model_uuid}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(ModelResponse, await resp.json())
+
+    async def get_model_progress(self, model_uuid: str) -> ModelTrainingProgress:
+        get_url = f'{await self.data_base_url()}/models/{model_uuid}/progress'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(ModelTrainingProgress, await resp.json())
 
     async def update_model(self, model_uuid: str, model: ModelUpdate) -> ModelResponse:
         patch_url = f'{await self.data_base_url()}/models/{model_uuid}'
