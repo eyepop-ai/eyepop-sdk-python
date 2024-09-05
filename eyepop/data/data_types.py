@@ -1,8 +1,8 @@
 import enum
 from datetime import datetime
-from typing import List, Optional, Type
+from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class AssetStatus(enum.StrEnum):
@@ -198,6 +198,9 @@ class AssetResponse(BaseModel):
     review_priority: Optional[float] = None
     model_relevance: Optional[float] = None
     annotations: Optional[List[AssetAnnotationResponse]] = []
+    model_config = ConfigDict(
+        protected_namespaces=('pydantic_do_not_prevent_model_prefix_',)
+    )
 
 
 class AssetImport(BaseModel):
@@ -228,3 +231,22 @@ class ModelCreate(BaseModel):
 
 class ModelUpdate(ModelCreate):
     pass
+
+
+class ModelTrainingStage(enum.StrEnum):
+    waiting = enum.auto()
+    scheduling = enum.auto()
+    preparing = enum.auto()
+    training = enum.auto()
+    exporting = enum.auto()
+
+
+class ModelTrainingProgress(BaseModel):
+    stage: ModelTrainingStage
+    queue_length: int | None = None
+    started_at: datetime
+    finished_at: datetime | None = None
+    best_cpr: list[tuple[float, float, float]] | None = None
+    sample_asset_uuids: list[str] | None = None
+    remaining_seconds_min: float | None = None
+    remaining_seconds_max: float | None = None
