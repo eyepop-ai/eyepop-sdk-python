@@ -120,8 +120,9 @@ class Endpoint(ClientSession):
             log_metrics.debug(f'average wait time until state: {self.metrics_collector.get_average_times()}')
 
     async def connect(self):
+        trace_configs = [self.request_tracer.get_trace_config()] if self.request_tracer else None
         self.client_session = aiohttp.ClientSession(raise_for_status=response_check_with_error_body,
-                                                    trace_configs=[self.request_tracer.get_trace_config()],
+                                                    trace_configs=trace_configs,
                                                     connector=aiohttp.TCPConnector(limit_per_host=8))
         try:
             await self._reconnect()
@@ -130,7 +131,8 @@ class Endpoint(ClientSession):
             self.client_session = None
             raise e
 
-        await self.event_sender.start()
+        if self.event_sender is not None:
+            await self.event_sender.start()
 
     async def session(self) -> dict:
         token = await self.__get_access_token()
