@@ -45,6 +45,7 @@ class _UploadStreamJob(DataJob):
             post_path = f"/assets?dataset_uuid={self.dataset_uuid}{dataset_version_query}"
 
         async with await session.request_with_retry("POST", post_path, data=self.stream,
+                                                    content_type=self.mime_type,
                                                     timeout=aiohttp.ClientTimeout(total=None, sock_read=60)) as resp:
             result = AssetResponse.parse_obj(await resp.json())
             await queue.put(result)
