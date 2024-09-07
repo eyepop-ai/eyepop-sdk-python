@@ -188,8 +188,12 @@ class AssetAnnotationResponse(BaseModel):
     user_review: UserReview
     approved_threshold: float | None = None
     auto_annotate: AutoAnnotate | None = None
+    auto_annotate_params: AutoAnnotateParams | None = None
     annotation: Prediction | None = None
     uncertainty_score: float | None = None
+
+    class Config:
+        use_enum_values = True
 
 
 class AssetResponse(BaseModel):
