@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 from pydantic import BaseModel, ConfigDict
 
@@ -72,7 +72,7 @@ class DatasetVersionResponse(BaseModel):
 class DatasetResponse(BaseModel):
     uuid: str
     name: str
-    description: Optional[str] = ""
+    description: str = ""
     created_at: datetime
     updated_at: datetime
     tags: List[str]
@@ -98,7 +98,7 @@ class Point2d(BaseModel):
 
 
 class Point3d(Point2d):
-    z: Optional[float] = None
+    z: float | None = None
 
 
 class Box(BaseModel):
@@ -107,17 +107,17 @@ class Box(BaseModel):
 
 
 class PredictedClass(BaseModel):
-    id: Optional[int] = None
-    confidence: Optional[float] = None
+    id: int | None = None
+    confidence: float | None = None
     classLabel: str
-    category: Optional[str] = None
+    category: str | None = None
 
 
 class PredictedLabel(BaseModel):
-    id: Optional[int] = None
-    confidence: Optional[float] = None
+    id: int | None = None
+    confidence: float | None = None
     label: str
-    category: Optional[str] = None
+    category: str | None = None
 
 
 class Contour(BaseModel):
@@ -133,56 +133,56 @@ class Mask(BaseModel):
 
 
 class PredictedMesh(BaseModel):
-    id: Optional[int] = None
-    category: Optional[str] = None
-    confidence: Optional[float] = None
+    id: int | None = None
+    category: str | None = None
+    confidence: float = None
     points: List[Point3d]
 
 
 class PredictedKeyPoint(Point3d, PredictedClass):
-    visible: Optional[bool] = None
+    visible: bool | None = None
 
 
 class PredictedKeyPoints(BaseModel):
-    category: Optional[str] = None
-    type: Optional[str] = None
+    category: str | None = None
+    type: str | None = None
     points: List[PredictedKeyPoint]
 
 
 class PredictedObject(PredictedClass):
-    traceId: Optional[int] = None
+    traceId: int | None = None
     x: float
     y: float
     width: float
     height: float
-    orientation: Optional[float] = None
-    outline: Optional[List[Point2d]] = None
-    contours: Optional[List[Contour]] = None
-    mask: Optional[Mask] = None
-    objects: Optional[List["PredictedObject"]] = None
-    classes: Optional[List[PredictedClass]] = None
-    labels: Optional[List[PredictedLabel]] = None
-    meshs: Optional[List[PredictedMesh]] = None
-    keyPoints: Optional[List[PredictedKeyPoints]] = None
+    orientation: float | None = None
+    outline: List[Point2d] | None = None
+    contours: List[Contour] | None = None
+    mask: Mask | None = None
+    objects: List["PredictedObject"] | None = None
+    classes: List[PredictedClass] | None = None
+    labels: List[PredictedLabel] | None = None
+    meshs: List[PredictedMesh] | None = None
+    keyPoints: List[PredictedKeyPoints] | None = None
 
 
 class Prediction(BaseModel):
     source_width: float
     source_height: float
-    objects: Optional[List[PredictedObject]] = None
-    classes: Optional[List[PredictedClass]] = None
-    labels: Optional[List[PredictedLabel]] = None
-    meshs: Optional[List[PredictedMesh]] = None
-    keyPoints: Optional[List[PredictedKeyPoints]] = None
+    objects: List[PredictedObject] | None = None
+    classes: List[PredictedClass] | None = None
+    labels: List[PredictedLabel] | None = None
+    meshs: List[PredictedMesh] | None = None
+    keyPoints: List[PredictedKeyPoints] | None = None
 
 
 class AssetAnnotationResponse(BaseModel):
     type: AnnotationType
     user_review: UserReview
     approved_threshold: float | None = None
-    auto_annotate: Optional[AutoAnnotate] = []
-    annotation: Optional[Prediction] = None
-    uncertainty_score: Optional[float] = None
+    auto_annotate: AutoAnnotate | None = None
+    annotation: Prediction | None = None
+    uncertainty_score: float | None = None
 
 
 class AssetResponse(BaseModel):
@@ -190,14 +190,14 @@ class AssetResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     mime_type: str
-    file_size_bytes: Optional[int] = None
-    status: Optional[AssetStatus] = None
-    status_message: Optional[str] = None
-    external_id: Optional[str] = None
-    partition: Optional[str] = None
-    review_priority: Optional[float] = None
-    model_relevance: Optional[float] = None
-    annotations: Optional[List[AssetAnnotationResponse]] = []
+    file_size_bytes: int | None = None
+    status: AssetStatus | None = None
+    status_message: str | None = None
+    external_id: str | None = None
+    partition: str | None = None
+    review_priority: float | None = None
+    model_relevance: float | None = None
+    annotations: List[AssetAnnotationResponse] = []
     model_config = ConfigDict(
         protected_namespaces=('pydantic_do_not_prevent_model_prefix_',)
     )
@@ -205,7 +205,7 @@ class AssetResponse(BaseModel):
 
 class AssetImport(BaseModel):
     url: str
-    ground_truth: Optional[Prediction] = None
+    ground_truth: Prediction | None = None
 
 
 class ModelResponse(BaseModel):
@@ -216,16 +216,16 @@ class ModelResponse(BaseModel):
     dataset_uuid: str
     dataset_version: int
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     type: ModelType
     status: ModelStatus
-    status_message: Optional[str] = None
-    exported_url: Optional[str] = None
+    status_message: str | None = None
+    exported_url: str | None = None
 
 
 class ModelCreate(BaseModel):
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     type: ModelType
 
 
