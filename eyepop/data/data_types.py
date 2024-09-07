@@ -81,11 +81,18 @@ class DatasetResponse(BaseModel):
     versions: List[DatasetVersionResponse]
 
 
+class AutoAnnotateParams(BaseModel):
+    candidate_labels: list[str] | None = None
+    prompt: str | None = None
+    confidence_threshold: float | None = None
+
+
 class DatasetCreate(BaseModel):
     name: str
     description: str = ""
     tags: List[str] = []
     auto_annotates: List[AutoAnnotate] = []
+    auto_annotate_params: AutoAnnotateParams | None = None
 
 
 class DatasetUpdate(DatasetCreate):
