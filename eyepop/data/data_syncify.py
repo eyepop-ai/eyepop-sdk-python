@@ -33,10 +33,10 @@ class SyncDataEndpoint(SyncEndpoint):
         return run_coro_thread_save(self.event_loop, self.endpoint.create_dataset(dataset))
 
     def get_dataset(self, dataset_uuid: str, include_hero_asset: bool = False) -> DatasetResponse:
-        return run_coro_thread_save(self.event_loop, self.get_dataset(dataset_uuid, include_hero_asset))
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_dataset(dataset_uuid, include_hero_asset))
 
     def update_dataset(self, dataset_uuid: str, dataset: DatasetUpdate) -> DatasetResponse:
-        return run_coro_thread_save(self.event_loop, self.update_dataset(dataset_uuid, dataset))
+        return run_coro_thread_save(self.event_loop, self.endpoint.update_dataset(dataset_uuid, dataset))
 
     def delete_dataset(self, dataset_uuid: str) -> None:
         return run_coro_thread_save(self.event_loop, self.endpoint.delete_dataset(dataset_uuid))
