@@ -167,6 +167,14 @@ class DataEndpoint(Endpoint):
                                                  data=ground_truth.json() if ground_truth else None) as resp:
             return
 
+    async def delete_asset_ground_truth(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
+                                        dataset_version: Optional[int] = None) -> None:
+        dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
+        version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
+        patch_url = f'{await self.data_base_url()}/assets/{asset_uuid}/ground_truth?{dataset_query}{version_query}'
+        async with await self.request_with_retry("DELETE", patch_url) as resp:
+            return
+
     async def update_asset_auto_annotation_status(self, asset_uuid: str, auto_annotate: AutoAnnotate,
                                                   user_review: UserReview, approved_threshold: Optional[float] = None,
                                                   dataset_uuid: Optional[str] = None,
