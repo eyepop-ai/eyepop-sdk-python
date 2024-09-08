@@ -69,22 +69,23 @@ class DatasetVersionResponse(BaseModel):
     asset_stats: DatasetVersionAssetStats | None = None
 
 
+class AutoAnnotateParams(BaseModel):
+    candidate_labels: list[str] | None = None
+    prompt: str | None = None
+    confidence_threshold: float | None = None
+
+
 class DatasetResponse(BaseModel):
     uuid: str
     name: str
     description: str = ""
     created_at: datetime
-    updated_at: datetime
+    updated_at: datetime | None = None
     tags: List[str]
     account_uuid: str
     auto_annotates: List[AutoAnnotate]
+    auto_annotate_params: AutoAnnotateParams | None = None
     versions: List[DatasetVersionResponse]
-
-
-class AutoAnnotateParams(BaseModel):
-    candidate_labels: list[str] | None = None
-    prompt: str | None = None
-    confidence_threshold: float | None = None
 
 
 class DatasetCreate(BaseModel):
