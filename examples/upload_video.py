@@ -1,11 +1,12 @@
 import asyncio
 import logging
+import sys
 import time
 from pathlib import Path
 
 from eyepop import EyePopSdk
 
-example_file_1 = '/home/torsten/Downloads/remux_pet_owner.mp4.mp4'
+example_file_1 = sys.argv[1]
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
