@@ -11,7 +11,7 @@ import aiohttp
 
 from eyepop.endpoint import Endpoint
 from eyepop.exceptions import PopNotStartedException, PopConfigurationException, PopNotReachableException
-from eyepop.worker.worker_jobs import WorkerJob, _UploadJob, _LoadFromJob, _UploadStreamJob
+from eyepop.worker.worker_jobs import WorkerJob, _UploadFileJob, _LoadFromJob, _UploadStreamJob
 from eyepop.worker.load_balancer import EndpointLoadBalancer
 from eyepop.worker.worker_syncify import SyncWorkerJob
 from eyepop.worker.worker_types import Pop
@@ -295,7 +295,7 @@ class WorkerEndpoint(Endpoint):
 
     async def upload(self, location: str, params: dict | None = None,
                      on_ready: Callable[[WorkerJob], None] | None = None) -> WorkerJob | SyncWorkerJob:
-        job = _UploadJob(location=location, params=params, session=self, on_ready=on_ready,
+        job = _UploadFileJob(location=location, params=params, session=self, on_ready=on_ready,
                          callback=self.metrics_collector)
         await  self._task_start(job.execute())
         return job
