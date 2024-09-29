@@ -121,10 +121,10 @@ class PredictedClass(BaseModel):
     category: str | None = None
 
 
-class PredictedLabel(BaseModel):
+class PredictedText(BaseModel):
     id: int | None = None
     confidence: float | None = None
-    label: str
+    text: str
     category: str | None = None
 
 
@@ -169,7 +169,7 @@ class PredictedObject(PredictedClass):
     mask: Mask | None = None
     objects: List["PredictedObject"] | None = None
     classes: List[PredictedClass] | None = None
-    labels: List[PredictedLabel] | None = None
+    texts: List[PredictedText] | None = None
     meshs: List[PredictedMesh] | None = None
     keyPoints: List[PredictedKeyPoints] | None = None
 
@@ -179,7 +179,7 @@ class Prediction(BaseModel):
     source_height: float
     objects: List[PredictedObject] | None = None
     classes: List[PredictedClass] | None = None
-    labels: List[PredictedLabel] | None = None
+    texts: List[PredictedText] | None = None
     meshs: List[PredictedMesh] | None = None
     keyPoints: List[PredictedKeyPoints] | None = None
 
