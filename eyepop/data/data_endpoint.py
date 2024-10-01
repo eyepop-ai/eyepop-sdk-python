@@ -76,7 +76,7 @@ class DataEndpoint(Endpoint):
             return parse_obj_as(DatasetResponse, await resp.json())
 
     async def get_dataset(self, dataset_uuid: str, include_hero_asset: bool = False) -> DatasetResponse:
-        get_url = f'{await self.data_base_url()}/datasets?dataset_uuid={dataset_uuid}&include_hero_asset={include_hero_asset}'
+        get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?include_hero_asset={include_hero_asset}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(DatasetResponse, await resp.json())
 
