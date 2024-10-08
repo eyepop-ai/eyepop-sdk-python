@@ -67,6 +67,8 @@ class DatasetVersionResponse(BaseModel):
     modifiable: bool
     hero_asset_uuid: str | None = None
     asset_stats: DatasetVersionAssetStats | None = None
+    analysis_started_at: datetime | None = None
+    auto_annotate_started_at: datetime | None = None
 
 
 class AutoAnnotateParams(BaseModel):
@@ -86,18 +88,23 @@ class DatasetResponse(BaseModel):
     auto_annotates: List[AutoAnnotate]
     auto_annotate_params: AutoAnnotateParams | None = None
     versions: List[DatasetVersionResponse]
+    modifiable_version: int | None = None
 
 
 class DatasetCreate(BaseModel):
     name: str
     description: str = ""
-    tags: List[str] = []
-    auto_annotates: List[AutoAnnotate] = []
+    tags: list[str] = []
+    auto_annotates: list[AutoAnnotate] = []
     auto_annotate_params: AutoAnnotateParams | None = None
 
 
 class DatasetUpdate(DatasetCreate):
-    pass
+    name: str | None = None
+    description: str | None = None
+    tags: List[str] | None = None
+    auto_annotates: List[AutoAnnotate]  | None = None
+    auto_annotate_params: AutoAnnotateParams | None = None
 
 
 class Point2d(BaseModel):
@@ -220,29 +227,36 @@ class AssetImport(BaseModel):
     ground_truth: Prediction | None = None
 
 
+class ModelMetrics(BaseModel):
+    cpr: list[tuple[float, float, float]] | None = None
+
+
 class ModelResponse(BaseModel):
-    uuid: str
-    created_at: datetime
-    updated_at: datetime
     account_uuid: str
-    dataset_uuid: str
-    dataset_version: int
+    dataset_uuid: str | None = None
+    dataset_version: int | None = None
     name: str
-    description: str | None = None
-    type: ModelType
+    description: str
+    type: ModelType | None = None
     status: ModelStatus
+    is_public: bool
+    external_id: str | None = None
     status_message: str | None = None
-    exported_url: str | None = None
+    metrics: ModelMetrics | None = None
 
 
 class ModelCreate(BaseModel):
     name: str
-    description: str | None = None
-    type: ModelType
+    description: str
+    external_id: str | None = None
 
 
 class ModelUpdate(ModelCreate):
-    pass
+    name: str | None = None
+    description: str | None = None
+    is_public: bool | None = None
+    external_id: str | None = None
+    status: ModelStatus | None = None
 
 
 class ModelTrainingStage(enum.StrEnum):
@@ -253,12 +267,19 @@ class ModelTrainingStage(enum.StrEnum):
     exporting = enum.auto()
 
 
+class ModelSample(BaseModel):
+    asset_uuid: str
+    prediction: Prediction
+
+
 class ModelTrainingProgress(BaseModel):
     stage: ModelTrainingStage
     queue_length: int | None = None
     started_at: datetime
     finished_at: datetime | None = None
-    best_cpr: list[tuple[float, float, float]] | None = None
-    sample_asset_uuids: list[str] | None = None
+    status_code: int | None = None
+    status_message: str | None = None
+    metrics: ModelMetrics | None = None
+    samples: list[ModelSample] | None = None
     remaining_seconds_min: float | None = None
     remaining_seconds_max: float | None = None

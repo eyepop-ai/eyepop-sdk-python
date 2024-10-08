@@ -1,5 +1,5 @@
 from asyncio import StreamReader
-from typing import Callable, Any, BinaryIO, List, Optional
+from typing import Callable, BinaryIO
 from urllib.parse import urljoin
 
 import aiohttp
@@ -20,7 +20,7 @@ class DataClientSession(ClientSession):
         self.delegee = delegee
         self.base_url = base_url
 
-    async def request_with_retry(self, method: str, url: str, accept: str | None = None, data: Any = None,
+    async def request_with_retry(self, method: str, url: str, accept: str | None = None, data: any = None,
                                  content_type: str | None = None,
                                  timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
         url = urljoin(self.base_url, url)
@@ -64,10 +64,10 @@ class DataEndpoint(Endpoint):
 
     """ Model methods """
 
-    async def list_datasets(self, include_hero_asset: bool = False) -> List[DatasetResponse]:
+    async def list_datasets(self, include_hero_asset: bool = False) -> list[DatasetResponse]:
         get_url = f'{await self.data_base_url()}/datasets?account_uuid={self.account_uuid}&include_hero_asset={include_hero_asset}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return parse_obj_as(List[DatasetResponse], await resp.json())
+            return parse_obj_as(list[DatasetResponse], await resp.json())
 
     async def create_dataset(self, dataset: DatasetCreate) -> DatasetResponse:
         post_url = f'{await self.data_base_url()}/datasets?account_uuid={self.account_uuid}'
@@ -80,22 +80,33 @@ class DataEndpoint(Endpoint):
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(DatasetResponse, await resp.json())
 
-    async def update_dataset(self, dataset_uuid: str, dataset: DatasetUpdate) -> DatasetResponse:
-        patch_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}'
+    async def update_dataset(self, dataset_uuid: str, dataset: DatasetUpdate, start_auto_annotate: bool = True) -> DatasetResponse:
+        patch_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?start_auto_annotate={start_auto_annotate}'
         async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
                                                  data=dataset.json()) as resp:
             return parse_obj_as(DatasetResponse, await resp.json())
 
     async def delete_dataset(self, dataset_uuid: str) -> None:
         delete_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}'
-        async with await self.request_with_retry("DELETE", delete_url) as resp:
+        async with await self.request_with_retry("DELETE", delete_url):
             return
 
-    async def freeze_dataset_version(self, dataset_uuid: str, dataset_version: Optional[int] = None) -> DatasetResponse:
-        if dataset_version:
-            post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?dataset_version={dataset_version}'
-        else:
-            post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}'
+    async def analyse_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None) -> DatasetResponse:
+        version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
+        post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/analyse?{version_query}'
+        async with await self.request_with_retry("POST", post_url) as resp:
+            return parse_obj_as(DatasetResponse, await resp.json())
+
+    async def auto_annotate_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None, max_assets: int | None = None) -> DatasetResponse:
+        version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
+        max_assets_query = f'&max_assets={max_assets}' if max_assets is not None else ''
+        post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/analyse?{version_query}{max_assets_query}'
+        async with await self.request_with_retry("POST", post_url) as resp:
+            return parse_obj_as(DatasetResponse, await resp.json())
+
+    async def freeze_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None) -> DatasetResponse:
+        version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
+        post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/freeze?{version_query}'
         async with await self.request_with_retry("POST", post_url) as resp:
             return parse_obj_as(DatasetResponse, await resp.json())
 
@@ -107,7 +118,7 @@ class DataEndpoint(Endpoint):
     """" Asset methods """
 
     async def upload_asset_job(self, stream: BinaryIO, mime_type: str, dataset_uuid: str,
-                               dataset_version: Optional[int] = None, external_id: Optional[str] = None,
+                               dataset_version: int | None = None, external_id: str | None = None,
                                on_ready: Callable[[DataJob], None] | None = None) -> DataJob | SyncDataJob:
         session = DataClientSession(self, await self.data_base_url())
         job = _UploadStreamJob(stream=stream, mime_type=mime_type, dataset_uuid=dataset_uuid,
@@ -116,8 +127,8 @@ class DataEndpoint(Endpoint):
         await self._task_start(job.execute())
         return job
 
-    async def import_asset_job(self, asset_import: AssetImport, dataset_uuid: str, dataset_version: Optional[int] = None,
-                               external_id: Optional[str] = None, partition: Optional[str] = None,
+    async def import_asset_job(self, asset_import: AssetImport, dataset_uuid: str, dataset_version: int | None = None,
+                               external_id: str | None = None, partition: str | None = None,
                                on_ready: Callable[[DataJob], None] | None = None) -> DataJob | SyncDataJob:
         session = DataClientSession(self, await self.data_base_url())
         job = _ImportFromJob(asset_import=asset_import, dataset_uuid=dataset_uuid, dataset_version=dataset_version,
@@ -126,69 +137,69 @@ class DataEndpoint(Endpoint):
         await self._task_start(job.execute())
         return job
 
-    async def list_assets(self, dataset_uuid: str, dataset_version: Optional[int] = None,
-                          include_annotations: bool = False) -> List[AssetResponse]:
+    async def list_assets(self, dataset_uuid: str, dataset_version: int | None = None,
+                          include_annotations: bool = False) -> list[AssetResponse]:
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         get_url = f'{await self.data_base_url()}/assets?dataset_uuid={dataset_uuid}&include_annotations={"true" if include_annotations else "false"}{version_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return parse_obj_as(List[AssetResponse], await resp.json())
+            return parse_obj_as(list[AssetResponse], await resp.json())
 
-    async def get_asset(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
-                        dataset_version: Optional[int] = None, include_annotations: bool = False) -> AssetResponse:
+    async def get_asset(self, asset_uuid: str, dataset_uuid: str | None = None,
+                        dataset_version: int | None = None, include_annotations: bool = False) -> AssetResponse:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         get_url = f'{await self.data_base_url()}/assets/{asset_uuid}?include_annotations={"true" if include_annotations else "false"}{dataset_query}{version_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(AssetResponse, await resp.json())
 
-    async def delete_asset(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
-                           dataset_version: Optional[int] = None) -> None:
+    async def delete_asset(self, asset_uuid: str, dataset_uuid: str | None = None,
+                           dataset_version: int | None = None) -> None:
         dataset_query = f'dataset_uuid={dataset_uuid}&' if dataset_uuid is not None else ''
         version_query = f'dataset_version={dataset_version}' if dataset_version is not None else ''
         delete_url = f'{await self.data_base_url()}/assets/{asset_uuid}?{dataset_query}{version_query}'
-        async with await self.request_with_retry("DELETE", delete_url) as resp:
+        async with await self.request_with_retry("DELETE", delete_url):
             return
 
     async def resurrect_asset(self, asset_uuid: str, dataset_uuid: str, from_dataset_version: int,
-                              into_dataset_version: Optional[int] = None) -> None:
+                              into_dataset_version: int | None = None) -> None:
         into_version_query = f'&into_dataset_version={into_dataset_version}' if into_dataset_version is not None else ''
         post_url = f'{await self.data_base_url()}/assets/{asset_uuid}/resurrect?dataset_uuid={dataset_uuid}&from_dataset_version={from_dataset_version}{into_version_query}'
-        async with await self.request_with_retry("POST", post_url) as resp:
+        async with await self.request_with_retry("POST", post_url):
             return
 
-    async def update_asset_ground_truth(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
-                                        dataset_version: Optional[int] = None,
-                                        ground_truth: Optional[Prediction] = None) -> None:
+    async def update_asset_ground_truth(self, asset_uuid: str, dataset_uuid: str | None = None,
+                                        dataset_version: int | None = None,
+                                        ground_truth: Prediction | None = None) -> None:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         patch_url = f'{await self.data_base_url()}/assets/{asset_uuid}/ground_truth?{dataset_query}{version_query}'
         async with await self.request_with_retry("PATCH", patch_url,
                                                  content_type=APPLICATION_JSON if ground_truth else None,
-                                                 data=ground_truth.json() if ground_truth else None) as resp:
+                                                 data=ground_truth.json() if ground_truth else None):
             return
 
-    async def delete_asset_ground_truth(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
-                                        dataset_version: Optional[int] = None) -> None:
+    async def delete_asset_ground_truth(self, asset_uuid: str, dataset_uuid: str | None = None,
+                                        dataset_version: int | None = None) -> None:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         patch_url = f'{await self.data_base_url()}/assets/{asset_uuid}/ground_truth?{dataset_query}{version_query}'
-        async with await self.request_with_retry("DELETE", patch_url) as resp:
+        async with await self.request_with_retry("DELETE", patch_url):
             return
 
     async def update_asset_auto_annotation_status(self, asset_uuid: str, auto_annotate: AutoAnnotate,
-                                                  user_review: UserReview, approved_threshold: Optional[float] = None,
-                                                  dataset_uuid: Optional[str] = None,
-                                                  dataset_version: Optional[int] = None) -> None:
+                                                  user_review: UserReview, approved_threshold: float | None = None,
+                                                  dataset_uuid: str | None = None,
+                                                  dataset_version: int | None = None) -> None:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         threshold_query = f'&approved_threshold={approved_threshold}' if approved_threshold is not None else ''
         patch_url = (f'{await self.data_base_url()}/assets/{asset_uuid}/auto_annotations/{auto_annotate}/user_review/'
                      f'{user_review}?{dataset_query}{version_query}{threshold_query}')
-        async with await self.request_with_retry("PATCH", patch_url) as resp:
+        async with await self.request_with_retry("PATCH", patch_url):
             return
 
-    async def download_asset(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
-                             dataset_version: Optional[int] = None,
+    async def download_asset(self, asset_uuid: str, dataset_uuid: str | None = None,
+                             dataset_version: int | None = None,
                              transcode_mode: TranscodeMode = TranscodeMode.original) -> StreamReader:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
@@ -198,13 +209,13 @@ class DataEndpoint(Endpoint):
 
     """ Model methods """
 
-    async def list_models(self) -> List[ModelResponse]:
+    async def list_models(self) -> list[ModelResponse]:
         get_url = f'{await self.data_base_url()}/models?account_uuid={self.account_uuid}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return parse_obj_as(List[ModelResponse], await resp.json())
+            return parse_obj_as(list[ModelResponse], await resp.json())
 
-    async def create_model(self, dataset_uuid: str, dataset_version: int, model: ModelCreate) -> ModelResponse:
-        post_url = f'{await self.data_base_url()}/models?dataset_uuid={dataset_uuid}&dataset_version={dataset_version}'
+    async def create_model(self, dataset_uuid: str, dataset_version: int, model: ModelCreate, start_training: bool = True) -> ModelResponse:
+        post_url = f'{await self.data_base_url()}/models?dataset_uuid={dataset_uuid}&dataset_version={dataset_version}&start_training={start_training}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=model.json()) as resp:
             return parse_obj_as(ModelResponse, await resp.json())
@@ -227,8 +238,13 @@ class DataEndpoint(Endpoint):
 
     async def delete_model(self, model_uuid: str) -> None:
         delete_url = f'{await self.data_base_url()}/models/{model_uuid}'
-        async with await self.request_with_retry("DELETE", delete_url) as resp:
+        async with await self.request_with_retry("DELETE", delete_url):
             return
+
+    async def train_model(self, model_uuid: str) -> ModelResponse:
+        post_url = f'{await self.data_base_url()}/models/{model_uuid}/train'
+        async with await self.request_with_retry("POST", post_url) as resp:
+            return parse_obj_as(ModelResponse, await resp.json())
 
     async def publish_model(self, model_uuid: str) -> ModelResponse:
         post_url = f'{await self.data_base_url()}/models/{model_uuid}/publish'

@@ -9,13 +9,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eyepop"
-version = "1.4.2"
+version = "1.5.0"
 description="EyePop.ai Python SDK"
 readme = "README.md"
 license.file = "./LICENSE"
 authors = [
     { name = "EyePop.ai", email = "support@eyepop.ai" },
 ]
+requires-python = ">= 3.11"
+
 keywords=["EyePop", "AI", "ML", "CV"]
 dependencies = [
     "aiohttp>=3.9.1",

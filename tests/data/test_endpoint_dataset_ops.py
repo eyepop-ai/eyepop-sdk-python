@@ -37,7 +37,7 @@ class TestEndpointConnect(BaseEndpointTest):
                     auto_annotate_params=None,
                     versions=[],
         ).model_dump_json())
-        mock.patch(f'{self.test_data_url}/datasets/{self.test_dataset_id}', status=200, body=DatasetResponse(
+        mock.patch(f'{self.test_data_url}/datasets/{self.test_dataset_id}?start_auto_annotate=True', status=200, body=DatasetResponse(
             uuid=self.test_dataset_id,
             name="",
             description="",
@@ -77,7 +77,7 @@ class TestEndpointConnect(BaseEndpointTest):
             ).model_dump_json()
         )
         mock.assert_called_with(
-            f'{self.test_data_url}/datasets/{self.test_dataset_id}',
+            f'{self.test_data_url}/datasets/{self.test_dataset_id}?start_auto_annotate=True',
             method='PATCH',
             timeout=None,
             headers={
