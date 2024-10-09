@@ -283,3 +283,28 @@ class ModelTrainingProgress(BaseModel):
     samples: list[ModelSample] | None = None
     remaining_seconds_min: float | None = None
     remaining_seconds_max: float | None = None
+
+
+class ChangeType(enum.StrEnum):
+    dataset_added = enum.auto()
+    dataset_removed = enum.auto()
+    dataset_modified = enum.auto()
+    dataset_version_modified = enum.auto()
+    asset_added = enum.auto()
+    asset_removed = enum.auto()
+    asset_status_modified = enum.auto()
+    asset_annotation_modified = enum.auto()
+    model_added = enum.auto()
+    model_removed = enum.auto()
+    model_modified = enum.auto()
+    model_status_modified = enum.auto()
+    model_progress = enum.auto()
+
+
+class ChangeEvent(BaseModel):
+    change_type: ChangeType
+    account_uuid: str
+    dataset_uuid: str
+    dataset_version: int | None
+    asset_uuid: str | None
+    mdl_uuid: str | None

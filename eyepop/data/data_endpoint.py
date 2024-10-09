@@ -1,19 +1,30 @@
+import asyncio
+import json
 from asyncio import StreamReader
-from typing import Callable, BinaryIO
+from types import coroutine
+from typing import Callable, BinaryIO, Awaitable
 from urllib.parse import urljoin
 
 import aiohttp
+import websockets
+from websockets.asyncio.client import ClientConnection
+
 from pydantic.tools import parse_obj_as
 
 from eyepop.client_session import ClientSession
 from eyepop.data.data_jobs import DataJob, _UploadStreamJob, _ImportFromJob
 from eyepop.data.data_syncify import SyncDataJob
 from eyepop.data.data_types import DatasetResponse, DatasetCreate, DatasetUpdate, AssetResponse, Prediction, \
-    AssetImport, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate, ModelTrainingProgress
+    AssetImport, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate, \
+    ModelTrainingProgress, ChangeEvent
 from eyepop.endpoint import Endpoint, log_requests
 
 APPLICATION_JSON = "application/json"
 
+WS_INITIAL_RECONNECT_DELAY = 1000.0
+WS_MAX_RECONNECT_DELAY = 60000.0
+
+EventHandler = Callable[[ChangeEvent], Awaitable[None]]
 
 class DataClientSession(ClientSession):
     def __init__(self, delegee: ClientSession, base_url: str):
@@ -31,12 +42,29 @@ class DataEndpoint(Endpoint):
     """
     Endpoint to the EyePop.ai Data API.
     """
+    account_uuid: str
+    data_config: dict[str, any] | None
+
+    disable_ws: bool
+    ws: ClientConnection | None
+    ws_tasks = set[asyncio.Task]
+    ws_current_reconnect_delay: float | None
+    account_event_handlers: set[EventHandler]
+    dataset_uuid_to_event_handlers: dict[str, set[EventHandler]]
 
     def __init__(self, secret_key: str, eyepop_url: str, account_id: str, job_queue_length: int,
-                 request_tracer_max_buffer: int):
+                 request_tracer_max_buffer: int, disable_ws: bool = True):
         super().__init__(secret_key, eyepop_url, job_queue_length, request_tracer_max_buffer)
         self.account_uuid = account_id
         self.data_config = None
+
+        self.disable_ws = disable_ws
+        self.ws = None
+        self.ws_tasks = set()
+        self.ws_current_reconnect_delay = None
+        self.account_event_handlers = set()
+        self.dataset_uuid_to_event_handlers = dict()
+
         self.add_retry_handler(404, self._retry_404)
 
     async def _retry_404(self, status_code: int, failed_attempts: int) -> bool:
@@ -48,7 +76,7 @@ class DataEndpoint(Endpoint):
             return True
 
     async def _disconnect(self):
-        pass
+        await self._ws_disconnect()
 
     async def _reconnect(self):
         if self.data_config is not None:
@@ -56,11 +84,132 @@ class DataEndpoint(Endpoint):
         config_url = f'{self.eyepop_url}/data/config?account_uuid={self.account_uuid}'
         async with await self.request_with_retry("GET", config_url) as resp:
             self.data_config = await resp.json()
+        if not self.disable_ws:
+            await self._reconnect_ws()
+
+    async def _reconnect_ws(self):
+        await self._ws_disconnect()
+        ws_url = urljoin(
+            self.eyepop_url, self.data_config['base_url']
+        ).rstrip(
+            "/"
+        ).replace(
+            "https://", "wss://"
+        ).replace(
+            "http://", "ws://"
+        )
+
+        ws = await websockets.asyncio.client.connect(uri=ws_url)
+        log_requests.debug("ws connected")
+
+        auth_headers = {'authorization': await self._authorization_header()}
+        message = json.dumps(auth_headers)
+        await ws.send(message)
+        log_requests.debug("ws send: %s", message)
+        message = json.dumps({
+            "subscribe" : {
+                "account_uuid": self.account_uuid
+            }
+        })
+        await ws.send(message)
+        log_requests.debug("ws send: %s", message)
+        for dataset_uuid in self.dataset_uuid_to_event_handlers:
+            message = json.dumps({
+                "subscribe" : {
+                    "dataset_uuid": dataset_uuid
+                }
+            })
+            await ws.send(message)
+            log_requests.debug("ws send: %s", message)
+
+        self.ws_current_reconnect_delay = WS_INITIAL_RECONNECT_DELAY
+        ws_reader_task = asyncio.create_task(self._ws_reader(ws))
+
+        self.ws = ws
+        self.ws_tasks.add(ws_reader_task)
+        ws_reader_task.add_done_callback(self.ws_tasks.discard)
+
+    async def _ws_disconnect(self):
+        ws = self.ws
+        self.ws = None
+        self.ws_reader_task = None
+        if ws is not None:
+            await ws.close()
+
+    async def _ws_reader(self, ws: ClientConnection):
+        try:
+            async for message in ws:
+                log_requests.debug("ws received %s", message)
+        except websockets.ConnectionClosed:
+            log_requests.debug("ws disconnected")
+            await self._ws_disconnect()
+            if self.ws_current_reconnect_delay is None:
+                self.ws_current_reconnect_delay = WS_INITIAL_RECONNECT_DELAY
+            elif self.ws_current_reconnect_delay < WS_MAX_RECONNECT_DELAY:
+                self.ws_current_reconnect_delay *= 1.5
+            await asyncio.sleep(self.ws_current_reconnect_delay)
+            ws_reconnect_task = asyncio.create_task(self._reconnect_ws())
+            self.ws_tasks.add(ws_reconnect_task)
+            ws_reconnect_task.add_done_callback(self.ws_tasks.discard)
 
     async def data_base_url(self) -> str:
         if self.data_config is None:
             await self._reconnect()
         return urljoin(self.eyepop_url, self.data_config['base_url']).rstrip("/")
+
+    """ Event handlers """
+    async def add_account_event_handler(self, event_handler: EventHandler):
+        self.account_event_handlers.add(event_handler)
+
+    async def remove_account_event_handler(self, event_handler: EventHandler):
+        self.account_event_handlers.discard(event_handler)
+
+    async def add_dataset_event_handler(self, dataset_uuid: str, event_handler: EventHandler):
+        event_handlers = self.dataset_uuid_to_event_handlers.get(dataset_uuid, None)
+        if event_handlers is None:
+            event_handlers = set()
+            self.dataset_uuid_to_event_handlers[dataset_uuid] = event_handlers
+            ws = self.ws
+            if ws:
+                message = json.dumps({
+                    "subscribe": {
+                        "dataset_uuid": dataset_uuid
+                    }
+                })
+                await ws.send(message)
+                log_requests.debug("ws send: %s", message)
+
+        event_handlers.add(event_handler)
+
+    async def remove_dataset_event_handler(self, dataset_uuid: str, event_handler: EventHandler):
+        event_handlers = self.dataset_uuid_to_event_handlers.get(dataset_uuid, None)
+        if event_handlers is not None:
+            event_handlers.discard(event_handler)
+            if len(event_handlers) == 0:
+                del self.dataset_uuid_to_event_handlers[dataset_uuid]
+                ws = self.ws
+                if ws:
+                    message = json.dumps({
+                        "unsubscribe": {
+                            "dataset_uuid": dataset_uuid
+                        }
+                    })
+                    await ws.send(message)
+                    log_requests.debug("ws send: %s", message)
+
+    async def remove_all_dataset_event_handlers(self, dataset_uuid: str):
+        event_handlers = self.dataset_uuid_to_event_handlers.get(dataset_uuid, None)
+        if event_handlers is not None:
+            del self.dataset_uuid_to_event_handlers[dataset_uuid]
+            ws = self.ws
+            if ws:
+                message = json.dumps({
+                    "unsubscribe": {
+                        "dataset_uuid": dataset_uuid
+                    }
+                })
+                await ws.send(message)
+                log_requests.debug("ws send: %s", message)
 
     """ Model methods """
 

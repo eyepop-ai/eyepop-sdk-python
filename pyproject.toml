@@ -28,7 +28,8 @@ dependencies = [
     "flatbuffers>=24.3.25",
     "deprecated>=1.2.14",
     "pydantic>=2.8.2",
-    "deprecated>=1.2.14"
+    "deprecated>=1.2.14",
+    "websockets>=13.1"
 ]
 
 [project.urls]
