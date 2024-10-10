@@ -87,7 +87,7 @@ class TestEndpointConnect(BaseEndpointTest):
             data=DatasetUpdate(
                 name="test updated",
                 auto_anotates=["ep_coco"]
-            ).model_dump_json()
+            ).model_dump_json(exclude_none=True, exclude_unset=True)
         )
         mock.assert_called_with(
             f'{self.test_data_url}/datasets/{self.test_dataset_id}',
