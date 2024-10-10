@@ -3,8 +3,11 @@ from typing import BinaryIO, Callable, Optional, List
 
 from eyepop.data.data_jobs import DataJob
 from eyepop.data.data_types import AssetImport, DatasetResponse, DatasetCreate, DatasetUpdate, AssetResponse, \
-    Prediction, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate, ModelTrainingProgress
+    Prediction, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate, ModelTrainingProgress, \
+    ChangeEvent
 from eyepop.syncify import run_coro_thread_save, SyncEndpoint, submit_coro_thread_save
+
+SyncEventHandler = Callable[[ChangeEvent], None]
 
 
 class SyncDataJob:
@@ -23,6 +26,22 @@ class SyncDataJob:
 class SyncDataEndpoint(SyncEndpoint):
     def __init__(self, endpoint: "DataEndpoint"):
         super().__init__(endpoint)
+
+    """ Event handlers """
+    def add_account_event_handler(self, event_handler: SyncEventHandler):
+        pass
+
+    def remove_account_event_handler(self, event_handler: SyncEventHandler):
+        pass
+
+    def add_dataset_event_handler(self, dataset_uuid: str, event_handler: SyncEventHandler):
+        pass
+
+    def remove_dataset_event_handler(self, dataset_uuid: str, event_handler: SyncEventHandler):
+        pass
+
+    def remove_all_dataset_event_handlers(self, dataset_uuid: str):
+        return run_coro_thread_save(self.event_loop, self.endpoint.remove_all_dataset_event_handlers(dataset_uuid))
 
     """ Model methods """
 

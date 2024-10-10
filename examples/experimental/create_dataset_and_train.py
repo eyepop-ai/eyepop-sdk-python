@@ -13,7 +13,7 @@ from eyepop.data.data_types import DatasetCreate, AssetImport, \
 from examples.experimental import sample_assets
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
+logging.getLogger('eyepop.requests').setLevel(level=logging.INFO)
 
 log = logging.getLogger(__name__)
 
@@ -63,11 +63,11 @@ async def analyze_dataset(endpoint: DataEndpoint, dataset_uuid: str) -> None:
             return
         if event.dataset_version is not None and event.change_type == ChangeType.dataset_version_modified:
             try:
-                log.info("event: %s", event.model_dump_json())
+                log.debug("event: %s", event.model_dump_json())
                 updated_dataset = await endpoint.get_dataset(event.dataset_uuid)
-                log.info("event for dataset: %s", updated_dataset.model_dump_json())
+                log.debug("event for dataset: %s", updated_dataset.model_dump_json())
                 updated_version = next((v for v in updated_dataset.versions if v.version == event.dataset_version), None)
-                log.info("event for dataset: %s", updated_version.model_dump_json() if updated_version else None)
+                log.debug("event for dataset: %s", updated_version.model_dump_json() if updated_version else None)
                 if updated_version is not None and updated_version.analysis_started_at is None:
                     analysis_future.set_result(None)
                     log.info("event: future done")
