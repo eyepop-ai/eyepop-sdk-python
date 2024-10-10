@@ -52,7 +52,7 @@ class EyePopSdk:
     @staticmethod
     def dataEndpoint(account_id: str | None = None, secret_key: str | None = None, eyepop_url: str | None = None,
                      job_queue_length: int = 1024, is_async: bool = False,
-                     request_tracer_max_buffer: int = 1204, disable_ws: bool = True) -> Union[DataEndpoint, SyncDataEndpoint]:
+                     request_tracer_max_buffer: int = 1204, disable_ws: bool = True) -> DataEndpoint | SyncDataEndpoint:
         if secret_key is None:
             secret_key = os.getenv('EYEPOP_SECRET_KEY')
             if secret_key is None:

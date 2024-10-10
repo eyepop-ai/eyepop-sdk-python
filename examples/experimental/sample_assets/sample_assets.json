@@ -1,0 +1,243 @@
+[
+  {
+    "asset_url": "https://farm1.staticflickr.com/22/29604617_a60740ce78_z.jpg",
+    "prediction": {
+      "objects": [
+        {
+          "classLabel": "person",
+          "confidence": 0.947,
+          "height": 68.6,
+          "width": 24.886,
+          "x": 169.98,
+          "y": 148.564
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.971,
+          "height": 171.82,
+          "width": 59.615,
+          "x": 427.007,
+          "y": 138.537
+        }
+      ],
+      "source_height": 480,
+      "source_width": 640
+    }
+  },
+  {
+    "asset_url": "http://farm2.staticflickr.com/1011/5189985930_17f375a964_z.jpg",
+    "prediction": {
+      "objects": [
+        {
+          "classLabel": "person",
+          "confidence": 0.859,
+          "height": 94.153,
+          "width": 290.293,
+          "x": 178.788,
+          "y": 0
+        }
+      ],
+      "source_height": 640,
+      "source_width": 480
+    }
+  },
+  {
+    "asset_url": "http://farm6.staticflickr.com/5248/5336478222_09808dc549_z.jpg",
+    "prediction": {
+      "objects": [
+        {
+          "classLabel": "person",
+          "confidence": 0.836,
+          "height": 20.222,
+          "width": 19.582,
+          "x": 563.901,
+          "y": 33.736
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.812,
+          "height": 21.9,
+          "width": 18.791,
+          "x": 524.7,
+          "y": 65.414
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.872,
+          "height": 24.735,
+          "width": 20.46,
+          "x": 542.153,
+          "y": 62.66
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.836,
+          "height": 60.1,
+          "width": 28.744,
+          "x": 598.633,
+          "y": 40.158
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.827,
+          "height": 25.044,
+          "width": 21.275,
+          "x": 543.914,
+          "y": 33.413
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.863,
+          "height": 27.124,
+          "width": 20.09,
+          "x": 562.478,
+          "y": 60.175
+        }
+      ],
+      "source_height": 359,
+      "source_width": 639
+    }
+  },
+  {
+    "asset_url": "http://farm9.staticflickr.com/8486/8213111544_7e2f50471a_z.jpg",
+    "prediction": {
+      "objects": [
+        {
+          "classLabel": "person",
+          "confidence": 0.948,
+          "height": 579.121,
+          "width": 584.95,
+          "x": 55.049,
+          "y": 11.959
+        }
+      ],
+      "source_height": 594,
+      "source_width": 640
+    }
+  },
+  {
+    "asset_url": "http://farm4.staticflickr.com/3665/9701402803_dd90a72093_z.jpg",
+    "prediction": {
+      "objects": [
+        {
+          "classLabel": "person",
+          "confidence": 0.841,
+          "height": 63.94,
+          "width": 22.605,
+          "x": 198.912,
+          "y": 146.137
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.961,
+          "height": 267.526,
+          "width": 85.357,
+          "x": 77.972,
+          "y": 117.686
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.955,
+          "height": 305.911,
+          "width": 157.531,
+          "x": 124.044,
+          "y": 186.63
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.946,
+          "height": 88.73,
+          "width": 23.873,
+          "x": 252.713,
+          "y": 126.737
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.955,
+          "height": 350.405,
+          "width": 139.219,
+          "x": 239.641,
+          "y": 136.128
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.95,
+          "height": 116.925,
+          "width": 47.191,
+          "x": 396.133,
+          "y": 99.183
+        }
+      ],
+      "source_height": 640,
+      "source_width": 453
+    }
+  },
+  {
+    "asset_url": "http://farm4.staticflickr.com/3671/9469334129_89072ec644_z.jpg",
+    "prediction": {
+      "objects": [
+        {
+          "classLabel": "person",
+          "confidence": 0.911,
+          "height": 33.252,
+          "width": 24.83,
+          "x": 390.757,
+          "y": 200.975
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.879,
+          "height": 44.348,
+          "width": 25.35,
+          "x": 350.866,
+          "y": 186.334
+        }
+      ],
+      "source_height": 487,
+      "source_width": 639
+    }
+  },
+  {
+    "asset_url": "http://farm1.staticflickr.com/193/469376766_09c0bf7240_z.jpg",
+    "prediction": {
+      "objects": [
+        {
+          "classLabel": "person",
+          "confidence": 0.971,
+          "height": 397.28,
+          "width": 167.57,
+          "x": 51.992,
+          "y": 82.304
+        },
+        {
+          "classLabel": "person",
+          "confidence": 0.97,
+          "height": 304.983,
+          "width": 102.707,
+          "x": 338.64,
+          "y": 151.303
+        }
+      ],
+      "source_height": 480,
+      "source_width": 640
+    }
+  },
+  {
+    "asset_url": "http://farm4.staticflickr.com/3472/3758010019_2c55f68cc8_z.jpg",
+    "prediction": {
+      "objects": [
+        {
+          "classLabel": "person",
+          "confidence": 0.97,
+          "height": 310.854,
+          "orientation": 0,
+          "width": 182.2,
+          "x": 175.56,
+          "y": 124.714
+        }
+      ],
+      "source_height": 480,
+      "source_width": 640
+    }
+  }
+]

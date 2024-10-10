@@ -1,7 +1,6 @@
 import asyncio
 import json
 from asyncio import StreamReader
-from types import coroutine
 from typing import Callable, BinaryIO, Awaitable
 from urllib.parse import urljoin
 
@@ -16,13 +15,13 @@ from eyepop.data.data_jobs import DataJob, _UploadStreamJob, _ImportFromJob
 from eyepop.data.data_syncify import SyncDataJob
 from eyepop.data.data_types import DatasetResponse, DatasetCreate, DatasetUpdate, AssetResponse, Prediction, \
     AssetImport, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate, \
-    ModelTrainingProgress, ChangeEvent
+    ModelTrainingProgress, ChangeEvent, ChangeType
 from eyepop.endpoint import Endpoint, log_requests
 
 APPLICATION_JSON = "application/json"
 
-WS_INITIAL_RECONNECT_DELAY = 1000.0
-WS_MAX_RECONNECT_DELAY = 60000.0
+WS_INITIAL_RECONNECT_DELAY = 1.0
+WS_MAX_RECONNECT_DELAY = 60.0
 
 EventHandler = Callable[[ChangeEvent], Awaitable[None]]
 
@@ -89,18 +88,17 @@ class DataEndpoint(Endpoint):
 
     async def _reconnect_ws(self):
         await self._ws_disconnect()
-        ws_url = urljoin(
+        ws_url = urljoin(urljoin(
             self.eyepop_url, self.data_config['base_url']
-        ).rstrip(
-            "/"
-        ).replace(
+        ).rstrip('/'),'events').replace(
             "https://", "wss://"
         ).replace(
             "http://", "ws://"
         )
 
+        log_requests.debug("before ws connect: %s", ws_url)
         ws = await websockets.asyncio.client.connect(uri=ws_url)
-        log_requests.debug("ws connected")
+        log_requests.debug("after ws connect: %s", ws_url)
 
         auth_headers = {'authorization': await self._authorization_header()}
         message = json.dumps(auth_headers)
@@ -140,6 +138,13 @@ class DataEndpoint(Endpoint):
         try:
             async for message in ws:
                 log_requests.debug("ws received %s", message)
+                try:
+                    data = json.loads(message)
+                    if "change_type" in data:
+                        change_event = ChangeEvent(**data)
+                        await self._dispatch_change_event(change_event)
+                except Exception as e:
+                    log_requests.exception(e)
         except websockets.ConnectionClosed:
             log_requests.debug("ws disconnected")
             await self._ws_disconnect()
@@ -152,6 +157,38 @@ class DataEndpoint(Endpoint):
             self.ws_tasks.add(ws_reconnect_task)
             ws_reconnect_task.add_done_callback(self.ws_tasks.discard)
 
+    account_event_types = {
+        ChangeType.dataset_added,
+        ChangeType.dataset_modified,
+        ChangeType.dataset_removed,
+        ChangeType.dataset_version_modified
+    }
+    dataset_event_handlers = {
+        ChangeType.dataset_added,
+        ChangeType.dataset_modified,
+        ChangeType.dataset_removed,
+        ChangeType.dataset_version_modified,
+        ChangeType.asset_added,
+        ChangeType.asset_removed,
+        ChangeType.asset_status_modified,
+        ChangeType.asset_annotation_modified,
+        ChangeType.model_added,
+        ChangeType.model_modified,
+        ChangeType.model_removed,
+        ChangeType.model_status_modified,
+        ChangeType.model_progress
+    }
+
+    async def _dispatch_change_event(self, change_event: ChangeEvent) -> None:
+        if change_event.change_type in self.account_event_handlers:
+            for handler in self.account_event_handlers:
+                await handler(change_event)
+        if change_event.change_type in self.dataset_event_handlers:
+            event_handlers = self.dataset_uuid_to_event_handlers.get(change_event.dataset_uuid, None)
+            if event_handlers is not None:
+                for handler in event_handlers:
+                    await handler(change_event)
+
     async def data_base_url(self) -> str:
         if self.data_config is None:
             await self._reconnect()
@@ -159,12 +196,18 @@ class DataEndpoint(Endpoint):
 
     """ Event handlers """
     async def add_account_event_handler(self, event_handler: EventHandler):
+        if self.disable_ws:
+            raise ValueError("event handlers disabled, create endpoint with disable_ws=False "
+                             "to register event handlers")
         self.account_event_handlers.add(event_handler)
 
     async def remove_account_event_handler(self, event_handler: EventHandler):
         self.account_event_handlers.discard(event_handler)
 
     async def add_dataset_event_handler(self, dataset_uuid: str, event_handler: EventHandler):
+        if self.disable_ws:
+            raise ValueError("event handlers disabled, create endpoint with disable_ws=False "
+                             "to register event handlers")
         event_handlers = self.dataset_uuid_to_event_handlers.get(dataset_uuid, None)
         if event_handlers is None:
             event_handlers = set()
@@ -221,7 +264,7 @@ class DataEndpoint(Endpoint):
     async def create_dataset(self, dataset: DatasetCreate) -> DatasetResponse:
         post_url = f'{await self.data_base_url()}/datasets?account_uuid={self.account_uuid}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
-                                                 data=dataset.json()) as resp:
+                                                 data=dataset.model_dump_json()) as resp:
             return parse_obj_as(DatasetResponse, await resp.json())
 
     async def get_dataset(self, dataset_uuid: str, include_hero_asset: bool = False) -> DatasetResponse:
@@ -231,8 +274,9 @@ class DataEndpoint(Endpoint):
 
     async def update_dataset(self, dataset_uuid: str, dataset: DatasetUpdate, start_auto_annotate: bool = True) -> DatasetResponse:
         patch_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?start_auto_annotate={start_auto_annotate}'
+        log_requests.debug('update_dataset: %s', dataset.model_dump_json())
         async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
-                                                 data=dataset.json()) as resp:
+                                                 data=dataset.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
             return parse_obj_as(DatasetResponse, await resp.json())
 
     async def delete_dataset(self, dataset_uuid: str) -> None:
@@ -240,18 +284,18 @@ class DataEndpoint(Endpoint):
         async with await self.request_with_retry("DELETE", delete_url):
             return
 
-    async def analyse_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None) -> DatasetResponse:
+    async def analyze_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None) -> None:
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
-        post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/analyse?{version_query}'
-        async with await self.request_with_retry("POST", post_url) as resp:
-            return parse_obj_as(DatasetResponse, await resp.json())
+        post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/analyze?{version_query}'
+        async with await self.request_with_retry("POST", post_url):
+            return
 
-    async def auto_annotate_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None, max_assets: int | None = None) -> DatasetResponse:
+    async def auto_annotate_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None, max_assets: int | None = None) -> None:
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         max_assets_query = f'&max_assets={max_assets}' if max_assets is not None else ''
-        post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/analyse?{version_query}{max_assets_query}'
-        async with await self.request_with_retry("POST", post_url) as resp:
-            return parse_obj_as(DatasetResponse, await resp.json())
+        post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/auto_annotate?{version_query}{max_assets_query}'
+        async with await self.request_with_retry("POST", post_url):
+            return
 
     async def freeze_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None) -> DatasetResponse:
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
@@ -324,7 +368,9 @@ class DataEndpoint(Endpoint):
         patch_url = f'{await self.data_base_url()}/assets/{asset_uuid}/ground_truth?{dataset_query}{version_query}'
         async with await self.request_with_retry("PATCH", patch_url,
                                                  content_type=APPLICATION_JSON if ground_truth else None,
-                                                 data=ground_truth.json() if ground_truth else None):
+                                                 data=ground_truth.model_dump_json(
+                                                     exclude_unset=True, exclude_none=True
+                                                 ) if ground_truth else None):
             return
 
     async def delete_asset_ground_truth(self, asset_uuid: str, dataset_uuid: str | None = None,
@@ -366,7 +412,7 @@ class DataEndpoint(Endpoint):
     async def create_model(self, dataset_uuid: str, dataset_version: int, model: ModelCreate, start_training: bool = True) -> ModelResponse:
         post_url = f'{await self.data_base_url()}/models?dataset_uuid={dataset_uuid}&dataset_version={dataset_version}&start_training={start_training}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
-                                                 data=model.json()) as resp:
+                                                 data=model.model_dump_json()) as resp:
             return parse_obj_as(ModelResponse, await resp.json())
 
     async def get_model(self, model_uuid: str) -> ModelResponse:
@@ -382,7 +428,9 @@ class DataEndpoint(Endpoint):
     async def update_model(self, model_uuid: str, model: ModelUpdate) -> ModelResponse:
         patch_url = f'{await self.data_base_url()}/models/{model_uuid}'
         async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
-                                                 data=model.json()) as resp:
+                                                 data=model.model_dump_json(
+                                                     exclude_unset=True, exclude_none=True
+                                                 )) as resp:
             return parse_obj_as(ModelResponse, await resp.json())
 
     async def delete_model(self, model_uuid: str) -> None:

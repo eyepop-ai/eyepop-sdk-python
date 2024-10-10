@@ -29,6 +29,15 @@ AutoAnnotate = str
 
 class ModelType(enum.StrEnum):
     epdet_b1 = enum.auto()
+    epdet_b1_1 = enum.auto()
+    yolov7 = enum.auto()
+    yolov7_tiny = enum.auto()
+    yolov7_e6e = enum.auto()
+    yolov7_w6 = enum.auto()
+    yolov7_x = enum.auto()
+    coolr_demo = enum.auto()
+    imported = enum.auto()
+    eyepop_sst = enum.auto()
 
 
 class ModelStatus(enum.StrEnum):
@@ -232,6 +241,9 @@ class ModelMetrics(BaseModel):
 
 
 class ModelResponse(BaseModel):
+    uuid: str
+    created_at: datetime
+    updated_at: datetime | None = None
     account_uuid: str
     dataset_uuid: str | None = None
     dataset_version: int | None = None
