@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from typing import List
+from typing import List, Callable, Awaitable
 
 from pydantic import BaseModel, ConfigDict
 
@@ -311,12 +311,63 @@ class ChangeType(enum.StrEnum):
     model_modified = enum.auto()
     model_status_modified = enum.auto()
     model_progress = enum.auto()
+    events_lost = enum.auto()
 
 
 class ChangeEvent(BaseModel):
     change_type: ChangeType
     account_uuid: str
-    dataset_uuid: str
+    dataset_uuid: str | None
     dataset_version: int | None
     asset_uuid: str | None
     mdl_uuid: str | None
+
+
+
+EventHandler = Callable[[ChangeEvent], Awaitable[None]]
+
+
+class TagResponse(BaseModel):
+    name: str
+    model_uuid: str
+    model_config = ConfigDict(
+        protected_namespaces=('pydantic_do_not_prevent_model_prefix_',)
+    )
+
+
+class ModelAliasResponse(BaseModel):
+    name: str
+    description: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    account_uuid: str
+    is_public: bool
+    tags: list[TagResponse]
+
+
+class ModelAliasCreate(BaseModel):
+    name: str
+    description: str | None = None
+    is_public: bool = False
+
+
+class ModelAliasUpdate(BaseModel):
+    description: str | None = None
+    is_public: bool | None = None
+
+
+class ModelExportFormat(enum.StrEnum):
+    TensorFlowLite = "TensorFlowLite"
+    TensorFlowGraphDef = "TensorFlowGraphDef"
+    TorchScript = "TorchScript"
+    TorchScriptCpu = "TorchScriptCpu"
+    TorchScriptCuda = "TorchScriptCuda"
+    ONNX = "ONNX"
+
+
+class ExportedAliasResponse(BaseModel):
+    alias: str
+    model_uuid: str | None
+    model_config = ConfigDict(
+        protected_namespaces=('pydantic_do_not_prevent_model_prefix_',)
+    )

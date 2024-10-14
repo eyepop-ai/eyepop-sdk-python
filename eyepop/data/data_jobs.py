@@ -47,7 +47,7 @@ class _UploadStreamJob(DataJob):
         async with await session.request_with_retry("POST", post_path, data=self.stream,
                                                     content_type=self.mime_type,
                                                     timeout=aiohttp.ClientTimeout(total=None, sock_read=60)) as resp:
-            result = AssetResponse.parse_obj(await resp.json())
+            result = AssetResponse.model_validate(await resp.json())
             await queue.put(result)
 
 
@@ -71,8 +71,8 @@ class _ImportFromJob(DataJob):
         post_path = (f"/assets/imports?dataset_uuid={self.dataset_uuid}"
                      f"{dataset_version_query}{external_id_query}{partition_query}")
 
-        async with await session.request_with_retry("POST", post_path, data=self.asset_import.json(),
+        async with await session.request_with_retry("POST", post_path, data=self.asset_import.model_dump_json(),
                                                     content_type="application/json",
                                                     timeout=aiohttp.ClientTimeout(total=None, sock_read=60)) as resp:
-            result = AssetResponse.parse_obj(await resp.json())
+            result = AssetResponse.model_validate(await resp.json())
             await queue.put(result)

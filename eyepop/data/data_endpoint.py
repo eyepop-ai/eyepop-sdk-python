@@ -1,7 +1,7 @@
 import asyncio
 import json
 from asyncio import StreamReader
-from typing import Callable, BinaryIO, Awaitable
+from typing import Callable, BinaryIO
 from urllib.parse import urljoin
 
 import aiohttp
@@ -15,7 +15,8 @@ from eyepop.data.data_jobs import DataJob, _UploadStreamJob, _ImportFromJob
 from eyepop.data.data_syncify import SyncDataJob
 from eyepop.data.data_types import DatasetResponse, DatasetCreate, DatasetUpdate, AssetResponse, Prediction, \
     AssetImport, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate, \
-    ModelTrainingProgress, ChangeEvent, ChangeType
+    ModelTrainingProgress, ChangeEvent, ChangeType, EventHandler, ModelAliasResponse, ModelAliasCreate, \
+    ModelAliasUpdate, ModelExportFormat
 from eyepop.endpoint import Endpoint, log_requests
 
 APPLICATION_JSON = "application/json"
@@ -23,7 +24,6 @@ APPLICATION_JSON = "application/json"
 WS_INITIAL_RECONNECT_DELAY = 1.0
 WS_MAX_RECONNECT_DELAY = 60.0
 
-EventHandler = Callable[[ChangeEvent], Awaitable[None]]
 
 class DataClientSession(ClientSession):
     def __init__(self, delegee: ClientSession, base_url: str):
@@ -181,11 +181,13 @@ class DataEndpoint(Endpoint):
 
     async def _dispatch_change_event(self, change_event: ChangeEvent) -> None:
         if change_event.change_type in self.account_event_handlers:
-            for handler in self.account_event_handlers:
+            event_handlers = self.account_event_handlers.copy()
+            for handler in event_handlers:
                 await handler(change_event)
         if change_event.change_type in self.dataset_event_handlers:
             event_handlers = self.dataset_uuid_to_event_handlers.get(change_event.dataset_uuid, None)
             if event_handlers is not None:
+                event_handlers = event_handlers.copy()
                 for handler in event_handlers:
                     await handler(change_event)
 
@@ -409,7 +411,20 @@ class DataEndpoint(Endpoint):
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(list[ModelResponse], await resp.json())
 
-    async def create_model(self, dataset_uuid: str, dataset_version: int, model: ModelCreate, start_training: bool = True) -> ModelResponse:
+    async def create_model(self, model: ModelCreate) -> ModelResponse:
+        post_url = f'{await self.data_base_url()}/models?account_uuid={self.account_uuid}&start_training=False'
+        async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
+                                                 data=model.model_dump_json()) as resp:
+            return parse_obj_as(ModelResponse, await resp.json())
+
+    async def upload_model_artifact(self, model_uuid: str, model_format: ModelExportFormat, artifact_name: str,
+                                    stream: BinaryIO, mime_type: str = 'application/octet-stream') -> None:
+        put_url = f'{await self.data_base_url()}/models/{model_uuid}/exports/{model_format}/artifacts/{artifact_name}'
+        async with await self.request_with_retry("PUT", put_url, data=stream, content_type=mime_type,
+                                                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60)):
+            return
+
+    async def create_model_from_dataset(self, dataset_uuid: str, dataset_version: int, model: ModelCreate, start_training: bool = True) -> ModelResponse:
         post_url = f'{await self.data_base_url()}/models?dataset_uuid={dataset_uuid}&dataset_version={dataset_version}&start_training={start_training}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=model.model_dump_json()) as resp:
@@ -447,3 +462,44 @@ class DataEndpoint(Endpoint):
         post_url = f'{await self.data_base_url()}/models/{model_uuid}/publish'
         async with await self.request_with_retry("POST", post_url) as resp:
             return parse_obj_as(ModelResponse, await resp.json())
+
+    """ Model aliases methods """
+
+    async def list_model_aliases(self) -> list[ModelAliasResponse]:
+        get_url = f'{await self.data_base_url()}/model_aliases?account_uuid={self.account_uuid}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(list[ModelAliasResponse], await resp.json())
+
+    async def create_model_alias(self, model_alias: ModelAliasCreate, dry_run: bool = False) -> ModelAliasResponse:
+        post_url = f'{await self.data_base_url()}/model_aliases?account_uuid={self.account_uuid}&dry_run={dry_run}'
+        async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
+                                                 data=model_alias.model_dump_json()) as resp:
+            return parse_obj_as(ModelAliasResponse, await resp.json())
+
+    async def get_model_alias(self, name: str) -> ModelAliasResponse:
+        get_url = f'{await self.data_base_url()}/model_aliases/{name}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(ModelAliasResponse, await resp.json())
+
+    async def delete_model_alias(self, name: str) -> None:
+        delete_url = f'{await self.data_base_url()}/model_aliases/{name}'
+        async with await self.request_with_retry("DELETE", delete_url):
+            return
+
+    async def update_model_alias(self, name: str, model_alias: ModelAliasUpdate) -> ModelAliasResponse:
+        patch_url = f'{await self.data_base_url()}/model_aliases/{name}'
+        async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
+                                                 data=model_alias.model_dump_json(
+                                                     exclude_unset=True, exclude_none=True
+                                                 )) as resp:
+            return parse_obj_as(ModelAliasResponse, await resp.json())
+
+    async def set_model_alias_tag(self, name: str, tag: str, model_uuid: str) -> None:
+        patch_url = f'{await self.data_base_url()}/model_aliases/{name}/{tag}?model_uuid={model_uuid}'
+        async with await self.request_with_retry("PATCH", patch_url):
+            return
+
+    async def delete_model_alias_tag(self, name: str, tag: str) -> None:
+        delete_url = f'{await self.data_base_url()}/model_aliases/{name}/{tag}'
+        async with await self.request_with_retry("DELETE", delete_url):
+            return
