@@ -52,7 +52,7 @@ class EyePopSdk:
     @staticmethod
     def dataEndpoint(account_id: str | None = None, secret_key: str | None = None, eyepop_url: str | None = None,
                      job_queue_length: int = 1024, is_async: bool = False,
-                     request_tracer_max_buffer: int = 1204) -> Union[DataEndpoint, SyncDataEndpoint]:
+                     request_tracer_max_buffer: int = 1204, disable_ws: bool = True) -> DataEndpoint | SyncDataEndpoint:
         if secret_key is None:
             secret_key = os.getenv('EYEPOP_SECRET_KEY')
             if secret_key is None:
@@ -69,7 +69,8 @@ class EyePopSdk:
                 raise KeyError('parameter \'account_id\' is required')
 
         endpoint = DataEndpoint(secret_key=secret_key, account_id=account_id, eyepop_url=eyepop_url,
-                                job_queue_length=job_queue_length, request_tracer_max_buffer=request_tracer_max_buffer)
+                                job_queue_length=job_queue_length, request_tracer_max_buffer=request_tracer_max_buffer,
+                                disable_ws=disable_ws)
 
         if not is_async:
             endpoint = SyncDataEndpoint(endpoint)

@@ -1,10 +1,9 @@
 import json
 import unittest
-from aiohttp import ClientResponseError
-from aioresponses import aioresponses, CallbackResult
+from aioresponses import aioresponses
 
 from eyepop import EyePopSdk
-from tests.data.base_endpoint_test import BaseEndpointTest
+from .base_endpoint_test import BaseEndpointTest
 
 
 class TestEndpointConnect(BaseEndpointTest):

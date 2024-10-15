@@ -1,10 +1,14 @@
+import asyncio
 import typing
 from typing import BinaryIO, Callable, Optional, List
 
 from eyepop.data.data_jobs import DataJob
 from eyepop.data.data_types import AssetImport, DatasetResponse, DatasetCreate, DatasetUpdate, AssetResponse, \
-    Prediction, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate, ModelTrainingProgress
+    Prediction, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate, ModelTrainingProgress, \
+    ChangeEvent, EventHandler, ModelAliasResponse, ModelAliasCreate, ModelAliasUpdate, ModelExportFormat
 from eyepop.syncify import run_coro_thread_save, SyncEndpoint, submit_coro_thread_save
+
+SyncEventHandler = Callable[[ChangeEvent], None]
 
 
 class SyncDataJob:
@@ -12,7 +16,7 @@ class SyncDataJob:
         self.job = job
         self.event_loop = event_loop
 
-    def result(self) -> dict:
+    def result(self) -> AssetResponse:
         result = run_coro_thread_save(self.event_loop, self.job.result())
         return result
 
@@ -20,9 +24,62 @@ class SyncDataJob:
         run_coro_thread_save(self.event_loop, self.job.cancel())
 
 
+def wrap_event_handler(event_handler: SyncEventHandler) -> EventHandler:
+    async def async_event_handler(event: ChangeEvent):
+        await asyncio.to_thread(event_handler, event)
+    return async_event_handler
+
+async def null_event_handler(_: ChangeEvent):
+    pass
+
 class SyncDataEndpoint(SyncEndpoint):
+    event_handlers: dict[SyncEventHandler, EventHandler]
+
     def __init__(self, endpoint: "DataEndpoint"):
         super().__init__(endpoint)
+        self.event_handlers = {}
+
+    """ Event handlers """
+    def add_account_event_handler(self, event_handler: SyncEventHandler):
+        async_event_handler = wrap_event_handler(event_handler)
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.add_account_event_handler(async_event_handler)
+        )
+        self.event_handlers[event_handler] = async_event_handler
+
+
+    def remove_account_event_handler(self, event_handler: SyncEventHandler):
+        async_event_handler = self.event_handlers.pop(event_handler, null_event_handler)
+        if async_event_handler is null_event_handler:
+            return
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.remove_account_event_handler(async_event_handler)
+        )
+
+    def add_dataset_event_handler(self, dataset_uuid: str, event_handler: SyncEventHandler):
+        async_event_handler = wrap_event_handler(event_handler)
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.add_dataset_event_handler(dataset_uuid, async_event_handler)
+        )
+        self.event_handlers[event_handler] = async_event_handler
+
+    def remove_dataset_event_handler(self, dataset_uuid: str, event_handler: SyncEventHandler):
+        async_event_handler = self.event_handlers.pop(event_handler, null_event_handler)
+        if async_event_handler is null_event_handler:
+            return
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.remove_dataset_event_handler(dataset_uuid, async_event_handler)
+        )
+
+    def remove_all_dataset_event_handlers(self, dataset_uuid: str):
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.remove_all_dataset_event_handlers(dataset_uuid)
+        )
 
     """ Model methods """
 
@@ -35,11 +92,17 @@ class SyncDataEndpoint(SyncEndpoint):
     def get_dataset(self, dataset_uuid: str, include_hero_asset: bool = False) -> DatasetResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_dataset(dataset_uuid, include_hero_asset))
 
-    def update_dataset(self, dataset_uuid: str, dataset: DatasetUpdate) -> DatasetResponse:
-        return run_coro_thread_save(self.event_loop, self.endpoint.update_dataset(dataset_uuid, dataset))
+    def update_dataset(self, dataset_uuid: str, dataset: DatasetUpdate, start_auto_annotate: bool = True) -> DatasetResponse:
+        return run_coro_thread_save(self.event_loop, self.endpoint.update_dataset(dataset_uuid, dataset, start_auto_annotate))
 
     def delete_dataset(self, dataset_uuid: str) -> None:
         return run_coro_thread_save(self.event_loop, self.endpoint.delete_dataset(dataset_uuid))
+
+    def analyze_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None) -> None:
+        return run_coro_thread_save(self.event_loop, self.endpoint.analyze_dataset_version(dataset_uuid, dataset_version))
+
+    def auto_annotate_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None, max_assets: int | None = None) -> None:
+        return run_coro_thread_save(self.event_loop, self.endpoint.auto_annotate_dataset_version(dataset_uuid, dataset_version, max_assets))
 
     def freeze_dataset_version(self, dataset_uuid: str, dataset_version: Optional[int] = None) -> DatasetResponse:
         return run_coro_thread_save(self.event_loop,
@@ -137,8 +200,15 @@ class SyncDataEndpoint(SyncEndpoint):
     def list_models(self) -> List[ModelResponse]:
         return run_coro_thread_save(self.event_loop, self.endpoint.list_models())
 
-    def create_model(self, dataset_uuid: str, dataset_version: int, model: ModelCreate) -> ModelResponse:
-        return run_coro_thread_save(self.event_loop, self.endpoint.create_model(dataset_uuid, dataset_version, model))
+    def create_model(self, model: ModelCreate) -> ModelResponse:
+        return run_coro_thread_save(self.event_loop, self.endpoint.create_model(model))
+
+    def upload_model_artifact(self, model_uuid: str, model_format: ModelExportFormat, artifact_name: str,
+                                    stream: BinaryIO, mime_type: str = 'application/octet-stream') -> None:
+        return run_coro_thread_save(self.event_loop, self.endpoint.upload_model_artifact(model_uuid, model_format, artifact_name, stream, mime_type))
+
+    def create_model_from_dataset(self, dataset_uuid: str, dataset_version: int, model: ModelCreate, start_training: bool = True) -> ModelResponse:
+        return run_coro_thread_save(self.event_loop, self.endpoint.create_model_from_dataset(dataset_uuid, dataset_version, model, start_training))
 
     def get_model(self, model_uuid: str) -> ModelResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_model(model_uuid))
@@ -152,5 +222,31 @@ class SyncDataEndpoint(SyncEndpoint):
     def delete_model(self, model_uuid: str) -> None:
         return run_coro_thread_save(self.event_loop, self.endpoint.delete_model(model_uuid))
 
+    def train_model(self, model_uuid: str) -> ModelResponse:
+        return run_coro_thread_save(self.event_loop, self.endpoint.train_model(model_uuid))
+
     def publish_model(self, model_uuid: str) -> ModelResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.publish_model(model_uuid))
+
+    """ Model aliases methods """
+
+    def list_model_aliases(self) -> list[ModelAliasResponse]:
+        return run_coro_thread_save(self.event_loop, self.endpoint.list_model_aliases())
+
+    def create_model_alias(self, model_alias: ModelAliasCreate, dry_run: bool = False) -> ModelAliasResponse:
+        return run_coro_thread_save(self.event_loop, self.endpoint.create_model_alias(model_alias, dry_run))
+
+    def get_model_alias(self, name: str) -> ModelAliasResponse:
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_model_alias(name))
+
+    def delete_model_alias(self, name: str) -> None:
+        return run_coro_thread_save(self.event_loop, self.endpoint.delete_model_alias(name))
+
+    def update_model_alias(self, name: str, model_alias: ModelAliasUpdate) -> ModelAliasResponse:
+        return run_coro_thread_save(self.event_loop, self.endpoint.update_model_alias(name, model_alias))
+
+    def set_model_alias_tag(self, name: str, tag: str, model_uuid: str) -> None:
+        return run_coro_thread_save(self.event_loop, self.endpoint.set_model_alias_tag(name, tag, model_uuid))
+
+    def delete_model_alias_tag(self, name: str, tag: str) -> None:
+        return run_coro_thread_save(self.event_loop, self.endpoint.delete_model_alias_tag(name, tag))
