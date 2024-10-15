@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from typing import List
+from typing import List, Callable, Awaitable
 
 from pydantic import BaseModel, ConfigDict
 
@@ -29,6 +29,15 @@ AutoAnnotate = str
 
 class ModelType(enum.StrEnum):
     epdet_b1 = enum.auto()
+    epdet_b1_1 = enum.auto()
+    yolov7 = enum.auto()
+    yolov7_tiny = enum.auto()
+    yolov7_e6e = enum.auto()
+    yolov7_w6 = enum.auto()
+    yolov7_x = enum.auto()
+    coolr_demo = enum.auto()
+    imported = enum.auto()
+    eyepop_sst = enum.auto()
 
 
 class ModelStatus(enum.StrEnum):
@@ -67,6 +76,8 @@ class DatasetVersionResponse(BaseModel):
     modifiable: bool
     hero_asset_uuid: str | None = None
     asset_stats: DatasetVersionAssetStats | None = None
+    analysis_started_at: datetime | None = None
+    auto_annotate_started_at: datetime | None = None
 
 
 class AutoAnnotateParams(BaseModel):
@@ -86,18 +97,23 @@ class DatasetResponse(BaseModel):
     auto_annotates: List[AutoAnnotate]
     auto_annotate_params: AutoAnnotateParams | None = None
     versions: List[DatasetVersionResponse]
+    modifiable_version: int | None = None
 
 
 class DatasetCreate(BaseModel):
     name: str
     description: str = ""
-    tags: List[str] = []
-    auto_annotates: List[AutoAnnotate] = []
+    tags: list[str] = []
+    auto_annotates: list[AutoAnnotate] = []
     auto_annotate_params: AutoAnnotateParams | None = None
 
 
 class DatasetUpdate(DatasetCreate):
-    pass
+    name: str | None = None
+    description: str | None = None
+    tags: List[str] | None = None
+    auto_annotates: List[AutoAnnotate]  | None = None
+    auto_annotate_params: AutoAnnotateParams | None = None
 
 
 class Point2d(BaseModel):
@@ -220,29 +236,39 @@ class AssetImport(BaseModel):
     ground_truth: Prediction | None = None
 
 
+class ModelMetrics(BaseModel):
+    cpr: list[tuple[float, float, float]] | None = None
+
+
 class ModelResponse(BaseModel):
     uuid: str
     created_at: datetime
-    updated_at: datetime
+    updated_at: datetime | None = None
     account_uuid: str
-    dataset_uuid: str
-    dataset_version: int
+    dataset_uuid: str | None = None
+    dataset_version: int | None = None
     name: str
-    description: str | None = None
-    type: ModelType
+    description: str
+    type: ModelType | None = None
     status: ModelStatus
+    is_public: bool
+    external_id: str | None = None
     status_message: str | None = None
-    exported_url: str | None = None
+    metrics: ModelMetrics | None = None
 
 
 class ModelCreate(BaseModel):
     name: str
-    description: str | None = None
-    type: ModelType
+    description: str
+    external_id: str | None = None
 
 
 class ModelUpdate(ModelCreate):
-    pass
+    name: str | None = None
+    description: str | None = None
+    is_public: bool | None = None
+    external_id: str | None = None
+    status: ModelStatus | None = None
 
 
 class ModelTrainingStage(enum.StrEnum):
@@ -253,12 +279,95 @@ class ModelTrainingStage(enum.StrEnum):
     exporting = enum.auto()
 
 
+class ModelSample(BaseModel):
+    asset_uuid: str
+    prediction: Prediction
+
+
 class ModelTrainingProgress(BaseModel):
     stage: ModelTrainingStage
     queue_length: int | None = None
     started_at: datetime
     finished_at: datetime | None = None
-    best_cpr: list[tuple[float, float, float]] | None = None
-    sample_asset_uuids: list[str] | None = None
+    status_code: int | None = None
+    status_message: str | None = None
+    metrics: ModelMetrics | None = None
+    samples: list[ModelSample] | None = None
     remaining_seconds_min: float | None = None
     remaining_seconds_max: float | None = None
+
+
+class ChangeType(enum.StrEnum):
+    dataset_added = enum.auto()
+    dataset_removed = enum.auto()
+    dataset_modified = enum.auto()
+    dataset_version_modified = enum.auto()
+    asset_added = enum.auto()
+    asset_removed = enum.auto()
+    asset_status_modified = enum.auto()
+    asset_annotation_modified = enum.auto()
+    model_added = enum.auto()
+    model_removed = enum.auto()
+    model_modified = enum.auto()
+    model_status_modified = enum.auto()
+    model_progress = enum.auto()
+    events_lost = enum.auto()
+
+
+class ChangeEvent(BaseModel):
+    change_type: ChangeType
+    account_uuid: str
+    dataset_uuid: str | None
+    dataset_version: int | None
+    asset_uuid: str | None
+    mdl_uuid: str | None
+
+
+
+EventHandler = Callable[[ChangeEvent], Awaitable[None]]
+
+
+class TagResponse(BaseModel):
+    name: str
+    model_uuid: str
+    model_config = ConfigDict(
+        protected_namespaces=('pydantic_do_not_prevent_model_prefix_',)
+    )
+
+
+class ModelAliasResponse(BaseModel):
+    name: str
+    description: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    account_uuid: str
+    is_public: bool
+    tags: list[TagResponse]
+
+
+class ModelAliasCreate(BaseModel):
+    name: str
+    description: str | None = None
+    is_public: bool = False
+
+
+class ModelAliasUpdate(BaseModel):
+    description: str | None = None
+    is_public: bool | None = None
+
+
+class ModelExportFormat(enum.StrEnum):
+    TensorFlowLite = "TensorFlowLite"
+    TensorFlowGraphDef = "TensorFlowGraphDef"
+    TorchScript = "TorchScript"
+    TorchScriptCpu = "TorchScriptCpu"
+    TorchScriptCuda = "TorchScriptCuda"
+    ONNX = "ONNX"
+
+
+class ExportedAliasResponse(BaseModel):
+    alias: str
+    model_uuid: str | None
+    model_config = ConfigDict(
+        protected_namespaces=('pydantic_do_not_prevent_model_prefix_',)
+    )

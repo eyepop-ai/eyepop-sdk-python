@@ -19,6 +19,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
     test_dataset = DatasetResponse(
         uuid=test_dataset_id,
         name="test",
+        description="",
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
         tags=[],
