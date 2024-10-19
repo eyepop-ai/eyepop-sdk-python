@@ -113,7 +113,7 @@ async def train_model(endpoint: DataEndpoint, model: ModelResponse) -> ModelResp
 
 async def main():
     auto_annotate: str = "grounding_dino_base"
-    auto_annotate_params = AutoAnnotateParams(candidate_labels=["person", "car", "toy"])
+    auto_annotate_params = AutoAnnotateParams(candidate_labels=["person"])
 
     async with EyePopSdk.dataEndpoint(is_async=True, disable_ws=False) as endpoint:
         dataset = await endpoint.create_dataset(DatasetCreate(name="test_dataset"))
