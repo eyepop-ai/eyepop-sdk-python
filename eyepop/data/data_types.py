@@ -206,6 +206,7 @@ class AssetAnnotationResponse(BaseModel):
     approved_threshold: float | None = None
     auto_annotate: AutoAnnotate | None = None
     auto_annotate_params: AutoAnnotateParams | None = None
+    external_source: str | None = None
     annotation: Prediction | None = None
     uncertainty_score: float | None = None
 
