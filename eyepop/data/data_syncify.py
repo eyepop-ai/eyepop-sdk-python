@@ -112,6 +112,11 @@ class SyncDataEndpoint(SyncEndpoint):
         return run_coro_thread_save(self.event_loop,
                                     self.endpoint.delete_dataset_version(dataset_uuid, dataset_version))
 
+    def delete_annotations(self, dataset_uuid: str, dataset_version: int,
+                           user_reviews: list[UserReview] = (UserReview.unknown,)) -> None:
+        return run_coro_thread_save(self.event_loop,
+                                    self.delete_annotations(dataset_uuid, dataset_version, user_reviews))
+
     """" Asset methods """
 
     def upload_asset_job(self, stream: BinaryIO, mime_type: str, dataset_uuid: str,
