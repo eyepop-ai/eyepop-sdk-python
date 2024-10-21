@@ -45,7 +45,7 @@ class WaitForSync:
                 with self.condition:
                     self.result = True
                     self.condition.notify_all()
-        except any as e:
+        except BaseException as e:
             with self.condition:
                 self.exception = e
                 self.condition.notify_all()

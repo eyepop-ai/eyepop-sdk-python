@@ -34,5 +34,5 @@ class WaitFor:
         try:
             if await self.criteria(self.endpoint, event):
                 self.future.set_result(None)
-        except any as e:
+        except BaseException as e:
             self.future.set_exception(e)
