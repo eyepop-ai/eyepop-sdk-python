@@ -38,34 +38,27 @@ async def import_sample_assets(endpoint: DataEndpoint, dataset: DatasetResponse)
     log.info("imported %d assets to %s", len(assets), dataset.uuid)
     return assets
 
-async def analysis_done_criteria(endpoint: DataEndpoint, event: ChangeEvent):
-    if (event.dataset_version is not None and
-            event.change_type in [ChangeType.dataset_version_modified, ChangeType.events_lost]):
-        updated_dataset = await endpoint.get_dataset(event.dataset_uuid)
-        updated_version = next((v for v in updated_dataset.versions if v.version == event.dataset_version), None)
-        return (updated_version is not None and updated_version.analysis_started_at is None)
-
 async def analyze_dataset(endpoint: DataEndpoint, dataset_uuid: str) -> None:
-    async with WaitFor(endpoint=endpoint, dataset_uuid=dataset_uuid, criteria=analysis_done_criteria):
-        log.info("before analysis start for dataset %s", dataset_uuid)
-        await endpoint.analyze_dataset_version(dataset_uuid)
-        log.info("analysis started for dataset %s", dataset_uuid)
-    log.info("analysis succeeded for dataset %s", dataset_uuid)
+    log.info("before analysis start for dataset %s", dataset_uuid)
+    await endpoint.analyze_dataset_version(dataset_uuid)
+    log.info("analysis started for dataset %s", dataset_uuid)
 
 async def auto_annotate_done_criteria(endpoint: DataEndpoint, event: ChangeEvent):
     if (event.dataset_version is not None and
             event.change_type in [ChangeType.dataset_version_modified, ChangeType.events_lost]):
-        updated_dataset = await endpoint.get_dataset(event.dataset_uuid)
+        updated_dataset = await endpoint.get_dataset(event.dataset_uuid, include_stats=True)
         updated_version = next((v for v in updated_dataset.versions if v.version == event.dataset_version), None)
-        return (updated_version is not None and updated_version.auto_annotate_started_at is None)
+        return (updated_version is not None
+                and updated_version.asset_stats.auto_annotated == updated_version.asset_stats.total)
 
-async def auto_annotate_dataset(endpoint: DataEndpoint, dataset_uuid: str, auto_annotate: str, auto_annotate_params: AutoAnnotateParams) -> None:
+async def auto_annotate_dataset(endpoint: DataEndpoint, dataset_uuid: str,
+                                auto_annotate: str, auto_annotate_params: AutoAnnotateParams) -> None:
     log.info("before auto annotate update dataset %s", dataset_uuid)
     await endpoint.update_dataset(dataset_uuid, DatasetUpdate(
         auto_annotates=[auto_annotate],
         auto_annotate_params=auto_annotate_params
     ), False)
-    async with WaitFor(endpoint=endpoint, dataset_uuid=dataset_uuid, criteria=analysis_done_criteria):
+    async with WaitFor(endpoint=endpoint, dataset_uuid=dataset_uuid, criteria=auto_annotate_done_criteria):
         log.info("before auto annotates start for dataset %s", dataset_uuid)
         await endpoint.auto_annotate_dataset_version(dataset_uuid, None)
         log.info("auto annotates started for dataset %s", dataset_uuid)
