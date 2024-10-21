@@ -269,8 +269,8 @@ class DataEndpoint(Endpoint):
                                                  data=dataset.model_dump_json()) as resp:
             return parse_obj_as(DatasetResponse, await resp.json())
 
-    async def get_dataset(self, dataset_uuid: str, include_hero_asset: bool = False) -> DatasetResponse:
-        get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?include_hero_asset={include_hero_asset}'
+    async def get_dataset(self, dataset_uuid: str, include_stats: bool = False) -> DatasetResponse:
+        get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?include_stats={include_stats}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(DatasetResponse, await resp.json())
 

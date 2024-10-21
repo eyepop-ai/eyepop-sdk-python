@@ -63,6 +63,7 @@ class UserReview(enum.StrEnum):
 
 class DatasetVersionAssetStats(BaseModel):
     total: int | None = None
+    accepted: int | None = None
     annotated: int | None = None
     auto_annotated: int | None = None
     auto_annotated_approved: int | None = None
@@ -73,11 +74,11 @@ class DatasetVersionResponse(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+    assets_modified_at: datetime
+    last_analysed_at: datetime | None = None
     modifiable: bool
     hero_asset_uuid: str | None = None
     asset_stats: DatasetVersionAssetStats | None = None
-    analysis_started_at: datetime | None = None
-    auto_annotate_started_at: datetime | None = None
 
 
 class AutoAnnotateParams(BaseModel):
