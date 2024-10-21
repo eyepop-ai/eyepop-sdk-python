@@ -306,8 +306,8 @@ class DataEndpoint(Endpoint):
             return parse_obj_as(DatasetResponse, await resp.json())
 
     async def delete_dataset_version(self, dataset_uuid: str, dataset_version: int) -> DatasetResponse:
-        post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/delete?dataset_version={dataset_version}'
-        async with await self.request_with_retry("POST", post_url) as resp:
+        post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?dataset_version={dataset_version}'
+        async with await self.request_with_retry("DELETE", post_url) as resp:
             return parse_obj_as(DatasetResponse, await resp.json())
 
     """" Asset methods """
