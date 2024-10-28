@@ -74,7 +74,7 @@ class DataEndpoint(Endpoint):
             self.data_config = None
             return True
 
-    async def _disconnect(self):
+    async def _disconnect(self, timeout: float | None = None):
         await self._ws_disconnect()
 
     async def _reconnect(self):

@@ -35,8 +35,8 @@ class SyncEndpoint:
     def connect(self):
         run_coro_thread_save(self.event_loop, self.endpoint.connect())
 
-    def disconnect(self):
-        run_coro_thread_save(self.event_loop, self.endpoint.disconnect())
+    def disconnect(self, timeout: float | None = None):
+        run_coro_thread_save(self.event_loop, self.endpoint.disconnect(timeout))
 
     def session(self) -> dict:
         return run_coro_thread_save(self.event_loop, self.endpoint.session())

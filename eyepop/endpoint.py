@@ -93,9 +93,19 @@ class Endpoint(ClientSession):
     async def _authorization_header(self):
         return f'Bearer {await self.__get_access_token()}'
 
-    async def disconnect(self):
-        await self._disconnect()
+    async def disconnect(self, timeout: float | None = None) -> None:
+        if timeout is None:
+            await self._disconnect()
+            await self._cleanup()
+        else:
+            try:
+                async with asyncio.timeout(timeout):
+                    await self._disconnect(timeout)
+                    await self._cleanup()
+            except asyncio.TimeoutError:
+                log_requests.info(f"timeout after {timeout} seconds in disconnect, ignored")
 
+    async def _cleanup(self) -> None:
         tasks = list(self.tasks)
         if len(tasks) > 0:
             await asyncio.gather(*tasks)
@@ -145,7 +155,7 @@ class Endpoint(ClientSession):
     async def _reconnect(self):
         raise NotImplemented
 
-    async def _disconnect(self):
+    async def _disconnect(self, timeout: float | None = None):
         raise NotImplemented
 
     async def __get_access_token(self):
