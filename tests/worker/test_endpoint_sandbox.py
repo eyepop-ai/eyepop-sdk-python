@@ -1,5 +1,7 @@
 import json
 import unittest
+
+import aiohttp
 from aioresponses import aioresponses, CallbackResult
 
 from eyepop import EyePopSdk
@@ -63,7 +65,7 @@ class TestEndpointConnect(BaseEndpointTest):
             models = endpoint.list_models()
             self.assertEqual(len(models), 0)
         finally:
-            endpoint.disconnect()
+            endpoint.disconnect(timeout=10.0)
 
         self.assertBaseMock(mock, is_transient=True, sandbox_id=test_sandbox_id)
         mock.assert_called_with(f'{self.test_worker_url}/sandboxes',
@@ -71,6 +73,7 @@ class TestEndpointConnect(BaseEndpointTest):
                                 headers={'Authorization': f'Bearer {self.test_access_token}'})
         mock.assert_called_with(f'{self.test_worker_url}/sandboxes/{test_sandbox_id}',
                                 method='DELETE',
+                                timeout=aiohttp.ClientTimeout(total=10.0),
                                 headers={'Authorization': f'Bearer {self.test_access_token}'})
 
 
