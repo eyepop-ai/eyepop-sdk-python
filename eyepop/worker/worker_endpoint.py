@@ -65,14 +65,17 @@ class WorkerEndpoint(Endpoint):
             self.worker_config = None
             return True
 
-    async def _disconnect(self):
+    async def _disconnect(self, timeout: float | None = None):
         if self.sandbox_id is not None:
             try:
                 base_url = await self.dev_mode_base_url()
                 delete_sandbox_url = f'{base_url}/sandboxes/{self.sandbox_id}'
                 headers = {'Authorization': await self._authorization_header()}
                 log_requests.debug('before DELETE %s', delete_sandbox_url)
-                await self.client_session.delete(delete_sandbox_url, headers=headers)
+                client_timeout = None
+                if timeout is not None:
+                    client_timeout = aiohttp.ClientTimeout(total=timeout)
+                await self.client_session.delete(delete_sandbox_url, headers=headers, timeout=client_timeout)
                 log_requests.debug('after DELETE %s', delete_sandbox_url)
             except Exception as e:
                 log.exception("error at disconnect", e)

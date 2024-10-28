@@ -49,7 +49,7 @@ async def auto_annotate_done_criteria(endpoint: DataEndpoint, event: ChangeEvent
         updated_dataset = await endpoint.get_dataset(event.dataset_uuid, include_stats=True)
         updated_version = next((v for v in updated_dataset.versions if v.version == event.dataset_version), None)
         return (updated_version is not None
-                and updated_version.asset_stats.auto_annotated == updated_version.asset_stats.total)
+                and updated_version.asset_stats.auto_annotated >= updated_version.asset_stats.accepted)
 
 async def auto_annotate_dataset(endpoint: DataEndpoint, dataset_uuid: str,
                                 auto_annotate: str, auto_annotate_params: AutoAnnotateParams) -> None:
