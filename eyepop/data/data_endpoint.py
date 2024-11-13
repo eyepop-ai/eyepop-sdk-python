@@ -429,7 +429,7 @@ class DataEndpoint(Endpoint):
 
     async def upload_model_artifact(self, model_uuid: str, model_format: ModelExportFormat, artifact_name: str,
                                     stream: BinaryIO, mime_type: str = 'application/octet-stream') -> None:
-        put_url = f'{await self.data_base_url()}/models/{model_uuid}/exports/{model_format}/artifacts/{artifact_name}'
+        put_url = f'{await self.data_base_url()}/models/{model_uuid}/exports/eyepop/formats/{model_format}/artifacts/{artifact_name}'
         async with await self.request_with_retry("PUT", put_url, data=stream, content_type=mime_type,
                                                  timeout=aiohttp.ClientTimeout(total=None, sock_read=60)):
             return
