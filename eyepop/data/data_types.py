@@ -265,7 +265,7 @@ class ExportedBy(enum.StrEnum):
 class ModelExportResponse(BaseModel):
     format: ModelExportFormat
     exported_by: ExportedBy
-    export_params: dict[str, str] | None
+    export_params: dict[str, str] | None = None
     status: ModelExportStatus
 
 
