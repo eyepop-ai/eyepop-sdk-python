@@ -60,7 +60,8 @@ class InferenceComponent(BaseComponent):
     type: Literal[PopComponentType.INFERENCE] = PopComponentType.INFERENCE
     inferenceTypes: List[InferenceType]
     hidden: bool | None = None
-    modelUuid: str
+    modelUuid: str | None = None
+    model: str | None = None
     categoryName: str | None = None
     confidenceThreshold: float | None = None
     targetFps: str | None = None
@@ -69,6 +70,7 @@ class InferenceComponent(BaseComponent):
 class TracingComponent(BaseComponent):
     type: Literal[PopComponentType.TRACING] = PopComponentType.TRACING
     reidModelUuid: str | None = None
+    reidModel: str | None = None
     maxAgeSeconds: float | None = None
     iouThreshold: float | None = None
     simThreshold: float | None = None
