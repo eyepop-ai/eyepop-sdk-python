@@ -1,5 +1,5 @@
 import enum
-from typing import List, Literal, Annotated, Union
+from typing import List, Literal, Annotated, Union, Type
 
 from pydantic import BaseModel, Field
 
@@ -30,11 +30,9 @@ class PopForwardOperator(BaseModel):
     includeClasses: List[str] | None = None
     crop: PopCrop | None = None
 
-
 class PopForward(BaseModel):
     operator: PopForwardOperator | None = None
-    targets: List["BaseComponent"] | None = None
-
+    targets: List["DynamicComponent"] | None = None
 
 class BaseComponent(BaseModel):
     type: Literal[PopComponentType.BASE] = PopComponentType.BASE
@@ -99,6 +97,9 @@ class ComponentFinderComponent(BaseComponent):
     componentClassLabel: str | None = None
 
 
+DynamicComponent = Annotated[Union[ForwardComponent | InferenceComponent | TracingComponent | ContourFinderComponent | ComponentFinderComponent], Field(discriminator="type")]
+
+
 class Pop(BaseModel):
-    components: List[Annotated[Union[ForwardComponent | InferenceComponent | TracingComponent | ContourFinderComponent | ComponentFinderComponent], Field(discriminator="type")]]
+    components: List[DynamicComponent]
     postTransform: str | None = None
