@@ -23,6 +23,7 @@ async def import_sample_assets(endpoint: DataEndpoint, dataset: DatasetResponse)
     template_file = resources.files(sample_assets) / "sample_assets.json"
     with template_file.open("r") as f:
         sample_assets_json = json.load(f)
+    sample_assets_json = sample_assets_json * 10
     log.info("before importing %d assets to %s", len(sample_assets_json), dataset.uuid)
     assets = []
     tasks = []
