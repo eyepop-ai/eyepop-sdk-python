@@ -190,6 +190,15 @@ class WorkerEndpoint(Endpoint):
         else:
             self.load_balancer = EndpointLoadBalancer(self.worker_config['endpoints'])
 
+    async def session(self) -> dict:
+        session = await super().session()
+        session['popId'] = self.pop_id
+        if self.worker_config:
+            session['baseUrl'] = self.worker_config['base_url']
+            session['pipelineId'] = self.worker_config['pipeline_id']
+        session['sandboxId'] = self.sandbox_id
+        return session
+
     async def get_pop(self) -> Pop | None:
         return self.pop
 
