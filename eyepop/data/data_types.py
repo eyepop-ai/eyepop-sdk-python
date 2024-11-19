@@ -242,6 +242,33 @@ class ModelMetrics(BaseModel):
     cpr: list[tuple[float, float, float]] | None = None
 
 
+class ModelExportFormat(enum.StrEnum):
+    TensorFlowLite = "TensorFlowLite"
+    TensorFlowGraphDef = "TensorFlowGraphDef"
+    TorchScript = "TorchScript"
+    TorchScriptCpu = "TorchScriptCpu"
+    TorchScriptCuda = "TorchScriptCuda"
+    ONNX = "ONNX"
+
+
+class ModelExportStatus(enum.StrEnum):
+    in_progress = enum.auto()
+    finished = enum.auto()
+    error = enum.auto()
+
+
+class ExportedBy(enum.StrEnum):
+    eyepop = enum.auto()
+    qc_ai_hub = enum.auto()
+
+
+class ModelExportResponse(BaseModel):
+    format: ModelExportFormat
+    exported_by: ExportedBy
+    export_params: dict[str, str] | None = None
+    status: ModelExportStatus
+
+
 class ModelResponse(BaseModel):
     uuid: str
     created_at: datetime
@@ -257,6 +284,7 @@ class ModelResponse(BaseModel):
     external_id: str | None = None
     status_message: str | None = None
     metrics: ModelMetrics | None = None
+    exports: list[ModelExportResponse] | None = None
 
 
 class ModelCreate(BaseModel):
