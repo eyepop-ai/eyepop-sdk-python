@@ -145,7 +145,7 @@ async def async_upload_photos(file_paths: list[str]):
 
     async with EyePopSdk.workerEndpoint(is_async=True) as endpoint:
         for file_path in file_paths:
-            await endpoint.upload(file_path, on_ready)
+            await endpoint.upload(file_path, on_ready=on_ready)
 
 
 asyncio.run(async_upload_photos(['examples/example.jpg'] * 100000000))
