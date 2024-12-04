@@ -210,6 +210,7 @@ class AssetAnnotationResponse(BaseModel):
     source: str | None = None
     annotation: Prediction | None = None
     uncertainty_score: float | None = None
+    source_model_uuid: str | None = None
 
     class Config:
         use_enum_values = True
