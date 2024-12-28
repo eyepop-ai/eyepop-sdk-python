@@ -17,14 +17,16 @@ class EyePopSdk:
     """
 
     @staticmethod
-    def workerEndpoint(pop_id: str | None = None, secret_key: str | None = None, auto_start: bool = True,
-                       stop_jobs: bool = True, eyepop_url: str | None = None, job_queue_length: int = 1024,
+    def workerEndpoint(pop_id: str | None = None, secret_key: str | None = None, access_token: str | None = None,
+                       auto_start: bool = True, stop_jobs: bool = True,
+                       eyepop_url: str | None = None, job_queue_length: int = 1024,
                        is_async: bool = False, is_sandbox: bool = False,
                        request_tracer_max_buffer: int = 1204) -> WorkerEndpoint | SyncWorkerEndpoint:
-        if secret_key is None:
+        if access_token is None and secret_key is None:
             secret_key = os.getenv('EYEPOP_SECRET_KEY')
             if secret_key is None:
-                raise KeyError('parameter \'secret_key\' or environment \'EYEPOP_SECRET_KEY\' is required')
+                raise KeyError('parameter \'secret_key\' or environment \'EYEPOP_SECRET_KEY\' '
+                               'or parameter \'access_token\' is required')
 
         if eyepop_url is None:
             eyepop_url = os.getenv('EYEPOP_URL')
@@ -36,7 +38,8 @@ class EyePopSdk:
             if pop_id is None:
                 raise KeyError('parameter \'pop_id\' is required')
 
-        endpoint = WorkerEndpoint(secret_key=secret_key, pop_id=pop_id, auto_start=auto_start, stop_jobs=stop_jobs,
+        endpoint = WorkerEndpoint(secret_key=secret_key, access_token=access_token,
+                                  pop_id=pop_id, auto_start=auto_start, stop_jobs=stop_jobs,
                                   eyepop_url=eyepop_url, job_queue_length=job_queue_length, is_sandbox=is_sandbox,
                                   request_tracer_max_buffer=request_tracer_max_buffer)
 
@@ -50,13 +53,14 @@ class EyePopSdk:
     """
 
     @staticmethod
-    def dataEndpoint(account_id: str | None = None, secret_key: str | None = None, eyepop_url: str | None = None,
-                     job_queue_length: int = 1024, is_async: bool = False,
+    def dataEndpoint(account_id: str | None = None, secret_key: str | None = None, access_token: str | None = None,
+                     eyepop_url: str | None = None, job_queue_length: int = 1024, is_async: bool = False,
                      request_tracer_max_buffer: int = 1204, disable_ws: bool = True) -> DataEndpoint | SyncDataEndpoint:
-        if secret_key is None:
+        if access_token is None and secret_key is None:
             secret_key = os.getenv('EYEPOP_SECRET_KEY')
             if secret_key is None:
-                raise KeyError('parameter \'secret_key\' or environment \'EYEPOP_SECRET_KEY\' is required')
+                raise KeyError('parameter \'secret_key\' or environment \'EYEPOP_SECRET_KEY\' '
+                               'or parameter \'access_token\' is required')
 
         if eyepop_url is None:
             eyepop_url = os.getenv('EYEPOP_URL')
@@ -68,7 +72,8 @@ class EyePopSdk:
             if account_id is None:
                 raise KeyError('parameter \'account_id\' is required')
 
-        endpoint = DataEndpoint(secret_key=secret_key, account_id=account_id, eyepop_url=eyepop_url,
+        endpoint = DataEndpoint(secret_key=secret_key, access_token=access_token,
+                                account_id=account_id, eyepop_url=eyepop_url,
                                 job_queue_length=job_queue_length, request_tracer_max_buffer=request_tracer_max_buffer,
                                 disable_ws=disable_ws)
 

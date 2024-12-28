@@ -1,5 +1,7 @@
 import json
 import unittest
+import uuid
+
 from aiohttp import ClientResponseError
 from aioresponses import aioresponses, CallbackResult
 
@@ -36,6 +38,30 @@ class TestEndpointConnect(BaseEndpointTest):
             endpoint.disconnect()
 
         self.assertBaseMock(mock)
+
+    @aioresponses()
+    def test_connect_with_token_ok(self, mock: aioresponses):
+
+        provided_access_token = uuid.uuid4().hex
+
+        self.setup_base_mock(mock, provided_access_token=provided_access_token)
+
+        # automatic call to get pop comp and store
+        def get_pop_comp(url, **kwargs) -> CallbackResult:
+            if kwargs['headers']['Authorization'] != f'Bearer {provided_access_token}':
+                return CallbackResult(status=401, reason='test auth token expired')
+            else:
+                return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
+        mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
+                    callback=get_pop_comp)
+        endpoint = EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, access_token=provided_access_token,
+                                            pop_id=self.test_eyepop_pop_id)
+        try:
+            endpoint.connect()
+        finally:
+            endpoint.disconnect()
+
+        self.assertBaseMock(mock, provided_access_token=provided_access_token)
 
     @aioresponses()
     def test_connect_transient_ok(self, mock: aioresponses):

@@ -46,7 +46,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         def create_dataset(url, **kwargs) -> CallbackResult:
             if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
                 return CallbackResult(status=200,
-                                      body=self.test_dataset.json())
+                                      body=self.test_dataset.model_dump_json())
             else:
                 return CallbackResult(status=401, reason='test auth token expired')
 

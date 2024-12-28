@@ -30,9 +30,13 @@ class WorkerEndpoint(Endpoint):
     Endpoint to an EyePop.ai worker.
     """
 
-    def __init__(self, secret_key: str, eyepop_url: str, pop_id: str, auto_start: bool, stop_jobs: bool,
+    def __init__(self, secret_key: str | None, access_token: str | None,
+                 eyepop_url: str, pop_id: str, auto_start: bool, stop_jobs: bool,
                  job_queue_length: int, is_sandbox: bool, request_tracer_max_buffer: int):
-        super().__init__(secret_key, eyepop_url, job_queue_length, request_tracer_max_buffer)
+        super().__init__(
+            secret_key=secret_key, access_token=access_token, eyepop_url=eyepop_url,
+            job_queue_length=job_queue_length, request_tracer_max_buffer=request_tracer_max_buffer
+        )
         self.pop_id = pop_id
         self.auto_start = auto_start
         self.stop_jobs = stop_jobs

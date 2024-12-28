@@ -20,10 +20,18 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         if var in os.environ:
             del os.environ[var]
 
-    def setup_base_mock(self, mock: aioresponses, sandbox_id: str | None = None, status: str = 'active_dev', num_endpoints: int = 1):
+    def setup_base_mock(
+            self, mock: aioresponses,
+            sandbox_id: str | None = None,
+            status: str = 'active_dev',
+            num_endpoints: int = 1,
+            provided_access_token: str | None = None
+    ):
+        if provided_access_token is None:
+            provided_access_token = self.test_access_token
         mock.clear()
         def transient_config(url, **kwargs) -> CallbackResult:
-            if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
+            if kwargs['headers']['Authorization'] == f'Bearer {provided_access_token}':
                 return CallbackResult(status=200,
                                       body=json.dumps(
                                           {'base_url': self.test_worker_url}))
@@ -31,7 +39,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
                 return CallbackResult(status=401, reason='test auth token expired')
 
         def config(url, **kwargs) -> CallbackResult:
-            if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
+            if kwargs['headers']['Authorization'] == f'Bearer {provided_access_token}':
                 if status == 'active_dev':
                     return CallbackResult(status=200,
                                           body=json.dumps({
@@ -60,14 +68,14 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
                 return CallbackResult(status=401, reason='test auth token expired')
 
         def start(url, **kwargs) -> CallbackResult:
-            if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
+            if kwargs['headers']['Authorization'] == f'Bearer {provided_access_token}':
                 return CallbackResult(status=200,
                                       body=json.dumps({'id': self.test_pipeline_id}))
             else:
                 return CallbackResult(status=401, reason='test auth token expired')
 
         def stop(url, **kwargs) -> CallbackResult:
-            if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
+            if kwargs['headers']['Authorization'] == f'Bearer {provided_access_token}':
                 return CallbackResult(status=204)
             else:
                 return CallbackResult(status=401, reason='test auth token expired')
@@ -84,20 +92,31 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=preempt&processing=sync',
                    callback=stop, repeat=False)
 
-    def assertBaseMock(self, mock: aioresponses, is_transient: bool = False, sandbox_id: str | None = None, status: str = 'active_dev', num_endpoints: int = 1):
-        mock.assert_called_with(f'{self.test_eyepop_url}/authentication/token', method='POST',
-                                json={'secret_key': self.test_eyepop_secret_key})
+    def assertBaseMock(
+            self,
+            mock: aioresponses,
+            is_transient: bool = False,
+            sandbox_id: str | None = None,
+            status: str = 'active_dev',
+            num_endpoints: int = 1,
+            provided_access_token: str | None = None
+
+    ):
+        if provided_access_token is None:
+            provided_access_token = self.test_access_token
+            mock.assert_called_with(f'{self.test_eyepop_url}/authentication/token', method='POST',
+                                    json={'secret_key': self.test_eyepop_secret_key})
         if is_transient:
             mock.assert_called_with(f'{self.test_eyepop_url}/workers/config',
                                     method='GET',
-                                    headers={'Authorization': f'Bearer {self.test_access_token}'})
+                                    headers={'Authorization': f'Bearer {provided_access_token}'})
             if sandbox_id is None:
                 start_url = f'{self.test_worker_url}/pipelines'
             else:
                 start_url = f'{self.test_worker_url}/pipelines?sandboxId={sandbox_id}'
             mock.assert_called_with(
                 start_url,
-                method='POST', headers={'Authorization': f'Bearer {self.test_access_token}'}, data=None,
+                method='POST', headers={'Authorization': f'Bearer {provided_access_token}'}, data=None,
                 json={
                 'inferPipelineDef': {
                     'pipeline': 'identity', 'modelRefs': []
@@ -115,9 +134,9 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         else:
             mock.assert_called_with(f'{self.test_eyepop_url}/pops/{self.test_eyepop_pop_id}/config?auto_start=True',
                                     method='GET',
-                                    headers={'Authorization': f'Bearer {self.test_access_token}'})
+                                    headers={'Authorization': f'Bearer {provided_access_token}'})
             if status == 'active_dev':
                 mock.assert_called_with(
                 f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=preempt&processing=sync',
-                method='PATCH', headers={'Authorization': f'Bearer {self.test_access_token}'}, data=None,
+                method='PATCH', headers={'Authorization': f'Bearer {provided_access_token}'}, data=None,
                 json={'sourceType': 'NONE'})
