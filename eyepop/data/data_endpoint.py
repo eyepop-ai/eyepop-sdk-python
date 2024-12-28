@@ -6,6 +6,7 @@ from urllib.parse import urljoin
 
 import aiohttp
 import websockets
+from pydantic import TypeAdapter
 from websockets.asyncio.client import ClientConnection
 
 from pydantic.tools import parse_obj_as
@@ -51,9 +52,13 @@ class DataEndpoint(Endpoint):
     account_event_handlers: set[EventHandler]
     dataset_uuid_to_event_handlers: dict[str, set[EventHandler]]
 
-    def __init__(self, secret_key: str, eyepop_url: str, account_id: str, job_queue_length: int,
+    def __init__(self, secret_key: str | None, access_token: str | None,
+                 eyepop_url: str, account_id: str, job_queue_length: int,
                  request_tracer_max_buffer: int, disable_ws: bool = True):
-        super().__init__(secret_key, eyepop_url, job_queue_length, request_tracer_max_buffer)
+        super().__init__(
+            secret_key=secret_key, access_token=access_token, eyepop_url=eyepop_url,
+            job_queue_length=job_queue_length, request_tracer_max_buffer=request_tracer_max_buffer
+        )
         self.account_uuid = account_id
         self.data_config = None
 
@@ -261,25 +266,25 @@ class DataEndpoint(Endpoint):
     async def list_datasets(self, include_hero_asset: bool = False) -> list[DatasetResponse]:
         get_url = f'{await self.data_base_url()}/datasets?account_uuid={self.account_uuid}&include_hero_asset={include_hero_asset}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return parse_obj_as(list[DatasetResponse], await resp.json())
+            return TypeAdapter(list[DatasetResponse]).validate_python(await resp.json())
 
     async def create_dataset(self, dataset: DatasetCreate) -> DatasetResponse:
         post_url = f'{await self.data_base_url()}/datasets?account_uuid={self.account_uuid}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=dataset.model_dump_json()) as resp:
-            return parse_obj_as(DatasetResponse, await resp.json())
+            return TypeAdapter(DatasetResponse).validate_python(await resp.json())
 
     async def get_dataset(self, dataset_uuid: str, include_stats: bool = False) -> DatasetResponse:
         get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?include_stats={include_stats}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return parse_obj_as(DatasetResponse, await resp.json())
+            return TypeAdapter(DatasetResponse).validate_python(await resp.json())
 
     async def update_dataset(self, dataset_uuid: str, dataset: DatasetUpdate, start_auto_annotate: bool = True) -> DatasetResponse:
         patch_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?start_auto_annotate={start_auto_annotate}'
         log_requests.debug('update_dataset: %s', dataset.model_dump_json())
         async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
                                                  data=dataset.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
-            return parse_obj_as(DatasetResponse, await resp.json())
+            return TypeAdapter(DatasetResponse).validate_python(await resp.json())
 
     async def delete_dataset(self, dataset_uuid: str) -> None:
         delete_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}'

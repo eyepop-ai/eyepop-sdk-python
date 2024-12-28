@@ -1,14 +1,12 @@
 import asyncio
 import logging
 import time
-from io import StringIO
 from types import TracebackType
 from typing import Optional, Type, Callable, Any
 
 import aiohttp
 
 from eyepop.client_session import ClientSession
-from eyepop.exceptions import PopNotReachableException
 from eyepop.metrics import MetricCollector
 from eyepop.periodic import Periodic
 from eyepop.request_tracer import RequestTracer
@@ -34,9 +32,13 @@ class Endpoint(ClientSession):
     Abstract EyePop Endpoint.
     """
 
-    def __init__(self, secret_key: str, eyepop_url: str,
+    def __init__(self, secret_key: str | None, access_token: str | None,
+                 eyepop_url: str,
                  job_queue_length: int, request_tracer_max_buffer: int):
+        if secret_key is None and access_token is None:
+            raise ValueError("secret_key or access_token is required")
         self.secret_key = secret_key
+        self.provided_access_token = access_token
         self.eyepop_url = eyepop_url
         self.token = None
         self.expire_token_time = None
@@ -49,7 +51,8 @@ class Endpoint(ClientSession):
             self.event_sender = None
 
         self.retry_handlers = dict()
-        self.retry_handlers[401] = self._retry_401
+        if self.secret_key is not None:
+            self.retry_handlers[401] = self._retry_401
         self.retry_handlers[500] = self._retry_50x
         self.retry_handlers[502] = self._retry_50x
         self.retry_handlers[503] = self._retry_50x
@@ -146,9 +149,10 @@ class Endpoint(ClientSession):
 
     async def session(self) -> dict:
         token = await self.__get_access_token()
-        base_url = await self.dev_mode_base_url()
-        session = {'eyepopUrl': self.eyepop_url, 'accessToken': token,
-                   'validUntil': self.expire_token_time * 1000 }
+        session = {
+            'eyepopUrl': self.eyepop_url, 'accessToken': token,
+            'validUntil': None if self.expire_token_time is None else self.expire_token_time * 1000
+        }
 
         return session
 
@@ -159,6 +163,8 @@ class Endpoint(ClientSession):
         raise NotImplemented
 
     async def __get_access_token(self):
+        if self.provided_access_token is not None:
+            return self.provided_access_token
         now = time.time()
         if self.token is None or self.expire_token_time < now:
             body = {'secret_key': self.secret_key}
