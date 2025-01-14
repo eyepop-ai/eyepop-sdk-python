@@ -263,8 +263,13 @@ class DataEndpoint(Endpoint):
 
     """ Model methods """
 
-    async def list_datasets(self, include_hero_asset: bool = False) -> list[DatasetResponse]:
-        get_url = f'{await self.data_base_url()}/datasets?account_uuid={self.account_uuid}&include_hero_asset={include_hero_asset}'
+    async def list_datasets(
+            self,
+            include_hero_asset: bool = False,
+            modifiable_version_only: bool | None = None
+    ) -> list[DatasetResponse]:
+        modifiable_version_only_query = f'&modifiable_version_only={modifiable_version_only}' if modifiable_version_only is not None else ''
+        get_url = f'{await self.data_base_url()}/datasets?account_uuid={self.account_uuid}&include_hero_asset={include_hero_asset}{modifiable_version_only_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return TypeAdapter(list[DatasetResponse]).validate_python(await resp.json())
 
@@ -274,8 +279,14 @@ class DataEndpoint(Endpoint):
                                                  data=dataset.model_dump_json()) as resp:
             return TypeAdapter(DatasetResponse).validate_python(await resp.json())
 
-    async def get_dataset(self, dataset_uuid: str, include_stats: bool = False) -> DatasetResponse:
-        get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?include_stats={include_stats}'
+    async def get_dataset(
+            self,
+            dataset_uuid: str,
+            include_stats: bool = False,
+            modifiable_version_only: bool | None = None
+    ) -> DatasetResponse:
+        modifiable_version_only_query = f'&modifiable_version_only={modifiable_version_only}' if modifiable_version_only is not None else ''
+        get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?include_stats={include_stats}{modifiable_version_only_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return TypeAdapter(DatasetResponse).validate_python(await resp.json())
 
