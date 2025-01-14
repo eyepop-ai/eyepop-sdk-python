@@ -80,7 +80,7 @@ class Endpoint(ClientSession):
         # __exit__ should exist in pair with __enter__ but never executed
         pass  # pragma: no cover
 
-    async def __aenter__(self) -> "WorkerEndpoint":
+    async def __aenter__(self) -> "Endpoint":
         try:
             await self.connect()
         except aiohttp.ClientError as e:
@@ -135,8 +135,7 @@ class Endpoint(ClientSession):
     async def connect(self):
         trace_configs = [self.request_tracer.get_trace_config()] if self.request_tracer else None
         self.client_session = aiohttp.ClientSession(raise_for_status=response_check_with_error_body,
-                                                    trace_configs=trace_configs,
-                                                    connector=aiohttp.TCPConnector(limit_per_host=8))
+                                                    trace_configs=trace_configs)
         try:
             await self._reconnect()
         except Exception as e:
