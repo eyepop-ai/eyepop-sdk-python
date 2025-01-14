@@ -83,14 +83,14 @@ class SyncDataEndpoint(SyncEndpoint):
 
     """ Model methods """
 
-    def list_datasets(self, include_hero_asset: bool = False) -> List[DatasetResponse]:
-        return run_coro_thread_save(self.event_loop, self.endpoint.list_datasets(include_hero_asset))
+    def list_datasets(self, include_hero_asset: bool = False, modifiable_version_only: bool | None = None) -> List[DatasetResponse]:
+        return run_coro_thread_save(self.event_loop, self.endpoint.list_datasets(include_hero_asset, modifiable_version_only))
 
     def create_dataset(self, dataset: DatasetCreate) -> DatasetResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.create_dataset(dataset))
 
-    def get_dataset(self, dataset_uuid: str, include_hero_asset: bool = False) -> DatasetResponse:
-        return run_coro_thread_save(self.event_loop, self.endpoint.get_dataset(dataset_uuid, include_hero_asset))
+    def get_dataset(self, dataset_uuid: str, include_hero_asset: bool = False, modifiable_version_only: bool | None = None) -> DatasetResponse:
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_dataset(dataset_uuid, include_hero_asset, modifiable_version_only))
 
     def update_dataset(self, dataset_uuid: str, dataset: DatasetUpdate, start_auto_annotate: bool = True) -> DatasetResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.update_dataset(dataset_uuid, dataset, start_auto_annotate))
