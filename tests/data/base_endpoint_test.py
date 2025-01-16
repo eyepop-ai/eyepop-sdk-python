@@ -4,7 +4,7 @@ import os
 import unittest
 from aioresponses import aioresponses, CallbackResult
 
-from eyepop.data.data_types import DatasetResponse
+from eyepop.data.data_types import Dataset
 
 
 class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
@@ -16,7 +16,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
     test_data_url = f'http://example-data.test'
     test_dataset_id = 'test_dataset_id'
 
-    test_dataset = DatasetResponse(
+    test_dataset = Dataset(
         uuid=test_dataset_id,
         name="test",
         description="",

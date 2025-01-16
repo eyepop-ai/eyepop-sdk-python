@@ -8,8 +8,8 @@ from eyepop import EyePopSdk
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_jobs import DataJob
 from eyepop.data.data_types import DatasetCreate, AssetImport, \
-    AutoAnnotateParams, DatasetResponse, AssetResponse, ChangeEvent, ChangeType, DatasetUpdate, UserReview, \
-    ModelResponse, ModelCreate, ModelStatus
+    AutoAnnotateParams, Dataset, Asset, ChangeEvent, ChangeType, DatasetUpdate, UserReview, \
+    Model, ModelCreate, ModelStatus
 
 from examples.experimental import sample_assets
 
@@ -19,7 +19,7 @@ logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
 log = logging.getLogger(__name__)
 
 
-async def import_sample_assets(endpoint: DataEndpoint, dataset: DatasetResponse) -> list[AssetResponse]:
+async def import_sample_assets(endpoint: DataEndpoint, dataset: Dataset) -> list[Asset]:
     template_file = resources.files(sample_assets) / "sample_assets.json"
     with template_file.open("r") as f:
         sample_assets_json = json.load(f)
@@ -72,7 +72,7 @@ async def approve_all(endpoint: DataEndpoint, dataset_uuid: str, dataset_version
         await endpoint.update_asset_auto_annotation_status(asset.uuid, auto_annotate_, UserReview.approved)
     log.info("%d auto annotations approved for dataset %s", len(assets), dataset_uuid)
 
-async def create_model(endpoint: DataEndpoint, dataset_uuid: str) -> ModelResponse:
+async def create_model(endpoint: DataEndpoint, dataset_uuid: str) -> Model:
     log.info("before model creation for dataset: %s", dataset_uuid)
     dataset = await endpoint.freeze_dataset_version(dataset_uuid)
     log.info("dataset frozen: %s", dataset.model_dump_json())
@@ -97,7 +97,7 @@ async def train_done_criteria(endpoint: DataEndpoint, event: ChangeEvent):
         elif changed_model.status == ModelStatus.error:
             raise ValueError(changed_model.status_message)
 
-async def train_model(endpoint: DataEndpoint, model: ModelResponse) -> ModelResponse:
+async def train_model(endpoint: DataEndpoint, model: Model) -> Model:
     async with WaitFor(endpoint=endpoint, dataset_uuid=model.dataset_uuid, criteria=train_done_criteria):
         log.info("before training start for model %s", model.uuid)
         model = await endpoint.train_model(model.uuid)
