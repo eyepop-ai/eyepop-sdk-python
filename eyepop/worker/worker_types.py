@@ -52,11 +52,12 @@ class InferenceType(enum.StrEnum):
     FEATURE_VECTOR = "feature_vector"
     SEMANTIC_SEGMENTATION = "semantic_segmentation"
     SEGMENTATION = "segmentation"
+    RAW = "raw"
 
 
 class InferenceComponent(BaseComponent):
     type: Literal[PopComponentType.INFERENCE] = PopComponentType.INFERENCE
-    inferenceTypes: List[InferenceType]
+    inferenceTypes: List[InferenceType] | None
     hidden: bool | None = None
     modelUuid: str | None = None
     model: str | None = None

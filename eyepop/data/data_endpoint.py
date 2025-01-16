@@ -282,11 +282,13 @@ class DataEndpoint(Endpoint):
     async def get_dataset(
             self,
             dataset_uuid: str,
+            dataset_version: int | None = None,
             include_stats: bool = False,
             modifiable_version_only: bool | None = None
     ) -> DatasetResponse:
+        version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         modifiable_version_only_query = f'&modifiable_version_only={modifiable_version_only}' if modifiable_version_only is not None else ''
-        get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?include_stats={include_stats}{modifiable_version_only_query}'
+        get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?include_stats={include_stats}{version_query}{modifiable_version_only_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return TypeAdapter(DatasetResponse).validate_python(await resp.json())
 
