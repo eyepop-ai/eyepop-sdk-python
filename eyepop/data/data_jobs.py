@@ -5,7 +5,7 @@ from typing import Callable, BinaryIO
 import aiohttp
 
 from eyepop.client_session import ClientSession
-from eyepop.data.data_types import AssetResponse, AssetImport
+from eyepop.data.data_types import Asset, AssetImport
 from eyepop.jobs import Job, JobStateCallback
 
 
@@ -18,7 +18,7 @@ class DataJob(Job):
                  callback: JobStateCallback | None = None):
         super().__init__(session, on_ready, callback)
 
-    async def result(self) -> AssetResponse:
+    async def result(self) -> Asset:
         return await self.pop_result()
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
@@ -47,7 +47,7 @@ class _UploadStreamJob(DataJob):
         async with await session.request_with_retry("POST", post_path, data=self.stream,
                                                     content_type=self.mime_type,
                                                     timeout=aiohttp.ClientTimeout(total=None, sock_read=60)) as resp:
-            result = AssetResponse.model_validate(await resp.json())
+            result = Asset.model_validate(await resp.json())
             await queue.put(result)
 
 
@@ -74,5 +74,5 @@ class _ImportFromJob(DataJob):
         async with await session.request_with_retry("POST", post_path, data=self.asset_import.model_dump_json(),
                                                     content_type="application/json",
                                                     timeout=aiohttp.ClientTimeout(total=None, sock_read=60)) as resp:
-            result = AssetResponse.model_validate(await resp.json())
+            result = Asset.model_validate(await resp.json())
             await queue.put(result)

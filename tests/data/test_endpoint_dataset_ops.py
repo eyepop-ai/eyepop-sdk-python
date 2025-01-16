@@ -6,7 +6,7 @@ from aiohttp import ClientResponseError
 from aioresponses import aioresponses, CallbackResult
 
 from eyepop import EyePopSdk
-from eyepop.data.data_types import DatasetCreate, DatasetResponse, DatasetUpdate, AutoAnnotate
+from eyepop.data.data_types import DatasetCreate, Dataset, DatasetUpdate, AutoAnnotate
 from tests.data.base_endpoint_test import BaseEndpointTest
 
 
@@ -25,7 +25,7 @@ class TestEndpointConnect(BaseEndpointTest):
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
 
         mock.post(f'{self.test_data_url}/datasets?account_uuid={self.test_eyepop_account_id}', status=200,
-                  body=DatasetResponse(
+                  body=Dataset(
                     uuid=self.test_dataset_id,
                     name="",
                     description="",
@@ -37,7 +37,7 @@ class TestEndpointConnect(BaseEndpointTest):
                     auto_annotate_params=None,
                     versions=[],
         ).model_dump_json())
-        mock.patch(f'{self.test_data_url}/datasets/{self.test_dataset_id}?start_auto_annotate=True', status=200, body=DatasetResponse(
+        mock.patch(f'{self.test_data_url}/datasets/{self.test_dataset_id}?start_auto_annotate=True', status=200, body=Dataset(
             uuid=self.test_dataset_id,
             name="",
             description="",

@@ -7,8 +7,8 @@ from examples.experimental.wait_for_sync import WaitForSync
 from eyepop import EyePopSdk
 from eyepop.data.data_syncify import SyncDataEndpoint, SyncDataJob
 from eyepop.data.data_types import DatasetCreate, AssetImport, \
-    AutoAnnotateParams, DatasetResponse, AssetResponse, ChangeEvent, ChangeType, DatasetUpdate, UserReview, \
-    ModelResponse, ModelCreate, ModelStatus
+    AutoAnnotateParams, Dataset, Asset, ChangeEvent, ChangeType, DatasetUpdate, UserReview, \
+    Model, ModelCreate, ModelStatus
 
 from examples.experimental import sample_assets
 
@@ -18,7 +18,7 @@ logging.getLogger('eyepop.requests').setLevel(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def import_sample_assets(endpoint: SyncDataEndpoint, dataset: DatasetResponse) -> list[AssetResponse]:
+def import_sample_assets(endpoint: SyncDataEndpoint, dataset: Dataset) -> list[Asset]:
     template_file = resources.files(sample_assets) / "sample_assets.json"
     with template_file.open("r") as f:
         sample_assets_json = json.load(f)
@@ -76,7 +76,7 @@ def approve_all(endpoint: SyncDataEndpoint, dataset_uuid: str, dataset_version: 
         endpoint.update_asset_auto_annotation_status(asset.uuid, auto_annotate_, UserReview.approved)
     log.info("%d auto annotations approved for dataset %s", len(assets), dataset_uuid)
 
-def create_model(endpoint: SyncDataEndpoint, dataset_uuid: str) -> ModelResponse:
+def create_model(endpoint: SyncDataEndpoint, dataset_uuid: str) -> Model:
     log.info("before model creation for dataset: %s", dataset_uuid)
     dataset = endpoint.freeze_dataset_version(dataset_uuid)
     log.info("dataset frozen: %s", dataset.model_dump_json())
@@ -101,7 +101,7 @@ def train_done_criteria(endpoint: SyncDataEndpoint, event: ChangeEvent):
         elif changed_model.status == ModelStatus.error:
             raise ValueError(changed_model.status_message)
 
-def train_model(endpoint: SyncDataEndpoint, model: ModelResponse) -> ModelResponse:
+def train_model(endpoint: SyncDataEndpoint, model: Model) -> Model:
     with WaitForSync(endpoint=endpoint, dataset_uuid=model.dataset_uuid, criteria=train_done_criteria):
         log.info("before training start for model %s", model.uuid)
         model = endpoint.train_model(model.uuid)
