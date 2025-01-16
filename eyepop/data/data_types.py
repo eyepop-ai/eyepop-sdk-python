@@ -70,15 +70,18 @@ class DatasetVersionAssetStats(BaseModel):
     ground_truth_annotated: int | None = None
 
 
-class DatasetVersionResponse(BaseModel):
+class DatasetVersion(BaseModel):
     version: int
-    created_at: datetime
-    updated_at: datetime
-    assets_modified_at: datetime
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    assets_modified_at: datetime | None = None
     last_analysed_at: datetime | None = None
-    modifiable: bool
+    modifiable: bool = False
     hero_asset_uuid: str | None = None
     asset_stats: DatasetVersionAssetStats | None = None
+
+
+DatasetVersionResponse = DatasetVersion
 
 
 class AutoAnnotateParams(BaseModel):
@@ -87,7 +90,7 @@ class AutoAnnotateParams(BaseModel):
     confidence_threshold: float | None = None
 
 
-class DatasetResponse(BaseModel):
+class Dataset(BaseModel):
     uuid: str
     name: str
     description: str = ""
@@ -97,8 +100,11 @@ class DatasetResponse(BaseModel):
     account_uuid: str
     auto_annotates: List[AutoAnnotate]
     auto_annotate_params: AutoAnnotateParams | None = None
-    versions: List[DatasetVersionResponse]
+    versions: List[DatasetVersion]
     modifiable_version: int | None = None
+
+
+DatasetResponse = Dataset
 
 
 class DatasetCreate(BaseModel):
@@ -201,9 +207,9 @@ class Prediction(BaseModel):
     keyPoints: List[PredictedKeyPoints] | None = None
 
 
-class AssetAnnotationResponse(BaseModel):
+class AssetAnnotation(BaseModel):
     type: AnnotationType
-    user_review: UserReview
+    user_review: UserReview = UserReview.unknown
     approved_threshold: float | None = None
     auto_annotate: AutoAnnotate | None = None
     auto_annotate_params: AutoAnnotateParams | None = None
@@ -212,15 +218,15 @@ class AssetAnnotationResponse(BaseModel):
     uncertainty_score: float | None = None
     source_model_uuid: str | None = None
 
-    class Config:
-        use_enum_values = True
+
+AssetAnnotationResponse = AssetAnnotation
 
 
-class AssetResponse(BaseModel):
+class Asset(BaseModel):
     uuid: str
-    created_at: datetime
-    updated_at: datetime
-    mime_type: str
+    created_at: datetime | None
+    updated_at: datetime | None
+    mime_type: str | None
     file_size_bytes: int | None = None
     status: AssetStatus | None = None
     status_message: str | None = None
@@ -228,10 +234,13 @@ class AssetResponse(BaseModel):
     partition: str | None = None
     review_priority: float | None = None
     model_relevance: float | None = None
-    annotations: List[AssetAnnotationResponse] = []
+    annotations: List[AssetAnnotation] = []
     model_config = ConfigDict(
         protected_namespaces=('pydantic_do_not_prevent_model_prefix_',)
     )
+
+
+AssetResponse = Asset
 
 
 class AssetImport(BaseModel):
@@ -264,29 +273,35 @@ class ExportedBy(enum.StrEnum):
     qc_ai_hub = enum.auto()
 
 
-class ModelExportResponse(BaseModel):
+class ModelExport(BaseModel):
     format: ModelExportFormat
     exported_by: ExportedBy
     export_params: dict[str, str] | None = None
     status: ModelExportStatus
 
 
-class ModelResponse(BaseModel):
+ModelExportResponse = ModelExport
+
+
+class Model(BaseModel):
     uuid: str
-    created_at: datetime
+    created_at: datetime | None = None
     updated_at: datetime | None = None
     account_uuid: str
     dataset_uuid: str | None = None
     dataset_version: int | None = None
     name: str
-    description: str
+    description: str = ""
     type: ModelType | None = None
-    status: ModelStatus
-    is_public: bool
+    status: ModelStatus = ModelStatus.draft
+    is_public: bool = False
     external_id: str | None = None
     status_message: str | None = None
     metrics: ModelMetrics | None = None
-    exports: list[ModelExportResponse] | None = None
+    exports: list[ModelExport] | None = None
+
+
+ModelResponse = Model
 
 
 class ModelCreate(BaseModel):
@@ -359,7 +374,7 @@ class ChangeEvent(BaseModel):
 EventHandler = Callable[[ChangeEvent], Awaitable[None]]
 
 
-class TagResponse(BaseModel):
+class Tag(BaseModel):
     name: str
     model_uuid: str
     model_config = ConfigDict(
@@ -367,14 +382,20 @@ class TagResponse(BaseModel):
     )
 
 
-class ModelAliasResponse(BaseModel):
+TagResponse = Tag
+
+
+class ModelAlias(BaseModel):
     name: str
     description: str | None = None
-    created_at: datetime
+    created_at: datetime | None = None
     updated_at: datetime | None = None
     account_uuid: str
-    is_public: bool
-    tags: list[TagResponse]
+    is_public: bool = False
+    tags: list[Tag] = []
+
+
+ModelAliasResponse = ModelAlias
 
 
 class ModelAliasCreate(BaseModel):
@@ -388,18 +409,12 @@ class ModelAliasUpdate(BaseModel):
     is_public: bool | None = None
 
 
-class ModelExportFormat(enum.StrEnum):
-    TensorFlowLite = "TensorFlowLite"
-    TensorFlowGraphDef = "TensorFlowGraphDef"
-    TorchScript = "TorchScript"
-    TorchScriptCpu = "TorchScriptCpu"
-    TorchScriptCuda = "TorchScriptCuda"
-    ONNX = "ONNX"
-
-
-class ExportedAliasResponse(BaseModel):
+class AliasResolution(BaseModel):
     alias: str
-    model_uuid: str | None
+    model_uuid: str | None = None
     model_config = ConfigDict(
         protected_namespaces=('pydantic_do_not_prevent_model_prefix_',)
     )
+
+
+ExportedAliasResponse = AliasResolution

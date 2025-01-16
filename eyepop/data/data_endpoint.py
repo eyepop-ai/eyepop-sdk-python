@@ -14,9 +14,9 @@ from pydantic.tools import parse_obj_as
 from eyepop.client_session import ClientSession
 from eyepop.data.data_jobs import DataJob, _UploadStreamJob, _ImportFromJob
 from eyepop.data.data_syncify import SyncDataJob
-from eyepop.data.data_types import DatasetResponse, DatasetCreate, DatasetUpdate, AssetResponse, Prediction, \
-    AssetImport, AutoAnnotate, UserReview, TranscodeMode, ModelResponse, ModelCreate, ModelUpdate, \
-    ModelTrainingProgress, ChangeEvent, ChangeType, EventHandler, ModelAliasResponse, ModelAliasCreate, \
+from eyepop.data.data_types import Dataset, DatasetCreate, DatasetUpdate, Asset, Prediction, \
+    AssetImport, AutoAnnotate, UserReview, TranscodeMode, Model, ModelCreate, ModelUpdate, \
+    ModelTrainingProgress, ChangeEvent, ChangeType, EventHandler, ModelAlias, ModelAliasCreate, \
     ModelAliasUpdate, ModelExportFormat
 from eyepop.endpoint import Endpoint, log_requests
 
@@ -267,17 +267,17 @@ class DataEndpoint(Endpoint):
             self,
             include_hero_asset: bool = False,
             modifiable_version_only: bool | None = None
-    ) -> list[DatasetResponse]:
+    ) -> list[Dataset]:
         modifiable_version_only_query = f'&modifiable_version_only={modifiable_version_only}' if modifiable_version_only is not None else ''
         get_url = f'{await self.data_base_url()}/datasets?account_uuid={self.account_uuid}&include_hero_asset={include_hero_asset}{modifiable_version_only_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return TypeAdapter(list[DatasetResponse]).validate_python(await resp.json())
+            return TypeAdapter(list[Dataset]).validate_python(await resp.json())
 
-    async def create_dataset(self, dataset: DatasetCreate) -> DatasetResponse:
+    async def create_dataset(self, dataset: DatasetCreate) -> Dataset:
         post_url = f'{await self.data_base_url()}/datasets?account_uuid={self.account_uuid}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=dataset.model_dump_json()) as resp:
-            return TypeAdapter(DatasetResponse).validate_python(await resp.json())
+            return TypeAdapter(Dataset).validate_python(await resp.json())
 
     async def get_dataset(
             self,
@@ -285,19 +285,19 @@ class DataEndpoint(Endpoint):
             dataset_version: int | None = None,
             include_stats: bool = False,
             modifiable_version_only: bool | None = None
-    ) -> DatasetResponse:
+    ) -> Dataset:
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         modifiable_version_only_query = f'&modifiable_version_only={modifiable_version_only}' if modifiable_version_only is not None else ''
         get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?include_stats={include_stats}{version_query}{modifiable_version_only_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return TypeAdapter(DatasetResponse).validate_python(await resp.json())
+            return TypeAdapter(Dataset).validate_python(await resp.json())
 
-    async def update_dataset(self, dataset_uuid: str, dataset: DatasetUpdate, start_auto_annotate: bool = True) -> DatasetResponse:
+    async def update_dataset(self, dataset_uuid: str, dataset: DatasetUpdate, start_auto_annotate: bool = True) -> Dataset:
         patch_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?start_auto_annotate={start_auto_annotate}'
         log_requests.debug('update_dataset: %s', dataset.model_dump_json())
         async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
                                                  data=dataset.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
-            return TypeAdapter(DatasetResponse).validate_python(await resp.json())
+            return TypeAdapter(Dataset).validate_python(await resp.json())
 
     async def delete_dataset(self, dataset_uuid: str) -> None:
         delete_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}'
@@ -317,16 +317,16 @@ class DataEndpoint(Endpoint):
         async with await self.request_with_retry("POST", post_url):
             return
 
-    async def freeze_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None) -> DatasetResponse:
+    async def freeze_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None) -> Dataset:
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/freeze?{version_query}'
         async with await self.request_with_retry("POST", post_url) as resp:
-            return parse_obj_as(DatasetResponse, await resp.json())
+            return parse_obj_as(Dataset, await resp.json())
 
-    async def delete_dataset_version(self, dataset_uuid: str, dataset_version: int) -> DatasetResponse:
+    async def delete_dataset_version(self, dataset_uuid: str, dataset_version: int) -> Dataset:
         delete_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/versions?dataset_version={dataset_version}'
         async with await self.request_with_retry("DELETE", delete_url) as resp:
-            return parse_obj_as(DatasetResponse, await resp.json())
+            return parse_obj_as(Dataset, await resp.json())
 
     async def delete_annotations(self, dataset_uuid: str, dataset_version: int,
                                  user_reviews: list[UserReview] = (UserReview.unknown,)) -> None:
@@ -361,19 +361,19 @@ class DataEndpoint(Endpoint):
         return job
 
     async def list_assets(self, dataset_uuid: str, dataset_version: int | None = None,
-                          include_annotations: bool = False) -> list[AssetResponse]:
+                          include_annotations: bool = False) -> list[Asset]:
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         get_url = f'{await self.data_base_url()}/assets?dataset_uuid={dataset_uuid}&include_annotations={"true" if include_annotations else "false"}{version_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return parse_obj_as(list[AssetResponse], await resp.json())
+            return parse_obj_as(list[Asset], await resp.json())
 
     async def get_asset(self, asset_uuid: str, dataset_uuid: str | None = None,
-                        dataset_version: int | None = None, include_annotations: bool = False) -> AssetResponse:
+                        dataset_version: int | None = None, include_annotations: bool = False) -> Asset:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         get_url = f'{await self.data_base_url()}/assets/{asset_uuid}?include_annotations={"true" if include_annotations else "false"}{dataset_query}{version_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return parse_obj_as(AssetResponse, await resp.json())
+            return parse_obj_as(Asset, await resp.json())
 
     async def delete_asset(self, asset_uuid: str, dataset_uuid: str | None = None,
                            dataset_version: int | None = None) -> None:
@@ -434,16 +434,16 @@ class DataEndpoint(Endpoint):
 
     """ Model methods """
 
-    async def list_models(self) -> list[ModelResponse]:
+    async def list_models(self) -> list[Model]:
         get_url = f'{await self.data_base_url()}/models?account_uuid={self.account_uuid}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return parse_obj_as(list[ModelResponse], await resp.json())
+            return parse_obj_as(list[Model], await resp.json())
 
-    async def create_model(self, model: ModelCreate) -> ModelResponse:
+    async def create_model(self, model: ModelCreate) -> Model:
         post_url = f'{await self.data_base_url()}/models?account_uuid={self.account_uuid}&start_training=False'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=model.model_dump_json()) as resp:
-            return parse_obj_as(ModelResponse, await resp.json())
+            return parse_obj_as(Model, await resp.json())
 
     async def upload_model_artifact(self, model_uuid: str, model_format: ModelExportFormat, artifact_name: str,
                                     stream: BinaryIO, mime_type: str = 'application/octet-stream') -> None:
@@ -452,75 +452,75 @@ class DataEndpoint(Endpoint):
                                                  timeout=aiohttp.ClientTimeout(total=None, sock_read=60)):
             return
 
-    async def create_model_from_dataset(self, dataset_uuid: str, dataset_version: int, model: ModelCreate, start_training: bool = True) -> ModelResponse:
+    async def create_model_from_dataset(self, dataset_uuid: str, dataset_version: int, model: ModelCreate, start_training: bool = True) -> Model:
         post_url = f'{await self.data_base_url()}/models?dataset_uuid={dataset_uuid}&dataset_version={dataset_version}&start_training={start_training}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=model.model_dump_json()) as resp:
-            return parse_obj_as(ModelResponse, await resp.json())
+            return parse_obj_as(Model, await resp.json())
 
-    async def get_model(self, model_uuid: str) -> ModelResponse:
+    async def get_model(self, model_uuid: str) -> Model:
         get_url = f'{await self.data_base_url()}/models/{model_uuid}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return parse_obj_as(ModelResponse, await resp.json())
+            return parse_obj_as(Model, await resp.json())
 
     async def get_model_progress(self, model_uuid: str) -> ModelTrainingProgress:
         get_url = f'{await self.data_base_url()}/models/{model_uuid}/progress'
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(ModelTrainingProgress, await resp.json())
 
-    async def update_model(self, model_uuid: str, model: ModelUpdate) -> ModelResponse:
+    async def update_model(self, model_uuid: str, model: ModelUpdate) -> Model:
         patch_url = f'{await self.data_base_url()}/models/{model_uuid}'
         async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
                                                  data=model.model_dump_json(
                                                      exclude_unset=True, exclude_none=True
                                                  )) as resp:
-            return parse_obj_as(ModelResponse, await resp.json())
+            return parse_obj_as(Model, await resp.json())
 
     async def delete_model(self, model_uuid: str) -> None:
         delete_url = f'{await self.data_base_url()}/models/{model_uuid}'
         async with await self.request_with_retry("DELETE", delete_url):
             return
 
-    async def train_model(self, model_uuid: str) -> ModelResponse:
+    async def train_model(self, model_uuid: str) -> Model:
         post_url = f'{await self.data_base_url()}/models/{model_uuid}/train'
         async with await self.request_with_retry("POST", post_url) as resp:
-            return parse_obj_as(ModelResponse, await resp.json())
+            return parse_obj_as(Model, await resp.json())
 
-    async def publish_model(self, model_uuid: str) -> ModelResponse:
+    async def publish_model(self, model_uuid: str) -> Model:
         post_url = f'{await self.data_base_url()}/models/{model_uuid}/publish'
         async with await self.request_with_retry("POST", post_url) as resp:
-            return parse_obj_as(ModelResponse, await resp.json())
+            return parse_obj_as(Model, await resp.json())
 
     """ Model aliases methods """
 
-    async def list_model_aliases(self) -> list[ModelAliasResponse]:
+    async def list_model_aliases(self) -> list[ModelAlias]:
         get_url = f'{await self.data_base_url()}/model_aliases?account_uuid={self.account_uuid}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return parse_obj_as(list[ModelAliasResponse], await resp.json())
+            return parse_obj_as(list[ModelAlias], await resp.json())
 
-    async def create_model_alias(self, model_alias: ModelAliasCreate, dry_run: bool = False) -> ModelAliasResponse:
+    async def create_model_alias(self, model_alias: ModelAliasCreate, dry_run: bool = False) -> ModelAlias:
         post_url = f'{await self.data_base_url()}/model_aliases?account_uuid={self.account_uuid}&dry_run={dry_run}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=model_alias.model_dump_json()) as resp:
-            return parse_obj_as(ModelAliasResponse, await resp.json())
+            return parse_obj_as(ModelAlias, await resp.json())
 
-    async def get_model_alias(self, name: str) -> ModelAliasResponse:
+    async def get_model_alias(self, name: str) -> ModelAlias:
         get_url = f'{await self.data_base_url()}/model_aliases/{name}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return parse_obj_as(ModelAliasResponse, await resp.json())
+            return parse_obj_as(ModelAlias, await resp.json())
 
     async def delete_model_alias(self, name: str) -> None:
         delete_url = f'{await self.data_base_url()}/model_aliases/{name}'
         async with await self.request_with_retry("DELETE", delete_url):
             return
 
-    async def update_model_alias(self, name: str, model_alias: ModelAliasUpdate) -> ModelAliasResponse:
+    async def update_model_alias(self, name: str, model_alias: ModelAliasUpdate) -> ModelAlias:
         patch_url = f'{await self.data_base_url()}/model_aliases/{name}'
         async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
                                                  data=model_alias.model_dump_json(
                                                      exclude_unset=True, exclude_none=True
                                                  )) as resp:
-            return parse_obj_as(ModelAliasResponse, await resp.json())
+            return parse_obj_as(ModelAlias, await resp.json())
 
     async def set_model_alias_tag(self, name: str, tag: str, model_uuid: str) -> None:
         patch_url = f'{await self.data_base_url()}/model_aliases/{name}/{tag}?model_uuid={model_uuid}'
