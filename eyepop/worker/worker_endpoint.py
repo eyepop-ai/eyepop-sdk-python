@@ -374,6 +374,7 @@ class WorkerEndpoint(Endpoint):
         if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time < time.time() - FORCE_REFRESH_CONFIG_SECS:
             self.worker_config is None
 
+        failed_attempts = 0
         retried_re_auth = False
         retried_re_config = False
         start_time = time.time()
@@ -418,18 +419,18 @@ class WorkerEndpoint(Endpoint):
 
                 return response
             except aiohttp.ClientResponseError as e:
-                if not retried_re_auth and e.status == 401:
-                    # auth token might have just expired
-                    log_requests.debug('after %s %s: 401, about to retry with fresh access token', method, url)
-                    self.token = None
-                    self.expire_token_time = None
-                    retried_re_auth = True
-                elif e.status == 404:
+                if e.status == 404:
+                    # in load balanced configuration, we overwrite the standard 404 handler
                     entry.mark_error()
                     log_requests.debug('after %s %s: 404, about to retry fail-over', method, url)
                 else:
-                    log_requests.exception('unexpected error', e)
-                    raise e
+                    failed_attempts += 1
+                    if e.status not in self.retry_handlers:
+                        log_requests.exception('unexpected error', e)
+                        raise e
+                    if not await self.retry_handlers[e.status](e.status, failed_attempts):
+                        log_requests.exception('unexpected error', e)
+                        raise e
             except aiohttp.ClientConnectionError:
                 entry.mark_error()
                 log_requests.debug('after %s %s: 404, about to retry fail-over', method, url)
