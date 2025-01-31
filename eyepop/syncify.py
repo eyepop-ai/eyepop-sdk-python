@@ -86,7 +86,7 @@ async def _drain_stream_reader_into_queue(stream_reader: StreamReader, queue: as
     try:
         n = 0
         while True:
-            buffer = await stream_reader.read(4096)
+            buffer = await stream_reader.read(65536)
             if not buffer:
                 break
             n += len(buffer)
