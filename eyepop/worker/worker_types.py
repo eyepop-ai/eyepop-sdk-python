@@ -57,7 +57,7 @@ class InferenceType(enum.StrEnum):
 
 class InferenceComponent(BaseComponent):
     type: Literal[PopComponentType.INFERENCE] = PopComponentType.INFERENCE
-    inferenceTypes: List[InferenceType] | None
+    inferenceTypes: List[InferenceType] | None = None
     hidden: bool | None = None
     modelUuid: str | None = None
     model: str | None = None

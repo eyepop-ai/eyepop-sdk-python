@@ -22,16 +22,25 @@ class EyePopSdk:
                        eyepop_url: str | None = None, job_queue_length: int = 1024,
                        is_async: bool = False, is_sandbox: bool = False,
                        request_tracer_max_buffer: int = 1204) -> WorkerEndpoint | SyncWorkerEndpoint:
+        eyepop_local_mode = os.getenv('EYEPOP_LOCAL_MODE')
+        if eyepop_local_mode is not None:
+            if eyepop_local_mode.lower() != 'true' and eyepop_local_mode.lower() != 'yes':
+                eyepop_local_mode = None
+
         if access_token is None and secret_key is None:
-            secret_key = os.getenv('EYEPOP_SECRET_KEY')
-            if secret_key is None:
-                raise KeyError('parameter \'secret_key\' or environment \'EYEPOP_SECRET_KEY\' '
-                               'or parameter \'access_token\' is required')
+            if eyepop_local_mode is None:
+                secret_key = os.getenv('EYEPOP_SECRET_KEY')
+                if secret_key is None:
+                    raise KeyError('parameter \'secret_key\' or environment \'EYEPOP_SECRET_KEY\' '
+                                   'or parameter \'access_token\' is required')
 
         if eyepop_url is None:
-            eyepop_url = os.getenv('EYEPOP_URL')
-            if eyepop_url is None:
-                eyepop_url = 'https://api.eyepop.ai'
+            if eyepop_local_mode is not None:
+                eyepop_url = 'http://127.0.0.1:8080/standalone'
+            else:
+                eyepop_url = os.getenv('EYEPOP_URL')
+                if eyepop_url is None:
+                    eyepop_url = 'https://api.eyepop.ai'
 
         if pop_id is None:
             pop_id = os.getenv('EYEPOP_POP_ID')

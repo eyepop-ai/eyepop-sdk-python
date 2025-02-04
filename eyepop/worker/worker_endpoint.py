@@ -74,7 +74,10 @@ class WorkerEndpoint(Endpoint):
             try:
                 base_url = await self.dev_mode_base_url()
                 delete_sandbox_url = f'{base_url}/sandboxes/{self.sandbox_id}'
-                headers = {'Authorization': await self._authorization_header()}
+                headers = {}
+                authorization_header = await self._authorization_header()
+                if authorization_header is not None:
+                    headers['Authorization'] = authorization_header
                 log_requests.debug('before DELETE %s', delete_sandbox_url)
                 client_timeout = None
                 if timeout is not None:
@@ -100,7 +103,10 @@ class WorkerEndpoint(Endpoint):
             config_url = f'{self.eyepop_url}/workers/config'
         else:
             config_url = f'{self.eyepop_url}/pops/{self.pop_id}/config?auto_start={self.auto_start}'
-        headers = {'Authorization': await self._authorization_header()}
+        headers = {}
+        authorization_header = await self._authorization_header()
+        if authorization_header is not None:
+            headers['Authorization'] = authorization_header
         try:
             log_requests.debug('before GET %s', config_url)
             async with self.client_session.get(config_url, headers=headers) as response:
@@ -117,7 +123,10 @@ class WorkerEndpoint(Endpoint):
                 log_requests.debug('after GET %s: 401, about to retry with fresh access token', config_url)
                 self.token = None
                 self.expire_token_time = None
-                headers = {'Authorization': await self._authorization_header()}
+                headers = {}
+                authorization_header = await self._authorization_header()
+                if authorization_header is not None:
+                    headers['Authorization'] = authorization_header
                 async with self.client_session.get(config_url, headers=headers) as retried_response:
                     self.worker_config = await retried_response.json()
         except aiohttp.ClientConnectionError as e:
@@ -134,7 +143,10 @@ class WorkerEndpoint(Endpoint):
 
         if self.is_sandbox and self.sandbox_id is None:
             create_sandbox_url = f'{base_url}/sandboxes'
-            headers = {'Authorization': await self._authorization_header()}
+            headers = {}
+            authorization_header = await self._authorization_header()
+            if authorization_header is not None:
+                headers['Authorization'] = authorization_header
             log_requests.debug('before POST %s', create_sandbox_url)
             async with self.client_session.post(create_sandbox_url, headers=headers) as response:
                 response_json = await response.json()
@@ -156,7 +168,10 @@ class WorkerEndpoint(Endpoint):
                         'postTransformDef': {'transform': self.post_transform}, "source": {"sourceType": "NONE"},
                         "idleTimeoutSeconds": 60, "logging": ["out_meta"], "videoOutput": "no_output"}
 
-            headers = {'Authorization': await self._authorization_header()}
+            headers = {}
+            authorization_header = await self._authorization_header()
+            if authorization_header is not None:
+                headers['Authorization'] = authorization_header
             log_requests.debug('before POST %s', start_pipeline_url)
             async with self.client_session.post(start_pipeline_url, headers=headers, json=body) as response:
                 response_json = await response.json()
@@ -169,7 +184,10 @@ class WorkerEndpoint(Endpoint):
         if self.is_dev_mode and self.stop_jobs:
             stop_jobs_url = f'{await self.dev_mode_pipeline_base_url()}/source?mode=preempt&processing=sync'
             body = {'sourceType': 'NONE'}
-            headers = {'Authorization': await self._authorization_header()}
+            headers = {}
+            authorization_header = await self._authorization_header()
+            if authorization_header is not None:
+                headers['Authorization'] = authorization_header
             log_requests.debug('before PATCH %s', stop_jobs_url)
             async with self.client_session.patch(stop_jobs_url, headers=headers, json=body) as response:
                 pass
@@ -178,7 +196,10 @@ class WorkerEndpoint(Endpoint):
         if self.is_dev_mode and self.pop_comp is None:
             # get current pipeline string and store
             get_url = await self.dev_mode_pipeline_base_url()
-            headers = {'Authorization': await self._authorization_header()}
+            headers = {}
+            authorization_header = await self._authorization_header()
+            if authorization_header is not None:
+                headers['Authorization'] = authorization_header
             log_requests.debug('before GET %s', get_url)
             async with self.client_session.get(get_url, headers=headers) as response:
                 response_json = await response.json()
@@ -395,7 +416,10 @@ class WorkerEndpoint(Endpoint):
 
             url = f'{entry.base_url}/pipelines/{entry.pipeline_id}/{url_path_and_query}'
 
-            headers = {'Authorization': await self._authorization_header()}
+            headers = {}
+            authorization_header = await self._authorization_header()
+            if authorization_header is not None:
+                headers['Authorization'] = authorization_header
             if accept is not None:
                 headers['Accept'] = accept
             if content_type is not None:
