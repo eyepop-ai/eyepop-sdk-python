@@ -104,11 +104,12 @@ class DataEndpoint(Endpoint):
         log_requests.debug("before ws connect: %s", ws_url)
         ws = await websockets.asyncio.client.connect(uri=ws_url)
         log_requests.debug("after ws connect: %s", ws_url)
-
-        auth_headers = {'authorization': await self._authorization_header()}
-        message = json.dumps(auth_headers)
-        await ws.send(message)
-        log_requests.debug("ws send: %s", message)
+        authorization_header = await self._authorization_header()
+        if authorization_header is not None:
+            auth_headers = {'authorization': authorization_header}
+            message = json.dumps(auth_headers)
+            await ws.send(message)
+            log_requests.debug("ws send: %s", message)
         message = json.dumps({
             "subscribe" : {
                 "account_uuid": self.account_uuid
