@@ -68,7 +68,7 @@ class RequestTracer():
         trace_config.on_request_end.append(self.on_request_end)
         return trace_config
 
-    async def send_and_reset(self, url: str, authorization_header: str, secs_to_mature: float | None):
+    async def send_and_reset(self, url: str, authorization_header: str | None, secs_to_mature: float | None):
         if secs_to_mature is None or secs_to_mature <= 0.0:
             matured_events = self.events
             self.events = deque(maxlen=self.events.maxlen)
@@ -178,10 +178,10 @@ class RequestTracer():
 
             async with aiohttp.ClientSession() as session:
                 headers = {
-                    'authorization': authorization_header,
                     'content-type': 'application/x-flatbuffers;schema=eyepop.events.Record'
                 }
-
+                if authorization_header is not None:
+                    headers['authorization'] = authorization_header
                 async with session.post(url, data=buf, headers=headers) as resp:
                     pass
 

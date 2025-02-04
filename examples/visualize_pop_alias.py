@@ -16,8 +16,7 @@ example_image_path = sys.argv[1]
 with EyePopSdk.workerEndpoint(pop_id='transient') as endpoint:
     endpoint.set_pop(Pop(
         components=[InferenceComponent(
-            inferenceTypes=[InferenceType.OBJECT_DETECTION],
-            model='test1.dev.eyepop.ai:latest'
+            model='eyepop.person:latest'
         )]
     ))
     result = endpoint.upload(example_image_path).predict()

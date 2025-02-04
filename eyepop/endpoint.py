@@ -35,8 +35,6 @@ class Endpoint(ClientSession):
     def __init__(self, secret_key: str | None, access_token: str | None,
                  eyepop_url: str,
                  job_queue_length: int, request_tracer_max_buffer: int):
-        if secret_key is None and access_token is None:
-            raise ValueError("secret_key or access_token is required")
         self.secret_key = secret_key
         self.provided_access_token = access_token
         self.eyepop_url = eyepop_url
@@ -93,8 +91,11 @@ class Endpoint(ClientSession):
                         exc_tb: Optional[TracebackType], ) -> None:
         await self.disconnect()
 
-    async def _authorization_header(self):
-        return f'Bearer {await self.__get_access_token()}'
+    async def _authorization_header(self) -> str | None:
+        access_token = await self.__get_access_token()
+        if access_token is None:
+            return None
+        return f'Bearer {access_token}'
 
     async def disconnect(self, timeout: float | None = None) -> None:
         if timeout is None:
@@ -146,14 +147,14 @@ class Endpoint(ClientSession):
         if self.event_sender is not None:
             await self.event_sender.start()
 
-    async def session(self) -> dict:
+    async def session(self) -> dict | None:
         token = await self.__get_access_token()
-        session = {
+        if token is None:
+            return None
+        return {
             'eyepopUrl': self.eyepop_url, 'accessToken': token,
             'validUntil': None if self.expire_token_time is None else self.expire_token_time * 1000
         }
-
-        return session
 
     async def _reconnect(self):
         raise NotImplemented
@@ -161,9 +162,11 @@ class Endpoint(ClientSession):
     async def _disconnect(self, timeout: float | None = None):
         raise NotImplemented
 
-    async def __get_access_token(self):
+    async def __get_access_token(self) -> str | None:
         if self.provided_access_token is not None:
             return self.provided_access_token
+        if self.secret_key is None:
+            return None
         now = time.time()
         if self.token is None or self.expire_token_time < now:
             body = {'secret_key': self.secret_key}
@@ -211,7 +214,10 @@ class Endpoint(ClientSession):
                                  timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
         failed_attempts = 0
         while True:
-            headers = {'Authorization': await self._authorization_header()}
+            headers = {}
+            authorization_header = await self._authorization_header()
+            if authorization_header is not None:
+                headers['Authorization'] = authorization_header
             if accept is not None:
                 headers['Accept'] = accept
             if content_type is not None:
@@ -236,5 +242,6 @@ class Endpoint(ClientSession):
 
     async def send_trace_recordings(self):
         if self.request_tracer is not None:
-            await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events', await self._authorization_header(),
+            await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events',
+                                                     await self._authorization_header(),
                                                      SEND_TRACE_THRESHOLD_SECS)
