@@ -45,7 +45,7 @@ class EyePopSdk:
         if pop_id is None:
             pop_id = os.getenv('EYEPOP_POP_ID')
             if pop_id is None:
-                raise KeyError('parameter \'pop_id\' is required')
+                pop_id= 'transient'
 
         endpoint = WorkerEndpoint(secret_key=secret_key, access_token=access_token,
                                   pop_id=pop_id, auto_start=auto_start, stop_jobs=stop_jobs,
