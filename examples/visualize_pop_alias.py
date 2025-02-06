@@ -13,7 +13,8 @@ import requests
 from PIL import Image
 
 from eyepop import EyePopSdk
-from eyepop.worker.worker_types import Pop, InferenceComponent, PopForward, PopForwardOperator, ForwardOperatorType
+from eyepop.worker.worker_types import Pop, InferenceComponent, PopForward, PopForwardOperator, ForwardOperatorType, \
+    PopCrop
 
 script_dir = os.path.dirname(__file__)
 
@@ -28,33 +29,57 @@ pop_examples = {
 
     "2d-body-points": Pop(components=[
         InferenceComponent(model='eyepop.person:latest', categoryName="person", forward=PopForward(
-            operator=PopForwardOperator(type=ForwardOperatorType.CROP, maxItems=128),
+            operator=PopForwardOperator(
+                type=ForwardOperatorType.CROP,
+                crop=PopCrop(maxItems=128)
+            ),
             targets=[InferenceComponent(model='eyepop.person.2d-body-points:latest', categoryName="2d-body-points")]
         ))
     ]),
 
     "face": Pop(components=[
         InferenceComponent(model='eyepop.person:latest', categoryName="person", forward=PopForward(
-            operator=PopForwardOperator(type=ForwardOperatorType.CROP, maxItems=128, boxPadding=0.5),
-            targets=[InferenceComponent(model='eyepop.person.face.long-range:latest', hidden=True, forward=PopForward(
-                operator=PopForwardOperator(type=ForwardOperatorType.CROP, boxPadding=0.5, orientationTargetAngle=-90.0),
+            operator=PopForwardOperator(
+                type=ForwardOperatorType.CROP,
+                crop=PopCrop(maxItems=128)
+            ),
+            targets=[InferenceComponent(model='eyepop.person.face.short-range:latest', categoreyNmae="2d-face-points", forward=PopForward(
+                operator=PopForwardOperator(
+                    type=ForwardOperatorType.CROP,
+                    crop=PopCrop(boxPadding=0.5, orientationTargetAngle=-90.0)
+                ),
                 targets=[InferenceComponent(model='eyepop.person.face-mesh:latest', categoryName="3d-face-mesh")]
             ))]
         ))
     ]),
 
     "hands": Pop(components=[
-        InferenceComponent(model='eyepop.palm:latest', hidden=True, forward=PopForward(
-            operator=PopForwardOperator(type=ForwardOperatorType.CROP, orientationTargetAngle=-90.0),
-            targets=[InferenceComponent(model='eyepop.person.3d-hand-points:latest', categoryName="3d-hand-points")]
+        InferenceComponent(model='eyepop.person:latest', categoryName="person", forward=PopForward(
+            operator=PopForwardOperator(
+                type=ForwardOperatorType.CROP,
+                crop=PopCrop(maxItems=128, boxPadding=0.25)),
+            targets=[InferenceComponent(model='eyepop.person.palm:latest', forward=PopForward(
+                        operator=PopForwardOperator(
+                            type=ForwardOperatorType.CROP,
+                            includeClasses=["hand circumference"],
+                            crop=PopCrop(orientationTargetAngle=-90.0)
+                        ),
+                        targets=[InferenceComponent(model='eyepop.person.3d-hand-points:latest', categoryName="3d-hand-points")]
+            ))]
         ))
     ]),
 
     "3d-body-points": Pop(components=[
         InferenceComponent(model='eyepop.person:latest', categoryName="person", forward=PopForward(
-            operator=PopForwardOperator(type=ForwardOperatorType.CROP, boxPadding=0.5),
+            operator=PopForwardOperator(
+                type=ForwardOperatorType.CROP,
+                crop=PopCrop(boxPadding=0.5)
+            ),
             targets=[InferenceComponent(model='eyepop.person.pose:latest', hidden=True, forward=PopForward(
-                operator=PopForwardOperator(type=ForwardOperatorType.CROP, boxPadding=0.5, orientationTargetAngle=-90.0),
+                operator=PopForwardOperator(
+                    type=ForwardOperatorType.CROP,
+                    crop=PopCrop(boxPadding=0.5, orientationTargetAngle=-90.0)
+                ),
                 targets=[InferenceComponent(model='eyepop.person.3d-body-points.heavy:latest', categoryName="3d-body-points")]
             ))]
         ))
@@ -93,7 +118,7 @@ with EyePopSdk.workerEndpoint() as endpoint:
     elif args.url:
         result = endpoint.load_from(args.url).predict()
         with requests.get(args.url) as response:
-            image = Image.open(response.raw)
+            image = Image.open(BytesIO(response.content))
         example_image_src = args.url
 
     logging.getLogger('eyepop.example').info(json.dumps(result, indent=2))
