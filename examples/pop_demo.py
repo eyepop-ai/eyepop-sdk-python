@@ -37,7 +37,7 @@ pop_examples = {
         ))
     ]),
 
-    "face": Pop(components=[
+    "faces": Pop(components=[
         InferenceComponent(model='eyepop.person:latest', categoryName="person", forward=PopForward(
             operator=PopForwardOperator(
                 type=ForwardOperatorType.CROP,
@@ -99,7 +99,11 @@ parser = argparse.ArgumentParser(
                     epilog='.')
 parser.add_argument('-l', '--local-path', required=False, type=str, default=False, help="run the inference on a local file")
 parser.add_argument('-u', '--url', required=False, type=str, default=False, help="run the inference on a remote Url")
-parser.add_argument('-p', '--pop', required=True, type=str, help="run this pop", choices=list(pop_examples.keys()))
+parser.add_argument('-p', '--pop', required=False, type=str, help="run this pop", choices=list(pop_examples.keys()))
+parser.add_argument('-m', '--model-uuid', required=False, type=str, help="run this model by uuid")
+parser.add_argument('-v', '--visualize', required=False, help="show rendered output", default=False, action="store_true")
+parser.add_argument('-o', '--output', required=False, help="print results to stdout", default=False, action="store_true")
+
 
 args = parser.parse_args()
 
@@ -108,31 +112,46 @@ if not args.local_path and not args.url:
     sys.exit(1)
 
 with EyePopSdk.workerEndpoint() as endpoint:
-    endpoint.set_pop(pop_examples[args.pop])
+    if args.pop:
+        endpoint.set_pop(pop_examples[args.pop])
+    elif args.model_uuid:
+        endpoint.set_pop(pop_examples[args.pop])
+    else:
+        raise ValueError("pop or model required")
+            
     if args.local_path:
-        result = endpoint.upload(args.local_path).predict()
-        image = Image.open(args.local_path)
-        buffer = BytesIO()
-        image.save(buffer, format="PNG")
-        example_image_src = f"data:image/png;base64, {base64.b64encode(buffer.getvalue()).decode()}"
+        job = endpoint.upload(args.local_path)
+        while result := job.predict():
+           visualize_result = result
+           if args.output:
+                logging.getLogger('eyepop.example').info(json.dumps(result, indent=2))
+        if args.visualize:
+            image = Image.open(args.local_path)
+            buffer = BytesIO()
+            image.save(buffer, format="PNG")
+            example_image_src = f"data:image/png;base64, {base64.b64encode(buffer.getvalue()).decode()}"
     elif args.url:
-        result = endpoint.load_from(args.url).predict()
-        with requests.get(args.url) as response:
-            image = Image.open(BytesIO(response.content))
-        example_image_src = args.url
+        job = endpoint.load_from(args.url)
+        while result := job.predict():
+            visualize_result = result
+            if args.output:
+                logging.getLogger('eyepop.example').info(json.dumps(result, indent=2))
+        if args.visualize:
+            with requests.get(args.url) as response:
+                image = Image.open(BytesIO(response.content))
+            example_image_src = args.url
 
-    logging.getLogger('eyepop.example').info(json.dumps(result, indent=2))
+    if args.visualize:
+        with open(os.path.join(script_dir, 'viewer.html')) as file:
+            compiler = Compiler()
+            html_template = compiler.compile(file.read())
 
-    with open(os.path.join(script_dir, 'viewer.html')) as file:
-        compiler = Compiler()
-        html_template = compiler.compile(file.read())
-
-    preview = html_template({
-        'image_src': example_image_src,
-        'result_json': json.dumps(result)
-    })
-    window = webui.window()
-    window.set_root_folder('.')
-    window.show(preview, webui.browser.chrome)
-    webui.wait()
+        preview = html_template({
+            'image_src': example_image_src,
+            'result_json': json.dumps(visualize_result)
+        })
+        window = webui.window()
+        window.set_root_folder('.')
+        window.show(preview, webui.browser.chrome)
+        webui.wait()
 
