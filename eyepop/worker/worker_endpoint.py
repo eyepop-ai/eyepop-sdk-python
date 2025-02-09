@@ -70,6 +70,25 @@ class WorkerEndpoint(Endpoint):
             return True
 
     async def _disconnect(self, timeout: float | None = None):
+        client_timeout = None
+        if timeout is not None:
+            client_timeout = aiohttp.ClientTimeout(total=timeout)
+        if (self.is_dev_mode and self.pop_id == 'transient'
+                and self.worker_config is not None and self.worker_config['pipeline_id'] is not None):
+            try:
+                base_url = await self.dev_mode_base_url()
+                delete_pipeline_url = f'{base_url}/pipelines/{self.worker_config["pipeline_id"]}'
+                headers = {}
+                authorization_header = await self._authorization_header()
+                if authorization_header is not None:
+                    headers['Authorization'] = authorization_header
+                log_requests.debug('before DELETE %s', delete_pipeline_url)
+                await self.client_session.delete(delete_pipeline_url, headers=headers, timeout=client_timeout)
+                log_requests.debug('after DELETE %s', delete_pipeline_url)
+            except Exception as e:
+                log.exception("error at disconnect", e)
+            finally:
+                self.sandbox_id = None
         if self.sandbox_id is not None:
             try:
                 base_url = await self.dev_mode_base_url()
@@ -79,9 +98,6 @@ class WorkerEndpoint(Endpoint):
                 if authorization_header is not None:
                     headers['Authorization'] = authorization_header
                 log_requests.debug('before DELETE %s', delete_sandbox_url)
-                client_timeout = None
-                if timeout is not None:
-                    client_timeout = aiohttp.ClientTimeout(total=timeout)
                 await self.client_session.delete(delete_sandbox_url, headers=headers, timeout=client_timeout)
                 log_requests.debug('after DELETE %s', delete_sandbox_url)
             except Exception as e:
