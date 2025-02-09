@@ -92,7 +92,7 @@ pop_examples = {
         InferenceComponent(
             model='eyepop.person:latest',
             categoryName="person",
-            forward=PopForward(
+            forward=CropForward(
                 boxPadding=0.5,
                 targets=[InferenceComponent(
                     model='eyepop.person.pose:latest',
@@ -102,7 +102,8 @@ pop_examples = {
                         orientationTargetAngle=-90.0,
                         targets=[InferenceComponent(
                             model='eyepop.person.3d-body-points.heavy:latest',
-                            categoryName="3d-body-points"
+                            categoryName="3d-body-points",
+                            confidenceThreshold=0.25
                         )]
                     )
                 )]
