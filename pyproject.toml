@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eyepop"
-version = "1.9.5"
+version = "1.10.0"
 description="EyePop.ai Python SDK"
 readme = "README.md"
 license.file = "./LICENSE"
