@@ -27,7 +27,7 @@ class PopCrop(BaseModel):
 
 class PopForwardOperator(BaseModel):
     type: ForwardOperatorType
-    includeClasses: List[str] | None = None
+    includeClasses: list[str] | None = None
     crop: PopCrop | None = None
 
 class PopForward(BaseModel):
@@ -88,6 +88,7 @@ class ContourType(enum.StrEnum):
 class ContourFinderComponent(BaseComponent):
     type: Literal[PopComponentType.CONTOUR_FINDER] = PopComponentType.CONTOUR_FINDER
     contourType: ContourType
+    areaThreshold: float | None = None
 
 
 class ComponentFinderComponent(BaseComponent):
@@ -104,3 +105,38 @@ DynamicComponent = Annotated[Union[ForwardComponent | InferenceComponent | Traci
 class Pop(BaseModel):
     components: List[DynamicComponent]
     postTransform: str | None = None
+
+# Helper factories
+
+def CropForward(
+        targets: List[DynamicComponent],
+        maxItems: int | None = None,
+        boxPadding: float | None = None,
+        orientationTargetAngle: float | None = None,
+        includeClasses: list[str] | None = None,
+        is_full_fallback: bool = False
+) -> PopForward:
+    return PopForward(
+        operator=PopForwardOperator(
+            type=ForwardOperatorType.CROP if not is_full_fallback else ForwardOperatorType.CROP_WITH_FULL_FALLBACK,
+            includeClasses=includeClasses,
+            crop=PopCrop(
+                maxItems=maxItems,
+                boxPadding=boxPadding,
+                orientationTargetAngle=orientationTargetAngle,
+            ),
+        ),
+        targets=targets
+    )
+
+def FullForward(
+        targets: List[DynamicComponent],
+        includeClasses: list[str] | None = None
+) -> PopForward:
+    return PopForward(
+        operator=PopForwardOperator(
+            type=ForwardOperatorType.FULL,
+            includeClasses=includeClasses
+        ),
+        targets=targets,
+    )

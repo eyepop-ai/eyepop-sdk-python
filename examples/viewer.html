@@ -16,12 +16,13 @@
                 const context = resultOverlay.getContext('2d');
                 context.clearRect(0,0,resultOverlay.width, resultOverlay.height);
                 const renderer = Render2d.renderer(context,[
-                  Render2d.renderBox(),
                   Render2d.renderMask(),
                   Render2d.renderContour(),
                   Render2d.renderPose(),
                   Render2d.renderHand(),
-                  Render2d.renderFace()
+                  Render2d.renderFace(),
+                  Render2d.renderText(),
+                  Render2d.renderBox({showClass:false})
                 ]);
                 console.log(resultOverlay.width, resultOverlay.height);
                 renderer.draw(result);
