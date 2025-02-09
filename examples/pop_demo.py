@@ -14,7 +14,7 @@ from PIL import Image
 
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import Pop, InferenceComponent, PopForward, PopForwardOperator, ForwardOperatorType, \
-    PopCrop
+    PopCrop, ContourFinderComponent, ContourType, CropForward, FullForward
 
 script_dir = os.path.dirname(__file__)
 
@@ -24,72 +24,102 @@ logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
 pop_examples = {
 
     "person": Pop(components=[
-        InferenceComponent(model='eyepop.person:latest', categoryName="person")
+        InferenceComponent(
+            model='eyepop.person:latest',
+            categoryName="person"
+        )
     ]),
 
     "2d-body-points": Pop(components=[
-        InferenceComponent(model='eyepop.person:latest', categoryName="person", forward=PopForward(
-            operator=PopForwardOperator(
-                type=ForwardOperatorType.CROP,
-                crop=PopCrop(maxItems=128)
-            ),
-            targets=[InferenceComponent(model='eyepop.person.2d-body-points:latest', categoryName="2d-body-points")]
+        InferenceComponent(
+            model='eyepop.person:latest',
+            categoryName="person",
+            forward=CropForward(
+                maxItems=128,
+                targets=[InferenceComponent(
+                    model='eyepop.person.2d-body-points:latest',
+                    categoryName="2d-body-points",
+                    confidenceThreshold=0.25
+                )]
         ))
     ]),
 
     "faces": Pop(components=[
-        InferenceComponent(model='eyepop.person:latest', categoryName="person", forward=PopForward(
-            operator=PopForwardOperator(
-                type=ForwardOperatorType.CROP,
-                crop=PopCrop(maxItems=128)
-            ),
-            targets=[InferenceComponent(model='eyepop.person.face.short-range:latest', categoreyNmae="2d-face-points", forward=PopForward(
-                operator=PopForwardOperator(
-                    type=ForwardOperatorType.CROP,
-                    crop=PopCrop(boxPadding=0.5, orientationTargetAngle=-90.0)
-                ),
-                targets=[InferenceComponent(model='eyepop.person.face-mesh:latest', categoryName="3d-face-mesh")]
-            ))]
-        ))
+        InferenceComponent(
+            model='eyepop.person:latest',
+            categoryName="person",
+            forward=CropForward(
+                maxItems=128,
+                targets=[InferenceComponent(
+                    model='eyepop.person.face.short-range:latest',
+                    categoryName="2d-face-points",
+                    forward=CropForward(
+                        boxPadding=1.5,
+                        orientationTargetAngle=-90.0,
+                        targets=[InferenceComponent(
+                            model='eyepop.person.face-mesh:latest',
+                            categoryName="3d-face-mesh"
+                        )]
+                    )
+                )]
+            )
+        )
     ]),
 
     "hands": Pop(components=[
-        InferenceComponent(model='eyepop.person:latest', categoryName="person", forward=PopForward(
-            operator=PopForwardOperator(
-                type=ForwardOperatorType.CROP,
-                crop=PopCrop(maxItems=128, boxPadding=0.25)),
-            targets=[InferenceComponent(model='eyepop.person.palm:latest', forward=PopForward(
-                        operator=PopForwardOperator(
-                            type=ForwardOperatorType.CROP,
-                            includeClasses=["hand circumference"],
-                            crop=PopCrop(orientationTargetAngle=-90.0)
-                        ),
-                        targets=[InferenceComponent(model='eyepop.person.3d-hand-points:latest', categoryName="3d-hand-points")]
-            ))]
-        ))
+        InferenceComponent(
+            model='eyepop.person:latest',
+            categoryName="person",
+            forward=CropForward(
+                maxItems=128,
+                boxPadding=0.25,
+                targets=[InferenceComponent(
+                    model='eyepop.person.palm:latest',
+                    forward=CropForward(
+                        includeClasses=["hand circumference"],
+                        orientationTargetAngle=-90.0,
+                        targets=[InferenceComponent(
+                            model='eyepop.person.3d-hand-points:latest',
+                            categoryName="3d-hand-points"
+                        )]
+                    )
+                )]
+            )
+        )
     ]),
 
     "3d-body-points": Pop(components=[
-        InferenceComponent(model='eyepop.person:latest', categoryName="person", forward=PopForward(
-            operator=PopForwardOperator(
-                type=ForwardOperatorType.CROP,
-                crop=PopCrop(boxPadding=0.5)
-            ),
-            targets=[InferenceComponent(model='eyepop.person.pose:latest', hidden=True, forward=PopForward(
-                operator=PopForwardOperator(
-                    type=ForwardOperatorType.CROP,
-                    crop=PopCrop(boxPadding=0.5, orientationTargetAngle=-90.0)
-                ),
-                targets=[InferenceComponent(model='eyepop.person.3d-body-points.heavy:latest', categoryName="3d-body-points")]
-            ))]
-        ))
+        InferenceComponent(
+            model='eyepop.person:latest',
+            categoryName="person",
+            forward=PopForward(
+                boxPadding=0.5,
+                targets=[InferenceComponent(
+                    model='eyepop.person.pose:latest',
+                    hidden=True,
+                    forward=CropForward(
+                        boxPadding=0.5,
+                        orientationTargetAngle=-90.0,
+                        targets=[InferenceComponent(
+                            model='eyepop.person.3d-body-points.heavy:latest',
+                            categoryName="3d-body-points"
+                        )]
+                    )
+                )]
+            )
+        )
     ]),
 
     "text": Pop(components=[
-        InferenceComponent(model='eyepop.text:latest', categoryName="text", forward=PopForward(
-            operator=PopForwardOperator(type=ForwardOperatorType.CROP),
-            targets=[InferenceComponent(model='eyepop.text.recognize.square:latest')]
-        ))
+        InferenceComponent(
+            model='eyepop.text:latest',
+            categoryName="text",
+            forward=CropForward(
+                targets=[InferenceComponent(
+                    model='eyepop.text.recognize.square:latest'
+                )]
+            )
+        )
     ]),
 }
 
@@ -101,6 +131,8 @@ parser.add_argument('-l', '--local-path', required=False, type=str, default=Fals
 parser.add_argument('-u', '--url', required=False, type=str, default=False, help="run the inference on a remote Url")
 parser.add_argument('-p', '--pop', required=False, type=str, help="run this pop", choices=list(pop_examples.keys()))
 parser.add_argument('-m', '--model-uuid', required=False, type=str, help="run this model by uuid")
+parser.add_argument('-ms1', '--model-uuid-sam1', required=False, type=str, help="run this model by uuid and compose with SAM1 (EfficientSAM) and Contour Finder")
+parser.add_argument('-ms2', '--model-uuid-sam2', required=False, type=str, help="run this model by uuid and compose with SAM2 and Contour Finder")
 parser.add_argument('-v', '--visualize', required=False, help="show rendered output", default=False, action="store_true")
 parser.add_argument('-o', '--output', required=False, help="print results to stdout", default=False, action="store_true")
 
@@ -108,6 +140,12 @@ parser.add_argument('-o', '--output', required=False, help="print results to std
 args = parser.parse_args()
 
 if not args.local_path and not args.url:
+    print("Need something to run inference on; pass either --url or --local-path")
+    parser.print_help()
+    sys.exit(1)
+
+if not args.pop and not args.model_uuid and not args.model_uuid_sam1 and not args.model_uuid_sam2:
+    print("Need something do do, pass either --pop or --model-uuid or --model-uuid-sam1 or --model-uuid-sam2")
     parser.print_help()
     sys.exit(1)
 
@@ -115,10 +153,54 @@ with EyePopSdk.workerEndpoint() as endpoint:
     if args.pop:
         endpoint.set_pop(pop_examples[args.pop])
     elif args.model_uuid:
-        endpoint.set_pop(pop_examples[args.pop])
+        endpoint.set_pop(Pop(components=[
+            InferenceComponent(
+                modelUuid=args.model_uuid
+            )
+        ]))
+    elif args.model_uuid_sam1:
+        endpoint.set_pop(Pop(components=[
+            InferenceComponent(
+                modelUuid=args.model_uuid_sam1,
+                forward=CropForward(
+                    targets=[InferenceComponent(
+                        model='eyepop.sam.small:latest',
+                        forward=FullForward(
+                            targets=[ContourFinderComponent(
+                                contourType=ContourType.POLYGON,
+                                areaThreshold=0.005
+                            )]
+                        )
+                    )]
+                )
+            )
+        ]))
+    elif args.model_uuid_sam2:
+        endpoint.set_pop(Pop(components=[
+            InferenceComponent(
+                model="eyepop.sam2.encoder.tiny:latest",
+                hidden=True,
+                forward=FullForward(
+                    targets=[InferenceComponent(
+                        modelUuid=args.model_uuid_sam2,
+                        forward=CropForward(
+                            targets=[InferenceComponent(
+                                model='eyepop.sam2.decoder:latest',
+                                forward=FullForward(
+                                    targets=[ContourFinderComponent(
+                                        contourType=ContourType.POLYGON,
+                                        areaThreshold=0.005
+                                    )]
+                                )
+                            )]
+                        )
+                    )]
+                )
+            )
+        ]))
     else:
         raise ValueError("pop or model required")
-            
+
     if args.local_path:
         job = endpoint.upload(args.local_path)
         while result := job.predict():
