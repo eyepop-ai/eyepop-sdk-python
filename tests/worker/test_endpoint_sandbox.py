@@ -16,7 +16,7 @@ class TestEndpointConnect(BaseEndpointTest):
         test_sandbox_id = 'test_sandbox_id_1'
         test_manifests = []
         test_models = []
-        self.setup_base_mock(mock, sandbox_id=test_sandbox_id)
+        self.setup_base_mock(mock, sandbox_id=test_sandbox_id, is_transient=True)
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
 
@@ -60,12 +60,12 @@ class TestEndpointConnect(BaseEndpointTest):
                                             pop_id='transient', is_sandbox=True)
         try:
             endpoint.connect()
-            manifesta = endpoint.get_manifest()
-            self.assertEqual(len(manifesta), 0)
+            manifest = endpoint.get_manifest()
+            self.assertEqual(len(manifest), 0)
             models = endpoint.list_models()
             self.assertEqual(len(models), 0)
         finally:
-            endpoint.disconnect(timeout=10.0)
+            endpoint.disconnect()
 
         self.assertBaseMock(mock, is_transient=True, sandbox_id=test_sandbox_id)
         mock.assert_called_with(f'{self.test_worker_url}/sandboxes',
@@ -73,7 +73,7 @@ class TestEndpointConnect(BaseEndpointTest):
                                 headers={'Authorization': f'Bearer {self.test_access_token}'})
         mock.assert_called_with(f'{self.test_worker_url}/sandboxes/{test_sandbox_id}',
                                 method='DELETE',
-                                timeout=aiohttp.ClientTimeout(total=10.0),
+                                timeout=None,
                                 headers={'Authorization': f'Bearer {self.test_access_token}'})
 
 
