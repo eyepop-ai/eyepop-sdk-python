@@ -86,9 +86,10 @@ class WorkerEndpoint(Endpoint):
                 await self.client_session.delete(delete_pipeline_url, headers=headers, timeout=client_timeout)
                 log_requests.debug('after DELETE %s', delete_pipeline_url)
             except Exception as e:
-                log.exception("error at disconnect", e)
+                log.exception(e, exc_info=True)
             finally:
-                self.sandbox_id = None
+                del self.worker_config["pipeline_id"]
+
         if self.sandbox_id is not None:
             try:
                 base_url = await self.dev_mode_base_url()
@@ -101,7 +102,7 @@ class WorkerEndpoint(Endpoint):
                 await self.client_session.delete(delete_sandbox_url, headers=headers, timeout=client_timeout)
                 log_requests.debug('after DELETE %s', delete_sandbox_url)
             except Exception as e:
-                log.exception("error at disconnect", e)
+                log.exception(e, exc_info=True)
             finally:
                 self.sandbox_id = None
 

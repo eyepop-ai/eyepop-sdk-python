@@ -24,7 +24,7 @@ class TestEndpointPop(BaseEndpointTest):
     @aioresponses()
     def test_sync_get_pop(self, mock: aioresponses):
 
-        self.setup_base_mock(mock)
+        self.setup_base_mock(mock, is_transient=True)
         # authentication
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
@@ -39,13 +39,13 @@ class TestEndpointPop(BaseEndpointTest):
 
         with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                       pop_id="transient") as endpoint:
-            self.assertBaseMock(mock, is_transient=True)
             cur_pop = endpoint.get_pop()
             self.assertEqual(cur_pop, self.current_pop)
+        self.assertBaseMock(mock, is_transient=True)
 
     @aioresponses()
     def test_sync_set_pop(self, mock: aioresponses):
-        self.setup_base_mock(mock)
+        self.setup_base_mock(mock, is_transient=True)
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
         # automatic call to get pop comp and store
@@ -59,8 +59,6 @@ class TestEndpointPop(BaseEndpointTest):
         
         with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                       pop_id="transient") as endpoint:
-            self.assertBaseMock(mock, is_transient=True)
-
             def set_pop(url, **kwargs) -> CallbackResult:
                 if kwargs['headers']['Authorization'] != f'Bearer {self.test_access_token}':
                     return CallbackResult(status=401, reason='test auth token expired')
@@ -74,12 +72,14 @@ class TestEndpointPop(BaseEndpointTest):
             endpoint.set_pop(self.test_new_pop)
             self.assertEqual(endpoint.get_pop(), self.test_new_pop)
             self.assertEqual(self.current_pop, self.test_new_pop)
+        self.assertBaseMock(mock, is_transient=True)
+
 
     @aioresponses()
     @pytest.mark.asyncio
     async def test_async_get_pop(self, mock: aioresponses):
 
-        self.setup_base_mock(mock)
+        self.setup_base_mock(mock, is_transient=True)
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
         # automatic call to get pop comp and store
@@ -93,16 +93,16 @@ class TestEndpointPop(BaseEndpointTest):
 
         async with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                             pop_id="transient", is_async=True) as endpoint:
-            self.assertBaseMock(mock, is_transient=True)
             cur_pop = await endpoint.get_pop()
             self.assertIsNone(cur_pop)
+        self.assertBaseMock(mock, is_transient=True)
 
     
     @aioresponses()
     @pytest.mark.asyncio
     async def test_async_set_pop(self, mock: aioresponses):
 
-        self.setup_base_mock(mock)
+        self.setup_base_mock(mock, is_transient=True)
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
         # automatic call to get pop comp and store
@@ -116,8 +116,6 @@ class TestEndpointPop(BaseEndpointTest):
 
         async with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                             pop_id="transient", is_async=True) as endpoint:
-            self.assertBaseMock(mock, is_transient=True)
-
             def set_pop(url, **kwargs) -> CallbackResult:
                 if kwargs['headers']['Authorization'] != f'Bearer {self.test_access_token}':
                     return CallbackResult(status=401, reason='test auth token expired')
@@ -133,3 +131,6 @@ class TestEndpointPop(BaseEndpointTest):
             await endpoint.set_pop(self.test_new_pop)
             self.assertEqual(await endpoint.get_pop(), self.test_new_pop)
             self.assertEqual(self.current_pop, self.test_new_pop)
+
+        self.assertBaseMock(mock, is_transient=True)
+

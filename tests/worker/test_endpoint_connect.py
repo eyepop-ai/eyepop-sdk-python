@@ -66,7 +66,7 @@ class TestEndpointConnect(BaseEndpointTest):
     @aioresponses()
     def test_connect_transient_ok(self, mock: aioresponses):
 
-        self.setup_base_mock(mock)
+        self.setup_base_mock(mock, is_transient=True)
 
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
@@ -85,7 +85,7 @@ class TestEndpointConnect(BaseEndpointTest):
         finally:
             endpoint.disconnect()
 
-        self.assertBaseMock(mock, True)
+        self.assertBaseMock(mock, is_transient=True)
 
     @aioresponses()
     def test_connect_unauthorized(self, mock: aioresponses):

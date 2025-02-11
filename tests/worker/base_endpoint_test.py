@@ -1,6 +1,9 @@
 import json
 import os
 import unittest
+from asyncio import timeout
+
+import aiohttp
 from aioresponses import aioresponses, CallbackResult
 
 
@@ -25,7 +28,8 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
             sandbox_id: str | None = None,
             status: str = 'active_dev',
             num_endpoints: int = 1,
-            provided_access_token: str | None = None
+            provided_access_token: str | None = None,
+            is_transient: bool = False,
     ):
         if provided_access_token is None:
             provided_access_token = self.test_access_token
@@ -92,6 +96,9 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=preempt&processing=sync',
                    callback=stop, repeat=False)
 
+        if is_transient:
+            mock.delete(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}', repeat=False, status=204)
+
     def assertBaseMock(
             self,
             mock: aioresponses,
@@ -100,7 +107,6 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
             status: str = 'active_dev',
             num_endpoints: int = 1,
             provided_access_token: str | None = None
-
     ):
         if provided_access_token is None:
             provided_access_token = self.test_access_token
@@ -140,3 +146,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
                 f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=preempt&processing=sync',
                 method='PATCH', headers={'Authorization': f'Bearer {provided_access_token}'}, data=None,
                 json={'sourceType': 'NONE'})
+        if is_transient:
+            mock.assert_called_with(
+                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
+                method='DELETE', headers={'Authorization': f'Bearer {provided_access_token}'}, timeout=None)
