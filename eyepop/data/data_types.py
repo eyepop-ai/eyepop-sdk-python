@@ -83,11 +83,22 @@ class DatasetVersion(BaseModel):
 
 DatasetVersionResponse = DatasetVersion
 
+class AutoAnnotateTask(enum.StrEnum):
+    object_detection = enum.auto()
+    image_classification = enum.auto()
+
+
+class AutoAnnotatePrompt(BaseModel):
+    label: str
+    prompt: str
+
 
 class AutoAnnotateParams(BaseModel):
+    # @deprecated("candidate_labels is deprecated, use prompts instead")
     candidate_labels: list[str] | None = None
-    prompt: str | None = None
+    prompts: list[AutoAnnotatePrompt] | None = None
     confidence_threshold: float | None = None
+    task: AutoAnnotateTask = AutoAnnotateTask.object_detection
 
 
 class Dataset(BaseModel):
@@ -283,6 +294,11 @@ class ModelExport(BaseModel):
 ModelExportResponse = ModelExport
 
 
+class ModelTask(enum.StrEnum):
+    object_detection = enum.auto()
+    image_classification = enum.auto()
+
+
 class Model(BaseModel):
     uuid: str
     created_at: datetime | None = None
@@ -293,9 +309,13 @@ class Model(BaseModel):
     name: str
     description: str = ""
     type: ModelType | None = None
-    status: ModelStatus = ModelStatus.draft
     is_public: bool = False
     external_id: str | None = None
+    pretrained_model_uuid: str | None = None
+    extra_params: dict | None = None
+    task: ModelTask | None = None
+    classes: list[str] | None = None
+    status: ModelStatus = ModelStatus.draft
     status_message: str | None = None
     metrics: ModelMetrics | None = None
     exports: list[ModelExport] | None = None
@@ -308,6 +328,10 @@ class ModelCreate(BaseModel):
     name: str
     description: str
     external_id: str | None = None
+    pretrained_model_uuid: str | None = None
+    extra_params: dict | None = None
+    task: ModelTask | None = None
+    classes: list[str] | None = None
 
 
 class ModelUpdate(ModelCreate):
@@ -316,6 +340,8 @@ class ModelUpdate(ModelCreate):
     is_public: bool | None = None
     external_id: str | None = None
     status: ModelStatus | None = None
+    task: ModelTask | None = None
+    classes: list[str] | None = None
 
 
 class ModelTrainingStage(enum.StrEnum):
