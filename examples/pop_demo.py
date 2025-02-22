@@ -1,4 +1,5 @@
 import argparse
+import ast
 import base64
 import json
 import logging
@@ -122,7 +123,64 @@ pop_examples = {
             )
         )
     ]),
+
+    "sam1": Pop(components=[
+        InferenceComponent(
+            model='eyepop.sam.small:latest',
+            forward=FullForward(
+                targets=[ContourFinderComponent(
+                    contourType=ContourType.POLYGON,
+                    areaThreshold=0.005
+                )]
+            )
+        )
+    ]),
+
+    "sam2": Pop(components=[
+        InferenceComponent(
+            model="eyepop.sam2.encoder.tiny:latest",
+            hidden=True,
+            forward=FullForward(
+                targets=[InferenceComponent(
+                    model='eyepop.sam2.decoder:latest',
+                    forward=FullForward(
+                        targets=[ContourFinderComponent(
+                            contourType=ContourType.POLYGON,
+                            areaThreshold=0.005
+                        )]
+                    )
+                )]
+            )
+        )
+    ]),
 }
+
+def list_of_points(arg: str) -> list[dict[str, any]]:
+    points = []
+    points_as_tuples = ast.literal_eval(f'[{arg}]')
+    for tuple in points_as_tuples:
+        points.append({
+            "x": tuple[0],
+            "y": tuple[1]
+        })
+    return points
+
+
+def list_of_boxes(arg: str) -> list[dict[str, any]]:
+    boxes = []
+    boxes_as_tuples = ast.literal_eval(f'[{arg}]')
+    for tuple in boxes_as_tuples:
+        boxes.append({
+            "topLeft": {
+                "x": tuple[0],
+                "y": tuple[1]
+            },
+            "bottomRight": {
+                "x": tuple[2],
+                "y": tuple[3]
+            }
+        })
+    return boxes
 
 parser = argparse.ArgumentParser(
                     prog='Pop examples',
@@ -134,6 +192,8 @@ parser.add_argument('-p', '--pop', required=False, type=str, help="run this pop"
 parser.add_argument('-m', '--model-uuid', required=False, type=str, help="run this model by uuid")
 parser.add_argument('-ms1', '--model-uuid-sam1', required=False, type=str, help="run this model by uuid and compose with SAM1 (EfficientSAM) and Contour Finder")
 parser.add_argument('-ms2', '--model-uuid-sam2', required=False, type=str, help="run this model by uuid and compose with SAM2 and Contour Finder")
+parser.add_argument('-po', '--points', required=False, type=list_of_points, help="List of POIs as coordinates like (x1, y1), (x2, y2) in the original image coordinate system")
+parser.add_argument('-bo', '--boxes', required=False, type=list_of_boxes, help="List of POIs as boxes like (left1, top1, right1, bottom1), (left1, top1, right1, bottom1) in the original image coordinate system")
 parser.add_argument('-v', '--visualize', required=False, help="show rendered output", default=False, action="store_true")
 parser.add_argument('-o', '--output', required=False, help="print results to stdout", default=False, action="store_true")
 
@@ -202,8 +262,22 @@ with EyePopSdk.workerEndpoint() as endpoint:
     else:
         raise ValueError("pop or model required")
 
+    params = None
+    if args.points:
+        params = {
+          "roi": {
+              "points": args.points
+          }
+        }
+    elif args.boxes:
+        params = {
+            "roi": {
+                "boxes": args.boxes
+            }
+        }
+
     if args.local_path:
-        job = endpoint.upload(args.local_path)
+        job = endpoint.upload(args.local_path, params=params)
         while result := job.predict():
            visualize_result = result
            if args.output:
@@ -214,7 +288,7 @@ with EyePopSdk.workerEndpoint() as endpoint:
             image.save(buffer, format="PNG")
             example_image_src = f"data:image/png;base64, {base64.b64encode(buffer.getvalue()).decode()}"
     elif args.url:
-        job = endpoint.load_from(args.url)
+        job = endpoint.load_from(args.url, params=params)
         while result := job.predict():
             visualize_result = result
             if args.output:
