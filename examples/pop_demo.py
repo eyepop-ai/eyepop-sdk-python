@@ -23,7 +23,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
 
 pop_examples = {
-
     "person": Pop(components=[
         InferenceComponent(
             model='eyepop.person:latest',
