@@ -127,7 +127,7 @@ class _UploadJob(WorkerJob):
 
 def _guess_mime_type_from_location(location: str):
     mime_types = mimetypes.guess_type(location)
-    if len(mime_types) > 0:
+    if len(mime_types) > 0 and mime_types[0] is not None:
         mime_type = mime_types[0]
     else:
         mime_type = 'application/octet-stream'
