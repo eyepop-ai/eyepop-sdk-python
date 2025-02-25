@@ -101,6 +101,11 @@ class AutoAnnotateParams(BaseModel):
     task: AutoAnnotateTask = AutoAnnotateTask.object_detection
 
 
+class DatasetParent(BaseModel):
+    dataset_uuid: str
+    dataset_version: int
+
+
 class Dataset(BaseModel):
     uuid: str
     name: str
@@ -113,6 +118,7 @@ class Dataset(BaseModel):
     auto_annotate_params: AutoAnnotateParams | None = None
     versions: List[DatasetVersion] = []
     modifiable_version: int | None = None
+    parent: DatasetParent | None = None
 
 
 DatasetResponse = Dataset
