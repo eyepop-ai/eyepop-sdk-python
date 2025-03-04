@@ -11,10 +11,11 @@ import aiohttp
 
 from eyepop.endpoint import Endpoint
 from eyepop.exceptions import PopNotStartedException, PopConfigurationException, PopNotReachableException
+from eyepop.worker.worker_client_session import WorkerClientSession
 from eyepop.worker.worker_jobs import WorkerJob, _UploadFileJob, _LoadFromJob, _UploadStreamJob
 from eyepop.worker.load_balancer import EndpointLoadBalancer
 from eyepop.worker.worker_syncify import SyncWorkerJob
-from eyepop.worker.worker_types import Pop
+from eyepop.worker.worker_types import Pop, VideoMode
 
 log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
@@ -25,7 +26,7 @@ MAX_RETRY_TIME_SECS = 30.0
 FORCE_REFRESH_CONFIG_SECS = (61.0 * 61.0)
 
 
-class WorkerEndpoint(Endpoint):
+class WorkerEndpoint(Endpoint, WorkerClientSession):
     """
     Endpoint to an EyePop.ai worker.
     """
@@ -347,17 +348,31 @@ class WorkerEndpoint(Endpoint):
         else:
             pass
 
-    async def upload(self, location: str, params: dict | None = None,
+    async def upload(self, location: str, video_mode: VideoMode | None = None, params: dict | None = None,
                      on_ready: Callable[[WorkerJob], None] | None = None) -> WorkerJob | SyncWorkerJob:
-        job = _UploadFileJob(location=location, params=params, session=self, on_ready=on_ready,
-                         callback=self.metrics_collector)
+        job = _UploadFileJob(
+            location=location,
+            video_mode=video_mode,
+            params=params,
+            session=self, on_ready=on_ready,
+            callback=self.metrics_collector
+        )
         await  self._task_start(job.execute())
         return job
 
-    async def upload_stream(self, stream: BinaryIO, mime_type: str, params: dict | None = None,
-                            on_ready: Callable[[WorkerJob], None] | None = None) -> WorkerJob | SyncWorkerJob:
-        job = _UploadStreamJob(stream, mime_type, params=params, session=self, on_ready=on_ready,
-                               callback=self.metrics_collector)
+    async def upload_stream(
+            self, stream: BinaryIO, mime_type: str, video_mode: VideoMode | None = None,
+            params: dict | None = None, on_ready: Callable[[WorkerJob], None] | None = None
+    ) -> WorkerJob | SyncWorkerJob:
+        job = _UploadStreamJob(
+            stream=stream,
+            mime_type=mime_type,
+            video_mode=video_mode,
+            params=params,
+            session=self,
+            on_ready=on_ready,
+            callback=self.metrics_collector
+        )
         await self._task_start(job.execute())
         return job
 

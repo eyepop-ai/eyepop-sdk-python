@@ -9,6 +9,7 @@ import aiohttp
 
 from eyepop.worker.worker_client_session import (WorkerClientSession)
 from eyepop.jobs import Job, JobStateCallback
+from eyepop.worker.worker_types import VideoMode
 
 log_requests = logging.getLogger('eyepop.requests')
 
@@ -17,6 +18,7 @@ class WorkerJob(Job):
     """
     Abstract Job submitted to an EyePop.ai WorkerEndpoint.
     """
+    _params: dict[str, any]
 
     def __init__(self,
                  session: WorkerClientSession,
@@ -52,15 +54,22 @@ class WorkerJob(Job):
 
 
 class _UploadJob(WorkerJob):
+    mime_type: str
+    video_mode: VideoMode | None
+    open_stream: Callable[[], any]
+    needs_full_duplex: bool
+
     def __init__(self,
                  mime_type: str,
                  open_stream: Callable[[], any],
+                 video_mode: VideoMode | None,
                  params: dict | None,
                  session: WorkerClientSession,
                  on_ready: Callable[[WorkerJob], None] | None = None,
                  callback: JobStateCallback | None = None):
         super().__init__(session, params, on_ready, callback)
         self.mime_type = mime_type
+        self.video_mode = video_mode
         self.open_stream = open_stream
         self.needs_full_duplex = self.mime_type.startswith("video/")
 
@@ -92,7 +101,8 @@ class _UploadJob(WorkerJob):
                             source_id = event.get('source_id', None)
                 if source_id is None:
                     raise ValueError("did not get a prepared sourceId to simulate full duplex")
-                upload_url = f'source?mode=queue&processing=async&sourceId={source_id}'
+                video_mode_query = f'&videoMode={self.video_mode.value}' if self.video_mode else ''
+                upload_url = f'source?mode=queue&processing=async&sourceId={source_id}{video_mode_query}'
                 if self._params is None:
                     upload_coro = session.pipeline_post(upload_url,
                                                         accept='application/jsonl',
@@ -135,14 +145,20 @@ def _guess_mime_type_from_location(location: str):
 
 
 class _UploadFileJob(_UploadJob):
-    def __init__(self, location: str, params: dict | None,
+    def __init__(self,
+                 location: str,
+                 video_mode: VideoMode | None,
+                 params: dict | None,
                  session: WorkerClientSession,
                  on_ready: Callable[[WorkerJob], None] | None = None,
                  callback: JobStateCallback | None = None):
-        super().__init__(_guess_mime_type_from_location(location),
-                         self.open_stream,
-                         params,
-                         session, on_ready, callback)
+        super().__init__(mime_type=_guess_mime_type_from_location(location),
+                         open_stream=self.open_stream,
+                         video_mode=video_mode,
+                         params=params,
+                         session=session,
+                         on_ready=on_ready,
+                         callback=callback)
         self.location = location
 
     def open_stream(self):
@@ -150,14 +166,21 @@ class _UploadFileJob(_UploadJob):
 
 
 class _UploadStreamJob(_UploadJob):
-    def __init__(self, stream: BinaryIO, mime_type: str, params: dict | None,
+    def __init__(self,
+                 stream: BinaryIO,
+                 mime_type: str,
+                 video_mode: VideoMode | None,
+                 params: dict | None,
                  session: WorkerClientSession,
                  on_ready: Callable[[WorkerJob], None] | None = None,
                  callback: JobStateCallback | None = None):
-        super().__init__(mime_type,
-                         self.open_stream,
-                         params,
-                         session, on_ready, callback)
+        super().__init__(mime_type=mime_type,
+                         open_stream=self.open_stream,
+                         video_mode=video_mode,
+                         params=params,
+                         session=session,
+                         on_ready=on_ready,
+                         callback=callback)
         self.stream = stream
 
     def open_stream(self):
