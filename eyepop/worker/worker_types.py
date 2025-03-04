@@ -4,6 +4,11 @@ from typing import List, Literal, Annotated, Union, Type
 from pydantic import BaseModel, Field
 
 
+class VideoMode(enum.StrEnum):
+    STREAM = "stream"
+    BUFFER = "buffer"
+
+
 class PopComponentType(enum.StrEnum):
     BASE = "<invalid>"
     FORWARD = "forward"
