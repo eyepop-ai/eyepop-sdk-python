@@ -79,6 +79,8 @@ class _UploadJob(WorkerJob):
         params_part.set_content_disposition('form-data', name='params', filename='blob')
         file_part = mp_writer.append(self.open_stream(), {'Content-Type': self.mime_type})
         file_part.set_content_disposition('form-data', name='file', filename='blob')
+        return mp_writer
+
 
     async def _do_execute_job(self, queue: Queue, session: WorkerClientSession):
         got_result = False
