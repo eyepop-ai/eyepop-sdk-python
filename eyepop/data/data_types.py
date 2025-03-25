@@ -187,7 +187,11 @@ class PredictedMesh(BaseModel):
     points: List[Point3d]
 
 
-class PredictedKeyPoint(Point3d, PredictedClass):
+class PredictedKeyPoint(Point3d):
+    id: int | None = None
+    confidence: float | None = None
+    classLabel: str | None = None
+    category: str | None = None
     visible: bool | None = None
 
 
