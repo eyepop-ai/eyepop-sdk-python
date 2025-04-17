@@ -115,9 +115,12 @@ pop_examples = {
         InferenceComponent(
             model='eyepop.text:latest',
             categoryName="text",
+            confidenceThreshold=0.7,
             forward=CropForward(
+                maxItems=128,
                 targets=[InferenceComponent(
-                    model='eyepop.text.recognize.square:latest'
+                    model='eyepop.text.recognize.landscape:latest',
+                    confidenceThreshold=0.1
                 )]
             )
         )
