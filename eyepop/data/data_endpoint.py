@@ -17,7 +17,7 @@ from eyepop.data.data_syncify import SyncDataJob
 from eyepop.data.data_types import Dataset, DatasetCreate, DatasetUpdate, Asset, Prediction, \
     AssetImport, AutoAnnotate, UserReview, TranscodeMode, Model, ModelCreate, ModelUpdate, \
     ModelTrainingProgress, ChangeEvent, ChangeType, EventHandler, ModelAlias, ModelAliasCreate, \
-    ModelAliasUpdate, ModelExportFormat
+    ModelAliasUpdate, ModelExportFormat, CreateWorkflow, Workflow
 from eyepop.endpoint import Endpoint, log_requests
 
 APPLICATION_JSON = "application/json"
@@ -532,3 +532,9 @@ class DataEndpoint(Endpoint):
         delete_url = f'{await self.data_base_url()}/model_aliases/{name}/{tag}'
         async with await self.request_with_retry("DELETE", delete_url):
             return
+
+    async def start_workflow(self, account_uuid: str, template_name: str, workflow: CreateWorkflow) -> Workflow:
+        post_url = f'{await self.data_base_url()}/workflows?account_uuid={account_uuid}&template_name={template_name}'
+        async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
+                                                 data=workflow.model_dump_json()) as resp:
+            return parse_obj_as(Workflow, await resp.json())
