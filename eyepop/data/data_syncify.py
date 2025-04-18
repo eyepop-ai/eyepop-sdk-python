@@ -5,7 +5,8 @@ from typing import BinaryIO, Callable, Optional, List
 from eyepop.data.data_jobs import DataJob
 from eyepop.data.data_types import AssetImport, Dataset, DatasetCreate, DatasetUpdate, Asset, \
     Prediction, AutoAnnotate, UserReview, TranscodeMode, Model, ModelCreate, ModelUpdate, ModelTrainingProgress, \
-    ChangeEvent, EventHandler, ModelAlias, ModelAliasCreate, ModelAliasUpdate, ModelExportFormat
+    ChangeEvent, EventHandler, ModelAlias, ModelAliasCreate, ModelAliasUpdate, ModelExportFormat, CreateWorkflow, \
+    Workflow
 from eyepop.syncify import run_coro_thread_save, SyncEndpoint, submit_coro_thread_save
 
 SyncEventHandler = Callable[[ChangeEvent], None]
@@ -255,3 +256,7 @@ class SyncDataEndpoint(SyncEndpoint):
 
     def delete_model_alias_tag(self, name: str, tag: str) -> None:
         return run_coro_thread_save(self.event_loop, self.endpoint.delete_model_alias_tag(name, tag))
+
+    def start_workflow(self, account_uuid: str, template_name: str, workflow: CreateWorkflow) -> Workflow:
+        return run_coro_thread_save(self.event_loop, self.start_workflow(account_uuid, template_name, workflow))
+

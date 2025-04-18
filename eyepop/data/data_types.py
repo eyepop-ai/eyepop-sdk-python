@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from typing import List, Callable, Awaitable
+from typing import List, Callable, Awaitable, Dict, Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -454,3 +454,22 @@ class AliasResolution(BaseModel):
 
 
 ExportedAliasResponse = AliasResolution
+
+
+class CreateWorkflowConfig(BaseModel):
+    dataset_uuid: str
+    dataset_version: int | None = None
+    model_uuid: str | None = None
+    config: Dict[str, Any] | None = None
+    model_config = ConfigDict(
+        protected_namespaces=('pydantic_do_not_prevent_model_prefix_',)
+    )
+
+
+class CreateWorkflow(BaseModel):
+    parameters: CreateWorkflowConfig | None = None
+
+
+class Workflow(BaseModel):
+    workflow_id: str
+

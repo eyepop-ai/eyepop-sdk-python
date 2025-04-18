@@ -14,8 +14,7 @@ import requests
 from PIL import Image
 
 from eyepop import EyePopSdk
-from eyepop.worker.worker_types import Pop, InferenceComponent, PopForward, PopForwardOperator, ForwardOperatorType, \
-    PopCrop, ContourFinderComponent, ContourType, CropForward, FullForward
+from eyepop.worker.worker_types import Pop, InferenceComponent, ContourFinderComponent, ContourType, CropForward, FullForward
 
 script_dir = os.path.dirname(__file__)
 
