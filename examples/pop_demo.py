@@ -15,7 +15,7 @@ from PIL import Image
 
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import Pop, InferenceComponent, PopForward, PopForwardOperator, ForwardOperatorType, \
-    PopCrop, ContourFinderComponent, ContourType, CropForward, FullForward
+    PopCrop, ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams
 
 script_dir = os.path.dirname(__file__)
 
@@ -129,6 +129,7 @@ pop_examples = {
     "sam1": Pop(components=[
         InferenceComponent(
             model='eyepop.sam.small:latest',
+            id=1,
             forward=FullForward(
                 targets=[ContourFinderComponent(
                     contourType=ContourType.POLYGON,
@@ -141,6 +142,7 @@ pop_examples = {
     "sam2": Pop(components=[
         InferenceComponent(
             model="eyepop.sam2.encoder.tiny:latest",
+            id=1,
             hidden=True,
             forward=FullForward(
                 targets=[InferenceComponent(
@@ -214,6 +216,7 @@ if not args.pop and not args.model_uuid and not args.model_uuid_sam1 and not arg
 
 with EyePopSdk.workerEndpoint() as endpoint:
     if args.pop:
+        print(pop_examples[args.pop].model_dump_json(indent=2, exclude_none=True))
         endpoint.set_pop(pop_examples[args.pop])
     elif args.model_uuid:
         endpoint.set_pop(Pop(components=[
@@ -279,7 +282,7 @@ with EyePopSdk.workerEndpoint() as endpoint:
         }
 
     if args.local_path:
-        job = endpoint.upload(args.local_path, params=params)
+        job = endpoint.upload(args.local_path, component_params=[ComponentParams(componentId=1, params=params)])
         while result := job.predict():
            visualize_result = result
            if args.output:
@@ -290,7 +293,7 @@ with EyePopSdk.workerEndpoint() as endpoint:
             image.save(buffer, format="PNG")
             example_image_src = f"data:image/png;base64, {base64.b64encode(buffer.getvalue()).decode()}"
     elif args.url:
-        job = endpoint.load_from(args.url, params=params)
+        job = endpoint.load_from(args.url, component_params=[ComponentParams(componentId=1, params=params)])
         while result := job.predict():
             visualize_result = result
             if args.output:
