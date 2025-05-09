@@ -19,16 +19,13 @@ class WorkerJob(Job):
     """
     Abstract Job submitted to an EyePop.ai WorkerEndpoint.
     """
-    _params: dict[str, any] | None
     _component_params = list[ComponentParams] | None
     def __init__(self,
                  session: WorkerClientSession,
-                 params: dict | None,
                  component_params: list[ComponentParams] | None,
                  on_ready: Callable[["WorkerJob"], None] | None,
                  callback: JobStateCallback | None = None):
         super().__init__(session, on_ready, callback)
-        self._params = params
         self._component_params = component_params
 
     async def predict(self) -> dict:
@@ -65,7 +62,6 @@ class _UploadJob(WorkerJob):
                  mime_type: str,
                  open_stream: Callable[[], any],
                  video_mode: VideoMode | None,
-                 params: dict | None,
                  component_params: list[ComponentParams] | None,
                  session: WorkerClientSession,
                  on_ready: Callable[[WorkerJob], None] | None = None,
@@ -73,7 +69,6 @@ class _UploadJob(WorkerJob):
      ):
         super().__init__(
             session=session,
-            params=params,
             component_params=component_params,
             on_ready=on_ready,
             callback=callback
@@ -85,14 +80,11 @@ class _UploadJob(WorkerJob):
 
     def open_mp_writer(self):
         mp_writer = aiohttp.MultipartWriter('form-data')
-        if self._params is not None:
-            params_part = mp_writer.append_json(self._params)
-            params_part.set_content_disposition('form-data', name='params', filename='blob')
         if self._component_params is not None:
             component_params_part = mp_writer.append_json(
                 TypeAdapter(list[ComponentParams]).dump_python(self._component_params))
             component_params_part.set_content_disposition(
-                'form-data', name='componentParams', filename='blob')
+                'form-data', name='params', filename='blob')
         file_part = mp_writer.append(self.open_stream(), {'Content-Type': self.mime_type})
         file_part.set_content_disposition('form-data', name='file', filename='blob')
         return mp_writer
@@ -121,7 +113,7 @@ class _UploadJob(WorkerJob):
                     raise ValueError("did not get a prepared sourceId to simulate full duplex")
                 video_mode_query = f'&videoMode={self.video_mode.value}' if self.video_mode else ''
                 upload_url = f'source?mode=queue&processing=async&sourceId={source_id}{video_mode_query}'
-                if self._params is None and self._component_params is None:
+                if self._component_params is None:
                     upload_coro = session.pipeline_post(upload_url,
                                                         accept='application/jsonl',
                                                         open_data=self.open_stream,
@@ -136,7 +128,7 @@ class _UploadJob(WorkerJob):
                 _, got_result = await asyncio.gather(upload_coro, read_coro)
             else:
                 upload_url = f'source?mode=queue&processing=sync'
-                if self._params is None and self._component_params is None:
+                if self._component_params is None:
                     self._response = await session.pipeline_post(upload_url,
                                                                  accept='application/jsonl',
                                                                  open_data=self.open_stream,
@@ -166,7 +158,6 @@ class _UploadFileJob(_UploadJob):
     def __init__(self,
                  location: str,
                  video_mode: VideoMode | None,
-                 params: dict | None,
                  component_params: list[ComponentParams] | None,
                  session: WorkerClientSession,
                  on_ready: Callable[[WorkerJob], None] | None = None,
@@ -175,7 +166,6 @@ class _UploadFileJob(_UploadJob):
         super().__init__(mime_type=_guess_mime_type_from_location(location),
                          open_stream=self.open_stream,
                          video_mode=video_mode,
-                         params=params,
                          component_params=component_params,
                          session=session,
                          on_ready=on_ready,
@@ -192,7 +182,6 @@ class _UploadStreamJob(_UploadJob):
                  stream: BinaryIO,
                  mime_type: str,
                  video_mode: VideoMode | None,
-                 params: dict | None,
                  component_params: list[ComponentParams] | None,
                  session: WorkerClientSession,
                  on_ready: Callable[[WorkerJob], None] | None = None,
@@ -201,7 +190,6 @@ class _UploadStreamJob(_UploadJob):
         super().__init__(mime_type=mime_type,
                          open_stream=self.open_stream,
                          video_mode=video_mode,
-                         params=params,
                          component_params=component_params,
                          session=session,
                          on_ready=on_ready,
@@ -216,7 +204,6 @@ class _UploadStreamJob(_UploadJob):
 class _LoadFromJob(WorkerJob):
     def __init__(self,
                  location: str,
-                 params: dict | None,
                  component_params: list[ComponentParams] | None,
                  session: WorkerClientSession,
                  on_ready: Callable[[WorkerJob], None] | None = None,
@@ -224,7 +211,6 @@ class _LoadFromJob(WorkerJob):
      ):
         super().__init__(
             session=session,
-            params=params,
             component_params=component_params,
             on_ready=on_ready,
             callback=callback
@@ -235,10 +221,8 @@ class _LoadFromJob(WorkerJob):
             "sourceType": "URL",
             "url": self.location,
         }
-        if self._params is not None:
-            self.body['params'] = self._params
         if self._component_params is not None:
-            self.body['component_params'] = self._component_params
+            self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
 
         self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
 

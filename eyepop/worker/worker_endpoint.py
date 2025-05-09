@@ -352,15 +352,13 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self,
             location: str,
             video_mode: VideoMode | None = None,
-            params: dict | None = None,
-            component_params: list[ComponentParams] | None = None,
+            params: list[ComponentParams] | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _UploadFileJob(
             location=location,
             video_mode=video_mode,
-            params=params,
-            component_params=component_params,
+            component_params=params,
             session=self, on_ready=on_ready,
             callback=self.metrics_collector
         )
@@ -372,16 +370,14 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             stream: BinaryIO,
             mime_type: str,
             video_mode: VideoMode | None = None,
-            params: dict | None = None,
-            component_params: list[ComponentParams] | None = None,
+            params: list[ComponentParams] | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _UploadStreamJob(
             stream=stream,
             mime_type=mime_type,
             video_mode=video_mode,
-            params=params,
-            component_params=component_params,
+            component_params=params,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector
@@ -392,14 +388,12 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
     async def load_from(
             self,
             location: str,
-            params: dict | None = None,
-            component_params: list[ComponentParams] | None = None,
+            params: list[ComponentParams] | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _LoadFromJob(
             location=location,
-            params=params,
-            component_params=component_params,
+            component_params=params,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector

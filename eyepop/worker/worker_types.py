@@ -72,6 +72,8 @@ class InferenceComponent(BaseComponent):
     categoryName: str | None = None
     confidenceThreshold: float | None = None
     targetFps: str | None = None
+    params: dict[str, any] | None = None
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class TracingComponent(BaseComponent):
@@ -152,5 +154,5 @@ def FullForward(
 
 class ComponentParams(BaseComponent):
     componentId: int
-    params: dict[str, any]
+    values: dict[str, any]
     model_config = ConfigDict(arbitrary_types_allowed=True)

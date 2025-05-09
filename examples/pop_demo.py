@@ -157,6 +157,18 @@ pop_examples = {
             )
         )
     ]),
+    "image_contents": Pop(components=[
+        InferenceComponent(
+            id=1,
+            ability='eyepop.image_contents:latest',
+        )
+    ]),
+    "localize_objects": Pop(components=[
+        InferenceComponent(
+            id=1,
+            ability='eyepop.localize_objects:latest',
+        )
+    ]),
 }
 
 def list_of_points(arg: str) -> list[dict[str, any]]:
@@ -198,6 +210,7 @@ parser.add_argument('-ms1', '--model-uuid-sam1', required=False, type=str, help=
 parser.add_argument('-ms2', '--model-uuid-sam2', required=False, type=str, help="run this model by uuid and compose with SAM2 and Contour Finder")
 parser.add_argument('-po', '--points', required=False, type=list_of_points, help="List of POIs as coordinates like (x1, y1), (x2, y2) in the original image coordinate system")
 parser.add_argument('-bo', '--boxes', required=False, type=list_of_boxes, help="List of POIs as boxes like (left1, top1, right1, bottom1), (left1, top1, right1, bottom1) in the original image coordinate system")
+parser.add_argument('-pr', '--prompt', required=False, type=str, help="Prompt to pass as parameter")
 parser.add_argument('-v', '--visualize', required=False, help="show rendered output", default=False, action="store_true")
 parser.add_argument('-o', '--output', required=False, help="print results to stdout", default=False, action="store_true")
 
@@ -216,11 +229,11 @@ if not args.pop and not args.model_uuid and not args.model_uuid_sam1 and not arg
 
 with EyePopSdk.workerEndpoint() as endpoint:
     if args.pop:
-        print(pop_examples[args.pop].model_dump_json(indent=2, exclude_none=True))
         endpoint.set_pop(pop_examples[args.pop])
     elif args.model_uuid:
         endpoint.set_pop(Pop(components=[
             InferenceComponent(
+                id=1,
                 modelUuid=args.model_uuid
             )
         ]))
@@ -269,20 +282,30 @@ with EyePopSdk.workerEndpoint() as endpoint:
 
     params = None
     if args.points:
-        params = {
-          "roi": {
-              "points": args.points
-          }
-        }
+        params = [
+            ComponentParams(componentId=1, values={
+              "roi": {
+                  "points": args.points
+              }
+            })
+        ]
     elif args.boxes:
-        params = {
-            "roi": {
-                "boxes": args.boxes
-            }
-        }
+        params = [
+            ComponentParams(componentId=1, values={
+                "roi": {
+                    "boxes": args.boxes
+                }
+            })
+        ]
+    elif args.prompt:
+        params = [
+            ComponentParams(componentId=1, values={
+                "prompts": [{"prompt": args.prompt}]
+            })
+        ]
 
     if args.local_path:
-        job = endpoint.upload(args.local_path, component_params=[ComponentParams(componentId=1, params=params)])
+        job = endpoint.upload(args.local_path, params=params)
         while result := job.predict():
            visualize_result = result
            if args.output:
@@ -293,7 +316,7 @@ with EyePopSdk.workerEndpoint() as endpoint:
             image.save(buffer, format="PNG")
             example_image_src = f"data:image/png;base64, {base64.b64encode(buffer.getvalue()).decode()}"
     elif args.url:
-        job = endpoint.load_from(args.url, component_params=[ComponentParams(componentId=1, params=params)])
+        job = endpoint.load_from(args.url, params=params)
         while result := job.predict():
             visualize_result = result
             if args.output:
