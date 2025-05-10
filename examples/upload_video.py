@@ -16,14 +16,16 @@ logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
 
 
 def upload_video(location: str):
-    with EyePopSdk.workerEndpoint() as endpoint:
-        job = endpoint.upload(
-            location=location,
-            video_mode=VideoMode.STREAM if is_streaming else None,
-        )
-        while result := job.predict():
-            print(result)
-
+    try:
+        with EyePopSdk.workerEndpoint(pop_id='transient') as endpoint:
+            job = endpoint.upload(
+                location=location,
+                video_mode=VideoMode.BUFFER,
+            )
+            while result := job.predict():
+                print(result)
+    except Exception as e:
+        logging.error(e)
 
 
 t1 = time.time()

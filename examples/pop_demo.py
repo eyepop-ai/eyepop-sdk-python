@@ -15,7 +15,7 @@ from PIL import Image
 
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import Pop, InferenceComponent, PopForward, PopForwardOperator, ForwardOperatorType, \
-    PopCrop, ContourFinderComponent, ContourType, CropForward, FullForward
+    PopCrop, ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams
 
 script_dir = os.path.dirname(__file__)
 
@@ -129,6 +129,7 @@ pop_examples = {
     "sam1": Pop(components=[
         InferenceComponent(
             model='eyepop.sam.small:latest',
+            id=1,
             forward=FullForward(
                 targets=[ContourFinderComponent(
                     contourType=ContourType.POLYGON,
@@ -141,6 +142,7 @@ pop_examples = {
     "sam2": Pop(components=[
         InferenceComponent(
             model="eyepop.sam2.encoder.tiny:latest",
+            id=1,
             hidden=True,
             forward=FullForward(
                 targets=[InferenceComponent(
@@ -153,6 +155,18 @@ pop_examples = {
                     )
                 )]
             )
+        )
+    ]),
+    "image_contents": Pop(components=[
+        InferenceComponent(
+            id=1,
+            ability='eyepop.image_contents:latest',
+        )
+    ]),
+    "localize_objects": Pop(components=[
+        InferenceComponent(
+            id=1,
+            ability='eyepop.localize_objects:latest',
         )
     ]),
 }
@@ -196,6 +210,7 @@ parser.add_argument('-ms1', '--model-uuid-sam1', required=False, type=str, help=
 parser.add_argument('-ms2', '--model-uuid-sam2', required=False, type=str, help="run this model by uuid and compose with SAM2 and Contour Finder")
 parser.add_argument('-po', '--points', required=False, type=list_of_points, help="List of POIs as coordinates like (x1, y1), (x2, y2) in the original image coordinate system")
 parser.add_argument('-bo', '--boxes', required=False, type=list_of_boxes, help="List of POIs as boxes like (left1, top1, right1, bottom1), (left1, top1, right1, bottom1) in the original image coordinate system")
+parser.add_argument('-pr', '--prompt', required=False, type=str, help="Prompt to pass as parameter")
 parser.add_argument('-v', '--visualize', required=False, help="show rendered output", default=False, action="store_true")
 parser.add_argument('-o', '--output', required=False, help="print results to stdout", default=False, action="store_true")
 
@@ -218,6 +233,7 @@ with EyePopSdk.workerEndpoint() as endpoint:
     elif args.model_uuid:
         endpoint.set_pop(Pop(components=[
             InferenceComponent(
+                id=1,
                 modelUuid=args.model_uuid
             )
         ]))
@@ -266,17 +282,27 @@ with EyePopSdk.workerEndpoint() as endpoint:
 
     params = None
     if args.points:
-        params = {
-          "roi": {
-              "points": args.points
-          }
-        }
+        params = [
+            ComponentParams(componentId=1, values={
+              "roi": {
+                  "points": args.points
+              }
+            })
+        ]
     elif args.boxes:
-        params = {
-            "roi": {
-                "boxes": args.boxes
-            }
-        }
+        params = [
+            ComponentParams(componentId=1, values={
+                "roi": {
+                    "boxes": args.boxes
+                }
+            })
+        ]
+    elif args.prompt:
+        params = [
+            ComponentParams(componentId=1, values={
+                "prompts": [{"prompt": args.prompt}]
+            })
+        ]
 
     if args.local_path:
         job = endpoint.upload(args.local_path, params=params)

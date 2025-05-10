@@ -453,7 +453,7 @@ class DataEndpoint(Endpoint):
                                                  timeout=aiohttp.ClientTimeout(total=None, sock_read=60)):
             return
 
-    async def create_model_from_dataset(self, dataset_uuid: str, dataset_version: int, model: ModelCreate, start_training: bool = True) -> Model:
+    async def create_model_from_dataset(self, dataset_uuid: str, dataset_version: int | None, model: ModelCreate, start_training: bool = True) -> Model:
         post_url = f'{await self.data_base_url()}/models?dataset_uuid={dataset_uuid}&dataset_version={dataset_version}&start_training={start_training}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=model.model_dump_json()) as resp:

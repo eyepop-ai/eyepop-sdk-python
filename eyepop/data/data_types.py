@@ -281,6 +281,7 @@ class ModelExportFormat(enum.StrEnum):
     TorchScriptCuda = "TorchScriptCuda"
     ONNX = "ONNX"
     PyTorch = "PyTorch"
+    ModelLess = "ModelLess"
 
 
 class ModelExportStatus(enum.StrEnum):
