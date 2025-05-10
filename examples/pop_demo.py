@@ -157,16 +157,16 @@ pop_examples = {
             )
         )
     ]),
-    "image_contents": Pop(components=[
+    "image-contents": Pop(components=[
         InferenceComponent(
             id=1,
-            ability='eyepop.image_contents:latest',
+            ability='eyepop.image-contents:latest',
         )
     ]),
-    "localize_objects": Pop(components=[
+    "localize-objects": Pop(components=[
         InferenceComponent(
             id=1,
-            ability='eyepop.localize_objects:latest',
+            ability='eyepop.localize-objects:latest',
         )
     ]),
 }
