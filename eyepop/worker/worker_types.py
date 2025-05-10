@@ -1,7 +1,7 @@
 import enum
-from typing import List, Literal, Annotated, Union, Type
+from typing import List, Literal, Annotated, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class VideoMode(enum.StrEnum):
@@ -41,6 +41,7 @@ class PopForward(BaseModel):
 
 class BaseComponent(BaseModel):
     type: Literal[PopComponentType.BASE] = PopComponentType.BASE
+    id: int | None = None
     forward: PopForward | None = None
 
 
@@ -64,11 +65,15 @@ class InferenceComponent(BaseComponent):
     type: Literal[PopComponentType.INFERENCE] = PopComponentType.INFERENCE
     inferenceTypes: List[InferenceType] | None = None
     hidden: bool | None = None
-    modelUuid: str | None = None
-    model: str | None = None
+    modelUuid: Annotated[str | None, Field(default=None, deprecated='modelUuid is deprecated, use abilityUuid instead'), ]
+    model: Annotated[str | None, Field(default=None, deprecated='model is deprecated, use ability instead'), ]
+    abilityUuid: str | None = None
+    ability: str | None = None
     categoryName: str | None = None
     confidenceThreshold: float | None = None
     targetFps: str | None = None
+    params: dict[str, any] | None = None
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class TracingComponent(BaseComponent):
@@ -145,3 +150,9 @@ def FullForward(
         ),
         targets=targets,
     )
+
+
+class ComponentParams(BaseComponent):
+    componentId: int
+    values: dict[str, any]
+    model_config = ConfigDict(arbitrary_types_allowed=True)

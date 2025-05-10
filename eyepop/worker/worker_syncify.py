@@ -3,7 +3,7 @@ import typing
 
 from eyepop.syncify import run_coro_thread_save, SyncEndpoint
 from eyepop.worker.worker_jobs import WorkerJob
-from eyepop.worker.worker_types import Pop, VideoMode
+from eyepop.worker.worker_types import Pop, VideoMode, ComponentParams
 
 if typing.TYPE_CHECKING:
     from eyepop.worker.worker_endpoint import WorkerEndpoint
@@ -28,8 +28,13 @@ class SyncWorkerEndpoint(SyncEndpoint):
     def __init__(self, endpoint: "WorkerEndpoint"):
         super().__init__(endpoint)
 
-    def upload(self, location: str, video_mode: VideoMode | None = None,
-               params: dict | None = None, on_ready: typing.Callable[[WorkerJob], None] | None = None) -> SyncWorkerJob:
+    def upload(
+            self,
+            location: str,
+            video_mode: VideoMode | None = None,
+            params: list[ComponentParams] | None = None,
+            on_ready: typing.Callable[[WorkerJob], None] | None = None
+    ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
@@ -38,8 +43,14 @@ class SyncWorkerEndpoint(SyncEndpoint):
             location=location, video_mode=video_mode, params=params, on_ready=None))
         return SyncWorkerJob(job, self.event_loop)
 
-    def upload_stream(self, stream: typing.BinaryIO, mime_type: str, video_mode: VideoMode | None = None,
-                      params: dict | None = None, on_ready: typing.Callable[[WorkerJob], None] | None = None) -> SyncWorkerJob:
+    def upload_stream(
+            self,
+            stream: typing.BinaryIO,
+            mime_type: str,
+            video_mode: VideoMode | None = None,
+            params: list[ComponentParams] | None = None,
+            on_ready: typing.Callable[[WorkerJob], None] | None = None
+    ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
@@ -49,13 +60,18 @@ class SyncWorkerEndpoint(SyncEndpoint):
         ))
         return SyncWorkerJob(job, self.event_loop)
 
-    def load_from(self, location: str, params: dict | None = None,
-                  on_ready: typing.Callable[[WorkerJob], None] | None = None) -> SyncWorkerJob:
+    def load_from(
+            self,
+            location: str,
+            params: list[ComponentParams] | None = None,
+            on_ready: typing.Callable[[WorkerJob], None] | None = None
+    ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
                 "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
-        job = run_coro_thread_save(self.event_loop, self.endpoint.load_from(location, params, None))
+        job = run_coro_thread_save(self.event_loop, self.endpoint.load_from(
+            location=location, params=params, on_ready=None))
         return SyncWorkerJob(job, self.event_loop)
 
     def get_pop(self) -> Pop | None:
