@@ -210,7 +210,7 @@ parser.add_argument('-ms1', '--model-uuid-sam1', required=False, type=str, help=
 parser.add_argument('-ms2', '--model-uuid-sam2', required=False, type=str, help="run this model by uuid and compose with SAM2 and Contour Finder")
 parser.add_argument('-po', '--points', required=False, type=list_of_points, help="List of POIs as coordinates like (x1, y1), (x2, y2) in the original image coordinate system")
 parser.add_argument('-bo', '--boxes', required=False, type=list_of_boxes, help="List of POIs as boxes like (left1, top1, right1, bottom1), (left1, top1, right1, bottom1) in the original image coordinate system")
-parser.add_argument('-pr', '--prompt', required=False, type=str, help="Prompt to pass as parameter")
+parser.add_argument('-pr', '--prompt', required=False, type=str, help="Prompt to pass as parameter", action="append")
 parser.add_argument('-v', '--visualize', required=False, help="show rendered output", default=False, action="store_true")
 parser.add_argument('-o', '--output', required=False, help="print results to stdout", default=False, action="store_true")
 
@@ -297,13 +297,12 @@ with EyePopSdk.workerEndpoint() as endpoint:
                 }
             })
         ]
-    elif args.prompt:
+    elif args.prompt is not None and len(args.prompt) > 0:
         params = [
             ComponentParams(componentId=1, values={
-                "prompts": [{"prompt": args.prompt}]
+                "prompts": [{"prompt": p} for p in args.prompt]
             })
         ]
-
     if args.local_path:
         job = endpoint.upload(args.local_path, params=params)
         while result := job.predict():
