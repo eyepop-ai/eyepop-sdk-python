@@ -29,7 +29,16 @@ class WorkerJob(Job):
         self._component_params = component_params
 
     async def predict(self) -> dict:
-        return await self.pop_result()
+        result = await self.pop_result()
+        if result is not None:
+            event = result.get('event', None)
+            if event is not None:
+                event_type = event.get('type', None)
+                if event_type == 'error':
+                    source_id = event.get('source_id', None)
+                    message = event.get('message', None)
+                    raise ValueError(f"Error in source {source_id}: {message}")
+        return result
 
     async def _do_read_response(self, queue: Queue) -> bool:
         got_results = False
