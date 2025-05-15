@@ -74,6 +74,20 @@ class SyncWorkerEndpoint(SyncEndpoint):
             location=location, params=params, on_ready=None))
         return SyncWorkerJob(job, self.event_loop)
 
+    def load_asset(
+            self,
+            asset_uuid: str,
+            params: list[ComponentParams] | None = None,
+            on_ready: typing.Callable[[WorkerJob], None] | None = None
+    ) -> SyncWorkerJob:
+        if on_ready is not None:
+            raise TypeError(
+                "'on_ready' callback not supported for sync endpoints. "
+                "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
+        job = run_coro_thread_save(self.event_loop, self.endpoint.load_asset(
+            asset_uuid=asset_uuid, params=params, on_ready=None))
+        return SyncWorkerJob(job, self.event_loop)
+
     def get_pop(self) -> Pop | None:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_pop())
 

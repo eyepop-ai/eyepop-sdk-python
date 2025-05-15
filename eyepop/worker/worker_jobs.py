@@ -248,3 +248,42 @@ class _LoadFromJob(WorkerJob):
             if not got_result:
                 await queue.put(None)
 
+
+class _LoadFromAssetUuidJob(WorkerJob):
+    def __init__(self,
+                 asset_uuid: str,
+                 component_params: list[ComponentParams] | None,
+                 session: WorkerClientSession,
+                 on_ready: Callable[[WorkerJob], None] | None = None,
+                 callback: JobStateCallback | None = None
+     ):
+        super().__init__(
+            session=session,
+            component_params=component_params,
+            on_ready=on_ready,
+            callback=callback
+        )
+        self.asset_uuid = asset_uuid
+        self.target_url = 'source?mode=queue&processing=sync'
+        self.body = {
+            "sourceType": "ASSET_UUID",
+            "assetUuid": self.asset_uuid,
+        }
+        if self._component_params is not None:
+            self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
+
+        self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
+
+    async def _do_execute_job(self, queue: Queue, session: WorkerClientSession):
+        try:
+            got_result = False
+            self._response = await session.pipeline_patch(self.target_url,
+                                                          accept='application/jsonl',
+                                                          data=json.dumps(self.body),
+                                                          content_type='application/json',
+                                                          timeout=self.timeouts)
+            got_result = await self._do_read_response(queue)
+        finally:
+            if not got_result:
+                await queue.put(None)
+
