@@ -352,6 +352,6 @@ with EyePopSdk.workerEndpoint() as endpoint:
         })
         window = webui.window()
         window.set_root_folder('.')
-        window.show(preview, webui.browser.chrome)
+        window.show_browser(preview, webui.browser.Chrome)
         webui.wait()
 
