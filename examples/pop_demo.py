@@ -8,8 +8,8 @@ import sys
 from io import BytesIO
 from typing import BinaryIO
 
-from webui import webui
-from pybars import Compiler
+# from webui import webui
+# from pybars import Compiler
 
 import requests
 from PIL import Image
@@ -162,7 +162,7 @@ pop_examples = {
     "image-contents": Pop(components=[
         InferenceComponent(
             id=1,
-            ability='eyepop.image-contents:latest',
+            ability='eyepop.image-contents-t4:latest',
         )
     ]),
     "localize-objects": Pop(components=[
@@ -341,17 +341,17 @@ with EyePopSdk.workerEndpoint() as endpoint:
                 ).read()
                 example_image_src = f"data:image/jpeg;base64, {base64.b64encode(buffer).decode()}"
 
-    if args.visualize:
-        with open(os.path.join(script_dir, 'viewer.html')) as file:
-            compiler = Compiler()
-            html_template = compiler.compile(file.read())
+    # if args.visualize:
+    #     with open(os.path.join(script_dir, 'viewer.html')) as file:
+    #         compiler = Compiler()
+    #         html_template = compiler.compile(file.read())
 
-        preview = html_template({
-            'image_src': example_image_src,
-            'result_json': json.dumps(visualize_result)
-        })
-        window = webui.window()
-        window.set_root_folder('.')
-        window.show(preview, webui.browser.chrome)
-        webui.wait()
+    #     preview = html_template({
+    #         'image_src': example_image_src,
+    #         'result_json': json.dumps(visualize_result)
+    #     })
+    #     window = webui.window()
+    #     window.set_root_folder('.')
+    #     window.show(preview, webui.browser.chrome)
+    #     webui.wait()
 
