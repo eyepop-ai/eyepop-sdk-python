@@ -1,5 +1,5 @@
 import enum
-from typing import List, Literal, Annotated, Union
+from typing import Any, List, Literal, Annotated, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -154,5 +154,5 @@ def FullForward(
 
 class ComponentParams(BaseComponent):
     componentId: int
-    values: dict[str, any]
+    values: dict[str, Any]
     model_config = ConfigDict(arbitrary_types_allowed=True)
