@@ -1,9 +1,10 @@
-required-version = "==0.4.2"
+required-version = ">=0.11.2"
 line-length = 100
 indent-width = 4
 target-version = "py312"
 respect-gitignore = true
 extend-exclude = [
+    "*",
     "*.toml",
     "*.sh",
     "*.git",
@@ -14,10 +15,13 @@ extend-exclude = [
 
 [lint]
 select = ["E4", "E7", "E9", "F", "B", "D", "I001"]
-exclude = ["eyepop/**/*", "tests/**/*"]
 ignore = [
     "D100", # Missing docstring in public module
     "D101", # Missing docstring in public class
+    "D107", # Missing docstring in __init__
+    "D102", # Missing docstring in public method
+    "D103", # Missing docstring in public function
+    "D202", # Blank line after docstring
     "F403", # wild card imports is fine for now
     "F405", # consequence of wildcard imports.
     "B008", # Function call in argument
