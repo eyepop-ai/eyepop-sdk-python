@@ -62,11 +62,16 @@ example = [
 all = ["eyepop[test,doc,example]"]
 
 [tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
 addopts = [
     "--import-mode=importlib",
 ]
 testpaths = [
     "tests",
 ]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
 [tool.coverage.run]
 source = ["eyepop"]

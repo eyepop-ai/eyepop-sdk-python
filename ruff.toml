@@ -3,14 +3,11 @@ line-length = 100
 indent-width = 4
 target-version = "py312"
 respect-gitignore = true
-extend-exclude = [
-    "*",
-    "*.toml",
-    "*.sh",
-    "*.git",
-    "*.ini*",
-    "Dockerfile",
-    "Jenkinfile",
+include = [
+    "tests/test_compute_api.py", 
+    "tests/test_compute_api_integration.py", 
+    "eyepop/compute/*", 
+    "eyepop/worker/worker_endpoint.py",
 ]
 
 [lint]
