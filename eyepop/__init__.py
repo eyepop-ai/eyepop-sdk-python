@@ -1,9 +1,7 @@
 __version__ = '1.0.2'
 
-import eyepop.eyepopsdk
-import eyepop.worker.worker_jobs
-import eyepop.visualize
+from eyepop.eyepopsdk import EyePopSdk
+from eyepop.worker.worker_jobs import WorkerJob as Job
+from eyepop.visualize import EyePopPlot as Plot
 
-EyePopSdk = eyepopsdk.EyePopSdk
-Job = eyepop.worker.worker_jobs.WorkerJob
-Plot = visualize.EyePopPlot
+__all__ = ['EyePopSdk', 'Job', 'Plot']
