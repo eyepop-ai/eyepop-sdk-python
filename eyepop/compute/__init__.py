@@ -1,4 +1,4 @@
-from .api import fetch_worker_endpoint_url_from_compute
+from .api import fetch_session_endpoint
 from .models import ComputeApiSessionResponse
 
-__all__ = ["fetch_worker_endpoint_url_from_compute", "ComputeApiSessionResponse"]
+__all__ = ["fetch_session_endpoint", "ComputeApiSessionResponse"]

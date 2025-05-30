@@ -8,6 +8,7 @@ class PipelineStatus(str, Enum):
     RUNNING = "running"
     STOPPED = "stopped"
     FAILED = "failed"
+    ERROR = "error"
 
 
 class ComputeApiPipelineStatus(BaseModel):
@@ -20,7 +21,11 @@ class ComputeApiSessionRequest(BaseModel):
 
 
 class ComputeApiSessionResponse(BaseModel):
-    pipeline_url: str = Field(description="The related pipeline url for this session")
-    pipeline_uuid: str = Field(description="The related pipeline uuid for this session")
     session_uuid: str = Field(description="The related session uuid for this session")
-    status: PipelineStatus = Field(description="The status of the session")
+    session_endpoint: str = Field(description="The related session url for this session")
+    pipeline_uuid: str = Field(description="The related pipeline uuid for this session")
+    pipeline_version: str = Field(description="The related pipeline version for this session")
+    session_status: PipelineStatus = Field(description="The status of the session", default=PipelineStatus.PENDING)
+    session_message: str = Field(description="The message of the session", default="")
+    pipeline_ttl: int | None = Field(description="The ttl of the pipeline")
+    session_active: bool = Field(description="Whether the session is active")

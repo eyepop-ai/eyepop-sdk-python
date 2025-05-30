@@ -3,6 +3,24 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+TEST_ACCOUNT_UUID = "test-account-uuid-123"
+
+TEST_REQUEST_HEADERS = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "Authorization": "Bearer test-token-123"
+}
+
+MOCK_SESSION_RESPONSE = {
+    "session_uuid": "session-456",
+    "session_endpoint": "https://integration-pipeline.example.com",
+    "pipeline_uuid": "pipeline-123",
+    "pipeline_version": "1.0.0",
+    "session_status": "running",
+    "session_message": "Session created successfully",
+    "pipeline_ttl": 3600,
+    "session_active": True
+}
 
 @pytest.fixture
 def clean_environment():
@@ -50,32 +68,23 @@ def test_detects_environment_variables_correctly(clean_environment):
 @patch("eyepop.compute.api.requests.post")
 def test_integrates_successfully_with_compute_api(mock_post, clean_environment):
     mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "pipeline_url": "https://integration-pipeline.example.com",
-        "pipeline_uuid": "pipeline-123",
-        "session_uuid": "session-456",
-        "status": "running"
-    }
+    mock_response.json.return_value = MOCK_SESSION_RESPONSE
     mock_response.raise_for_status.return_value = None
     mock_post.return_value = mock_response
 
-    os.environ["_COMPUTE_API_TOKEN"] = "integration-test-token"
+    os.environ["_COMPUTE_API_TOKEN"] = "test-token-123"
 
-    from eyepop.compute.api import fetch_worker_endpoint_url_from_compute
+    from eyepop.compute.api import fetch_new_compute_session
 
     compute_token = os.getenv("_COMPUTE_API_TOKEN")
     if compute_token:
-        pipeline_url = fetch_worker_endpoint_url_from_compute(compute_token)
-        assert pipeline_url == "https://integration-pipeline.example.com"
+        session_response = fetch_new_compute_session(compute_token, TEST_ACCOUNT_UUID)
+        assert session_response.session_endpoint == "https://integration-pipeline.example.com"
 
         mock_post.assert_called_once_with(
-            "https://compute-api.staging.eyepop.xyz/api/v1/session",
-            headers={
-                "X-Token": "integration-test-token",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-            json=None
+            "https://compute.staging.eyepop.xyz/v1/session",
+            headers=TEST_REQUEST_HEADERS,
+            json={"account_uuid": TEST_ACCOUNT_UUID}
         )
     else:
         pytest.fail("Compute token should be detected")
@@ -87,21 +96,20 @@ def test_handles_fallback_when_compute_api_fails(mock_post, clean_environment):
 
     os.environ["_COMPUTE_API_TOKEN"] = "fallback-test-token"
 
-    from eyepop.compute.api import fetch_worker_endpoint_url_from_compute
+    from eyepop.compute.api import fetch_new_compute_session
 
     compute_token = os.getenv("_COMPUTE_API_TOKEN")
+    expected_headers = TEST_REQUEST_HEADERS.copy()
+    expected_headers["Authorization"] = "Bearer fallback-test-token"
+
     if compute_token:
         with pytest.raises(Exception, match="Network error"):
-            fetch_worker_endpoint_url_from_compute(compute_token)
+            fetch_new_compute_session(compute_token, "account-uuid-123")
 
         mock_post.assert_called_once_with(
-            "https://compute-api.staging.eyepop.xyz/api/v1/session",
-            headers={
-                "X-Token": "fallback-test-token",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-            json=None
+            "https://compute.staging.eyepop.xyz/v1/session",
+            headers=expected_headers,
+            json={"account_uuid": "account-uuid-123"}
         )
     else:
         pytest.fail("Compute token should be detected")
@@ -126,43 +134,34 @@ def test_follows_complete_integration_logic_flow(clean_environment):
 @patch("eyepop.compute.api.requests.post")
 def test_mimics_worker_endpoint_integration_scenario(mock_post, clean_environment):
     mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "pipeline_url": "https://worker-endpoint-pipeline.example.com",
-        "pipeline_uuid": "pipeline-123",
-        "session_uuid": "session-456",
-        "status": "running"
-    }
+    mock_response.json.return_value = MOCK_SESSION_RESPONSE
     mock_response.raise_for_status.return_value = None
     mock_post.return_value = mock_response
 
-    os.environ["_COMPUTE_API_TOKEN"] = "worker-integration-token"
+    os.environ["_COMPUTE_API_TOKEN"] = "test-token-123"
 
-    from eyepop.compute.api import fetch_worker_endpoint_url_from_compute
+    from eyepop.compute.api import fetch_new_compute_session
 
     compute_token = os.getenv("_COMPUTE_API_TOKEN")
     if compute_token:
-        worker_url = fetch_worker_endpoint_url_from_compute(compute_token)
-        if worker_url:
+        session_response = fetch_new_compute_session(compute_token, TEST_ACCOUNT_UUID)
+        if session_response:
             worker_config = {
-                "base_url": worker_url,
-                "pipeline_id": "compute",
-                "status": "active_prod",
+                "base_url": session_response.session_endpoint,
+                "pipeline_id": session_response.pipeline_uuid,
+                "status": session_response.session_status,
             }
             is_dev_mode = False
 
-            assert worker_config["base_url"] == "https://worker-endpoint-pipeline.example.com"
-            assert worker_config["pipeline_id"] == "compute"
-            assert worker_config["status"] == "active_prod"
+            assert worker_config["base_url"] == "https://integration-pipeline.example.com"
+            assert worker_config["pipeline_id"] == "pipeline-123"
+            assert worker_config["status"] == "running"
             assert is_dev_mode is False
 
             mock_post.assert_called_once_with(
-                "https://compute-api.staging.eyepop.xyz/api/v1/session",
-                headers={
-                    "X-Token": "worker-integration-token",
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                },
-                json=None
+                "https://compute.staging.eyepop.xyz/v1/session",
+                headers=TEST_REQUEST_HEADERS,
+                json={"account_uuid": TEST_ACCOUNT_UUID}
             )
         else:
             pytest.fail("Worker URL should be returned")
@@ -187,85 +186,23 @@ def test_integrates_with_custom_compute_url(clean_environment):
 @patch("eyepop.compute.api.requests.post")
 def test_supports_account_uuid_parameter(mock_post, clean_environment):
     mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "pipeline_url": "https://account-specific-pipeline.example.com",
-        "pipeline_uuid": "pipeline-account-123",
-        "session_uuid": "session-account-456",
-        "status": "running"
-    }
+    mock_response.json.return_value = MOCK_SESSION_RESPONSE
     mock_response.raise_for_status.return_value = None
     mock_post.return_value = mock_response
 
-    os.environ["_COMPUTE_API_TOKEN"] = "account-test-token"
+    os.environ["_COMPUTE_API_TOKEN"] = "test-token-123"
 
-    from eyepop.compute.api import fetch_worker_endpoint_url_from_compute
+    from eyepop.compute.api import fetch_new_compute_session
 
     compute_token = os.getenv("_COMPUTE_API_TOKEN")
     if compute_token:
-        pipeline_url = fetch_worker_endpoint_url_from_compute(compute_token, "account-uuid-123")
-        assert pipeline_url == "https://account-specific-pipeline.example.com"
+        session_response = fetch_new_compute_session(compute_token, "foobarbaz")
+        assert session_response.session_endpoint == "https://integration-pipeline.example.com"
 
         mock_post.assert_called_once_with(
-            "https://compute-api.staging.eyepop.xyz/api/v1/session",
-            headers={
-                "X-Token": "account-test-token",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-            json={"account_uuid": "account-uuid-123"}
+            "https://compute.staging.eyepop.xyz/v1/session",
+            headers=TEST_REQUEST_HEADERS,
+            json={"account_uuid": "foobarbaz"}
         )
     else:
         pytest.fail("Compute token should be detected")
-
-
-@patch("eyepop.compute.api.requests.post")
-def test_extracts_pipeline_url_from_session_response(mock_post, clean_environment):
-    mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "pipeline_url": "https://extracted-pipeline.example.com/v1/sessions/abc",
-        "pipeline_uuid": "uuid-extracted-123",
-        "session_uuid": "session-extracted-456",
-        "status": "pending"
-    }
-    mock_response.raise_for_status.return_value = None
-    mock_post.return_value = mock_response
-
-    os.environ["_COMPUTE_API_TOKEN"] = "extraction-test-token"
-
-    from eyepop.compute.api import fetch_worker_endpoint_url_from_compute
-
-    compute_token = os.getenv("_COMPUTE_API_TOKEN")
-    if compute_token:
-        pipeline_url = fetch_worker_endpoint_url_from_compute(compute_token)
-        assert pipeline_url == "https://extracted-pipeline.example.com/v1/sessions/abc"
-    else:
-        pytest.fail("Compute token should be detected")
-
-
-@patch("eyepop.compute.api.requests.post")
-def test_handles_different_pipeline_statuses_in_integration(mock_post, clean_environment):
-    os.environ["_COMPUTE_API_TOKEN"] = "status-test-token"
-    
-    from eyepop.compute.api import fetch_worker_endpoint_url_from_compute
-
-    statuses = ["unknown", "pending", "running", "stopped", "failed"]
-    
-    for status in statuses:
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "pipeline_url": f"https://pipeline-{status}.example.com",
-            "pipeline_uuid": f"pipeline-{status}-123",
-            "session_uuid": f"session-{status}-456",
-            "status": status
-        }
-        mock_response.raise_for_status.return_value = None
-        mock_post.return_value = mock_response
-
-        compute_token = os.getenv("_COMPUTE_API_TOKEN")
-        if compute_token:
-            pipeline_url = fetch_worker_endpoint_url_from_compute(compute_token)
-            assert pipeline_url == f"https://pipeline-{status}.example.com"
-        else:
-            pytest.fail("Compute token should be detected")
-        
-        mock_post.reset_mock()
