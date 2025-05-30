@@ -5,13 +5,13 @@ import os
 import time
 import warnings
 from io import StringIO
-from typing import Any, BinaryIO, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, BinaryIO, Callable
 from urllib.parse import urljoin
 
 import aiohttp
 from deprecated import deprecated
 
-from eyepop.compute.api import fetch_worker_endpoint_url_from_compute
+from eyepop.compute import fetch_session_endpoint
 from eyepop.endpoint import Endpoint
 from eyepop.exceptions import (
     PopConfigurationException,
@@ -163,10 +163,12 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         ):
             raise aiohttp.ClientConnectionError()
 
-        compute_token = os.getenv("_COMPUTE_API_TOKEN")
-        if compute_token:
+        has_experimental_url = os.getenv("_COMPUTE_API_URL", None) is not None
+        print(f"has_experimental_url: {has_experimental_url}")
+        if has_experimental_url:
             try:
-                worker_url = fetch_worker_endpoint_url_from_compute(compute_token)
+                
+                worker_url = fetch_session_endpoint()
                 if worker_url:
                     self.worker_config = {
                         "base_url": worker_url,
