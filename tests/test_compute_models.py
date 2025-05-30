@@ -7,41 +7,53 @@ from eyepop.compute.models import ComputeApiSessionResponse, PipelineStatus
 def test_creates_valid_session_response():
     """It creates a valid session response."""
     response_data = {
-        "pipeline_url": "https://pipeline.example.com",
-        "pipeline_uuid": "pipeline-123",
         "session_uuid": "session-456",
-        "status": "running",
+        "session_endpoint": "https://pipeline.example.com",
+        "pipeline_uuid": "pipeline-123",
+        "pipeline_version": "1.0.0",
+        "session_status": PipelineStatus.RUNNING,
+        "session_message": "Session created successfully",
+        "pipeline_ttl": 3600,
+        "session_active": True
     }
 
     response = ComputeApiSessionResponse(**response_data)
 
-    assert response.pipeline_url == "https://pipeline.example.com"
+    assert response.session_endpoint == "https://pipeline.example.com"
     assert response.pipeline_uuid == "pipeline-123"
     assert response.session_uuid == "session-456"
-    assert response.status == PipelineStatus.RUNNING
+    assert response.session_status == PipelineStatus.RUNNING
+    assert response.session_active is True
 
 
 def test_validates_pipeline_status_enum():
     """It only allows good enums."""
-    valid_statuses = ["unknown", "pending", "running", "stopped", "failed"]
+    valid_statuses = [PipelineStatus.UNKNOWN, PipelineStatus.PENDING, PipelineStatus.RUNNING, PipelineStatus.STOPPED, PipelineStatus.FAILED]
 
     for status in valid_statuses:
         response_data = {
-            "pipeline_url": "https://pipeline.example.com",
-            "pipeline_uuid": "pipeline-123",
             "session_uuid": "session-456",
-            "status": status,
+            "session_endpoint": "https://pipeline.example.com",
+            "pipeline_uuid": "pipeline-123",
+            "pipeline_version": "1.0.0",
+            "session_status": status,
+            "session_message": "Session created successfully",
+            "pipeline_ttl": 3600,
+            "session_active": True
         }
-
         response = ComputeApiSessionResponse(**response_data)
-        assert response.status == status
+        assert response.session_status == status
 
     """It rejects bad enums."""
     response_data = {
-        "pipeline_url": "https://pipeline.example.com",
-        "pipeline_uuid": "pipeline-123",
         "session_uuid": "session-456",
-        "status": "invalid_status",
+        "session_endpoint": "https://pipeline.example.com",
+        "pipeline_uuid": "pipeline-123",
+        "pipeline_version": "1.0.0",
+        "session_status": "invalid_status",  # invalid on purpose
+        "session_message": "Session created successfully",
+        "pipeline_ttl": 3600,
+        "session_active": True
     }
 
     with pytest.raises(ValidationError):
@@ -50,8 +62,11 @@ def test_validates_pipeline_status_enum():
 
 def test_requires_all_fields():
     incomplete_data = {
-        "pipeline_url": "https://pipeline.example.com",
+        "session_uuid": "session-456",
+        "session_endpoint": "https://pipeline.example.com",
         "pipeline_uuid": "pipeline-123",
+        "session_status": PipelineStatus.FAILED,
+        # missing required fields
     }
 
     with pytest.raises(ValidationError):
@@ -60,10 +75,14 @@ def test_requires_all_fields():
 
 def test_validates_field_types():
     response_data = {
-        "pipeline_url": 123,
+        "session_uuid": 123,  # should be str
+        "session_endpoint": "https://pipeline.example.com",
         "pipeline_uuid": "pipeline-123",
-        "session_uuid": "session-456",
-        "status": "running",
+        "pipeline_version": "1.0.0",
+        "session_status": PipelineStatus.RUNNING,
+        "session_message": "Session created successfully",
+        "pipeline_ttl": 3600,
+        "session_active": True
     }
 
     with pytest.raises(ValidationError):
@@ -72,25 +91,31 @@ def test_validates_field_types():
 
 def test_serializes_to_dict():
     response_data = {
-        "pipeline_url": "https://pipeline.example.com",
-        "pipeline_uuid": "pipeline-123",
         "session_uuid": "session-456",
-        "status": "running",
+        "session_endpoint": "https://pipeline.example.com",
+        "pipeline_uuid": "pipeline-123",
+        "pipeline_version": "1.0.0",
+        "session_status": PipelineStatus.RUNNING,
+        "session_message": "Session created successfully",
+        "pipeline_ttl": 3600,
+        "session_active": True
     }
 
     response = ComputeApiSessionResponse(**response_data)
     serialized = response.model_dump()
-
-    assert serialized == response_data
+    # Enum will be serialized as value
+    expected = dict(response_data)
+    expected["session_status"] = "running"
+    assert serialized == expected
 
 
 def test_parses_from_json_string():
-    json_str = '{"pipeline_url": "https://pipeline.example.com", "pipeline_uuid": "pipeline-123", "session_uuid": "session-456", "status": "running"}'
+    json_str = '{"session_uuid": "session-456", "session_endpoint": "https://pipeline.example.com", "pipeline_uuid": "pipeline-123", "pipeline_version": "1.0.0", "session_status": "running", "session_message": "Session created successfully", "pipeline_ttl": 3600, "session_active": true}'
 
     response = ComputeApiSessionResponse.model_validate_json(json_str)
 
-    assert response.pipeline_url == "https://pipeline.example.com"
-    assert response.status == PipelineStatus.RUNNING
+    assert response.session_endpoint == "https://pipeline.example.com"
+    assert response.session_status == PipelineStatus.RUNNING
 
 
 def test_handles_different_url_formats():
@@ -103,14 +128,18 @@ def test_handles_different_url_formats():
 
     for url in url_formats:
         response_data = {
-            "pipeline_url": url,
-            "pipeline_uuid": "pipeline-123",
             "session_uuid": "session-456",
-            "status": "running",
+            "session_endpoint": url,
+            "pipeline_uuid": "pipeline-123",
+            "pipeline_version": "1.0.0",
+            "session_status": PipelineStatus.RUNNING,
+            "session_message": "Session created successfully",
+            "pipeline_ttl": 3600,
+            "session_active": True
         }
 
         response = ComputeApiSessionResponse(**response_data)
-        assert response.pipeline_url == url
+        assert response.session_endpoint == url
 
 
 def test_handles_uuid_formats():
@@ -123,10 +152,14 @@ def test_handles_uuid_formats():
 
     for uuid_val in uuid_formats:
         response_data = {
-            "pipeline_url": "https://pipeline.example.com",
-            "pipeline_uuid": uuid_val,
             "session_uuid": uuid_val,
-            "status": "running",
+            "session_endpoint": "https://pipeline.example.com",
+            "pipeline_uuid": uuid_val,
+            "pipeline_version": "1.0.0",
+            "session_status": PipelineStatus.RUNNING,
+            "session_message": "Session created successfully",
+            "pipeline_ttl": 3600,
+            "session_active": True
         }
 
         response = ComputeApiSessionResponse(**response_data)
