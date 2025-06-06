@@ -209,6 +209,7 @@ parser.add_argument('-a', '--asset-uuid', required=False, type=str, default=Fals
 parser.add_argument('-u', '--url', required=False, type=str, default=False, help="run the inference on a remote Url")
 parser.add_argument('-p', '--pop', required=False, type=str, help="run this pop", choices=list(pop_examples.keys()))
 parser.add_argument('-m', '--model-uuid', required=False, type=str, help="run this model by uuid")
+parser.add_argument('-ma', '--model-alias', required=False, type=str, help="run this model by its tagged alias")
 parser.add_argument('-ms1', '--model-uuid-sam1', required=False, type=str, help="run this model by uuid and compose with SAM1 (EfficientSAM) and Contour Finder")
 parser.add_argument('-ms2', '--model-uuid-sam2', required=False, type=str, help="run this model by uuid and compose with SAM2 and Contour Finder")
 parser.add_argument('-po', '--points', required=False, type=list_of_points, help="List of POIs as coordinates like (x1, y1), (x2, y2) in the original image coordinate system")
@@ -225,8 +226,8 @@ if not args.local_path and not args.url and not args.asset_uuid:
     parser.print_help()
     sys.exit(1)
 
-if not args.pop and not args.model_uuid and not args.model_uuid_sam1 and not args.model_uuid_sam2:
-    print("Need something do do, pass either --pop or --model-uuid or --model-uuid-sam1 or --model-uuid-sam2")
+if not args.pop and not args.model_uuid and not args.model_alias and not args.model_uuid_sam1 and not args.model_uuid_sam2:
+    print("Need something do do, pass either --pop or --model-uuid or --model-alias or --model-uuid-sam1 or --model-uuid-sam2")
     parser.print_help()
     sys.exit(1)
 
@@ -237,7 +238,14 @@ with EyePopSdk.workerEndpoint() as endpoint:
         endpoint.set_pop(Pop(components=[
             InferenceComponent(
                 id=1,
-                modelUuid=args.model_uuid
+                abilityUuid=args.model_uuid
+            )
+        ]))
+    elif args.model_alias:
+        endpoint.set_pop(Pop(components=[
+            InferenceComponent(
+                id=1,
+                ability=args.model_alias
             )
         ]))
     elif args.model_uuid_sam1:
