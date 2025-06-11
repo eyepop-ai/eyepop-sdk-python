@@ -343,6 +343,7 @@ class ModelCreate(BaseModel):
     extra_params: dict | None = None
     task: ModelTask | None = None
     classes: list[str] | None = None
+    type: ModelType | None = None
 
 
 class ModelUpdate(ModelCreate):
