@@ -162,7 +162,7 @@ pop_examples = {
     "image-contents": Pop(components=[
         InferenceComponent(
             id=1,
-            ability='eyepop.image-contents:latest',
+            ability='eyepop.image-contents-t5:latest',
         )
     ]),
     "localize-objects": Pop(components=[
@@ -401,6 +401,6 @@ with EyePopSdk.workerEndpoint() as endpoint:
         })
         window = webui.window()
         window.set_root_folder('.')
-        window.show(preview, webui.browser.chrome)
+        window.show_browser(preview, webui.browser.Chrome)
         webui.wait()
 
