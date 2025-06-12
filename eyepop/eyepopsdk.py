@@ -1,5 +1,4 @@
 import os
-from typing import Union
 
 from deprecated import deprecated
 from matplotlib.axes import Axes
