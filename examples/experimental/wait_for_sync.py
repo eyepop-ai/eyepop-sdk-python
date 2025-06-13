@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Any
 
 from threading import Condition
 
@@ -11,8 +11,8 @@ class WaitForSync:
     dataset_uuid: str
     condition: Condition | None
     criteria: Callable[[SyncDataEndpoint, ChangeEvent], bool]
-    result: any
-    exception: any
+    result: Any
+    exception: Any
 
     def __init__(self, endpoint: SyncDataEndpoint, dataset_uuid: str, criteria: Callable[[SyncDataEndpoint, ChangeEvent], bool]):
         self.endpoint = endpoint

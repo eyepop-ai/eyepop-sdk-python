@@ -1,7 +1,7 @@
 import asyncio
 import json
 from asyncio import StreamReader
-from typing import Callable, BinaryIO
+from typing import Callable, BinaryIO, Any
 from urllib.parse import urljoin
 
 import aiohttp
@@ -31,7 +31,7 @@ class DataClientSession(ClientSession):
         self.delegee = delegee
         self.base_url = base_url
 
-    async def request_with_retry(self, method: str, url: str, accept: str | None = None, data: any = None,
+    async def request_with_retry(self, method: str, url: str, accept: str | None = None, data: Any = None,
                                  content_type: str | None = None,
                                  timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
         url = urljoin(self.base_url, url)
@@ -43,7 +43,7 @@ class DataEndpoint(Endpoint):
     Endpoint to the EyePop.ai Data API.
     """
     account_uuid: str
-    data_config: dict[str, any] | None
+    data_config: dict[str, Any] | None
 
     disable_ws: bool
     ws: ClientConnection | None
