@@ -22,7 +22,9 @@ from eyepop.worker.worker_types import Pop, InferenceComponent, PopForward, PopF
 script_dir = os.path.dirname(__file__)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
+logging.getLogger('eyepop.requests').setLevel(level=logging.INFO)
+
+# params = {'prompt': 'what entities are in the picture?'}
 
 caption_pop = Pop(components=[
     InferenceComponent(
@@ -30,8 +32,8 @@ caption_pop = Pop(components=[
         ability="eyepop.vlm.preview:latest",
         forward=FullForward(
             targets=[InferenceComponent(
-                categoryName='LLM_summary',
-                model='eyepop.text-contents.preview:latest'
+                categoryName='Q_A',
+                model='eyepop.question-answer.preview:latest',
             )]
         )
     )

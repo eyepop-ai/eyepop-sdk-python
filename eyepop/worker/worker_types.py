@@ -1,5 +1,5 @@
 import enum
-from typing import List, Literal, Annotated, Union
+from typing import List, Literal, Annotated, Union, Any
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -72,7 +72,7 @@ class InferenceComponent(BaseComponent):
     categoryName: str | None = None
     confidenceThreshold: float | None = None
     targetFps: str | None = None
-    params: dict[str, any] | None = None
+    params: dict[str, Any] | None = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
@@ -154,5 +154,5 @@ def FullForward(
 
 class ComponentParams(BaseComponent):
     componentId: int
-    values: dict[str, any]
+    values: dict[str, Any]
     model_config = ConfigDict(arbitrary_types_allowed=True)

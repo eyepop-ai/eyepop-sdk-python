@@ -3,7 +3,7 @@ import json
 import logging
 import mimetypes
 from asyncio import Queue
-from typing import Callable, BinaryIO
+from typing import Callable, BinaryIO, Any
 from pydantic import TypeAdapter
 
 import aiohttp
@@ -64,12 +64,12 @@ class WorkerJob(Job):
 class _UploadJob(WorkerJob):
     mime_type: str
     video_mode: VideoMode | None
-    open_stream: Callable[[], any]
+    open_stream: Callable[[], Any]
     needs_full_duplex: bool
 
     def __init__(self,
                  mime_type: str,
-                 open_stream: Callable[[], any],
+                 open_stream: Callable[[], Any],
                  video_mode: VideoMode | None,
                  component_params: list[ComponentParams] | None,
                  session: WorkerClientSession,
