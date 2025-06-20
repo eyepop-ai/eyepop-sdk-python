@@ -161,9 +161,9 @@ class PredictedClass(BaseModel):
     category: str | None = None
 
 class PredictedEmbedding(BaseModel):
-    id: int | None = None
+    x: float
+    y: float
     embedding: List[float]
-    compression_method: str | None = None
 
 class PredictedText(BaseModel):
     id: int | None = None
