@@ -160,6 +160,11 @@ class PredictedClass(BaseModel):
     classLabel: str
     category: str | None = None
 
+class PredictedEmbedding(BaseModel):
+    id: int | None = None
+    confidence: float | None = None
+    embedding: List[float]
+    compression_method: str | None = None
 
 class PredictedText(BaseModel):
     id: int | None = None
@@ -226,6 +231,7 @@ class Prediction(BaseModel):
     texts: List[PredictedText] | None = None
     meshs: List[PredictedMesh] | None = None
     keyPoints: List[PredictedKeyPoints] | None = None
+    embeddings: List[PredictedEmbedding] | None = None
 
 
 class AssetAnnotation(BaseModel):
