@@ -162,7 +162,6 @@ class PredictedClass(BaseModel):
 
 class PredictedEmbedding(BaseModel):
     id: int | None = None
-    confidence: float | None = None
     embedding: List[float]
     compression_method: str | None = None
 
