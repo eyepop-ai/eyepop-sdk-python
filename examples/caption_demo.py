@@ -12,21 +12,6 @@ script_dir = os.path.dirname(__file__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logging.getLogger('eyepop.requests').setLevel(level=logging.INFO)
 
-# params = {'prompt': 'what entities are in the picture?'}
-
-caption_pop = Pop(components=[
-    InferenceComponent(
-        categoryName='VLM_caption',
-        ability="eyepop.vlm.preview:latest",
-        forward=FullForward(
-            targets=[InferenceComponent(
-                categoryName='Q_A',
-                model='eyepop.question-answer.preview:latest',
-            )]
-        )
-    )
-])
-
 parser = argparse.ArgumentParser(
                     prog='Pop examples',
                     description='Demonstrates the caption generation via VLM/LLM',
