@@ -222,3 +222,28 @@ an experimental pre-release which is subject to change. An officially supported 
 See [Composable Pops](https://github.com/eyepop-ai/eyepop-sdk-node/blob/main/src/eyepop/composable-pops.md) 
 for a preview of client side composability of pops, introduced in v1.0.0.
 
+## Release Process
+The EyePop SDK is released via GitHub Actions. The release process is as follows:
+1. Choose a `your_new_version` that is appropriate but different. Bump up the last number for patch releases, the middle number for minor releases and the first number for major releases.
+    - For example, if the previous release was `1.14.4`, and a bug was fixed, then you create a new release with the tag `1.14.5`. If you added a new feature, then you create a new release with the tag `1.15.0`.
+2. Before Merging your PR, bump up the tag version you will be releasing to `pyproject.toml` 
+```toml
+[project]
+name = "eyepop"
+version = your_new_version # "1.14.5"
+description="EyePop.ai Python SDK"
+readme = "README.md"
+license.file = "./LICENSE"
+authors = [
+    { name = "EyePop.ai", email = "support@eyepop.ai" },
+]
+requires-python = ">= 3.11"
+```
+3. Merge your PR to main
+4. Hit **Release** -> [Draft a new release](https://github.com/eyepop-ai/eyepop-sdk-python/releases/new) and follow the flow
+  1. **Choose a tag** -> you created earlier in 1.
+  2. Fill in Release title as `your_new_version`
+  3. Hit **Generate Release Notes** to populate the description.
+  4. Hit **Publish Release** to trigger the release process.
+  5. You should see in [Github Action](https://github.com/eyepop-ai/eyepop-sdk-python/actions) that
+    the release is being built and published to PyPI.
