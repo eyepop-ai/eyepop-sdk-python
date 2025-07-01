@@ -349,7 +349,7 @@ class ModelCreate(BaseModel):
     task: ModelTask | None = None
     classes: list[str] | None = None
     type: ModelType | None = None
-    status: ModelStatus | None = ModelStatus.draft
+    status: ModelStatus | None = None
 
 
 class ModelUpdate(ModelCreate):
