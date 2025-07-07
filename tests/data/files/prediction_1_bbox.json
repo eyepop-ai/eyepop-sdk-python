@@ -1,0 +1,11 @@
+{
+  "source_width": 1,
+  "source_height": 1,
+  "objects": [{
+    "classLabel": "stuff",
+    "x": 0.1,
+    "y": 0.2,
+    "width": 0.15,
+    "height": 0.25
+  }]
+}

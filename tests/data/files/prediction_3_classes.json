@@ -1,0 +1,9 @@
+{
+  "source_width": 100,
+  "source_height": 100,
+  "objects": null,
+  "classes": [{
+    "classLabel": "ether",
+    "confidence": 0.99
+  }]
+}

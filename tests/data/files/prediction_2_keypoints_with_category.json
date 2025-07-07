@@ -1,0 +1,23 @@
+{
+  "source_width": 100,
+  "source_height": 100,
+  "keyPoints": [{
+    "type": "foo",
+    "category": "some key points",
+    "points": [
+      {
+        "classLabel": "stuff",
+        "category": "a key point",
+        "x": 10,
+        "y": 20
+      },
+      {
+        "classLabel": "other stuff",
+        "x": 50,
+        "y": 60,
+        "z": 1.5,
+        "visible": true
+      }
+    ]
+  }]
+}
