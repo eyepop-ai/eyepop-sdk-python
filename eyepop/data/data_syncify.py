@@ -5,7 +5,9 @@ from typing import BinaryIO, Callable, Optional, List
 from eyepop.data.data_jobs import DataJob
 from eyepop.data.data_types import AssetImport, Dataset, DatasetCreate, DatasetUpdate, Asset, \
     Prediction, AutoAnnotate, UserReview, TranscodeMode, Model, ModelCreate, ModelUpdate, ModelTrainingProgress, \
-    ChangeEvent, EventHandler, ModelAlias, ModelAliasCreate, ModelAliasUpdate, ModelExportFormat
+    ChangeEvent, EventHandler, ModelAlias, ModelAliasCreate, ModelAliasUpdate, ModelExportFormat, QcAiHubExportParams, \
+    ModelTrainingEvent, ModelTrainingAuditRecord, AssetUrlType, AssetInclusionMode, AnnotationInclusionMode, \
+    ExportedUrlResponse, ArtifactType
 from eyepop.syncify import run_coro_thread_save, SyncEndpoint, submit_coro_thread_save
 
 SyncEventHandler = Callable[[ChangeEvent], None]
@@ -255,3 +257,130 @@ class SyncDataEndpoint(SyncEndpoint):
 
     def delete_model_alias_tag(self, name: str, tag: str) -> None:
         return run_coro_thread_save(self.event_loop, self.endpoint.delete_model_alias_tag(name, tag))
+
+    """ Arrow im and export methods """
+
+    def export_assets(
+            self,
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None,
+            asset_uuids: list[str] | None = None,
+            model_uuid: str | None = None,
+            transcode_mode: TranscodeMode = TranscodeMode.image_original_size,
+            asset_url_type: AssetUrlType | None = None,
+            inclusion_mode: AssetInclusionMode = AssetInclusionMode.annotated_only,
+            annotation_inclusion_mode: AnnotationInclusionMode = AnnotationInclusionMode.all,
+            include_external_ids: bool = False,
+            freeze_dataset_version: bool | None = None,
+            include_partitions: list[str] | None = None,
+            include_auto_annotates: list[AutoAnnotate] | None = None,
+            include_sources: list[str] | None = None,
+    ) -> typing.BinaryIO:
+        async_stream_reader = run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.export_assets(
+                dataset_uuid=dataset_uuid,
+                dataset_version=dataset_version,
+                asset_uuids=asset_uuids,
+                model_uuid=model_uuid,
+                transcode_mode=transcode_mode,
+                asset_url_type=asset_url_type,
+                inclusion_mode=inclusion_mode,
+                annotation_inclusion_mode=annotation_inclusion_mode,
+                include_external_ids=include_external_ids,
+                freeze_dataset_version=freeze_dataset_version,
+                include_partitions=include_partitions,
+                include_auto_annotates=include_auto_annotates,
+                include_sources=include_sources,
+            )
+        )
+        sync_io = self._async_reader_to_sync_binary_io(async_stream_reader)
+        return sync_io
+
+    def import_assets(
+            self,
+            arrow_stream: BinaryIO,
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None,
+            model_uuid: str | None = None
+    ) -> None:
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.import_dataset(
+                arrow_stream=arrow_stream,
+                dataset_uuid=dataset_uuid,
+                dataset_version=dataset_version,
+                model_uuid=model_uuid
+            )
+        )
+
+    def model_training_audits(
+            self,
+            model_uuids: list[str]
+    ) -> list[ModelTrainingAuditRecord]:
+        return run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.model_training_audits(
+                model_uuids=model_uuids
+            )
+        )
+
+    def export_model_urls(
+            self,
+            model_uuids: list[str],
+            model_formats: list[ModelExportFormat],
+            device_name: str | None
+    ) -> list[ExportedUrlResponse]:
+        return run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.export_model_urls(
+                model_uuids=model_uuids,
+                model_formats=model_formats,
+                device_name=device_name,
+            )
+        )
+
+    def export_model_artifacts(
+            self,
+            model_uuids: list[str],
+            model_formats: list[ModelExportFormat],
+            device_name: str | None,
+            artifact_type: ArtifactType | None
+    ) -> typing.BinaryIO:
+        async_stream_reader = run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.export_model_artifacts(
+                model_uuids=model_uuids,
+                model_formats=model_formats,
+                device_name=device_name,
+                artifact_type=artifact_type,
+            )
+        )
+        sync_io = self._async_reader_to_sync_binary_io(async_stream_reader)
+        return sync_io
+
+    def model_training_event(
+            self,
+            model_training_event: ModelTrainingEvent,
+            model_uuid: str
+    ) -> None:
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.model_training_event(
+                model_training_event=model_training_event,
+                model_uuid=model_uuid
+            )
+        )
+
+    def qc_ai_hub_model_export(
+            self,
+            model_uuid: str,
+            export_params: list[QcAiHubExportParams]
+    ) -> None:
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.qc_ai_hub_model_export(
+                model_uuid=model_uuid,
+                export_params=export_params
+            )
+        )
