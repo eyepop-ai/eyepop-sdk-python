@@ -1,8 +1,8 @@
 import asyncio
 import json
 from asyncio import StreamReader
-from typing import Callable, BinaryIO, Any
-from urllib.parse import urljoin
+from typing import Callable, BinaryIO, Any, AsyncIterable
+from urllib.parse import urljoin, quote_plus
 
 import aiohttp
 import websockets
@@ -12,12 +12,14 @@ from websockets.asyncio.client import ClientConnection
 from pydantic.tools import parse_obj_as
 
 from eyepop.client_session import ClientSession
+from eyepop.data.arrow.schema import MIME_TYPE_APACHE_ARROW_FILE_VERSIONED
 from eyepop.data.data_jobs import DataJob, _UploadStreamJob, _ImportFromJob
 from eyepop.data.data_syncify import SyncDataJob
 from eyepop.data.data_types import Dataset, DatasetCreate, DatasetUpdate, Asset, Prediction, \
     AssetImport, AutoAnnotate, UserReview, TranscodeMode, Model, ModelCreate, ModelUpdate, \
     ModelTrainingProgress, ChangeEvent, ChangeType, EventHandler, ModelAlias, ModelAliasCreate, \
-    ModelAliasUpdate, ModelExportFormat
+    ModelAliasUpdate, ModelExportFormat, QcAiHubExportParams, AssetUrlType, AssetInclusionMode, AnnotationInclusionMode, \
+    ModelTrainingAuditRecord, ExportedUrlResponse, ModelTrainingEvent, ArtifactType
 from eyepop.endpoint import Endpoint, log_requests
 
 APPLICATION_JSON = "application/json"
@@ -532,3 +534,139 @@ class DataEndpoint(Endpoint):
         delete_url = f'{await self.data_base_url()}/model_aliases/{name}/{tag}'
         async with await self.request_with_retry("DELETE", delete_url):
             return
+
+    """ Arrow im and export methods """
+
+    async def export_assets(
+            self,
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None,
+            asset_uuids: list[str] | None = None,
+            model_uuid: str | None = None,
+            transcode_mode: TranscodeMode = TranscodeMode.image_original_size,
+            asset_url_type: AssetUrlType | None = None,
+            inclusion_mode: AssetInclusionMode = AssetInclusionMode.annotated_only,
+            annotation_inclusion_mode: AnnotationInclusionMode = AnnotationInclusionMode.all,
+            include_external_ids: bool = False,
+            freeze_dataset_version: bool | None = None,
+            include_partitions: list[str] | None = None,
+            include_auto_annotates: list[AutoAnnotate] | None = None,
+            include_sources: list[str] | None = None,
+    ) -> StreamReader:
+        asset_url_type_query = f'asset_url_type={asset_url_type}&' if asset_url_type is not None else ''
+        dataset_uuid_query = f'dataset_uuid={dataset_uuid}&' if dataset_uuid is not None else ''
+        dataset_version_query = f'dataset_version={dataset_version}&' if dataset_version is not None else ''
+        asset_uuids_query = ""
+        if asset_uuids is not None:
+            for asset_uuid in asset_uuids:
+                asset_uuids_query += f"asset_uuid={asset_uuid}&"
+        model_uuid_query = f'model_uuid={model_uuid}&' if model_uuid is not None else ''
+        freeze_dataset_version_query = f'freeze_dataset_version={freeze_dataset_version}&' if freeze_dataset_version is not None else ''
+        include_partitions_query = ""
+        if include_partitions is not None:
+            for include_partition in include_partitions:
+                include_partitions_query += f"include_partition={include_partition}&"
+        include_auto_annotates_query = ""
+        if include_auto_annotates is not None:
+            for include_auto_annotate in include_auto_annotates:
+                include_auto_annotates_query += f"include_auto_annotate={include_auto_annotate}&"
+        include_sources_query = ""
+        if include_sources is not None:
+            for include_source in include_sources:
+                include_sources_query += f"include_source={include_source}&"
+        get_url = (f'{await self.data_base_url()}/exports/assets?'
+                   f'{dataset_uuid_query}'
+                   f'{dataset_version_query}'
+                   f'{asset_uuids_query}'
+                   f'{model_uuid_query}'
+                   f'transcode_mode={transcode_mode}&'
+                   f'inclusion_mode={inclusion_mode}&'
+                   f'annotation_inclusion_mode={annotation_inclusion_mode}&'
+                   f'include_external_ids={"true" if include_external_ids else "false"}&'
+                   f'{asset_url_type_query}'
+                   f'{freeze_dataset_version_query}'
+                   f'{include_partitions_query}'
+                   f'{include_auto_annotates_query}'
+                   f'{include_sources_query}')
+
+        resp = await self.request_with_retry(
+            method="GET",
+            url=get_url,
+            accept=MIME_TYPE_APACHE_ARROW_FILE_VERSIONED,
+            timeout=aiohttp.ClientTimeout(total=None, sock_read=600)
+        )
+        return resp.content
+
+    async def import_assets(
+            self,
+            arrow_stream: BinaryIO | AsyncIterable[bytes],
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None,
+            model_uuid: str | None = None
+    ) -> None:
+        dataset_uuid_query = f'dataset_uuid={dataset_uuid}&' if dataset_uuid is not None else ''
+        dataset_version_query = f'dataset_version={dataset_version}&' if dataset_version is not None else ''
+        model_uuid_query = f'model_uuid={model_uuid}&' if model_uuid is not None else ''
+        post_url = (f'{await self.data_base_url()}/imports/assets?'
+                   f'{dataset_uuid_query}'
+                   f'{dataset_version_query}'
+                   f'{model_uuid_query}')
+        await self.request_with_retry(
+            "POST", post_url,
+            data=arrow_stream,
+            content_type=MIME_TYPE_APACHE_ARROW_FILE_VERSIONED,
+            timeout=aiohttp.ClientTimeout(total=None, sock_read=600)
+        )
+
+    async def model_training_audits(self, model_uuids: list[str]) -> list[ModelTrainingAuditRecord]:
+        model_uuid_query = ""
+        for model_uuid in model_uuids:
+            model_uuid_query += f"model_uuid={model_uuid}&"
+        get_url = f'{await self.data_base_url()}/exports/model_training_audits?{model_uuid_query}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return TypeAdapter(list[ModelTrainingAuditRecord]).validate_python(await resp.json())
+
+
+    async def export_model_urls(self, model_uuids: list[str], model_formats: list[ModelExportFormat], device_name: str | None) -> list[ExportedUrlResponse]:
+        model_uuid_query = ""
+        for model_uuid in model_uuids:
+            model_uuid_query += f"model_uuid={model_uuid}&"
+        model_format_query = ""
+        for model_format in model_formats:
+            model_format_query += f"model_format={model_format}&"
+        device_name_query = f"device_name={quote_plus(device_name)}&" if device_name is not None else ""
+        get_url = f'{await self.data_base_url()}/exports/model_urls?{model_uuid_query}{model_format_query}{device_name_query}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return TypeAdapter(list[ExportedUrlResponse]).validate_python(await resp.json())
+
+
+    async def export_model_artifacts(self, model_uuids: list[str], model_formats: list[ModelExportFormat], device_name: str | None, artifact_type: ArtifactType | None) -> StreamReader:
+        model_uuid_query = ""
+        for model_uuid in model_uuids:
+            model_uuid_query += f"model_uuid={model_uuid}&"
+        model_format_query = ""
+        for model_format in model_formats:
+            model_format_query += f"model_format={model_format}&"
+        device_name_query = f"device_name={quote_plus(device_name)}&" if device_name is not None else ""
+        type_query = f"artifact_type={artifact_type}&" if artifact_type is not None else ""
+
+        get_url = f'{await self.data_base_url()}/exports/model_artifacts?{model_uuid_query}{model_format_query}{device_name_query}{type_query}'
+        resp = await self.request_with_retry("GET", get_url)
+        return resp.content
+
+
+    async def model_training_event(self, model_training_event: ModelTrainingEvent, model_uuid: str) -> None:
+        post_url = f'{await self.data_base_url()}/models/{model_uuid}/events'
+        await self.request_with_retry(
+            "POST", post_url,
+            data=model_training_event.model_dump_json(),
+            content_type=APPLICATION_JSON,
+        )
+
+    async def qc_ai_hub_model_export(self, model_uuid: str, export_params: list[QcAiHubExportParams]) -> None:
+        post_url = f'{await self.data_base_url()}/models/{model_uuid}/exports/qc_ai_hub'
+        await self.request_with_retry(
+            "POST", post_url,
+            data=TypeAdapter(list[QcAiHubExportParams]).dump_json(export_params),
+            content_type=APPLICATION_JSON,
+        )
