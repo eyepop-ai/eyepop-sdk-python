@@ -1,0 +1,30 @@
+{
+  "source_width": 100,
+  "source_height": 100,
+  "objects": [{
+    "confidence": 0.4,
+    "classLabel": "0.4",
+    "category": "a type of object",
+    "x": 10.0,
+    "y": 10.0,
+    "width": 10.0,
+    "height": 10.0
+  },{
+    "confidence": 0.1,
+    "classLabel": "0.1",
+    "x": 10.0,
+    "y": 10.0,
+    "width": 10.0,
+    "height": 10.0,
+    "texts": [{
+      "text": "ba"
+    },{
+      "text": "ab"
+    }]
+  }],
+  "texts": [{
+    "text": "fool'ish",
+    "confidence": 0.6,
+    "category": "global text"
+  }]
+}

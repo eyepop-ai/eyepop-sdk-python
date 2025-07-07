@@ -1,0 +1,34 @@
+{
+  "source_width": 100,
+  "source_height": 100,
+  "classes": [{
+    "confidence": 0.4,
+    "classLabel": "0.4"
+  },{
+    "confidence": 0.1,
+    "classLabel": "0.1"
+  },{
+    "confidence": 0.6,
+    "classLabel": "0.6"
+  },{
+    "confidence": 0.5,
+    "classLabel": "0.5"
+  },{
+    "confidence": 1.0,
+    "classLabel": "1.0"
+  },{
+    "confidence": 0.7,
+    "classLabel": "0.7"
+  },{
+    "classLabel": "None"
+  },{
+    "confidence": 0.0,
+    "classLabel": "0.0"
+  },{
+    "confidence": 0.2,
+    "classLabel": "0.2"
+  },{
+    "confidence": 0.3,
+    "classLabel": "0.2"
+  }]
+}
