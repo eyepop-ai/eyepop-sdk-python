@@ -261,6 +261,13 @@ class Asset(BaseModel):
     review_priority: float | None = None
     model_relevance: float | None = None
     annotations: List[AssetAnnotation] = []
+
+    ###
+    # Denormalized attributes, for convenient serialization/storage detached of a dataset context
+    # ###
+    dataset_uuid: str | None = None
+    account_uuid: str | None = None
+
     model_config = ConfigDict(
         protected_namespaces=('pydantic_do_not_prevent_model_prefix_',)
     )

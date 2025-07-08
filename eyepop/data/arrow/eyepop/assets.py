@@ -1,7 +1,7 @@
 from typing import cast
 
 import pyarrow as pa
-from eyepop.data.data_types import AssetResponse
+from eyepop.data.data_types import Asset
 
 from eyepop.data.arrow.eyepop.annotations import table_from_eyepop_annotations, eyepop_annotations_from_pylist
 from eyepop.data.arrow.schema import ASSET_SCHEMA
@@ -11,11 +11,11 @@ from eyepop.data.data_normalize import CONFIDENCE_N_DIGITS
 UNKNOWN_MIME_TYPE = "application/octet-stream"
 
 
-def table_from_eyepop_assets(assets: list[AssetResponse], schema: pa.Schema = ASSET_SCHEMA) -> pa.Table:
+def table_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASSET_SCHEMA) -> pa.Table:
     return pa.Table.from_batches(batches=[record_batch_from_eyepop_assets(assets, schema)], schema=schema)
 
 
-def record_batch_from_eyepop_assets(assets: list[AssetResponse], schema: pa.Schema = ASSET_SCHEMA) -> pa.RecordBatch:
+def record_batch_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASSET_SCHEMA) -> pa.RecordBatch:
     uuids: list[any] = [None] * len(assets)
     external_ids = uuids.copy()
     created_ats = uuids.copy()
@@ -66,7 +66,12 @@ def record_batch_from_eyepop_assets(assets: list[AssetResponse], schema: pa.Sche
     )
 
 
-def eyepop_assets_from_table(table: pa.Table, schema: pa.Schema = ASSET_SCHEMA) -> list[AssetResponse]:
+def eyepop_assets_from_table(
+        table: pa.Table,
+        schema: pa.Schema = ASSET_SCHEMA,
+        dataset_uuid: str | None = None,
+        account_uuid: str | None = None,
+) -> list[Asset]:
     table = convert(table, schema)
     assets = [None] * table.num_rows
     i = 0
@@ -90,7 +95,7 @@ def eyepop_assets_from_table(table: pa.Table, schema: pa.Schema = ASSET_SCHEMA) 
             model_relevance = model_relevances[j]
             if model_relevance is not None:
                 model_relevance = round(model_relevance, CONFIDENCE_N_DIGITS)
-            assets[i] = AssetResponse(
+            assets[i] = Asset(
                 uuid=uuids[j],
                 mime_type=UNKNOWN_MIME_TYPE,
                 external_id=external_ids[j],
@@ -102,6 +107,8 @@ def eyepop_assets_from_table(table: pa.Table, schema: pa.Schema = ASSET_SCHEMA) 
                 review_priority=review_priority,
                 model_relevance=model_relevance,
                 annotations=eyepop_annotations_from_pylist(annotationss[j]) if annotationss[j] is not None else None,
+                dataset_uuid=dataset_uuid,
+                account_uuid=account_uuid,
             )
             i += 1
     return assets
