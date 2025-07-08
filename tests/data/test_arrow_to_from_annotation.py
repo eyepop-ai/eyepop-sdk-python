@@ -165,3 +165,22 @@ class TestArrowToFromAnnotation:
         for column_name in ASSET_SCHEMA_1_2.names:
             if column_name != "annotations":
                 assert target_table.column(column_name) == source_table.column(column_name)
+
+    def test_assets(self):
+        """ verify that the new denormalized fields account_uuid and dataset_uuids are being filled """
+        source_table = create_test_table(schema=ASSET_SCHEMA_1_3, test_file_name="prediction_1_embeddings.json")
+        target_assets = eyepop_assets_from_table(source_table, schema=ASSET_SCHEMA_1_3)
+        assert len(target_assets) > 0
+        for target_asset in target_assets:
+            assert target_asset.dataset_uuid is None
+            assert target_asset.account_uuid is None
+        target_assets = eyepop_assets_from_table(
+            source_table,
+            schema=ASSET_SCHEMA_1_3,
+            dataset_uuid="test_dataset_uuid",
+            account_uuid="test_account_uuid",
+        )
+        assert len(target_assets) > 0
+        for target_asset in target_assets:
+            assert target_asset.dataset_uuid == "test_dataset_uuid"
+            assert target_asset.account_uuid == "test_account_uuid"
