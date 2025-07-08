@@ -306,7 +306,7 @@ class SyncDataEndpoint(SyncEndpoint):
     ) -> None:
         run_coro_thread_save(
             self.event_loop,
-            self.endpoint.import_dataset(
+            self.endpoint.import_assets(
                 arrow_stream=arrow_stream,
                 dataset_uuid=dataset_uuid,
                 dataset_version=dataset_version,
