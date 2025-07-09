@@ -8,8 +8,8 @@ def _top_k(classes: list[PredictedClass], k: int) -> list[PredictedClass]:
     if len(classes) <= k:
         return classes
 
-    # extract (comparison value, value) as heapifyalbe items
-    classes = [((clazz.confidence if clazz.confidence is not None else -1.0), clazz) for clazz in classes]
+    # extract (comparison value, value) as heapifyalbe items, using i asa tiebreaker if confidences are equal
+    classes = [((clazz.confidence if clazz.confidence is not None else -1.0), i, clazz) for i, clazz in enumerate(classes)]
 
     # Create a min-heap with the first k elements
     min_heap = classes[:k]
@@ -18,7 +18,7 @@ def _top_k(classes: list[PredictedClass], k: int) -> list[PredictedClass]:
     # Traverse the rest of the array
     for x in classes[k:]:
         if x[0] > min_heap[0][0]:
-            heapq.heapreplace(min_heap, x)
+            heapq.heappushpop(min_heap, x)
 
     res = []
 
@@ -31,7 +31,7 @@ def _top_k(classes: list[PredictedClass], k: int) -> list[PredictedClass]:
     # elements are in decreasing order
     res.reverse()
 
-    return [i[1] for i in res]
+    return [i[2] for i in res]
 
 def filter_prediction_top_k(prediction: Prediction, k: int) -> Prediction:
     objects = prediction.objects
