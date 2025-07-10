@@ -119,6 +119,7 @@ class Dataset(BaseModel):
     versions: List[DatasetVersion] = []
     modifiable_version: int | None = None
     parent: DatasetParent | None = None
+    searchable: bool | None = None
 
 
 DatasetResponse = Dataset
@@ -130,6 +131,7 @@ class DatasetCreate(BaseModel):
     tags: list[str] = []
     auto_annotates: list[AutoAnnotate] = []
     auto_annotate_params: AutoAnnotateParams | None = None
+    searchable: bool | None = None
 
 
 class DatasetUpdate(DatasetCreate):
@@ -138,6 +140,7 @@ class DatasetUpdate(DatasetCreate):
     tags: List[str] | None = None
     auto_annotates: List[AutoAnnotate]  | None = None
     auto_annotate_params: AutoAnnotateParams | None = None
+    searchable: bool | None = None
 
 
 class Point2d(BaseModel):
