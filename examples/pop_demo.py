@@ -252,6 +252,7 @@ parser.add_argument('-sp', '--single-prompt', required=False, type=str, help="Si
 parser.add_argument('-pr', '--prompt', required=False, type=str, help="Prompt to pass as parameter", action="append")
 parser.add_argument('-v', '--visualize', required=False, help="show rendered output", default=False, action="store_true")
 parser.add_argument('-o', '--output', required=False, help="print results to stdout", default=False, action="store_true")
+parser.add_argument('-ds', '--dataset-uuid', required=False, type=str, help="Ingest all assets into a dataset uuid", default=None)
 
 
 args = parser.parse_args()
@@ -266,7 +267,7 @@ if not args.pop and not args.model_uuid and not args.model_alias and not args.mo
     parser.print_help()
     sys.exit(1)
 
-with EyePopSdk.workerEndpoint() as endpoint:
+with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid) as endpoint:
     if args.pop:
         endpoint.set_pop(pop_examples[args.pop])
     elif args.model_uuid:
@@ -356,13 +357,27 @@ with EyePopSdk.workerEndpoint() as endpoint:
             })
         ]
     if args.local_path:
-        job = endpoint.upload(args.local_path, params=params)
-        while result := job.predict():
-           visualize_result = result
-           if args.output:
-                logging.getLogger('eyepop.example').info(json.dumps(result, indent=2))
+        if not os.path.exists(args.local_path):
+            print(f"local path {args.local_path} does not exist")
+            sys.exit(1)
+        if os.path.isfile(args.local_path):
+            local_files = [args.local_path]
+        else:
+            local_files = []
+
+            for f in os.listdir(args.local_path):
+                local_file = os.path.join(args.local_path, f)
+                if os.path.isfile(local_file):
+                    local_files.append(local_file)
+        for local_file in local_files:
+            job = endpoint.upload(local_file, params=params)
+            while result := job.predict():
+               visualize_result = result
+               visualize_path = local_file
+               if args.output:
+                    logging.getLogger('eyepop.example').info(json.dumps(result, indent=2))
         if args.visualize:
-            image = Image.open(args.local_path)
+            image = Image.open(visualize_path)
             buffer = BytesIO()
             image.save(buffer, format="PNG")
             example_image_src = f"data:image/png;base64, {base64.b64encode(buffer.getvalue()).decode()}"
