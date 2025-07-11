@@ -3,10 +3,10 @@ import ast
 import base64
 import json
 import logging
+
 import os
 import sys
 from io import BytesIO
-from typing import BinaryIO
 
 from webui import webui
 from pybars import Compiler
@@ -16,13 +16,15 @@ from PIL import Image
 
 from eyepop import EyePopSdk
 from eyepop.data.data_types import TranscodeMode
-from eyepop.worker.worker_types import Pop, InferenceComponent, PopForward, PopForwardOperator, ForwardOperatorType, \
-    PopCrop, ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams
+from eyepop.worker.worker_types import Pop, InferenceComponent, \
+    ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams
 
 script_dir = os.path.dirname(__file__)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
+logging.getLogger('eyepop.requests').setLevel(level=logging.INFO)
+
+log = logging.getLogger('eyepop.example')
 
 pop_examples = {
     "person": Pop(components=[
@@ -242,8 +244,8 @@ parser.add_argument('-l', '--local-path', required=False, type=str, default=Fals
 parser.add_argument('-a', '--asset-uuid', required=False, type=str, default=False, help="run the inference on an asset by its Uuid")
 parser.add_argument('-u', '--url', required=False, type=str, default=False, help="run the inference on a remote Url")
 parser.add_argument('-p', '--pop', required=False, type=str, help="run this pop", choices=list(pop_examples.keys()))
-parser.add_argument('-m', '--model-uuid', required=False, type=str, help="run this model by uuid")
-parser.add_argument('-ma', '--model-alias', required=False, type=str, help="run this model by its tagged alias")
+parser.add_argument('-m', '--model-uuid', required=False, type=str, action="append", help="run this model by uuid")
+parser.add_argument('-ma', '--model-alias', required=False, type=str, action="append", help="run this model by its tagged alias")
 parser.add_argument('-ms1', '--model-uuid-sam1', required=False, type=str, help="run this model by uuid and compose with SAM1 (EfficientSAM) and Contour Finder")
 parser.add_argument('-ms2', '--model-uuid-sam2', required=False, type=str, help="run this model by uuid and compose with SAM2 and Contour Finder")
 parser.add_argument('-po', '--points', required=False, type=list_of_points, help="List of POIs as coordinates like (x1, y1), (x2, y2) in the original image coordinate system")
@@ -269,23 +271,23 @@ if not args.pop and not args.model_uuid and not args.model_alias and not args.mo
 
 with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid) as endpoint:
     if args.pop:
-        endpoint.set_pop(pop_examples[args.pop])
+        pop = pop_examples[args.pop]
     elif args.model_uuid:
-        endpoint.set_pop(Pop(components=[
+        pop = Pop(components=[
             InferenceComponent(
-                id=1,
-                abilityUuid=args.model_uuid
-            )
-        ]))
+                id=i+1,
+                abilityUuid=uuid
+            ) for i, uuid in enumerate(args.model_uuid)
+        ])
     elif args.model_alias:
-        endpoint.set_pop(Pop(components=[
+        pop = Pop(components=[
             InferenceComponent(
-                id=1,
-                ability=args.model_alias
-            )
-        ]))
+                id=i+1,
+                ability=alias
+            ) for i, alias in enumerate(args.model_alias)
+        ])
     elif args.model_uuid_sam1:
-        endpoint.set_pop(Pop(components=[
+        pop = Pop(components=[
             InferenceComponent(
                 modelUuid=args.model_uuid_sam1,
                 forward=CropForward(
@@ -300,9 +302,9 @@ with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid) as endpoint:
                     )]
                 )
             )
-        ]))
+        ])
     elif args.model_uuid_sam2:
-        endpoint.set_pop(Pop(components=[
+        pop = Pop(components=[
             InferenceComponent(
                 model="eyepop.sam2.encoder.tiny:latest",
                 hidden=True,
@@ -323,9 +325,10 @@ with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid) as endpoint:
                     )]
                 )
             )
-        ]))
+        ])
     else:
         raise ValueError("pop or model required")
+    endpoint.set_pop(pop)
 
     params = None
     if args.points:
@@ -358,7 +361,7 @@ with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid) as endpoint:
         ]
     if args.local_path:
         if not os.path.exists(args.local_path):
-            print(f"local path {args.local_path} does not exist")
+            log.warning(f"local path {args.local_path} does not exist")
             sys.exit(1)
         if os.path.isfile(args.local_path):
             local_files = [args.local_path]
@@ -370,12 +373,13 @@ with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid) as endpoint:
                 if os.path.isfile(local_file):
                     local_files.append(local_file)
         for local_file in local_files:
+            log.info("uploading %s", local_file)
             job = endpoint.upload(local_file, params=params)
             while result := job.predict():
                visualize_result = result
                visualize_path = local_file
                if args.output:
-                    logging.getLogger('eyepop.example').info(json.dumps(result, indent=2))
+                    print(json.dumps(result, indent=2))
         if args.visualize:
             image = Image.open(visualize_path)
             buffer = BytesIO()
@@ -386,7 +390,7 @@ with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid) as endpoint:
         while result := job.predict():
             visualize_result = result
             if args.output:
-                logging.getLogger('eyepop.example').info(json.dumps(result, indent=2))
+                log.info(json.dumps(result, indent=2))
         if args.visualize:
             with requests.get(args.url) as response:
                 image = Image.open(BytesIO(response.content))
@@ -396,7 +400,7 @@ with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid) as endpoint:
         while result := job.predict():
             visualize_result = result
             if args.output:
-                logging.getLogger('eyepop.example').info(json.dumps(result, indent=2))
+                print(json.dumps(result, indent=2))
         if args.visualize:
             with EyePopSdk.dataEndpoint() as dataEndpoint:
                 buffer = dataEndpoint.download_asset(
@@ -416,6 +420,6 @@ with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid) as endpoint:
         })
         window = webui.window()
         window.set_root_folder('.')
-        window.show(preview, webui.browser.chrome)
+        window.show(preview)
         webui.wait()
 
