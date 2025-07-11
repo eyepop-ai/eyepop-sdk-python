@@ -17,11 +17,20 @@ class EyePopSdk:
     """
 
     @staticmethod
-    def workerEndpoint(pop_id: str | None = None, secret_key: str | None = None, access_token: str | None = None,
-                       auto_start: bool = True, stop_jobs: bool = True,
-                       eyepop_url: str | None = None, job_queue_length: int = 1024,
-                       is_async: bool = False, is_sandbox: bool = False, is_local_mode: bool | None = None,
-                       request_tracer_max_buffer: int = 1204) -> WorkerEndpoint | SyncWorkerEndpoint:
+    def workerEndpoint(
+            pop_id: str | None = None,
+            secret_key: str | None = None,
+            access_token: str | None = None,
+            auto_start: bool = True,
+            stop_jobs: bool = True,
+            eyepop_url: str | None = None,
+            job_queue_length: int = 1024,
+            is_async: bool = False,
+            is_sandbox: bool = False,
+            is_local_mode: bool | None = None,
+            request_tracer_max_buffer: int = 1204,
+            dataset_uuid: str | None = None
+    ) -> WorkerEndpoint | SyncWorkerEndpoint:
         if is_local_mode is None:
             is_local_mode = os.getenv('EYEPOP_LOCAL_MODE')
             if is_local_mode is not None:
@@ -50,10 +59,18 @@ class EyePopSdk:
             if pop_id is None:
                 pop_id= 'transient'
 
-        endpoint = WorkerEndpoint(secret_key=secret_key, access_token=access_token,
-                                  pop_id=pop_id, auto_start=auto_start, stop_jobs=stop_jobs,
-                                  eyepop_url=eyepop_url, job_queue_length=job_queue_length, is_sandbox=is_sandbox,
-                                  request_tracer_max_buffer=request_tracer_max_buffer)
+        endpoint = WorkerEndpoint(
+            secret_key=secret_key,
+            access_token=access_token,
+            pop_id=pop_id,
+            auto_start=auto_start,
+            stop_jobs=stop_jobs,
+            eyepop_url=eyepop_url,
+            job_queue_length=job_queue_length,
+            is_sandbox=is_sandbox,
+            request_tracer_max_buffer=request_tracer_max_buffer,
+            dataset_uuid=dataset_uuid,
+        )
 
         if not is_async:
             endpoint = SyncWorkerEndpoint(endpoint)
