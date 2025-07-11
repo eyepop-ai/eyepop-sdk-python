@@ -31,17 +31,31 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
     Endpoint to an EyePop.ai worker.
     """
 
-    def __init__(self, secret_key: str | None, access_token: str | None,
-                 eyepop_url: str, pop_id: str, auto_start: bool, stop_jobs: bool,
-                 job_queue_length: int, is_sandbox: bool, request_tracer_max_buffer: int):
+    def __init__(
+            self,
+            secret_key: str | None,
+            access_token: str | None,
+            eyepop_url: str,
+            pop_id: str,
+            auto_start: bool,
+            stop_jobs: bool,
+            job_queue_length: int,
+            is_sandbox: bool,
+            request_tracer_max_buffer: int,
+            dataset_uuid: str | None = None,
+    ):
         super().__init__(
-            secret_key=secret_key, access_token=access_token, eyepop_url=eyepop_url,
-            job_queue_length=job_queue_length, request_tracer_max_buffer=request_tracer_max_buffer
+            secret_key=secret_key,
+            access_token=access_token,
+            eyepop_url=eyepop_url,
+            job_queue_length=job_queue_length,
+            request_tracer_max_buffer=request_tracer_max_buffer
         )
         self.pop_id = pop_id
         self.auto_start = auto_start
         self.stop_jobs = stop_jobs
         self.is_sandbox = is_sandbox
+        self.dataset_uuid = dataset_uuid
 
         self.sandbox_id = None
 
@@ -177,14 +191,35 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             else:
                 start_pipeline_url = f'{base_url}/pipelines?sandboxId={self.sandbox_id}'
             if self.pop is not None:
-                body = {"pop": self.pop, "source": {"sourceType": "NONE"},
-                        "idleTimeoutSeconds": 60, "logging": ["out_meta"], "videoOutput": "no_output"}
+                body = {
+                    "pop": self.pop,
+                    "source": {
+                        "sourceType": "NONE"
+                    },
+                    "idleTimeoutSeconds": 60,
+                    "logging": ["out_meta"],
+                    "videoOutput": "no_output",
+                    "datasetUuid": self.dataset_uuid,
+                }
             else:
                 if self.pop_comp is None:
                     self.pop_comp = 'identity'
-                body = {'inferPipelineDef': {'pipeline': self.pop_comp, 'modelRefs': self.model_refs},
-                        'postTransformDef': {'transform': self.post_transform}, "source": {"sourceType": "NONE"},
-                        "idleTimeoutSeconds": 60, "logging": ["out_meta"], "videoOutput": "no_output"}
+                body = {
+                    'inferPipelineDef': {
+                        'pipeline': self.pop_comp,
+                        'modelRefs': self.model_refs
+                    },
+                    'postTransformDef': {
+                        'transform': self.post_transform
+                    },
+                    "source": {
+                        "sourceType": "NONE"
+                    },
+                    "idleTimeoutSeconds": 60,
+                    "logging": ["out_meta"],
+                    "videoOutput": "no_output",
+                    "datasetUuid": self.dataset_uuid,
+                }
 
             headers = {}
             authorization_header = await self._authorization_header()
