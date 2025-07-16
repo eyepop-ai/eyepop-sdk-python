@@ -12,11 +12,13 @@ script_dir = os.path.dirname(__file__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logging.getLogger('eyepop.requests').setLevel(level=logging.INFO)
 
+log = logging.getLogger('eyepop.example')
+
 parser = argparse.ArgumentParser(
                     prog='Pop examples',
                     description='Demonstrates the caption generation via VLM/LLM',
                     epilog='.')
-parser.add_argument('-l', '--local-path', required=False, type=str, default=False, help="run the inference on a local file")
+parser.add_argument('-l', '--local-path', required=False, type=str, default=False, help="run the inference on a local file or directory")
 parser.add_argument('-a', '--asset-uuid', required=False, type=str, default=False, help="run the inference on an asset by its Uuid")
 parser.add_argument('-u', '--url', required=False, type=str, default=False, help="run the inference on a remote Url")
 parser.add_argument('-c', '--caption-ability', type=str, default="eyepop.vlm.preview:latest", help="run this ability to generate captions", choices=["eyepop.vlm.preview:latest", "eyepop.image-caption.preview.qwen2:latest"])
@@ -36,6 +38,7 @@ forward = None
 if args.question is not None:
     forward = FullForward(
         targets=[InferenceComponent(
+            id=2,
             categoryName='answers',
             model='eyepop.question-answer.preview:latest',
             params={
@@ -52,6 +55,7 @@ if args.prompt is not None:
 
 caption_pop = Pop(components=[
     InferenceComponent(
+        id=1,
         categoryName='captions',
         ability=args.caption_ability,
         forward=forward,
@@ -59,14 +63,34 @@ caption_pop = Pop(components=[
     )
 ])
 
+params = None
+
 with EyePopSdk.workerEndpoint() as endpoint:
     endpoint.set_pop(caption_pop)
     if args.local_path:
-        job = endpoint.upload(args.local_path)
+        if not os.path.exists(args.local_path):
+            log.warning(f"local path {args.local_path} does not exist")
+            sys.exit(1)
+        if os.path.isfile(args.local_path):
+            local_files = [args.local_path]
+        else:
+            local_files = []
+            for f in os.listdir(args.local_path):
+                local_file = os.path.join(args.local_path, f)
+                if os.path.isfile(local_file):
+                    local_files.append(local_file)
+
+        for local_file in local_files:
+            log.info("uploading %s", local_file)
+            job = endpoint.upload(local_file, params=params)
+            while result := job.predict():
+                print(json.dumps(result, indent=2))
     elif args.url:
-        job = endpoint.load_from(args.url)
+        job = endpoint.load_from(args.url, params=params)
+        while result := job.predict():
+            print(json.dumps(result, indent=2))
     elif args.asset_uuid:
-        job = endpoint.load_asset(args.asset_uuid)
-    while result := job.predict():
-        logging.getLogger('eyepop.example').info(json.dumps(result, indent=2))
+        job = endpoint.load_asset(args.asset_uuid, params=params)
+        while result := job.predict():
+            print(json.dumps(result, indent=2))
 
