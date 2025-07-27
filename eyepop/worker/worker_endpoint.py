@@ -199,8 +199,9 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                     "idleTimeoutSeconds": 60,
                     "logging": ["out_meta"],
                     "videoOutput": "no_output",
-                    "datasetUuid": self.dataset_uuid,
                 }
+                if self.dataset_uuid is not None:
+                    body["datasetUuid"] = self.dataset_uuid
             else:
                 if self.pop_comp is None:
                     self.pop_comp = 'identity'
@@ -218,8 +219,9 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                     "idleTimeoutSeconds": 60,
                     "logging": ["out_meta"],
                     "videoOutput": "no_output",
-                    "datasetUuid": self.dataset_uuid,
                 }
+                if self.dataset_uuid is not None:
+                    body["datasetUuid"] = self.dataset_uuid
 
             headers = {}
             authorization_header = await self._authorization_header()

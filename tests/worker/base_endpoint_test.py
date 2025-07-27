@@ -122,7 +122,9 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
                 start_url = f'{self.test_worker_url}/pipelines?sandboxId={sandbox_id}'
             mock.assert_called_with(
                 start_url,
-                method='POST', headers={'Authorization': f'Bearer {provided_access_token}'}, data=None,
+                method='POST',
+                headers={'Authorization': f'Bearer {provided_access_token}'},
+                data=None,
                 json={
                 'inferPipelineDef': {
                     'pipeline': 'identity', 'modelRefs': []
