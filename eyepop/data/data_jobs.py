@@ -71,8 +71,11 @@ class _ImportFromJob(DataJob):
         post_path = (f"/assets/imports?dataset_uuid={self.dataset_uuid}"
                      f"{dataset_version_query}{external_id_query}{partition_query}")
 
-        async with await session.request_with_retry("POST", post_path, data=self.asset_import.model_dump_json(),
-                                                    content_type="application/json",
-                                                    timeout=aiohttp.ClientTimeout(total=None, sock_read=60)) as resp:
+        async with await session.request_with_retry(
+                "POST",
+                post_path,
+                data=self.asset_import.model_dump_json(exclude_unset=True),
+                content_type="application/json",
+                timeout=aiohttp.ClientTimeout(total=None, sock_read=60)) as resp:
             result = Asset.model_validate(await resp.json())
             await queue.put(result)

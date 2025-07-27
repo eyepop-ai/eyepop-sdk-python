@@ -75,7 +75,7 @@ async def approve_all(endpoint: DataEndpoint, dataset_uuid: str, dataset_version
 async def create_model(endpoint: DataEndpoint, dataset_uuid: str) -> Model:
     log.info("before model creation for dataset: %s", dataset_uuid)
     dataset = await endpoint.freeze_dataset_version(dataset_uuid)
-    log.info("dataset frozen: %s", dataset.model_dump_json())
+    log.info("dataset frozen: %s", dataset.model_dump_json(exclude_unset=True))
     dataset_version = dataset.versions[1]
     model = await endpoint.create_model_from_dataset(
         dataset.uuid,
@@ -83,13 +83,13 @@ async def create_model(endpoint: DataEndpoint, dataset_uuid: str) -> Model:
         ModelCreate(name="sample model", description=""),
         False
     )
-    log.info("model created: %s", model.model_dump_json())
+    log.info("model created: %s", model.model_dump_json(exclude_unset=True))
     return model
 
 async def train_done_criteria(endpoint: DataEndpoint, event: ChangeEvent):
     if event.change_type == ChangeType.model_progress:
         model_progress = await endpoint.get_model_progress(event.mdl_uuid)
-        log.info("model training progress: %s", model_progress.model_dump_json())
+        log.info("model training progress: %s", model_progress.model_dump_json(exclude_unset=True))
     elif event.change_type in [ChangeType.model_status_modified, ChangeType.events_lost]:
         changed_model = await endpoint.get_model(event.mdl_uuid)
         if changed_model.status == ModelStatus.available:
