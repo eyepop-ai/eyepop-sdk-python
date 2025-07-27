@@ -279,7 +279,7 @@ class DataEndpoint(Endpoint):
     async def create_dataset(self, dataset: DatasetCreate) -> Dataset:
         post_url = f'{await self.data_base_url()}/datasets?account_uuid={self.account_uuid}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
-                                                 data=dataset.model_dump_json()) as resp:
+                                                 data=dataset.model_dump_json(exclude_unset=True)) as resp:
             return TypeAdapter(Dataset).validate_python(await resp.json())
 
     async def get_dataset(
@@ -445,7 +445,7 @@ class DataEndpoint(Endpoint):
     async def create_model(self, model: ModelCreate) -> Model:
         post_url = f'{await self.data_base_url()}/models?account_uuid={self.account_uuid}&start_training=False'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
-                                                 data=model.model_dump_json()) as resp:
+                                                 data=model.model_dump_json(exclude_unset=True)) as resp:
             return parse_obj_as(Model, await resp.json())
 
     async def upload_model_artifact(self, model_uuid: str, model_format: ModelExportFormat, artifact_name: str,
@@ -458,7 +458,7 @@ class DataEndpoint(Endpoint):
     async def create_model_from_dataset(self, dataset_uuid: str, dataset_version: int | None, model: ModelCreate, start_training: bool = True) -> Model:
         post_url = f'{await self.data_base_url()}/models?dataset_uuid={dataset_uuid}&dataset_version={dataset_version}&start_training={start_training}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
-                                                 data=model.model_dump_json()) as resp:
+                                                 data=model.model_dump_json(exclude_unset=True)) as resp:
             return parse_obj_as(Model, await resp.json())
 
     async def get_model(self, model_uuid: str) -> Model:
@@ -504,7 +504,7 @@ class DataEndpoint(Endpoint):
     async def create_model_alias(self, model_alias: ModelAliasCreate, dry_run: bool = False) -> ModelAlias:
         post_url = f'{await self.data_base_url()}/model_aliases?account_uuid={self.account_uuid}&dry_run={dry_run}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
-                                                 data=model_alias.model_dump_json()) as resp:
+                                                 data=model_alias.model_dump_json(exclude_unset=True)) as resp:
             return parse_obj_as(ModelAlias, await resp.json())
 
     async def get_model_alias(self, name: str) -> ModelAlias:
@@ -659,7 +659,7 @@ class DataEndpoint(Endpoint):
         post_url = f'{await self.data_base_url()}/models/{model_uuid}/events'
         await self.request_with_retry(
             "POST", post_url,
-            data=model_training_event.model_dump_json(),
+            data=model_training_event.model_dump_json(exclude_unset=True),
             content_type=APPLICATION_JSON,
         )
 

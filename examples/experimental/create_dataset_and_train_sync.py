@@ -79,7 +79,7 @@ def approve_all(endpoint: SyncDataEndpoint, dataset_uuid: str, dataset_version: 
 def create_model(endpoint: SyncDataEndpoint, dataset_uuid: str) -> Model:
     log.info("before model creation for dataset: %s", dataset_uuid)
     dataset = endpoint.freeze_dataset_version(dataset_uuid)
-    log.info("dataset frozen: %s", dataset.model_dump_json())
+    log.info("dataset frozen: %s", dataset.model_dump_json(exclude_unset=True))
     dataset_version = dataset.versions[1]
     model = endpoint.create_model_from_dataset(
         dataset.uuid,
@@ -87,13 +87,13 @@ def create_model(endpoint: SyncDataEndpoint, dataset_uuid: str) -> Model:
         ModelCreate(name="sample model", description=""),
         False
     )
-    log.info("model created: %s", model.model_dump_json())
+    log.info("model created: %s", model.model_dump_json(exclude_unset=True))
     return model
 
 def train_done_criteria(endpoint: SyncDataEndpoint, event: ChangeEvent):
     if event.change_type == ChangeType.model_progress:
         model_progress = endpoint.get_model_progress(event.mdl_uuid)
-        log.info("model training progress: %s", model_progress.model_dump_json())
+        log.info("model training progress: %s", model_progress.model_dump_json(exclude_unset=True))
     elif event.change_type in [ChangeType.model_status_modified, ChangeType.events_lost]:
         changed_model = endpoint.get_model(event.mdl_uuid)
         if changed_model.status == ModelStatus.available:
