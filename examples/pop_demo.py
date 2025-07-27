@@ -1,5 +1,6 @@
 import argparse
 import ast
+import asyncio
 import base64
 import json
 import logging
@@ -7,17 +8,17 @@ import logging
 import os
 import sys
 from io import BytesIO
+from typing import Any
 
 from webui import webui
 from pybars import Compiler
 
-import requests
 from PIL import Image
 
-from eyepop import EyePopSdk
+from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
 from eyepop.worker.worker_types import Pop, InferenceComponent, \
-    ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams
+    ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams, TracingComponent
 
 script_dir = os.path.dirname(__file__)
 
@@ -240,12 +241,12 @@ parser = argparse.ArgumentParser(
                     prog='Pop examples',
                     description='Demonstrates the composition of a Pop',
                     epilog='.')
-parser.add_argument('-l', '--local-path', required=False, type=str, default=False, help="run the inference on a local file")
+parser.add_argument('-l', '--local-path', required=False, type=str, default=False, help="run the inference on a local file, or all files on a directory")
 parser.add_argument('-a', '--asset-uuid', required=False, type=str, default=False, help="run the inference on an asset by its Uuid")
 parser.add_argument('-u', '--url', required=False, type=str, default=False, help="run the inference on a remote Url")
 parser.add_argument('-p', '--pop', required=False, type=str, help="run this pop", choices=list(pop_examples.keys()))
-parser.add_argument('-m', '--model-uuid', required=False, type=str, action="append", help="run this model by uuid")
-parser.add_argument('-ma', '--model-alias', required=False, type=str, action="append", help="run this model by its tagged alias")
+parser.add_argument('-m', '--model-uuid', required=False, type=str, action="append", help="run this model(s) by uuid")
+parser.add_argument('-ma', '--model-alias', required=False, type=str, action="append", help="run this model(s) by its tagged alias")
 parser.add_argument('-ms1', '--model-uuid-sam1', required=False, type=str, help="run this model by uuid and compose with SAM1 (EfficientSAM) and Contour Finder")
 parser.add_argument('-ms2', '--model-uuid-sam2', required=False, type=str, help="run this model by uuid and compose with SAM2 and Contour Finder")
 parser.add_argument('-po', '--points', required=False, type=list_of_points, help="List of POIs as coordinates like (x1, y1), (x2, y2) in the original image coordinate system")
@@ -257,169 +258,179 @@ parser.add_argument('-o', '--output', required=False, help="print results to std
 parser.add_argument('-ds', '--dataset-uuid', required=False, type=str, help="Ingest all assets into a dataset uuid", default=None)
 
 
-args = parser.parse_args()
+main_args = parser.parse_args()
 
-if not args.local_path and not args.url and not args.asset_uuid:
+if not main_args.local_path and not main_args.url and not main_args.asset_uuid:
     print("Need something to run inference on; pass either --url or --local-path or --asset-uuid")
     parser.print_help()
     sys.exit(1)
 
-if not args.pop and not args.model_uuid and not args.model_alias and not args.model_uuid_sam1 and not args.model_uuid_sam2:
+if not main_args.pop and not main_args.model_uuid and not main_args.model_alias and not main_args.model_uuid_sam1 and not main_args.model_uuid_sam2:
     print("Need something do do, pass either --pop or --model-uuid or --model-alias or --model-uuid-sam1 or --model-uuid-sam2")
     parser.print_help()
     sys.exit(1)
 
-with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid) as endpoint:
-    if args.pop:
-        pop = pop_examples[args.pop]
-    elif args.model_uuid:
-        pop = Pop(components=[
-            InferenceComponent(
-                id=i+1,
-                abilityUuid=uuid
-            ) for i, uuid in enumerate(args.model_uuid)
-        ])
-    elif args.model_alias:
-        pop = Pop(components=[
-            InferenceComponent(
-                id=i+1,
-                ability=alias
-            ) for i, alias in enumerate(args.model_alias)
-        ])
-    elif args.model_uuid_sam1:
-        pop = Pop(components=[
-            InferenceComponent(
-                modelUuid=args.model_uuid_sam1,
-                forward=CropForward(
-                    targets=[InferenceComponent(
-                        model='eyepop.sam.small:latest',
-                        forward=FullForward(
-                            targets=[ContourFinderComponent(
-                                contourType=ContourType.POLYGON,
-                                areaThreshold=0.005
-                            )]
-                        )
-                    )]
-                )
+if main_args.pop:
+    pop = pop_examples[main_args.pop]
+elif main_args.model_uuid:
+    pop = Pop(components=[
+        InferenceComponent(
+            id=i+1,
+            abilityUuid=uuid
+        ) for i, uuid in enumerate(main_args.model_uuid)
+    ])
+elif main_args.model_alias:
+    pop = Pop(components=[
+        InferenceComponent(
+            id=i+1,
+            ability=alias
+        ) for i, alias in enumerate(main_args.model_alias)
+    ])
+elif main_args.model_uuid_sam1:
+    pop = Pop(components=[
+        InferenceComponent(
+            modelUuid=main_args.model_uuid_sam1,
+            forward=CropForward(
+                targets=[InferenceComponent(
+                    model='eyepop.sam.small:latest',
+                    forward=FullForward(
+                        targets=[ContourFinderComponent(
+                            contourType=ContourType.POLYGON,
+                            areaThreshold=0.005
+                        )]
+                    )
+                )]
             )
-        ])
-    elif args.model_uuid_sam2:
-        pop = Pop(components=[
-            InferenceComponent(
-                model="eyepop.sam2.encoder.tiny:latest",
-                hidden=True,
-                forward=FullForward(
-                    targets=[InferenceComponent(
-                        modelUuid=args.model_uuid_sam2,
-                        forward=CropForward(
-                            targets=[InferenceComponent(
-                                model='eyepop.sam2.decoder:latest',
-                                forward=FullForward(
-                                    targets=[ContourFinderComponent(
-                                        contourType=ContourType.POLYGON,
-                                        areaThreshold=0.005
-                                    )]
-                                )
-                            )]
-                        )
-                    )]
-                )
+        )
+    ])
+elif main_args.model_uuid_sam2:
+    pop = Pop(components=[
+        InferenceComponent(
+            model="eyepop.sam2.encoder.tiny:latest",
+            hidden=True,
+            forward=FullForward(
+                targets=[InferenceComponent(
+                    modelUuid=main_args.model_uuid_sam2,
+                    forward=CropForward(
+                        targets=[InferenceComponent(
+                            model='eyepop.sam2.decoder:latest',
+                            forward=FullForward(
+                                targets=[ContourFinderComponent(
+                                    contourType=ContourType.POLYGON,
+                                    areaThreshold=0.005
+                                )]
+                            )
+                        )]
+                    )
+                )]
             )
-        ])
-    else:
-        raise ValueError("pop or model required")
-    endpoint.set_pop(pop)
+        )
+    ])
+else:
+    raise ValueError("pop or model required")
 
-    params = None
-    if args.points:
-        params = [
-            ComponentParams(componentId=1, values={
-              "roi": {
-                  "points": args.points
-              }
-            })
-        ]
-    elif args.boxes:
-        params = [
-            ComponentParams(componentId=1, values={
-                "roi": {
-                    "boxes": args.boxes
-                }
-            })
-        ]
-    elif args.prompt is not None and len(args.prompt) > 0:
-        params = [
-            ComponentParams(componentId=1, values={
-                "prompts": [{"prompt": p} for p in args.prompt]
-            })
-        ]
-    elif args.single_prompt is not None:
-        params = [
-            ComponentParams(componentId=1, values={
-                "prompt": args.single_prompt
-            })
-        ]
-    if args.local_path:
-        if not os.path.exists(args.local_path):
-            log.warning(f"local path {args.local_path} does not exist")
-            sys.exit(1)
-        if os.path.isfile(args.local_path):
-            local_files = [args.local_path]
-        else:
-            local_files = []
-
-            for f in os.listdir(args.local_path):
-                local_file = os.path.join(args.local_path, f)
-                if os.path.isfile(local_file):
-                    local_files.append(local_file)
-        for local_file in local_files:
-            log.info("uploading %s", local_file)
-            job = endpoint.upload(local_file, params=params)
-            while result := job.predict():
-               visualize_result = result
-               visualize_path = local_file
-               if args.output:
-                    print(json.dumps(result, indent=2))
-        if args.visualize:
-            image = Image.open(visualize_path)
-            buffer = BytesIO()
-            image.save(buffer, format="PNG")
-            example_image_src = f"data:image/png;base64, {base64.b64encode(buffer.getvalue()).decode()}"
-    elif args.url:
-        job = endpoint.load_from(args.url, params=params)
-        while result := job.predict():
-            visualize_result = result
-            if args.output:
-                log.info(json.dumps(result, indent=2))
-        if args.visualize:
-            with requests.get(args.url) as response:
-                image = Image.open(BytesIO(response.content))
-            example_image_src = args.url
-    elif args.asset_uuid:
-        job = endpoint.load_asset(args.asset_uuid, params=params)
-        while result := job.predict():
-            visualize_result = result
-            if args.output:
-                print(json.dumps(result, indent=2))
-        if args.visualize:
-            with EyePopSdk.dataEndpoint() as dataEndpoint:
-                buffer = dataEndpoint.download_asset(
-                    args.asset_uuid,
-                    transcode_mode=TranscodeMode.image_original_size
-                ).read()
-                example_image_src = f"data:image/jpeg;base64, {base64.b64encode(buffer).decode()}"
-
-    if args.visualize:
-        with open(os.path.join(script_dir, 'viewer.html')) as file:
-            compiler = Compiler()
-            html_template = compiler.compile(file.read())
-
-        preview = html_template({
-            'image_src': example_image_src,
-            'result_json': json.dumps(visualize_result)
+params = None
+if main_args.points:
+    params = [
+        ComponentParams(componentId=1, values={
+          "roi": {
+              "points": main_args.points
+          }
         })
-        window = webui.window()
-        window.set_root_folder('.')
-        window.show(preview)
-        webui.wait()
+    ]
+elif main_args.boxes:
+    params = [
+        ComponentParams(componentId=1, values={
+            "roi": {
+                "boxes": main_args.boxes
+            }
+        })
+    ]
+elif main_args.prompt is not None and len(main_args.prompt) > 0:
+    params = [
+        ComponentParams(componentId=1, values={
+            "prompts": [{"prompt": p} for p in main_args.prompt]
+        })
+    ]
+elif main_args.single_prompt is not None:
+    params = [
+        ComponentParams(componentId=1, values={
+            "prompt": main_args.single_prompt
+        })
+    ]
+
+async def main(args) -> (dict[str, Any] | None, str | None):
+    visualize_result = None
+    example_image_src = None
+    async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True) as endpoint:
+        await endpoint.set_pop(pop)
+        if args.local_path:
+            if not os.path.exists(args.local_path):
+                log.warning(f"local path {args.local_path} does not exist")
+                sys.exit(1)
+            if os.path.isfile(args.local_path):
+                local_files = [args.local_path]
+            else:
+                local_files = []
+
+                for f in os.listdir(args.local_path):
+                    local_file = os.path.join(args.local_path, f)
+                    if os.path.isfile(local_file):
+                        local_files.append(local_file)
+            jobs = []
+            async def on_ready(job: Job, path: str):
+                while result := await job.predict():
+                   if args.output:
+                        print(path, json.dumps(result, indent=2))
+                return (result, path)
+            for local_file in local_files:
+                job = await endpoint.upload(local_file, params=params)
+                jobs.append(on_ready(job, local_file))
+            results = await asyncio.gather(*jobs)
+            if args.visualize and len(results) > 0:
+                visualize_result = results[0][0]
+                visualize_path = results[0][1]
+                image = Image.open(visualize_path)
+                buffer = BytesIO()
+                image.save(buffer, format="PNG")
+                example_image_src = f"data:image/png;base64, {base64.b64encode(buffer.getvalue()).decode()}"
+        elif args.url:
+            job = await endpoint.load_from(args.url, params=params)
+            while result := await job.predict():
+                visualize_result = result
+                if args.output:
+                    log.info(json.dumps(result, indent=2))
+            if args.visualize:
+                example_image_src = args.url
+        elif args.asset_uuid:
+            job = await endpoint.load_asset(args.asset_uuid, params=params)
+            while result := await job.predict():
+                visualize_result = result
+                if args.output:
+                    print(json.dumps(result, indent=2))
+            if args.visualize:
+                async with EyePopSdk.dataEndpoint(is_async=True) as dataEndpoint:
+                    buffer = await dataEndpoint.download_asset(
+                        args.asset_uuid,
+                        transcode_mode=TranscodeMode.image_original_size
+                    ).read()
+                    example_image_src = f"data:image/jpeg;base64, {base64.b64encode(buffer).decode()}"
+    return visualize_result, example_image_src
+
+visualize_result, example_image_src = asyncio.run(main(main_args))
+if main_args.visualize:
+    with open(os.path.join(script_dir, 'viewer.html')) as file:
+        compiler = Compiler()
+        html_template = compiler.compile(file.read())
+
+    preview = html_template({
+        'image_src': example_image_src,
+        'result_json': json.dumps(visualize_result)
+    })
+    window = webui.window()
+    window.set_root_folder('.')
+    window.show(preview)
+    webui.wait()
+
+
 
