@@ -74,7 +74,7 @@ class TestEndpointConnect(BaseEndpointTest):
             },
             data=DatasetCreate(
                 name="test"
-            ).model_dump_json()
+            ).model_dump_json(exclude_unset=True)
         )
         mock.assert_called_with(
             f'{self.test_data_url}/datasets/{self.test_dataset_id}?start_auto_annotate=True',
