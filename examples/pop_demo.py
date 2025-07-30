@@ -256,6 +256,8 @@ parser.add_argument('-pr', '--prompt', required=False, type=str, help="Prompt to
 parser.add_argument('-v', '--visualize', required=False, help="show rendered output", default=False, action="store_true")
 parser.add_argument('-o', '--output', required=False, help="print results to stdout", default=False, action="store_true")
 parser.add_argument('-ds', '--dataset-uuid', required=False, type=str, help="Ingest all assets into a dataset uuid", default=None)
+parser.add_argument('-tk', '--top-k', required=False, type=int, help="For --model-uuid and -model-alias apply this top-k filter", default=None)
+parser.add_argument('-ct', '--confidence-threshold', required=False, type=float, help="For --model-uuid and -model-alias apply this confidence threshold filter", default=None)
 
 
 main_args = parser.parse_args()
@@ -279,6 +281,12 @@ elif main_args.model_uuid:
             abilityUuid=uuid
         ) for i, uuid in enumerate(main_args.model_uuid)
     ])
+    if main_args.top_k is not None:
+        for c in pop.components:
+            c.topK = main_args.top_k
+    if main_args.confidence_threshold is not None:
+        for c in pop.components:
+            c.confidenceThreshold = main_args.confidence_threshold
 elif main_args.model_alias:
     pop = Pop(components=[
         InferenceComponent(
@@ -286,6 +294,12 @@ elif main_args.model_alias:
             ability=alias
         ) for i, alias in enumerate(main_args.model_alias)
     ])
+    if main_args.top_k is not None:
+        for c in pop.components:
+            c.topK = main_args.top_k
+    if main_args.confidence_threshold is not None:
+        for c in pop.components:
+            c.confidenceThreshold = main_args.confidence_threshold
 elif main_args.model_uuid_sam1:
     pop = Pop(components=[
         InferenceComponent(

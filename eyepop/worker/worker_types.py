@@ -71,6 +71,7 @@ class InferenceComponent(BaseComponent):
     ability: str | None = None
     categoryName: str | None = None
     confidenceThreshold: float | None = None
+    topK: int | None = None
     targetFps: str | None = None
     params: dict[str, Any] | None = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
