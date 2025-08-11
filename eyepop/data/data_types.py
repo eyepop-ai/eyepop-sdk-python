@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from typing import List, Callable, Awaitable
+from typing import Any, Dict, List, Callable, Awaitable
 
 from pydantic import BaseModel, ConfigDict
 
@@ -575,3 +575,42 @@ class ArtifactType(enum.StrEnum):
 
 class QcAiHubExportParams(BaseModel):
     device_name: str
+
+
+class ArgoWorkflowPhase(enum.StrEnum):
+    UNKNOWN = "Unknown"
+    PENDING = "Pending"
+    RUNNING = "Running"
+    SUCCEEDED = "Succeeded"
+    FAILED = "Failed"
+    ERROR = "Error"
+
+
+class CreateWorkflowBody(BaseModel):
+    parameters: dict | None = None
+
+class CreateWorkflowParameters(BaseModel):
+    dataset_uuid: str | None = None
+    dataset_version: int | None = None
+    model_uuid: str | None = ""
+    config: Dict[str, Any] | None = None
+
+class CreateWorkflowResponse(BaseModel):
+    workflow_id: str
+
+
+class ListWorkflowItemMetadataLabels(BaseModel):
+    account_uuid: str
+    dataset_uuid: str | None = None
+    model_uuid: str | None = None
+    phase: ArgoWorkflowPhase
+
+
+class ListWorkflowItemMetadata(BaseModel):
+    workflow_id: str
+    created_at: datetime
+    labels: ListWorkflowItemMetadataLabels
+
+
+class ListWorkflowItem(BaseModel):
+    metadata: ListWorkflowItemMetadata
