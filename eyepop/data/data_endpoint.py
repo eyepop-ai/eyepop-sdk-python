@@ -675,12 +675,9 @@ class DataEndpoint(Endpoint):
         self,
         template_name: str,
         workflow_create: CreateWorkflowBody,
-        subject_id: str | None = None
     ) -> CreateWorkflowResponse:
         query = f'template_name={template_name}'
         query += f'&account_uuid={self.account_uuid}'
-        if subject_id:
-            query += f'&subject_id={subject_id}'
         post_url = f'{await self.data_base_url()}/workflows?{query}'
         async with await self.request_with_retry(
             "POST", post_url,

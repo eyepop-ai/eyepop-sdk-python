@@ -592,7 +592,7 @@ class CreateWorkflowBody(BaseModel):
 class CreateWorkflowParameters(BaseModel):
     dataset_uuid: str | None = None
     dataset_version: int | None = None
-    model_uuid: str | None = ""
+    model_uuid: str | None = None
     config: Dict[str, Any] | None = None
 
 class CreateWorkflowResponse(BaseModel):
