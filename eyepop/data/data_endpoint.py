@@ -15,11 +15,11 @@ from eyepop.client_session import ClientSession
 from eyepop.data.arrow.schema import MIME_TYPE_APACHE_ARROW_FILE_VERSIONED
 from eyepop.data.data_jobs import DataJob, _UploadStreamJob, _ImportFromJob
 from eyepop.data.data_syncify import SyncDataJob
-from eyepop.data.data_types import Dataset, DatasetCreate, DatasetUpdate, Asset, Prediction, \
+from eyepop.data.data_types import ArgoWorkflowPhase, Dataset, DatasetCreate, DatasetUpdate, Asset, ListWorkflowItem, Prediction, \
     AssetImport, AutoAnnotate, UserReview, TranscodeMode, Model, ModelCreate, ModelUpdate, \
     ModelTrainingProgress, ChangeEvent, ChangeType, EventHandler, ModelAlias, ModelAliasCreate, \
     ModelAliasUpdate, ModelExportFormat, QcAiHubExportParams, AssetUrlType, AssetInclusionMode, AnnotationInclusionMode, \
-    ModelTrainingAuditRecord, ExportedUrlResponse, ModelTrainingEvent, ArtifactType
+    ModelTrainingAuditRecord, ExportedUrlResponse, ModelTrainingEvent, ArtifactType, CreateWorkflowBody, CreateWorkflowResponse
 from eyepop.endpoint import Endpoint, log_requests
 
 APPLICATION_JSON = "application/json"
@@ -536,7 +536,6 @@ class DataEndpoint(Endpoint):
             return
 
     """ Arrow im and export methods """
-
     async def export_assets(
             self,
             dataset_uuid: str | None = None,
@@ -670,3 +669,44 @@ class DataEndpoint(Endpoint):
             data=TypeAdapter(list[QcAiHubExportParams]).dump_json(export_params),
             content_type=APPLICATION_JSON,
         )
+
+    # --- Workflow Endpoints ---
+    async def start_workflow(
+        self,
+        template_name: str,
+        workflow_create: CreateWorkflowBody,
+    ) -> CreateWorkflowResponse:
+        query = f'template_name={template_name}'
+        query += f'&account_uuid={self.account_uuid}'
+        post_url = f'{await self.data_base_url()}/workflows?{query}'
+        async with await self.request_with_retry(
+            "POST", post_url,
+            content_type=APPLICATION_JSON,
+            data=workflow_create.model_dump_json(exclude_unset=True)
+        ) as resp:
+            return parse_obj_as(CreateWorkflowResponse, await resp.json())
+
+    async def get_workflow(self, workflow_id: str) -> ListWorkflowItem:
+        get_url = f'{await self.data_base_url()}/workflows/{workflow_id}?account_uuid={self.account_uuid}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(ListWorkflowItem, await resp.json())
+
+    async def list_workflows(
+        self,
+        dataset_uuid: list[str] | None = None,
+        model_uuid: list[str] | None = None,
+        phase: list[ArgoWorkflowPhase] | None = None
+    ) -> list[ListWorkflowItem]:
+        query = f'account_uuid={self.account_uuid}'
+        if dataset_uuid:
+            for uuid in dataset_uuid:
+                query += f'&dataset_uuid={uuid}'
+        if model_uuid:
+            for uuid in model_uuid:
+                query += f'&model_uuid={uuid}'
+        if phase:
+            for p in phase:
+                query += f'&phase={p.value}'
+        get_url = f'{await self.data_base_url()}/workflows?{query}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(list[ListWorkflowItem], await resp.json())

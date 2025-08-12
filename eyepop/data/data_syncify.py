@@ -7,7 +7,7 @@ from eyepop.data.data_types import AssetImport, Dataset, DatasetCreate, DatasetU
     Prediction, AutoAnnotate, UserReview, TranscodeMode, Model, ModelCreate, ModelUpdate, ModelTrainingProgress, \
     ChangeEvent, EventHandler, ModelAlias, ModelAliasCreate, ModelAliasUpdate, ModelExportFormat, QcAiHubExportParams, \
     ModelTrainingEvent, ModelTrainingAuditRecord, AssetUrlType, AssetInclusionMode, AnnotationInclusionMode, \
-    ExportedUrlResponse, ArtifactType
+    ExportedUrlResponse, ArtifactType, CreateWorkflowBody
 from eyepop.syncify import run_coro_thread_save, SyncEndpoint, submit_coro_thread_save
 
 SyncEventHandler = Callable[[ChangeEvent], None]
@@ -382,5 +382,42 @@ class SyncDataEndpoint(SyncEndpoint):
             self.endpoint.qc_ai_hub_model_export(
                 model_uuid=model_uuid,
                 export_params=export_params
+            )
+        )
+
+    # --- Workflow Endpoints ---
+    def start_workflow(
+        self,
+        template_name: str,
+        workflow_create: CreateWorkflowBody,
+        subject_id: str | None = None
+    ):
+        return run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.start_workflow(
+                template_name=template_name,
+                workflow_create=workflow_create,
+                subject_id=subject_id
+            )
+        )
+
+    def get_workflow(self, workflow_id: str):
+        return run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.get_workflow(workflow_id)
+        )
+
+    def list_workflows(
+        self,
+        dataset_uuid: list[str] | None = None,
+        model_uuid: list[str] | None = None,
+        phase: list | None = None
+    ):
+        return run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.list_workflows(
+                dataset_uuid=dataset_uuid,
+                model_uuid=model_uuid,
+                phase=phase
             )
         )
