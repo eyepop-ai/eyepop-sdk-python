@@ -1,6 +1,16 @@
 from pydantic import BaseModel, Field
 from pyparsing import Enum
+import os
 
+class ComputeContext(BaseModel):
+    compute_url: str = Field(description="The url of the compute api", default=os.getenv("_COMPUTE_API_URL", "https://compute-api.staging.eyepop.xyz"))
+    session_endpoint: str = Field(description="The endpoint of the session", default="")
+    session_uuid: str = Field(description="The uuid of the session", default="")
+    pipeline_uuid: str = Field(description="The uuid of the pipeline", default="")
+    user_uuid: str = Field(description="The uuid of the user", default=os.getenv("EYEPOP_USER_UUID", ""))
+    secret_key: str = Field(description="The secret key of the user", default=os.getenv("EYEPOP_SECRET_KEY", ""))
+    wait_for_session_timeout: int = Field(description="The timeout for the session", default=10)
+    wait_for_session_interval: int = Field(description="The interval for the session", default=1)
 
 class PipelineStatus(str, Enum):
     UNKNOWN = "unknown"

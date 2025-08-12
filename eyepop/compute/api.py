@@ -1,53 +1,39 @@
-import os
 
 import requests
 from pydantic import TypeAdapter
 
-from eyepop.compute.models import ComputeApiSessionRequest, ComputeApiSessionResponse
+from eyepop.compute.models import ComputeApiSessionResponse, ComputeContext
 from eyepop.compute.status import wait_for_session
 
-EYEPOP_USER_UUID = os.getenv("EYEPOP_USER_UUID", "")
-EYEPOP_SECRET_KEY = os.getenv("EYEPOP_SECRET_KEY", "")
-WAIT_FOR_SESSION_TIMEOUT = 10
-WAIT_FOR_SESSION_INTERVAL = 1
 
+def fetch_session_endpoint(compute_config: ComputeContext) -> ComputeContext:
+    compute_context = fetch_new_compute_session(compute_config)
 
-def fetch_session_endpoint(account_uuid: str = "00000000-0000-0000-0000-000000000000") -> str:
-    session_response = fetch_new_compute_session(account_uuid)
-    got_session = wait_for_session(session_response.session_endpoint, WAIT_FOR_SESSION_INTERVAL, WAIT_FOR_SESSION_TIMEOUT)
+    got_session = wait_for_session(compute_context)
     if got_session:
-        return session_response.session_endpoint
+        return compute_context
     else:
         raise Exception("Failed to fetch session endpoint")
 
-def fetch_new_compute_session(account_uuid: str) -> ComputeApiSessionResponse:
-    _compute_url = os.getenv("_COMPUTE_API_URL")
-    compute_api_token = os.getenv("EYEPOP_SECRET_KEY")
-
-    if _compute_url is None or compute_api_token is None:
-        raise Exception("_COMPUTE_API_URL or EYEPOP_SECRET_KEY is not set")
-    
+def fetch_new_compute_session(compute_config: ComputeContext) -> ComputeContext:
     headers = {
+        "Authorization": f"Bearer {compute_config.secret_key}",
         "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Authorization": f"Bearer {compute_api_token}"
+        "Accept": "application/json"
     }
     
-    request_body: ComputeApiSessionRequest = ComputeApiSessionRequest(account_uuid=account_uuid)
-    
     response = requests.post(
-        f"{_compute_url}/v1/session", 
+        f"{compute_config.compute_url}/v1/session", 
         headers=headers,
-        json=request_body.model_dump(),
-        verify=False
+        json={
+            "user_uuid": compute_config.user_uuid,
+        }
     )
-
-    try:
-        response.raise_for_status()
-    except Exception as e:
-        print(f"Error: {e}")
-        os._exit(1)
-    res_json = response.json()
-    session_response = TypeAdapter(ComputeApiSessionResponse).validate_python(res_json)
-    return session_response
-
+    response.raise_for_status()
+    
+    res = response.json()
+    session_response = TypeAdapter(ComputeApiSessionResponse).validate_python(res)
+    compute_config.session_endpoint = session_response.session_endpoint
+    compute_config.session_uuid = session_response.session_uuid
+    compute_config.pipeline_uuid = session_response.pipeline_uuid
+    return compute_config

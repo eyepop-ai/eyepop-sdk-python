@@ -1,9 +1,9 @@
-import os
+
 import time
 
 import requests
 
-from eyepop.compute.models import ComputeApiSessionResponse, PipelineStatus
+from eyepop.compute.models import ComputeApiSessionResponse, PipelineStatus, ComputeContext
 
 
 class WaitException(Exception):
@@ -12,16 +12,18 @@ class WaitException(Exception):
         super().__init__(self.message)
 
 
-def wait_for_session(worker_url: str, interval: int = 1, timeout: int = 10) -> bool:
+def wait_for_session(compute_config: ComputeContext) -> bool:
+    timeout = compute_config.wait_for_session_timeout
+    interval = compute_config.wait_for_session_interval
     headers = {
-        "Authorization": f"Bearer {os.getenv('EYEPOP_SECRET_KEY')}",
+        "Authorization": f"Bearer {compute_config.secret_key}",
         "Accept": "application/json",
     }
     end_time = time.time() + timeout
     last_message = "No message received"
     while time.time() < end_time:
         try:
-            response = requests.get(f"{worker_url}/health", headers=headers)
+            response = requests.get(f"{compute_config.session_endpoint}/health", headers=headers)
             if response.status_code == 200:
                 return True
             
