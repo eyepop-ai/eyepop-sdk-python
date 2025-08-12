@@ -594,6 +594,7 @@ class CreateWorkflowParameters(BaseModel):
     dataset_version: int | None = None
     model_uuid: str | None = None
     config: Dict[str, Any] | None = None
+    root_base_url: str | None = None
 
 class CreateWorkflowResponse(BaseModel):
     workflow_id: str
