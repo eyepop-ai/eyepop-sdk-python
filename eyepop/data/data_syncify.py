@@ -390,14 +390,12 @@ class SyncDataEndpoint(SyncEndpoint):
         self,
         template_name: str,
         workflow_create: CreateWorkflowBody,
-        subject_id: str | None = None
     ):
         return run_coro_thread_save(
             self.event_loop,
             self.endpoint.start_workflow(
                 template_name=template_name,
                 workflow_create=workflow_create,
-                subject_id=subject_id
             )
         )
 
