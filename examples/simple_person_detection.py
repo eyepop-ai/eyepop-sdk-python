@@ -5,12 +5,6 @@ import json
 import os
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import Pop, InferenceComponent
-from dotenv import load_dotenv
-
-load_dotenv()
-
-eyepop_secret_key = os.getenv("EYEPOP_SECRET_KEY")
-eyepop_pop_id = os.getenv("EYEPOP_POP_ID")
 
 # Define the person detection pop
 person_pop = Pop(components=[
@@ -22,8 +16,7 @@ person_pop = Pop(components=[
 
 async def detect_persons():
     # Connect to EyePop endpoint
-    async with EyePopSdk.workerEndpoint(
-    ) as endpoint:
+    async with EyePopSdk.workerEndpoint(is_async=True) as endpoint:
         # Set the pop configuration
         await endpoint.set_pop(person_pop)
         
