@@ -10,7 +10,6 @@ def workflow():
 
 @workflow.command()
 @click.option('--template-name', required=True, help='Workflow template name')
-@click.option('--subject-id', required=False, help='Subject ID')
 @click.option('--body', required=False, help='Request body as a JSON string')
 def start_workflow(template_name, body):
     """Start a new workflow."""
