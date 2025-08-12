@@ -1,4 +1,3 @@
-# type: ignore
 import json
 import logging
 import os
@@ -10,8 +9,7 @@ from urllib.parse import urljoin
 
 import aiohttp
 from deprecated import deprecated
-
-from eyepop.compute import fetch_session_endpoint
+from eyepop.compute import fetch_session_endpoint, ComputeContext
 from eyepop.endpoint import Endpoint
 from eyepop.exceptions import (
     PopConfigurationException,
@@ -167,19 +165,24 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         print(f"has_experimental_url: {has_experimental_url}")
         if has_experimental_url:
             try:
-                
-                worker_url = fetch_session_endpoint()
-                if worker_url:
+                compute_config = ComputeContext(
+                    user_uuid=os.getenv("EYEPOP_USER_UUID", ""),
+                    secret_key=os.getenv("EYEPOP_SECRET_KEY", ""),
+                    wait_for_session_timeout=10,
+                    wait_for_session_interval=1,
+                )
+                compute_context = fetch_session_endpoint(compute_config)
+                if compute_context.session_endpoint:
                     self.worker_config = {
-                        "base_url": worker_url,
-                        "pipeline_id": "compute",
+                        "base_url": compute_context.session_endpoint,
+                        "pipeline_id": compute_context.pipeline_uuid,
                         "status": "active_prod",
                     }
                     self.last_fetch_config_success_time = time.time()
                     self.last_fetch_config_error = None
                     self.last_fetch_config_error_time = None
-                    self.is_dev_mode = False
-                    endpoint = {"base_url": worker_url, "pipeline_id": "compute"}
+                    # self.is_dev_mode = False
+                    endpoint = {"base_url": compute_context.session_endpoint, "pipeline_id": compute_context.pipeline_uuid}
                     self.load_balancer = EndpointLoadBalancer([endpoint])
                     return
             except Exception as e:
