@@ -38,32 +38,33 @@ def table_from_eyepop_predicted_objects(predicted_objects: list[PredictedObject]
     key_pointss = [] if "keyPoints" in schema.names else None
     categories = [] if "category" in schema.names else None
     texts = [] if "texts" in schema.names else None
-    for o in predicted_objects:
-        classes.append(o.classLabel)
-        confidences.append(round(o.confidence, CONFIDENCE_N_DIGITS) if o.confidence is not None else None)
-        xs.append(numpy.float16(round(o.x / source_width, COORDINATE_N_DIGITS)))
-        ys.append(numpy.float16(round(o.y / source_height, COORDINATE_N_DIGITS)))
-        ws.append(numpy.float16(round(o.width / source_width, COORDINATE_N_DIGITS)))
-        hs.append(numpy.float16(round(o.height / source_height, COORDINATE_N_DIGITS)))
-        user_reviews.append(user_review)
-        if key_pointss is not None:
-            if o.keyPoints is not None:
-                key_pointss.append(table_from_eyepop_predicted_key_pointss(
-                    o.keyPoints, source_width, source_height,
-                    schema=pa.schema(schema.field(7).type.value_type),  # schema for "keyPoints" field
-                ).to_pylist())
-            else:
-                key_pointss.append(None)
-        if categories is not None:
-            categories.append(o.category)
-        if texts is not None:
-            if o.texts is not None:
-                texts.append(table_from_eyepop_predicted_texts(
-                    o.texts,
-                    schema=pa.schema(schema.field(9).type.value_type),  # schema for "texts" field
-                ).to_pylist())
-            else:
-                texts.append(None)
+    if predicted_objects is not None:
+        for o in predicted_objects:
+            classes.append(o.classLabel)
+            confidences.append(round(o.confidence, CONFIDENCE_N_DIGITS) if o.confidence is not None else None)
+            xs.append(numpy.float16(round(o.x / source_width, COORDINATE_N_DIGITS)))
+            ys.append(numpy.float16(round(o.y / source_height, COORDINATE_N_DIGITS)))
+            ws.append(numpy.float16(round(o.width / source_width, COORDINATE_N_DIGITS)))
+            hs.append(numpy.float16(round(o.height / source_height, COORDINATE_N_DIGITS)))
+            user_reviews.append(user_review)
+            if key_pointss is not None:
+                if o.keyPoints is not None:
+                    key_pointss.append(table_from_eyepop_predicted_key_pointss(
+                        o.keyPoints, source_width, source_height,
+                        schema=pa.schema(schema.field(7).type.value_type),  # schema for "keyPoints" field
+                    ).to_pylist())
+                else:
+                    key_pointss.append(None)
+            if categories is not None:
+                categories.append(o.category)
+            if texts is not None:
+                if o.texts is not None:
+                    texts.append(table_from_eyepop_predicted_texts(
+                        o.texts,
+                        schema=pa.schema(schema.field(9).type.value_type),  # schema for "texts" field
+                    ).to_pylist())
+                else:
+                    texts.append(None)
 
     columns = [
         pa.array(classes).dictionary_encode(),

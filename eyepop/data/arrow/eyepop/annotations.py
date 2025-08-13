@@ -21,6 +21,10 @@ def table_from_eyepop_annotations(annotations: list[AssetAnnotationResponse], sc
     key_points = [] if "keyPoints" in schema.names else None
     texts = [] if "texts" in schema.names else None
     embeddings = [] if "embeddings" in schema.names else None
+    timestamps = [] if "timestamp" in schema.names else None
+    durations = [] if "duration" in schema.names else None
+    offsets = [] if "offset" in schema.names else None
+    offset_durations = [] if "offset_duration" in schema.names else None
 
     for e in annotations:
         types.append(e.type)
@@ -78,6 +82,14 @@ def table_from_eyepop_annotations(annotations: list[AssetAnnotationResponse], sc
                 embeddings.append(table_from_eyepop_predicted_embeddings(
                     e.annotation.embeddings
                 ).to_struct_array())
+        if timestamps is not None:
+            timestamps.append(e.annotation.timestamp)
+        if durations is not None:
+            durations.append(e.annotation.duration)
+        if offsets is not None:
+            offsets.append(e.annotation.offset)
+        if offset_durations is not None:
+            offset_durations.append(e.annotation.offset_duration)
 
     # since 0.0
     columns = [
@@ -104,6 +116,16 @@ def table_from_eyepop_annotations(annotations: list[AssetAnnotationResponse], sc
     if embeddings is not None:
         columns.append(embeddings)
 
+    # since 1.4: timestamp, duration, offset, offset_duration
+    if timestamps is not None:
+        columns.append(timestamps)
+    if durations is not None:
+        columns.append(durations)
+    if offsets is not None:
+        columns.append(offsets)
+    if offset_durations is not None:
+        columns.append(offset_durations)
+
     return pa.Table.from_arrays(columns, schema=schema)
 
 
@@ -121,6 +143,15 @@ def eyepop_annotations_from_table(table: pa.Table) -> list[AssetAnnotationRespon
         source_model_uuid = batch.column(5).to_pylist()
         # since 1.1: key_points
         key_points = batch.column(6).to_pylist()
+        # since 1.2: texts
+        texts = batch.column(7).to_pylist()
+        # since 1.3: embeddings
+        embeddings = batch.column(8).to_pylist()
+        # since 1.4: timestamp, duration, offset, offset_duration
+        timestamps = batch.column(9).to_pylist()
+        durations = batch.column(10).to_pylist()
+        offsets = batch.column(11).to_pylist()
+        offset_durations = batch.column(12).to_pylist()
 
         for j in range(len(types)):
             if objects[j] is None:
@@ -144,6 +175,20 @@ def eyepop_annotations_from_table(table: pa.Table) -> list[AssetAnnotationRespon
             else:
                 child_key_pointss = eyepop_predicted_key_pointss_from_pylist(key_points[j], 1.0, 1.0)
 
+            if texts[j] is None:
+                child_texts = None
+            elif len(texts[j]) == 0:
+                child_texts = []
+            else:
+                child_texts = eyepop_predicted_texts_from_pylist(texts[j])
+
+            if embeddings[j] is None:
+                child_embeddings = None
+            elif len(embeddings[j]) == 0:
+                child_embeddings = []
+            else:
+                child_embeddings = eyepop_predicted_embeddings_from_pylist(texts[j])
+
             annotations.append(AssetAnnotationResponse(
                 type=types[j],
                 user_review=user_reviews[j],
@@ -151,9 +196,15 @@ def eyepop_annotations_from_table(table: pa.Table) -> list[AssetAnnotationRespon
                 annotation=Prediction(
                     source_width=1.0,
                     source_height=1.0,
+                    timestamp=timestamps[j],
+                    duration=durations[j],
+                    offset=offsets[j],
+                    offset_duration=offset_durations[j],
                     objects=child_objects,
                     classes=child_classes,
-                    keyPoints=child_key_pointss
+                    keyPoints=child_key_pointss,
+                    texts=child_texts,
+                    embeddings=child_embeddings,
                 ),
                 source_model_uuid=source_model_uuid[j],
             ))
@@ -198,6 +249,10 @@ def eyepop_annotations_from_pylist(py_list: list[dict]) -> list[AssetAnnotationR
             annotation=Prediction(
                 source_width=1.0,
                 source_height=1.0,
+                timestamp=o.get('timestamp', None),
+                duration=o.get('duration', None),
+                offset=o.get('offset', None),
+                offset_duration=o.get('offset_duration', None),
                 objects=child_objects,
                 classes=child_classes,
                 keyPoints=child_key_pointss,
