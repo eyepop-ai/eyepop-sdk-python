@@ -27,6 +27,7 @@ class TestArrowToFromAnnotation:
         ("prediction_2_keypoints_2_objects.json", 6),
         ("prediction_11_timestamp.json", 7),
         ("prediction_12_texts.json", 8),
+        ("prediction_1_embeddings.json", 9),
     ])
     def test_prediction_from_file(self, file_name, n):
         test_json = resources.files(files) / file_name

@@ -167,6 +167,7 @@ class PredictedEmbedding(BaseModel):
     x: float | None = None
     y: float | None = None
     embedding: List[float]
+    category: str | None = None
 
 class PredictedText(BaseModel):
     id: int | None = None
