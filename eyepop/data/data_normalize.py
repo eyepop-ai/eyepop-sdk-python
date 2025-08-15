@@ -1,10 +1,11 @@
-from eyepop.data.data_types import AssetAnnotationResponse, Prediction, PredictedObject, PredictedClass
+from eyepop.data.data_types import AssetAnnotationResponse, Prediction, PredictedObject, PredictedClass, PredictedEmbedding
 
 # Confidence and coordinates are represented as float16 in the arrow format but Python lacks support for 2-byte floats.
 # To avoid "changing" 4-bytes floats when converted back and forth, we will always round to these precisions.
 
 CONFIDENCE_N_DIGITS = 3
 COORDINATE_N_DIGITS = 3
+EMBEDDING_N_DIGITS = 1
 
 def normalize_eyepop_annotations(
         annotations: list[AssetAnnotationResponse]
@@ -22,6 +23,8 @@ def normalize_eyepop_prediction(
             prediction.objects, prediction.source_width, prediction.source_height)
     if prediction.classes:
         normalize_predicted_classes(prediction.classes)
+    if prediction.embeddings:
+        normalize_predicted_embeddings(prediction.embeddings)
     prediction.source_width = 1.0
     prediction.source_height = 1.0
 
@@ -50,3 +53,12 @@ def normalize_predicted_classes(
     for c in predicted_classes:
         if c.confidence is not None:
             c.confidence = round(c.confidence, CONFIDENCE_N_DIGITS)
+
+
+def normalize_predicted_embeddings(
+        predicted_embeddings: list[PredictedEmbedding]
+):
+    for e in predicted_embeddings:
+        if e.embedding is not None:
+            for i in range(len(e.embedding)):
+                e.embedding[i] = round(e.embedding[i], EMBEDDING_N_DIGITS)
