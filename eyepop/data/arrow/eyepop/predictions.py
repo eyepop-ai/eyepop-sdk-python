@@ -313,13 +313,16 @@ def eyepop_predicted_key_points_from_pylist(py_list: list[dict[str, any]],
 def table_from_eyepop_predicted_embeddings(predicted_embeddings: list[PredictedEmbedding],
                                            schema: Schema = EMBEDDING_SCHEMA) -> pa.Table:
     embeddings = []
+    categories = []
     x_coordinates = []
     y_coordinates = []
     for predicted_embedding in predicted_embeddings:
+        categories.append(predicted_embedding.category)
         embeddings.append(predicted_embedding.embedding)
         x_coordinates.append(predicted_embedding.x)
         y_coordinates.append(predicted_embedding.y)
     return pa.Table.from_arrays([
+        pa.array(categories),
         pa.array(embeddings),
         pa.array(x_coordinates),
         pa.array(y_coordinates),
@@ -330,6 +333,7 @@ def eyepop_predicted_embeddings_from_pylist(py_list: list[dict[str, any]]) -> li
     for i, predicted_embedding in enumerate(py_list):
         predicted_embeddings[i] = PredictedEmbedding(
             embedding=predicted_embedding["embedding"],
+            category=predicted_embedding.get("category", None),
             x=_round_float_like(predicted_embedding.get("x", None), COORDINATE_N_DIGITS),
             y=_round_float_like(predicted_embedding.get("y", None), COORDINATE_N_DIGITS),
         )
