@@ -161,82 +161,54 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         ):
             raise aiohttp.ClientConnectionError()
 
-        has_experimental_url = os.getenv("_COMPUTE_API_URL", None) is not None
-        print(f"has_experimental_url: {has_experimental_url}")
-        if has_experimental_url:
-            try:
-                compute_config = ComputeContext(
-                    user_uuid=os.getenv("EYEPOP_USER_UUID", ""),
-                    secret_key=os.getenv("EYEPOP_SECRET_KEY", ""),
-                    wait_for_session_timeout=10,
-                    wait_for_session_interval=1,
-                )
-                compute_context = fetch_session_endpoint(compute_config)
-                if compute_context.session_endpoint:
-                    self.worker_config = {
-                        "base_url": compute_context.session_endpoint,
-                        "pipeline_id": compute_context.pipeline_uuid,
-                        "status": "active_prod",
-                    }
-                    self.last_fetch_config_success_time = time.time()
-                    self.last_fetch_config_error = None
-                    self.last_fetch_config_error_time = None
-                    # self.is_dev_mode = False
-                    endpoint = {"base_url": compute_context.session_endpoint, "pipeline_id": compute_context.pipeline_uuid}
-                    self.load_balancer = EndpointLoadBalancer([endpoint])
-                    return
-            except Exception as e:
-                log_requests.debug(f"Failed to fetch worker URL from compute API: {e}")
-                # Fall through to normal flow if compute API fails
-
-        if self.pop_id == "transient":
-            config_url = f"{self.eyepop_url}/workers/config"
-        else:
-            config_url = f"{self.eyepop_url}/pops/{self.pop_id}/config?auto_start={self.auto_start}"
-        headers = {}
-        authorization_header = await self._authorization_header()
-        if authorization_header is not None:
-            headers["Authorization"] = authorization_header
+        # Always use compute API - EYEPOP_URL should be the compute API URL
         try:
-            log_requests.debug("before GET %s", config_url)
-            async with self.client_session.get(config_url, headers=headers) as response:
-                self.worker_config = await response.json()
+            compute_config = ComputeContext(
+                compute_url=self.eyepop_url,  # Use eyepop_url as compute API URL
+                user_uuid=os.getenv("EYEPOP_USER_UUID", ""),
+                secret_key=self.secret_key,  # Use the secret key from endpoint
+                wait_for_session_timeout=30,
+                wait_for_session_interval=2,
+            )
+            compute_context = fetch_session_endpoint(compute_config)
+            if compute_context.session_endpoint:
+                # Store data API URL for the session
+                self.data_api_url = os.getenv("EYEPOP_DATA_API", "https://dataset-api.staging.eyepop.xyz")
+                
+                self.worker_config = {
+                    "base_url": compute_context.session_endpoint,
+                    "pipeline_id": compute_context.pipeline_uuid,
+                    "status": "active_prod",
+                }
                 self.last_fetch_config_success_time = time.time()
                 self.last_fetch_config_error = None
                 self.last_fetch_config_error_time = None
-        except aiohttp.ClientResponseError as e:
-            if e.status != 401:
-                self.last_fetch_config_error = e
-                self.last_fetch_config_error_time = time.time()
-                raise e
-            else:
-                log_requests.debug(
-                    "after GET %s: 401, about to retry with fresh access token", config_url
-                )
-                self.token = None
-                self.expire_token_time = None
-                headers = {}
-                authorization_header = await self._authorization_header()
-                if authorization_header is not None:
-                    headers["Authorization"] = authorization_header
-                async with self.client_session.get(config_url, headers=headers) as retried_response:
-                    self.worker_config = await retried_response.json()
-        except aiohttp.ClientConnectionError as e:
+                # With compute API, we're always in "dev mode" for dynamic configuration
+                self.is_dev_mode = True
+                # Store compute API token for authorization
+                self.compute_api_token = self.secret_key
+                # For transient mode, we need to create the pipeline
+                self.pipeline_id = None  # Will be created on first use
+                endpoint = {"base_url": compute_context.session_endpoint, "pipeline_id": None}
+                self.load_balancer = EndpointLoadBalancer([endpoint])
+                return
+        except Exception as e:
             self.last_fetch_config_error = e
             self.last_fetch_config_error_time = time.time()
-            raise e
+            log_requests.error(f"Failed to fetch session from compute API: {e}")
+            raise aiohttp.ClientConnectionError(f"Failed to fetch session from compute API: {e}")
 
-        self.is_dev_mode = (
-            self.is_sandbox
-            or self.pop_id == "transient"
-            or self.worker_config["status"] != "active_prod"
-        )
+        # Remove web-api fallback - only use compute API
+        # This code path should not be reached anymore
+        raise RuntimeError("Only compute API is supported. Ensure EYEPOP_URL points to compute API.")
+        # All web-api code removed - only compute API is supported
+        # All exception handling for web-api removed
 
-        log_requests.debug(f"after GET {config_url}: {self.worker_config}")
+        # Dev mode and sandbox handling removed - compute API handles all modes
+        # The following code is legacy and will be removed
+        return
 
-        base_url = await self.dev_mode_base_url()
-
-        if self.is_sandbox and self.sandbox_id is None:
+        if False and self.is_sandbox and self.sandbox_id is None:
             create_sandbox_url = f"{base_url}/sandboxes"
             headers = {}
             authorization_header = await self._authorization_header()
@@ -360,14 +332,29 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             raise PopConfigurationException(
                 self.pop_id, "set_pop_comp not supported in production mode"
             )
-        response = await self.pipeline_patch(
-            "pop", content_type="application/json", data=pop.model_dump_json()
-        )
+        
+        # Store the pop for later use
         self.pop = pop
         self.pop_comp = None
         self.model_refs = []
         self.post_transform = None
-
+        
+        # For compute API with transient mode, create pipeline on first use
+        if hasattr(self, 'compute_api_token'):
+            if not hasattr(self, 'pipeline_id') or self.pipeline_id is None:
+                await self._create_compute_pipeline()
+                return {"status": "pipeline_created"}
+            else:
+                # Pipeline already exists, just update it
+                response = await self.pipeline_patch(
+                    "pop", content_type="application/json", data=pop.model_dump_json()
+                )
+                return response
+        
+        # Legacy path for non-compute API
+        response = await self.pipeline_patch(
+            "pop", content_type="application/json", data=pop.model_dump_json()
+        )
         return response
 
     @deprecated(version="1.0.0", reason="Use get_pop() instead")
@@ -556,6 +543,52 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.worker_config is None:
             await self._reconnect()
         return urljoin(self.eyepop_url, self.worker_config["base_url"]).rstrip("/")
+    
+    async def _create_compute_pipeline(self):
+        """Create a pipeline on the compute API session endpoint"""
+        if not hasattr(self, 'compute_api_token'):
+            raise RuntimeError("Not using compute API")
+        
+        base_url = self.worker_config["base_url"]
+        
+        # Create an empty pipeline first (avoids model alias resolution issues)
+        body = {
+            "pop": {"components": []},  # Start with empty components
+            "source": {"sourceType": "NONE"},
+            "idleTimeoutSeconds": 60,
+            "logging": ["out_meta"],
+            "videoOutput": "no_output"
+        }
+        
+        if self.dataset_uuid is not None:
+            body["datasetUuid"] = self.dataset_uuid
+        
+        headers = {}
+        authorization_header = await self._authorization_header()
+        if authorization_header is not None:
+            headers["Authorization"] = authorization_header
+        
+        create_url = f"{base_url}/pipelines"
+        log_requests.debug("Creating pipeline at %s", create_url)
+        
+        async with self.client_session.post(create_url, headers=headers, json=body) as response:
+            response_json = await response.json()
+            self.pipeline_id = response_json["id"]
+            self.worker_config["pipeline_id"] = self.pipeline_id
+            
+            # Update load balancer with the new pipeline ID
+            endpoint = {"base_url": base_url, "pipeline_id": self.pipeline_id}
+            self.load_balancer = EndpointLoadBalancer([endpoint])
+            
+            log_requests.debug("Pipeline created with ID: %s", self.pipeline_id)
+            
+            # Now update the pipeline with the actual pop configuration
+            if self.pop:
+                await self.pipeline_patch(
+                    "pop", content_type="application/json", data=self.pop.model_dump_json()
+                )
+            
+            return self.pipeline_id
 
     #
     # Implements: _WorkerClientSession
