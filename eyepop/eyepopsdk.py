@@ -51,7 +51,8 @@ class EyePopSdk:
             else:
                 eyepop_url = os.getenv("EYEPOP_URL")
                 if eyepop_url is None:
-                    eyepop_url = "https://api.eyepop.ai"
+                    # Default to compute API URL
+                    eyepop_url = "https://compute.staging.eyepop.xyz"
 
         if pop_id is None:
             pop_id = os.getenv("EYEPOP_POP_ID")
