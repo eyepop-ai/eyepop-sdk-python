@@ -10,6 +10,7 @@ from eyepop.data.arrow.schema_1_0 import ASSET_SCHEMA as ASSET_SCHEMA_1_0
 from eyepop.data.arrow.schema_1_1 import ASSET_SCHEMA as ASSET_SCHEMA_1_1
 from eyepop.data.arrow.schema_1_2 import ASSET_SCHEMA as ASSET_SCHEMA_1_2
 from eyepop.data.arrow.schema_1_3 import ASSET_SCHEMA as ASSET_SCHEMA_1_3
+from eyepop.data.arrow.schema_1_5 import ASSET_SCHEMA as ASSET_SCHEMA_1_5
 
 from eyepop.data.arrow.eyepop.annotations import table_from_eyepop_annotations, eyepop_annotations_from_table
 from eyepop.data.data_normalize import normalize_eyepop_annotations, normalize_eyepop_prediction
@@ -27,6 +28,8 @@ class TestArrowToFromAnnotation:
         ("prediction_2_keypoints_2_objects.json", 6),
         ("prediction_11_timestamp.json", 7),
         ("prediction_12_texts.json", 8),
+        ("prediction_1_embeddings.json", 9),
+        ("prediction_2_embeddings.json", 10),
     ])
     def test_prediction_from_file(self, file_name, n):
         test_json = resources.files(files) / file_name
@@ -167,6 +170,14 @@ class TestArrowToFromAnnotation:
         for column_name in ASSET_SCHEMA_1_2.names:
             if column_name != "annotations":
                 assert target_table.column(column_name) == source_table.column(column_name)
+
+    def test_1_5(self):
+        """ verify that the new field `category` in `embeddings` in 1.5 are converted """
+        source_table = create_test_table(schema=ASSET_SCHEMA_1_5, test_file_name="prediction_2_embeddings.json")
+        target_assets = eyepop_assets_from_table(source_table, schema=ASSET_SCHEMA_1_5)
+        target_table = table_from_eyepop_assets(target_assets, schema=ASSET_SCHEMA_1_5)
+        assert target_table.schema == source_table.schema
+        assert target_table == source_table
 
     def test_assets(self):
         """ verify that the new denormalized fields account_uuid and dataset_uuids are being filled """
