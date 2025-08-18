@@ -1,0 +1,16 @@
+{
+  "source_width": 100,
+  "source_height": 100,
+  "embeddings": [
+    {
+        "category": "image_patch",
+        "embedding": [0.1, 0.2, 0.3, 0.4, 0.5],
+        "x": 10.0,
+        "y": 10.0
+    },
+    {
+        "category": "text",
+        "embedding": [0.6, 0.7, 0.8, 0.9, 1.0]
+    }
+  ]
+}

@@ -80,7 +80,8 @@ def table_from_eyepop_annotations(annotations: list[AssetAnnotationResponse], sc
                 embeddings.append([])
             else:
                 embeddings.append(table_from_eyepop_predicted_embeddings(
-                    e.annotation.embeddings
+                    e.annotation.embeddings,
+                    schema=pa.schema(schema.field(8).type.value_type),  # schema for "embeddings" field
                 ).to_struct_array())
         if timestamps is not None:
             timestamps.append(e.annotation.timestamp)
@@ -125,7 +126,6 @@ def table_from_eyepop_annotations(annotations: list[AssetAnnotationResponse], sc
         columns.append(offsets)
     if offset_durations is not None:
         columns.append(offset_durations)
-
     return pa.Table.from_arrays(columns, schema=schema)
 
 
@@ -187,7 +187,7 @@ def eyepop_annotations_from_table(table: pa.Table) -> list[AssetAnnotationRespon
             elif len(embeddings[j]) == 0:
                 child_embeddings = []
             else:
-                child_embeddings = eyepop_predicted_embeddings_from_pylist(texts[j])
+                child_embeddings = eyepop_predicted_embeddings_from_pylist(embeddings[j])
 
             annotations.append(AssetAnnotationResponse(
                 type=types[j],
