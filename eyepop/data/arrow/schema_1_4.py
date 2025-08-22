@@ -4,7 +4,8 @@ from eyepop.data.data_types import MIME_TYPE_APACHE_ARROW_FILE
 
 """ Arrow schema for Asset export/import form Data API. """
 
-MIME_TYPE_APACHE_ARROW_FILE_VERSIONED = f"{MIME_TYPE_APACHE_ARROW_FILE};version=1.3"
+MIME_TYPE_APACHE_ARROW_FILE_VERSIONED = f"{MIME_TYPE_APACHE_ARROW_FILE};version=1.4"
+
 
 # BEGIN: Extension since v1.3
 _embedding_fields = [
@@ -108,6 +109,12 @@ _annotation_fields = [
     # BEGIN: Extension since v1.3
     pa.field(name="embeddings", type=pa.list_(EMBEDDING_STRUCT)),
     # END: Extension since v1.3
+    # BEGIN: Extension since v1.4
+    pa.field(name="timestamp", type=pa.int64()),
+    pa.field(name="duration", type=pa.int64()),
+    pa.field(name="offset", type=pa.int64()),
+    pa.field(name="offset_duration", type=pa.int64()),
+    # END: Extension since v1.4
 ]
 
 ANNOTATION_STRUCT = pa.struct(_annotation_fields)
