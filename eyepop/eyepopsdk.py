@@ -51,8 +51,7 @@ class EyePopSdk:
             else:
                 eyepop_url = os.getenv("EYEPOP_URL")
                 if eyepop_url is None:
-                    # Default to compute API URL
-                    eyepop_url = "https://compute.staging.eyepop.xyz"
+                    eyepop_url = "https://api.eyepop.ai"
 
         if pop_id is None:
             pop_id = os.getenv("EYEPOP_POP_ID")
@@ -120,7 +119,10 @@ class EyePopSdk:
             disable_ws=disable_ws,
         )
 
-        return SyncDataEndpoint(endpoint) if is_async else endpoint
+        if not is_async:
+            endpoint = SyncDataEndpoint(endpoint)
+
+        return endpoint
 
     @staticmethod
     def plot(axes: Axes):
