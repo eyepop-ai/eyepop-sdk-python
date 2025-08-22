@@ -3,7 +3,7 @@ from pyparsing import Enum
 import os
 
 class ComputeContext(BaseModel):
-    compute_url: str = Field(description="The url of the compute api", default=os.getenv("_COMPUTE_API_URL", "https://compute-api.staging.eyepop.xyz"))
+    compute_url: str = Field(description="The url of the compute api", default=os.getenv("_COMPUTE_API_URL", "https://compute.staging.eyepop.xyz"))
     session_endpoint: str = Field(description="The endpoint of the session", default="")
     session_uuid: str = Field(description="The uuid of the session", default="")
     pipeline_uuid: str = Field(description="The uuid of the pipeline", default="")

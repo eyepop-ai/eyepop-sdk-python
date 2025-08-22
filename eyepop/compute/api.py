@@ -7,11 +7,12 @@ from eyepop.compute.models import ComputeApiSessionResponse, ComputeContext
 from eyepop.compute.status import wait_for_session
 
 
-def fetch_session_endpoint(compute_config: ComputeContext) -> ComputeContext:
-    compute_config = ComputeContext(
-        compute_url=os.getenv("EYEPOP_URL", "https://compute.staging.eyepop.xyz"),
-        secret_key=os.getenv("EYEPOP_SECRET_KEY", ""),
-    )
+def fetch_session_endpoint(compute_config: ComputeContext | None = None) -> ComputeContext:
+    if compute_config is None:
+        compute_config = ComputeContext(
+            compute_url=os.getenv("EYEPOP_URL", "https://compute.staging.eyepop.xyz"),
+            secret_key=os.getenv("EYEPOP_SECRET_KEY", ""),
+        )
     compute_context = fetch_new_compute_session(compute_config)
     
     got_session = wait_for_session(compute_context)
