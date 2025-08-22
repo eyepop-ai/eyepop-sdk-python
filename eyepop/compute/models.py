@@ -9,6 +9,7 @@ class ComputeContext(BaseModel):
     pipeline_uuid: str = Field(description="The uuid of the pipeline", default="")
     user_uuid: str = Field(description="The uuid of the user", default=os.getenv("EYEPOP_USER_UUID", ""))
     secret_key: str = Field(description="The secret key of the user", default=os.getenv("EYEPOP_SECRET_KEY", ""))
+    access_token: str = Field(description="The JWT access token from compute API", default="")
     wait_for_session_timeout: int = Field(description="The timeout for the session", default=10)
     wait_for_session_interval: int = Field(description="The interval for the session", default=1)
 
@@ -33,9 +34,11 @@ class ComputeApiSessionRequest(BaseModel):
 class ComputeApiSessionResponse(BaseModel):
     session_uuid: str = Field(description="The related session uuid for this session")
     session_endpoint: str = Field(description="The related session url for this session")
-    pipeline_uuid: str = Field(description="The related pipeline uuid for this session")
-    pipeline_version: str = Field(description="The related pipeline version for this session")
+    access_token: str = Field(description="The JWT access token for session authentication")
+    pipelines: list = Field(description="List of pipelines in the session", default=[])
+    pipeline_uuid: str = Field(description="The related pipeline uuid for this session", default="")
+    pipeline_version: str = Field(description="The related pipeline version for this session", default="")
     session_status: PipelineStatus = Field(description="The status of the session", default=PipelineStatus.PENDING)
     session_message: str = Field(description="The message of the session", default="")
-    pipeline_ttl: int | None = Field(description="The ttl of the pipeline")
-    session_active: bool = Field(description="Whether the session is active")
+    pipeline_ttl: int | None = Field(description="The ttl of the pipeline", default=None)
+    session_active: bool = Field(description="Whether the session is active", default=False)
