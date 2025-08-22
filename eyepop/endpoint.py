@@ -2,11 +2,12 @@ import asyncio
 import logging
 import time
 from types import TracebackType
-from typing import Optional, Type, Callable, Any
+from typing import Any, Callable, Optional, Type
 
 import aiohttp
 
 from eyepop.client_session import ClientSession
+from eyepop.compute.models import ComputeContext
 from eyepop.metrics import MetricCollector
 from eyepop.periodic import Periodic
 from eyepop.request_tracer import RequestTracer
@@ -28,20 +29,18 @@ async def response_check_with_error_body(response: aiohttp.ClientResponse):
 
 
 class Endpoint(ClientSession):
-    """
-    Abstract EyePop Endpoint.
+    """Abstract EyePop Endpoint.
     """
 
     def __init__(self, secret_key: str | None, access_token: str | None,
                  eyepop_url: str,
-                 job_queue_length: int, request_tracer_max_buffer: int):
+                 job_queue_length: int, request_tracer_max_buffer: int, compute_ctx: ComputeContext | None = None):
+        self.compute_ctx = compute_ctx
         self.secret_key = secret_key
         self.provided_access_token = access_token
         self.eyepop_url = eyepop_url
         self.token = None
         self.expire_token_time = None
-        # For compute API, we use the secret key directly as bearer token
-        self.compute_api_token = None
 
         if request_tracer_max_buffer > 0:
             self.request_tracer = RequestTracer(max_events=request_tracer_max_buffer)
@@ -94,10 +93,6 @@ class Endpoint(ClientSession):
         await self.disconnect()
 
     async def _authorization_header(self) -> str | None:
-        # If using compute API, return the compute token directly
-        if hasattr(self, 'compute_api_token') and self.compute_api_token:
-            return f'Bearer {self.compute_api_token}'
-        # For backward compatibility only - should not be used with compute API
         access_token = await self.__get_access_token()
         if access_token is None:
             return None
@@ -120,11 +115,11 @@ class Endpoint(ClientSession):
         if len(tasks) > 0:
             await asyncio.gather(*tasks)
 
-        # Skip event tracking when using compute API
-        if self.request_tracer and self.client_session and not hasattr(self, 'compute_api_token'):
+        if self.request_tracer and self.client_session:
             await self.event_sender.stop()
-            await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events', await self._authorization_header(),
-                                                     None)
+            if self.compute_ctx is None:
+                await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events', await self._authorization_header(),
+                                                         None)
 
         if self.client_session:
             try:
@@ -164,22 +159,30 @@ class Endpoint(ClientSession):
         }
 
     async def _reconnect(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     async def _disconnect(self, timeout: float | None = None):
-        raise NotImplemented
+        raise NotImplementedError
 
     async def __get_access_token(self) -> str | None:
-        # This should not be called when using compute API
-        # Only kept for backward compatibility
-        if hasattr(self, 'compute_api_token') and self.compute_api_token:
-            return self.compute_api_token
         if self.provided_access_token is not None:
             return self.provided_access_token
         if self.secret_key is None:
             return None
-        # This path should not be reached with compute API
-        raise RuntimeError("Authentication endpoint not supported. Use compute API directly.")
+        now = time.time()
+        if self.compute_ctx is not None:
+            return self.compute_ctx.access_token
+        if self.token is None or self.expire_token_time < now:
+            body = {'secret_key': self.secret_key}
+            post_url = f'{self.eyepop_url}/authentication/token'
+            log_requests.debug('before POST %s', post_url)
+            async with self.client_session.post(post_url, json=body) as response:
+                self.token = await response.json()
+                self.expire_token_time = time.time() + self.token['expires_in'] - 60
+            log_requests.debug('after POST %s expires_in=%d token_type=%s', post_url, self.token['expires_in'],
+                               self.token['token_type'])
+        log.debug('using access token, valid for at least %d seconds', self.expire_token_time - now)
+        return self.token['access_token']
 
     def _task_done(self, task):
         self.tasks.discard(task)
