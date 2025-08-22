@@ -38,32 +38,33 @@ def table_from_eyepop_predicted_objects(predicted_objects: list[PredictedObject]
     key_pointss = [] if "keyPoints" in schema.names else None
     categories = [] if "category" in schema.names else None
     texts = [] if "texts" in schema.names else None
-    for o in predicted_objects:
-        classes.append(o.classLabel)
-        confidences.append(round(o.confidence, CONFIDENCE_N_DIGITS) if o.confidence is not None else None)
-        xs.append(numpy.float16(round(o.x / source_width, COORDINATE_N_DIGITS)))
-        ys.append(numpy.float16(round(o.y / source_height, COORDINATE_N_DIGITS)))
-        ws.append(numpy.float16(round(o.width / source_width, COORDINATE_N_DIGITS)))
-        hs.append(numpy.float16(round(o.height / source_height, COORDINATE_N_DIGITS)))
-        user_reviews.append(user_review)
-        if key_pointss is not None:
-            if o.keyPoints is not None:
-                key_pointss.append(table_from_eyepop_predicted_key_pointss(
-                    o.keyPoints, source_width, source_height,
-                    schema=pa.schema(schema.field(7).type.value_type),  # schema for "keyPoints" field
-                ).to_pylist())
-            else:
-                key_pointss.append(None)
-        if categories is not None:
-            categories.append(o.category)
-        if texts is not None:
-            if o.texts is not None:
-                texts.append(table_from_eyepop_predicted_texts(
-                    o.texts,
-                    schema=pa.schema(schema.field(9).type.value_type),  # schema for "texts" field
-                ).to_pylist())
-            else:
-                texts.append(None)
+    if predicted_objects is not None:
+        for o in predicted_objects:
+            classes.append(o.classLabel)
+            confidences.append(round(o.confidence, CONFIDENCE_N_DIGITS) if o.confidence is not None else None)
+            xs.append(numpy.float16(round(o.x / source_width, COORDINATE_N_DIGITS)))
+            ys.append(numpy.float16(round(o.y / source_height, COORDINATE_N_DIGITS)))
+            ws.append(numpy.float16(round(o.width / source_width, COORDINATE_N_DIGITS)))
+            hs.append(numpy.float16(round(o.height / source_height, COORDINATE_N_DIGITS)))
+            user_reviews.append(user_review)
+            if key_pointss is not None:
+                if o.keyPoints is not None:
+                    key_pointss.append(table_from_eyepop_predicted_key_pointss(
+                        o.keyPoints, source_width, source_height,
+                        schema=pa.schema(schema.field(7).type.value_type),  # schema for "keyPoints" field
+                    ).to_pylist())
+                else:
+                    key_pointss.append(None)
+            if categories is not None:
+                categories.append(o.category)
+            if texts is not None:
+                if o.texts is not None:
+                    texts.append(table_from_eyepop_predicted_texts(
+                        o.texts,
+                        schema=pa.schema(schema.field(9).type.value_type),  # schema for "texts" field
+                    ).to_pylist())
+                else:
+                    texts.append(None)
 
     columns = [
         pa.array(classes).dictionary_encode(),
@@ -312,23 +313,32 @@ def eyepop_predicted_key_points_from_pylist(py_list: list[dict[str, any]],
 def table_from_eyepop_predicted_embeddings(predicted_embeddings: list[PredictedEmbedding],
                                            schema: Schema = EMBEDDING_SCHEMA) -> pa.Table:
     embeddings = []
+    categories = []
     x_coordinates = []
     y_coordinates = []
     for predicted_embedding in predicted_embeddings:
         embeddings.append(predicted_embedding.embedding)
         x_coordinates.append(predicted_embedding.x)
         y_coordinates.append(predicted_embedding.y)
-    return pa.Table.from_arrays([
+        categories.append(predicted_embedding.category)
+
+    columns = [
         pa.array(embeddings),
         pa.array(x_coordinates),
         pa.array(y_coordinates),
-    ], schema=schema)
+    ]
+
+    if "category" in schema.names:
+        columns.append(pa.array(categories).dictionary_encode())
+
+    return pa.Table.from_arrays(columns, schema=schema)
 
 def eyepop_predicted_embeddings_from_pylist(py_list: list[dict[str, any]]) -> list[PredictedEmbedding]:
     predicted_embeddings: list[PredictedEmbedding | None] = [None] * len(py_list)
     for i, predicted_embedding in enumerate(py_list):
         predicted_embeddings[i] = PredictedEmbedding(
             embedding=predicted_embedding["embedding"],
+            category=predicted_embedding.get("category", None),
             x=_round_float_like(predicted_embedding.get("x", None), COORDINATE_N_DIGITS),
             y=_round_float_like(predicted_embedding.get("y", None), COORDINATE_N_DIGITS),
         )
