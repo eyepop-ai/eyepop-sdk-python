@@ -1,10 +1,11 @@
 import logging
 import os
+
 import requests
 from pydantic import TypeAdapter
 
 from eyepop.compute.models import ComputeApiSessionResponse, ComputeContext
-from eyepop.compute.status import wait_for_session
+
 
 def fetch_session_endpoint(compute_config: ComputeContext = None) -> ComputeContext:
     if compute_config is None:
@@ -53,11 +54,11 @@ def fetch_new_compute_session(compute_config: ComputeContext) -> ComputeContext:
             )
             post_response.raise_for_status()
             res = post_response.json()
-            logging.info(f"Created new session successfully")
+            logging.info("Created new session successfully")
         except Exception as e:
             logging.warning(f"Failed to create new session: {e}")
             # Return empty response to trigger error handling
-            raise Exception(f"No existing session and failed to create new one: {e}")
+            raise Exception(f"No existing session and failed to create new one: {e}") from e
     
     # Handle response (could be array or single object)
     is_arr = isinstance(res, list) and len(res) > 0
@@ -71,20 +72,20 @@ def fetch_new_compute_session(compute_config: ComputeContext) -> ComputeContext:
     compute_config.session_uuid = session_response.session_uuid
     compute_config.access_token = session_response.access_token
     
-    logging.info(f"✓ Fetched session from compute API:")
+    logging.info("✓ Fetched session from compute API:")
     logging.info(f"  - Session UUID: {session_response.session_uuid}")
     logging.info(f"  - Session endpoint: {session_response.session_endpoint}")
     logging.info(f"  - Access token received: {'Yes' if session_response.access_token else 'No'}")
     
     # Critical check: access_token must be present for authentication
     if not session_response.access_token or len(session_response.access_token.strip()) == 0:
-        logging.error(f"CRITICAL: No access_token received from session response!")
+        logging.error("CRITICAL: No access_token received from session response!")
         if isinstance(res, dict):
             logging.error(f"Session response keys: {list(res.keys())}")
         else:
             logging.error(f"Session response type: {type(res)}")
-        logging.error(f"This means the M2M authentication is not working properly.")
-        logging.error(f"The pipeline will fail to authenticate with dataset-api and model resolution will fail.")
+        logging.error("This means the M2M authentication is not working properly.")
+        logging.error("The pipeline will fail to authenticate with dataset-api and model resolution will fail.")
         raise Exception("CRITICAL: No access_token received from compute API session response. M2M authentication is not configured properly.")
     
     logging.debug(f"✓ Received access_token from session response (length: {len(session_response.access_token)})")
