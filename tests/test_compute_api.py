@@ -2,13 +2,15 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pydantic import ValidationError
 
-from eyepop.compute.api import fetch_new_compute_session
+from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint
+from eyepop.compute.models import ComputeContext
 
 MOCK_SESSION_RESPONSE = {
     "session_uuid": "session-456",
     "session_endpoint": "https://pipeline.example.com",
+    "access_token": "jwt-token-123",
+    "pipelines": [{"pipeline_id": "pipeline-123"}],
     "pipeline_uuid": "pipeline-123",
     "pipeline_version": "1.0.0",
     "session_status": "running",
@@ -17,135 +19,174 @@ MOCK_SESSION_RESPONSE = {
     "session_active": True
 }
 
+MOCK_SESSION_RESPONSE_NO_PIPELINES = {
+    **MOCK_SESSION_RESPONSE,
+    "pipelines": []
+}
+
 TEST_REQUEST_HEADERS = {
     "Content-Type": "application/json",
     "Accept": "application/json",
-    "Authorization": "Bearer test-token"
+    "Authorization": "Bearer test-secret-key"
 }
 
+
 @pytest.fixture
-def clean_environment():
-    original_compute_url = os.environ.get("_COMPUTE_API_URL")
-    if "_COMPUTE_API_URL" in os.environ:
-        del os.environ["_COMPUTE_API_URL"]
-
-    import importlib
-
-    import eyepop.compute.api
-
-    importlib.reload(eyepop.compute.api)
-
-    yield
-
-    if "_COMPUTE_API_URL" in os.environ:
-        del os.environ["_COMPUTE_API_URL"]
-    if original_compute_url is not None:
-        os.environ["_COMPUTE_API_URL"] = original_compute_url
-
-    importlib.reload(eyepop.compute.api)
-
-
-@patch("eyepop.compute.api.requests.post")
-def test_fetches_session_successfully(mock_post, clean_environment):
-    mock_response = MagicMock()
-    mock_response.json.return_value = MOCK_SESSION_RESPONSE
-    mock_response.raise_for_status.return_value = None
-    mock_post.return_value = mock_response
-
-    session = fetch_new_compute_session("test-token", "account-uuid-123")
-
-    mock_post.assert_called_once_with(
-        "https://compute.staging.eyepop.xyz/v1/session",
-        headers=TEST_REQUEST_HEADERS,
-        json={"account_uuid": "account-uuid-123"}
+def mock_compute_config():
+    return ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        secret_key="test-secret-key"
     )
-    assert session.session_endpoint == "https://pipeline.example.com"
-    assert session.session_status == "running"
-    assert session.session_active is True
 
 
-@patch("eyepop.compute.api.requests.post")
-def test_includes_account_uuid_in_request_body(mock_post, clean_environment):
+@patch("eyepop.compute.api.requests.get")
+def test_fetches_existing_session_successfully(mock_get, mock_compute_config):
     mock_response = MagicMock()
-    mock_response.json.return_value = MOCK_SESSION_RESPONSE
+    mock_response.json.return_value = [MOCK_SESSION_RESPONSE]
     mock_response.raise_for_status.return_value = None
-    mock_post.return_value = mock_response
+    mock_get.return_value = mock_response
 
-    session = fetch_new_compute_session("test-token", "account-uuid-789")
+    result = fetch_new_compute_session(mock_compute_config)
 
-    mock_post.assert_called_once_with(
-        "https://compute.staging.eyepop.xyz/v1/session",
-        headers=TEST_REQUEST_HEADERS,
-        json={"account_uuid": "account-uuid-789"}
+    mock_get.assert_called_once_with(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        headers=TEST_REQUEST_HEADERS
     )
-    assert session.session_endpoint == "https://pipeline.example.com"
+    assert result.session_endpoint == "https://pipeline.example.com"
+    assert result.access_token == "jwt-token-123"
+    assert result.pipeline_id == "pipeline-123"
 
 
 @patch("eyepop.compute.api.requests.post")
-def test_uses_custom_api_url_when_set(mock_post, clean_environment):
-    os.environ["_COMPUTE_API_URL"] = "https://custom-api.example.com"
+@patch("eyepop.compute.api.requests.get")
+def test_creates_session_when_none_exists(mock_get, mock_post, mock_compute_config):
+    mock_get_response = MagicMock()
+    mock_get_response.json.return_value = []
+    mock_get_response.raise_for_status.return_value = None
+    mock_get.return_value = mock_get_response
 
-    import importlib
-    import eyepop.compute.api
-    importlib.reload(eyepop.compute.api)
-    from eyepop.compute.api import fetch_new_compute_session, _compute_url
+    mock_post_response = MagicMock()
+    mock_post_response.json.return_value = MOCK_SESSION_RESPONSE
+    mock_post_response.raise_for_status.return_value = None
+    mock_post.return_value = mock_post_response
 
-    mock_response = MagicMock()
-    mock_response.json.return_value = MOCK_SESSION_RESPONSE
-    mock_response.raise_for_status.return_value = None
-    mock_post.return_value = mock_response
+    result = fetch_new_compute_session(mock_compute_config)
 
-    session = fetch_new_compute_session("test-token", "account-uuid-123")
-
+    mock_get.assert_called_once()
     mock_post.assert_called_once_with(
-        "https://custom-api.example.com/v1/session",
-        headers=TEST_REQUEST_HEADERS,
-        json={"account_uuid": "account-uuid-123"}
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        headers=TEST_REQUEST_HEADERS
     )
-    assert session.session_endpoint == "https://pipeline.example.com"
-    assert _compute_url == "https://custom-api.example.com"
+    assert result.session_endpoint == "https://pipeline.example.com"
+    assert result.access_token == "jwt-token-123"
 
 
-@patch("eyepop.compute.api.requests.post")
-def test_validates_response_with_pydantic(mock_post, clean_environment):
+@patch("eyepop.compute.api.requests.get")
+def test_handles_single_session_response(mock_get, mock_compute_config):
     mock_response = MagicMock()
     mock_response.json.return_value = MOCK_SESSION_RESPONSE
     mock_response.raise_for_status.return_value = None
-    mock_post.return_value = mock_response
+    mock_get.return_value = mock_response
 
-    session = fetch_new_compute_session("test-token", "account-uuid-123")
-    assert session.session_endpoint == "https://pipeline.example.com"
-    assert session.session_status == "running"
+    result = fetch_new_compute_session(mock_compute_config)
+
+    assert result.session_endpoint == "https://pipeline.example.com"
+    assert result.access_token == "jwt-token-123"
 
 
-@patch("eyepop.compute.api.requests.post")
-def test_raises_exception_on_http_error(mock_post, clean_environment):
+@patch("eyepop.compute.api.requests.get")
+def test_handles_empty_pipelines_list(mock_get, mock_compute_config):
+    mock_response = MagicMock()
+    mock_response.json.return_value = [MOCK_SESSION_RESPONSE_NO_PIPELINES]
+    mock_response.raise_for_status.return_value = None
+    mock_get.return_value = mock_response
+
+    result = fetch_new_compute_session(mock_compute_config)
+
+    assert result.pipeline_id == ""
+
+
+@patch("eyepop.compute.api.requests.get")
+def test_raises_exception_when_no_access_token(mock_get, mock_compute_config):
+    response_without_token = {**MOCK_SESSION_RESPONSE}
+    response_without_token["access_token"] = ""
+    
+    mock_response = MagicMock()
+    mock_response.json.return_value = [response_without_token]
+    mock_response.raise_for_status.return_value = None
+    mock_get.return_value = mock_response
+
+    with pytest.raises(Exception, match="No access_token received"):
+        fetch_new_compute_session(mock_compute_config)
+
+
+@patch("eyepop.compute.api.requests.get")
+def test_raises_exception_on_http_error(mock_get, mock_compute_config):
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = Exception("HTTP 404 Not Found")
-    mock_post.return_value = mock_response
+    mock_get.return_value = mock_response
 
     with pytest.raises(Exception, match="HTTP 404"):
-        fetch_new_compute_session("test-token", "account-uuid-123")
+        fetch_new_compute_session(mock_compute_config)
 
 
 @patch("eyepop.compute.api.requests.post")
-def test_raises_exception_on_connection_error(mock_post, clean_environment):
-    mock_post.side_effect = Exception("Connection refused")
+@patch("eyepop.compute.api.requests.get")
+def test_raises_exception_when_post_fails(mock_get, mock_post, mock_compute_config):
+    mock_get_response = MagicMock()
+    mock_get_response.json.return_value = []
+    mock_get_response.raise_for_status.return_value = None
+    mock_get.return_value = mock_get_response
 
-    with pytest.raises(Exception, match="Connection refused"):
-        fetch_new_compute_session("test-token", "account-uuid-123")
+    mock_post.side_effect = Exception("Failed to create session")
+
+    with pytest.raises(Exception, match="No existing session and failed to create new one"):
+        fetch_new_compute_session(mock_compute_config)
 
 
-def test_respects_compute_api_url_environment_variable(clean_environment):
-    import eyepop.compute.api
+@patch("eyepop.compute.status.wait_for_session")
+@patch("eyepop.compute.api.fetch_new_compute_session")
+def test_fetch_session_endpoint_with_health_check(mock_fetch_new, mock_wait):
+    mock_context = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        secret_key="test-key",
+        session_endpoint="https://session.example.com",
+        access_token="jwt-123"
+    )
+    mock_fetch_new.return_value = mock_context
+    mock_wait.return_value = True
 
-    default_url = eyepop.compute.api._compute_url
-    assert default_url == "https://compute.staging.eyepop.xyz"
+    result = fetch_session_endpoint(mock_context)
 
-    os.environ["_COMPUTE_API_URL"] = "https://my-custom-compute.example.com"
+    mock_fetch_new.assert_called_once_with(mock_context)
+    mock_wait.assert_called_once_with(mock_context)
+    assert result == mock_context
 
-    import importlib
-    importlib.reload(eyepop.compute.api)
 
-    custom_url = eyepop.compute.api._compute_url
-    assert custom_url == "https://my-custom-compute.example.com"
+@patch("eyepop.compute.status.wait_for_session")
+@patch("eyepop.compute.api.fetch_new_compute_session")
+def test_fetch_session_endpoint_raises_on_health_check_failure(mock_fetch_new, mock_wait):
+    mock_context = ComputeContext()
+    mock_fetch_new.return_value = mock_context
+    mock_wait.return_value = False
+
+    with pytest.raises(Exception, match="Failed to fetch session endpoint"):
+        fetch_session_endpoint(mock_context)
+
+
+@patch.dict(os.environ, {"EYEPOP_URL": "https://custom.compute.com", "EYEPOP_SECRET_KEY": "env-key"})
+@patch("eyepop.compute.status.wait_for_session")
+@patch("eyepop.compute.api.fetch_new_compute_session")
+def test_fetch_session_endpoint_uses_env_vars(mock_fetch_new, mock_wait):
+    mock_context = ComputeContext(
+        compute_url="https://custom.compute.com",
+        secret_key="env-key"
+    )
+    mock_fetch_new.return_value = mock_context
+    mock_wait.return_value = True
+
+    result = fetch_session_endpoint()
+
+    called_context = mock_fetch_new.call_args[0][0]
+    assert called_context.compute_url == "https://custom.compute.com"
+    assert called_context.secret_key == "env-key"

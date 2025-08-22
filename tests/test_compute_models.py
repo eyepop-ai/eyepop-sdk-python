@@ -1,14 +1,16 @@
 import pytest
 from pydantic import ValidationError
 
-from eyepop.compute.models import ComputeApiSessionResponse, PipelineStatus
+from eyepop.compute.models import ComputeApiSessionResponse, ComputeContext, PipelineStatus
 
 
 def test_creates_valid_session_response():
-    """It creates a valid session response."""
+    """It creates a valid session response with all required fields."""
     response_data = {
         "session_uuid": "session-456",
         "session_endpoint": "https://pipeline.example.com",
+        "access_token": "jwt-token-123",
+        "pipelines": [{"pipeline_id": "pipeline-123"}],
         "pipeline_uuid": "pipeline-123",
         "pipeline_version": "1.0.0",
         "session_status": PipelineStatus.RUNNING,
@@ -20,53 +22,75 @@ def test_creates_valid_session_response():
     response = ComputeApiSessionResponse(**response_data)
 
     assert response.session_endpoint == "https://pipeline.example.com"
+    assert response.access_token == "jwt-token-123"
+    assert response.pipelines == [{"pipeline_id": "pipeline-123"}]
     assert response.pipeline_uuid == "pipeline-123"
     assert response.session_uuid == "session-456"
     assert response.session_status == PipelineStatus.RUNNING
     assert response.session_active is True
 
 
+def test_session_response_with_defaults():
+    """It creates a session response with minimal required fields."""
+    response_data = {
+        "session_uuid": "session-456",
+        "session_endpoint": "https://pipeline.example.com",
+        "access_token": "jwt-token-123"
+    }
+
+    response = ComputeApiSessionResponse(**response_data)
+
+    assert response.session_endpoint == "https://pipeline.example.com"
+    assert response.access_token == "jwt-token-123"
+    assert response.pipelines == []
+    assert response.pipeline_uuid == ""
+    assert response.pipeline_version == ""
+    assert response.session_status == PipelineStatus.PENDING
+    assert response.session_message == ""
+    assert response.pipeline_ttl is None
+    assert response.session_active is False
+
+
 def test_validates_pipeline_status_enum():
-    """It only allows good enums."""
-    valid_statuses = [PipelineStatus.UNKNOWN, PipelineStatus.PENDING, PipelineStatus.RUNNING, PipelineStatus.STOPPED, PipelineStatus.FAILED]
+    """It only allows valid pipeline status enums."""
+    valid_statuses = [
+        PipelineStatus.UNKNOWN, 
+        PipelineStatus.PENDING, 
+        PipelineStatus.RUNNING, 
+        PipelineStatus.STOPPED, 
+        PipelineStatus.FAILED
+    ]
 
     for status in valid_statuses:
         response_data = {
             "session_uuid": "session-456",
             "session_endpoint": "https://pipeline.example.com",
-            "pipeline_uuid": "pipeline-123",
-            "pipeline_version": "1.0.0",
-            "session_status": status,
-            "session_message": "Session created successfully",
-            "pipeline_ttl": 3600,
-            "session_active": True
+            "access_token": "jwt-token-123",
+            "session_status": status
         }
         response = ComputeApiSessionResponse(**response_data)
         assert response.session_status == status
 
-    """It rejects bad enums."""
+
+def test_rejects_invalid_pipeline_status():
+    """It rejects invalid pipeline status values."""
     response_data = {
         "session_uuid": "session-456",
         "session_endpoint": "https://pipeline.example.com",
-        "pipeline_uuid": "pipeline-123",
-        "pipeline_version": "1.0.0",
-        "session_status": "invalid_status",  # invalid on purpose
-        "session_message": "Session created successfully",
-        "pipeline_ttl": 3600,
-        "session_active": True
+        "access_token": "jwt-token-123",
+        "session_status": "invalid_status"
     }
 
     with pytest.raises(ValidationError):
         ComputeApiSessionResponse(**response_data)
 
 
-def test_requires_all_fields():
+def test_requires_core_fields():
+    """It requires session_uuid, session_endpoint, and access_token."""
     incomplete_data = {
         "session_uuid": "session-456",
-        "session_endpoint": "https://pipeline.example.com",
-        "pipeline_uuid": "pipeline-123",
-        "session_status": PipelineStatus.FAILED,
-        # missing required fields
+        "session_endpoint": "https://pipeline.example.com"
+        # missing access_token
     }
 
     with pytest.raises(ValidationError):
@@ -74,15 +98,11 @@ def test_requires_all_fields():
 
 
 def test_validates_field_types():
+    """It validates that fields have correct types."""
     response_data = {
         "session_uuid": 123,  # should be str
         "session_endpoint": "https://pipeline.example.com",
-        "pipeline_uuid": "pipeline-123",
-        "pipeline_version": "1.0.0",
-        "session_status": PipelineStatus.RUNNING,
-        "session_message": "Session created successfully",
-        "pipeline_ttl": 3600,
-        "session_active": True
+        "access_token": "jwt-token-123"
     }
 
     with pytest.raises(ValidationError):
@@ -90,78 +110,101 @@ def test_validates_field_types():
 
 
 def test_serializes_to_dict():
+    """It correctly serializes to dictionary."""
     response_data = {
         "session_uuid": "session-456",
         "session_endpoint": "https://pipeline.example.com",
-        "pipeline_uuid": "pipeline-123",
-        "pipeline_version": "1.0.0",
-        "session_status": PipelineStatus.RUNNING,
-        "session_message": "Session created successfully",
-        "pipeline_ttl": 3600,
-        "session_active": True
+        "access_token": "jwt-token-123",
+        "pipelines": [{"pipeline_id": "p1"}],
+        "session_status": PipelineStatus.RUNNING
     }
 
     response = ComputeApiSessionResponse(**response_data)
     serialized = response.model_dump()
-    # Enum will be serialized as value
-    expected = dict(response_data)
-    expected["session_status"] = "running"
-    assert serialized == expected
+    
+    assert serialized["session_uuid"] == "session-456"
+    assert serialized["session_endpoint"] == "https://pipeline.example.com"
+    assert serialized["access_token"] == "jwt-token-123"
+    assert serialized["pipelines"] == [{"pipeline_id": "p1"}]
+    assert serialized["session_status"] == "running"
 
 
 def test_parses_from_json_string():
-    json_str = '{"session_uuid": "session-456", "session_endpoint": "https://pipeline.example.com", "pipeline_uuid": "pipeline-123", "pipeline_version": "1.0.0", "session_status": "running", "session_message": "Session created successfully", "pipeline_ttl": 3600, "session_active": true}'
+    """It parses from JSON string."""
+    json_str = '''{
+        "session_uuid": "session-456", 
+        "session_endpoint": "https://pipeline.example.com", 
+        "access_token": "jwt-token-123",
+        "pipelines": [],
+        "session_status": "running"
+    }'''
 
     response = ComputeApiSessionResponse.model_validate_json(json_str)
 
     assert response.session_endpoint == "https://pipeline.example.com"
+    assert response.access_token == "jwt-token-123"
     assert response.session_status == PipelineStatus.RUNNING
 
 
-def test_handles_different_url_formats():
-    url_formats = [
-        "https://simple.example.com",
-        "https://complex.example.com/v1/pipelines/123",
-        "http://localhost:8080/pipeline",
-        "https://api.example.com/compute/v2/sessions/abc-def",
-    ]
+def test_compute_context_creation():
+    """It creates a valid ComputeContext."""
+    context = ComputeContext(
+        compute_url="https://compute.example.com",
+        secret_key="test-key",
+        access_token="jwt-123",
+        session_endpoint="https://session.example.com",
+        pipeline_id="pipeline-456"
+    )
 
-    for url in url_formats:
-        response_data = {
-            "session_uuid": "session-456",
-            "session_endpoint": url,
-            "pipeline_uuid": "pipeline-123",
-            "pipeline_version": "1.0.0",
-            "session_status": PipelineStatus.RUNNING,
-            "session_message": "Session created successfully",
-            "pipeline_ttl": 3600,
-            "session_active": True
-        }
-
-        response = ComputeApiSessionResponse(**response_data)
-        assert response.session_endpoint == url
+    assert context.compute_url == "https://compute.example.com"
+    assert context.secret_key == "test-key"
+    assert context.access_token == "jwt-123"
+    assert context.session_endpoint == "https://session.example.com"
+    assert context.pipeline_id == "pipeline-456"
+    assert context.wait_for_session_timeout == 10
+    assert context.wait_for_session_interval == 1
 
 
-def test_handles_uuid_formats():
-    uuid_formats = [
-        "simple-uuid",
-        "12345678-1234-1234-1234-123456789012",
-        "abc-def-ghi",
-        "session_123_456",
-    ]
+def test_compute_context_defaults():
+    """It creates ComputeContext with defaults."""
+    context = ComputeContext()
 
-    for uuid_val in uuid_formats:
-        response_data = {
-            "session_uuid": uuid_val,
-            "session_endpoint": "https://pipeline.example.com",
-            "pipeline_uuid": uuid_val,
-            "pipeline_version": "1.0.0",
-            "session_status": PipelineStatus.RUNNING,
-            "session_message": "Session created successfully",
-            "pipeline_ttl": 3600,
-            "session_active": True
-        }
+    assert context.compute_url == "https://compute-api.staging.eyepop.xyz"
+    assert context.session_endpoint == ""
+    assert context.session_uuid == ""
+    assert context.pipeline_uuid == ""
+    assert context.access_token == ""
+    assert context.wait_for_session_timeout == 10
+    assert context.wait_for_session_interval == 1
 
-        response = ComputeApiSessionResponse(**response_data)
-        assert response.pipeline_uuid == uuid_val
-        assert response.session_uuid == uuid_val
+
+def test_handles_empty_pipelines_list():
+    """It handles empty pipelines list."""
+    response_data = {
+        "session_uuid": "session-456",
+        "session_endpoint": "https://pipeline.example.com",
+        "access_token": "jwt-token-123",
+        "pipelines": []
+    }
+
+    response = ComputeApiSessionResponse(**response_data)
+    assert response.pipelines == []
+    assert response.pipeline_uuid == ""
+
+
+def test_handles_multiple_pipelines():
+    """It handles multiple pipelines in the list."""
+    response_data = {
+        "session_uuid": "session-456",
+        "session_endpoint": "https://pipeline.example.com",
+        "access_token": "jwt-token-123",
+        "pipelines": [
+            {"pipeline_id": "p1", "name": "Pipeline 1"},
+            {"pipeline_id": "p2", "name": "Pipeline 2"}
+        ]
+    }
+
+    response = ComputeApiSessionResponse(**response_data)
+    assert len(response.pipelines) == 2
+    assert response.pipelines[0]["pipeline_id"] == "p1"
+    assert response.pipelines[1]["pipeline_id"] == "p2"
