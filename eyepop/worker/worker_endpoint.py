@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import time
 from io import StringIO
 from typing import Callable, BinaryIO, Any
@@ -42,13 +43,17 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             job_queue_length: int,
             request_tracer_max_buffer: int,
             dataset_uuid: str | None = None,
-            experimental: bool = False
     ):
         # Fetch compute context BEFORE calling super().__init__
-        # Use compute API if the URL contains "compute"
+        # Only use compute API if the URL contains "compute"
         compute_ctx = None
-        if experimental or (eyepop_url and "compute" in eyepop_url):
-            compute_ctx = fetch_session_endpoint()
+        if eyepop_url and "compute" in eyepop_url:
+            from eyepop.compute.models import ComputeContext
+            compute_config = ComputeContext(
+                compute_url=eyepop_url,
+                secret_key=secret_key if secret_key else os.getenv("EYEPOP_SECRET_KEY", ""),
+            )
+            compute_ctx = fetch_session_endpoint(compute_config)
             # Use the session endpoint, not the compute URL
             eyepop_url = compute_ctx.session_endpoint
             # Keep using the secret key from compute context
