@@ -16,7 +16,7 @@ def wait_for_session(compute_config: ComputeContext) -> bool:
     timeout = compute_config.wait_for_session_timeout
     interval = compute_config.wait_for_session_interval
     headers = {
-        "Authorization": f"Bearer {compute_config.secret_key}",
+        "Authorization": f"Bearer {compute_config.access_token}",
         "Accept": "application/json",
     }
     end_time = time.time() + timeout
