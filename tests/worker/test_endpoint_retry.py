@@ -53,38 +53,38 @@ class TestEndpointRetry(BaseEndpointTest):
                 },
                 data=json.dumps({'sourceType': 'URL', 'url': self.test_url}),
                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
-# Duplicated test??
-    # @aioresponses()
-    # def test_sync_load_auth_retry(self, mock: aioresponses):
-    #     self._prepare_mock(mock)
-    #     with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-    #                                   pop_id=self.test_eyepop_pop_id) as endpoint:
-    #         self.assertBaseMock(mock)
-    #         test_timestamp = time.time() * 1000 * 1000 * 1000
 
-    #         self.test_access_token = '... a new access token ....'
-    #         self._prepare_mock(mock)
+    @aioresponses()
+    def test_sync_load_auth_retry(self, mock: aioresponses):
+        self._prepare_mock(mock)
+        with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+                                      pop_id=self.test_eyepop_pop_id) as endpoint:
+            self.assertBaseMock(mock)
+            test_timestamp = time.time() * 1000 * 1000 * 1000
 
-    #         def loadFrom(url, **kwargs) -> CallbackResult:
-    #             nonlocal test_timestamp
-    #             if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
-    #                 return CallbackResult(status=200,
-    #                                       body=json.dumps(
-    #                                           {'source_id': self.test_source_id, 'seconds': 0,
-    #                                            'system_timestamp': test_timestamp}))
-    #             else:
-    #                 return CallbackResult(status=401, reason='test auth token expired')
+            self.test_access_token = '... a new access token ....'
+            self._prepare_mock(mock)
 
-    #         mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
-    #                    callback=loadFrom, repeat=True)
+            def loadFrom(url, **kwargs) -> CallbackResult:
+                nonlocal test_timestamp
+                if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
+                    return CallbackResult(status=200,
+                                          body=json.dumps(
+                                              {'source_id': self.test_source_id, 'seconds': 0,
+                                               'system_timestamp': test_timestamp}))
+                else:
+                    return CallbackResult(status=401, reason='test auth token expired')
 
-    #         job = endpoint.load_from(self.test_url)
-    #         result = job.predict()
-    #         self.assertIsNotNone(result)
-    #         self.assertEqual(result['source_id'], self.test_source_id)
-    #         self.assertEqual(result['seconds'], 0)
-    #         self.assertEqual(result['system_timestamp'], test_timestamp)
-    #         self.assertIsNone(job.predict())
+            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
+                       callback=loadFrom, repeat=True)
+
+            job = endpoint.load_from(self.test_url)
+            result = job.predict()
+            self.assertIsNotNone(result)
+            self.assertEqual(result['source_id'], self.test_source_id)
+            self.assertEqual(result['seconds'], 0)
+            self.assertEqual(result['system_timestamp'], test_timestamp)
+            self.assertIsNone(job.predict())
 
             mock.assert_called_with(
                 f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
