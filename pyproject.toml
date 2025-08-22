@@ -7,6 +7,10 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+include = ["eyepop*"]
+exclude = ["tmp*", "tests*", "examples*", "scripts*", "compute-examples*"]
+
 [project]
 name = "eyepop"
 version = "3.1.1"
