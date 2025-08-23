@@ -121,21 +121,43 @@ class SyncDataEndpoint(SyncEndpoint):
 
     """" Asset methods """
 
-    def upload_asset_job(self, stream: BinaryIO, mime_type: str, dataset_uuid: str,
-                         dataset_version: int | None = None, external_id: str | None = None,
-                         on_ready: Callable[[DataJob], None] | None = None) -> DataJob | SyncDataJob:
+    def upload_asset_job(
+            self, stream: BinaryIO,
+            mime_type: str,
+            dataset_uuid: str,
+            dataset_version: int | None = None,
+            external_id: str | None = None,
+            sync_transform: bool | None = None,
+            no_transform: bool | None = None,
+            on_ready: Callable[[DataJob], None] | None = None
+    ) -> DataJob | SyncDataJob:
         if on_ready is not None:
             raise TypeError("'on_ready' callback not supported for sync endpoints. "
                             "Use 'EyePopSdk.dataEndpoint(is_async=True)` to create "
                             "an endpoint with callback support")
         job = run_coro_thread_save(self.event_loop,
-                                   self.endpoint.upload_asset_job(stream, mime_type, dataset_uuid, dataset_version,
-                                                                   external_id, None))
+                                   self.endpoint.upload_asset_job(
+                                       stream=stream,
+                                       mime_type=mime_type,
+                                       dataset_uuid=dataset_uuid,
+                                       dataset_version=dataset_version,
+                                       external_id=external_id,
+                                       sync_transform=sync_transform,
+                                       no_transform=no_transform,
+                                       on_ready=None))
         return SyncDataJob(job, self.event_loop)
 
-    def import_asset_job(self, asset_import: AssetImport, dataset_uuid: str, dataset_version: Optional[int] = None,
-                         external_id: Optional[str] = None, partition: Optional[str] = None,
-                         on_ready: Callable[[DataJob], None] | None = None) -> DataJob | SyncDataJob:
+    def import_asset_job(
+            self,
+            asset_import: AssetImport,
+            dataset_uuid: str,
+            dataset_version: Optional[int] = None,
+            external_id: Optional[str] = None,
+            partition: Optional[str] = None,
+            sync_transform: bool | None = None,
+            no_transform: bool | None = None,
+            on_ready: Callable[[DataJob], None] | None = None
+    ) -> DataJob | SyncDataJob:
         if on_ready is not None:
             raise TypeError("'on_ready' callback not supported for sync endpoints. "
                             "Use 'EyePopSdk.dataEndpoint(is_async=True)` to create "
@@ -147,6 +169,8 @@ class SyncDataEndpoint(SyncEndpoint):
                                        dataset_version=dataset_version,
                                        external_id=external_id,
                                        partition=partition,
+                                       sync_transform=sync_transform,
+                                       no_transform=no_transform,
                                        on_ready=None))
         return SyncDataJob(job, self.event_loop)
 

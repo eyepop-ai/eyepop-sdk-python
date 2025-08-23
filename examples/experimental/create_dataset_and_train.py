@@ -30,10 +30,14 @@ async def import_sample_assets(endpoint: DataEndpoint, dataset: Dataset) -> list
     async def on_ready(import_job: DataJob):
         assets.append(await import_job.result())
     for sample_asset in sample_assets_json:
-        job = await endpoint.import_asset_job(AssetImport(
-            url=sample_asset['asset_url'],
-            ground_truth=sample_asset['prediction'],
-        ), dataset.uuid)
+        job = await endpoint.import_asset_job(
+            asset_import=AssetImport(
+                url=sample_asset['asset_url'],
+                ground_truth=sample_asset['prediction'],
+            ),
+            dataset_uuid=dataset.uuid,
+            no_transform=True
+        )
         tasks.append(on_ready(job))
     await asyncio.gather(*tasks)
     log.info("imported %d assets to %s", len(assets), dataset.uuid)
