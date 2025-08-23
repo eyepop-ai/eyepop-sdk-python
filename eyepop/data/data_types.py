@@ -281,6 +281,7 @@ class Asset(BaseModel):
     updated_at: datetime | None = None
     mime_type: str | None = None
     file_size_bytes: int | None = None
+    is_transformed: bool | None = None
     status: AssetStatus | None = None
     status_message: str | None = None
     external_id: str | None = None
@@ -288,6 +289,7 @@ class Asset(BaseModel):
     review_priority: float | None = None
     model_relevance: float | None = None
     annotations: List[AssetAnnotation] = []
+
 
     ###
     # Denormalized attributes, for convenient serialization/storage detached of a dataset context

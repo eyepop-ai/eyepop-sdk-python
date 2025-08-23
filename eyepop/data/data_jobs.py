@@ -1,6 +1,7 @@
 import json
 from asyncio import Queue
 from typing import Callable, BinaryIO
+from urllib.parse import quote_plus
 
 import aiohttp
 
@@ -26,50 +27,85 @@ class DataJob(Job):
 
 
 class _UploadStreamJob(DataJob):
-    def __init__(self, stream: BinaryIO, mime_type: str, dataset_uuid: str, dataset_version: int | None,
-                 external_id: str | None, session: ClientSession, on_ready: Callable[[DataJob], None] | None = None,
-                 callback: JobStateCallback | None = None):
+    def __init__(
+            self,
+            stream: BinaryIO,
+            mime_type: str,
+            dataset_uuid: str,
+            dataset_version: int | None,
+            external_id: str | None,
+            sync_transform: bool | None,
+            no_transform: bool | None,
+            session: ClientSession,
+            on_ready: Callable[[DataJob], None] | None = None,
+            callback: JobStateCallback | None = None
+    ):
         super().__init__(session, on_ready, callback)
         self.stream = stream
         self.mime_type = mime_type
         self.dataset_uuid = dataset_uuid
         self.dataset_version = dataset_version
         self.external_id = external_id
+        self.sync_transform = sync_transform
+        self.no_transform = no_transform
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
         dataset_version_query = f"&dataset_version={self.dataset_version}" if self.dataset_version else ""
-        post_path: str
-        if self.external_id:
-            post_path = f"/assets?dataset_uuid={self.dataset_uuid}{dataset_version_query}&external_id={self.external_id}"
-        else:
-            post_path = f"/assets?dataset_uuid={self.dataset_uuid}{dataset_version_query}"
+        external_id_query = f"&external_id={quote_plus(self.external_id)}" if self.external_id else ""
 
-        async with await session.request_with_retry("POST", post_path, data=self.stream,
-                                                    content_type=self.mime_type,
-                                                    timeout=aiohttp.ClientTimeout(total=None, sock_read=60)) as resp:
+        post_path = f"/assets?dataset_uuid={self.dataset_uuid}{dataset_version_query}{external_id_query}"
+
+        if self.sync_transform is not None:
+            post_path = f"{post_path}&sync_transform={'true' if self.sync_transform else 'false'}"
+        if self.no_transform is not None:
+            post_path = f"{post_path}&no_transform={'true' if self.no_transform else 'false'}"
+
+        async with await session.request_with_retry(
+                method="POST",
+                url=post_path,
+                data=self.stream,
+                content_type=self.mime_type,
+                timeout=aiohttp.ClientTimeout(total=None, sock_read=60)
+        ) as resp:
             result = Asset.model_validate(await resp.json())
             await queue.put(result)
 
 
 class _ImportFromJob(DataJob):
-    def __init__(self, asset_import: AssetImport, dataset_uuid: str, dataset_version: int | None,
-                 external_id: str | None, partition: str | None,
-                 session: ClientSession, on_ready: Callable[[DataJob], None] | None = None,
-                 callback: JobStateCallback | None = None):
+    def __init__(
+            self,
+            asset_import: AssetImport,
+            dataset_uuid: str,
+            dataset_version: int | None,
+            external_id: str | None,
+            partition: str | None,
+            sync_transform: bool | None,
+            no_transform: bool | None,
+            session: ClientSession,
+            on_ready: Callable[[DataJob], None] | None = None,
+            callback: JobStateCallback | None = None
+    ):
         super().__init__(session, on_ready, callback)
         self.asset_import = asset_import
         self.dataset_uuid = dataset_uuid
         self.dataset_version = dataset_version
         self.external_id = external_id
         self.partition = partition
+        self.sync_transform = sync_transform
+        self.no_transform = no_transform
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
         dataset_version_query = f"&dataset_version={self.dataset_version}" if self.dataset_version else ""
-        external_id_query = f"&external_id={self.external_id}" if self.external_id else ""
-        partition_query = f"&partition={self.partition}" if self.partition else ""
+        external_id_query = f"&external_id={quote_plus(self.external_id)}" if self.external_id else ""
+        partition_query = f"&partition={quote_plus(self.partition)}" if self.partition else ""
 
         post_path = (f"/assets/imports?dataset_uuid={self.dataset_uuid}"
                      f"{dataset_version_query}{external_id_query}{partition_query}")
+
+        if self.sync_transform is not None:
+            post_path = f"{post_path}&sync_transform={'true' if self.sync_transform else 'false'}"
+        if self.no_transform is not None:
+            post_path = f"{post_path}&no_transform={'true' if self.no_transform else 'false'}"
 
         async with await session.request_with_retry(
                 "POST",

@@ -343,23 +343,57 @@ class DataEndpoint(Endpoint):
 
     """" Asset methods """
 
-    async def upload_asset_job(self, stream: BinaryIO, mime_type: str, dataset_uuid: str,
-                               dataset_version: int | None = None, external_id: str | None = None,
-                               on_ready: Callable[[DataJob], None] | None = None) -> DataJob | SyncDataJob:
+    async def upload_asset_job(
+            self,
+            stream: BinaryIO,
+            mime_type: str,
+            dataset_uuid: str,
+            dataset_version: int | None = None,
+            external_id: str | None = None,
+            sync_transform: bool | None = None,
+            no_transform: bool | None = None,
+            on_ready: Callable[[DataJob], None] | None = None
+    ) -> DataJob | SyncDataJob:
         session = DataClientSession(self, await self.data_base_url())
-        job = _UploadStreamJob(stream=stream, mime_type=mime_type, dataset_uuid=dataset_uuid,
-                               dataset_version=dataset_version, external_id=external_id, session=session,
-                               on_ready=on_ready, callback=self.metrics_collector)
+        job = _UploadStreamJob(
+            stream=stream,
+            mime_type=mime_type,
+            dataset_uuid=dataset_uuid,
+            dataset_version=dataset_version,
+            external_id=external_id,
+            sync_transform=sync_transform,
+            no_transform=no_transform,
+            session=session,
+            on_ready=on_ready,
+            callback=self.metrics_collector
+        )
         await self._task_start(job.execute())
         return job
 
-    async def import_asset_job(self, asset_import: AssetImport, dataset_uuid: str, dataset_version: int | None = None,
-                               external_id: str | None = None, partition: str | None = None,
-                               on_ready: Callable[[DataJob], None] | None = None) -> DataJob | SyncDataJob:
+    async def import_asset_job(
+            self,
+            asset_import: AssetImport,
+            dataset_uuid: str,
+            dataset_version: int | None = None,
+            external_id: str | None = None,
+            partition: str | None = None,
+            sync_transform: bool | None = None,
+            no_transform: bool | None = None,
+            on_ready: Callable[[DataJob], None] | None = None
+    ) -> DataJob | SyncDataJob:
         session = DataClientSession(self, await self.data_base_url())
-        job = _ImportFromJob(asset_import=asset_import, dataset_uuid=dataset_uuid, dataset_version=dataset_version,
-                             external_id=external_id, session=session, partition=partition,
-                             on_ready=on_ready, callback=self.metrics_collector)
+        job = _ImportFromJob(
+            asset_import=asset_import,
+            dataset_uuid=dataset_uuid,
+            dataset_version=dataset_version,
+            external_id=external_id,
+            sync_transform=sync_transform,
+            no_transform=no_transform,
+            session=session,
+            partition=partition,
+            on_ready=on_ready,
+            callback=self.metrics_collector
+        )
         await self._task_start(job.execute())
         return job
 
