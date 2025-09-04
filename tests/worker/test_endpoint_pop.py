@@ -40,7 +40,7 @@ class TestEndpointPop(BaseEndpointTest):
         with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                       pop_id="transient") as endpoint:
             cur_pop = endpoint.get_pop()
-            self.assertEqual(cur_pop, self.current_pop)
+        self.assertEqual(cur_pop, Pop(components=[]))
         self.assertBaseMock(mock, is_transient=True)
 
     @aioresponses()
@@ -94,7 +94,7 @@ class TestEndpointPop(BaseEndpointTest):
         async with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                             pop_id="transient", is_async=True) as endpoint:
             cur_pop = await endpoint.get_pop()
-            self.assertIsNone(cur_pop)
+        self.assertEqual(cur_pop, Pop(components=[]))
         self.assertBaseMock(mock, is_transient=True)
 
     
