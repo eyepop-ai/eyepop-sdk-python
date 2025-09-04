@@ -26,7 +26,6 @@ class EyePopSdk:
             eyepop_url: str | None = None,
             job_queue_length: int = 1024,
             is_async: bool = False,
-            is_sandbox: bool = False,
             is_local_mode: bool | None = None,
             request_tracer_max_buffer: int = 1204,
             dataset_uuid: str | None = None
@@ -67,7 +66,6 @@ class EyePopSdk:
             stop_jobs=stop_jobs,
             eyepop_url=eyepop_url,
             job_queue_length=job_queue_length,
-            is_sandbox=is_sandbox,
             request_tracer_max_buffer=request_tracer_max_buffer,
             dataset_uuid=dataset_uuid,
         )

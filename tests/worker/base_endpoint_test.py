@@ -6,6 +6,8 @@ from asyncio import timeout
 import aiohttp
 from aioresponses import aioresponses, CallbackResult
 
+from eyepop.worker.worker_types import Pop
+
 
 class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
 
@@ -16,8 +18,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
     test_access_token = '... an access token ...'
     test_worker_url = f'http://example-worker.test'
     test_pipeline_id = 'test_pipeline_id'
-    test_pop_comp = "test_pop_comp"
-    
+
     env_var = ['EYEPOP_SECRET_KEY', 'EYEPOP_POP_ID', 'EYEPOP_URL']
     for var in env_var:
         if var in os.environ:
@@ -25,7 +26,6 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
 
     def setup_base_mock(
             self, mock: aioresponses,
-            sandbox_id: str | None = None,
             status: str = 'active_dev',
             num_endpoints: int = 1,
             provided_access_token: str | None = None,
@@ -88,10 +88,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
                  repeat=True)
         mock.get(f'{self.test_eyepop_url}/pops/{self.test_eyepop_pop_id}/config?auto_start=True', callback=config,
                  repeat=True)
-        if sandbox_id is None:
-            mock.post(f'{self.test_worker_url}/pipelines', callback=start, repeat=False)
-        else:
-            mock.post(f'{self.test_worker_url}/pipelines?sandboxId={sandbox_id}', callback=start, repeat=False)
+        mock.post(f'{self.test_worker_url}/pipelines', callback=start, repeat=False)
 
         mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=preempt&processing=sync',
                    callback=stop, repeat=False)
@@ -103,7 +100,6 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
             self,
             mock: aioresponses,
             is_transient: bool = False,
-            sandbox_id: str | None = None,
             status: str = 'active_dev',
             num_endpoints: int = 1,
             provided_access_token: str | None = None
@@ -116,29 +112,22 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
             mock.assert_called_with(f'{self.test_eyepop_url}/workers/config',
                                     method='GET',
                                     headers={'Authorization': f'Bearer {provided_access_token}'})
-            if sandbox_id is None:
-                start_url = f'{self.test_worker_url}/pipelines'
-            else:
-                start_url = f'{self.test_worker_url}/pipelines?sandboxId={sandbox_id}'
+            start_url = f'{self.test_worker_url}/pipelines'
             mock.assert_called_with(
                 start_url,
                 method='POST',
                 headers={'Authorization': f'Bearer {provided_access_token}'},
                 data=None,
                 json={
-                'inferPipelineDef': {
-                    'pipeline': 'identity', 'modelRefs': []
-                },
-                'postTransformDef': {
-                  'transform': None,
-                },
-                "source": {
-                    "sourceType": "NONE",
-                },
-                "idleTimeoutSeconds": 60,
-                "logging": ["out_meta"],
-                "videoOutput": "no_output"
-            })
+                    "pop": None,
+                    "source": {
+                        "sourceType": "NONE",
+                    },
+                    "idleTimeoutSeconds": 60,
+                    "logging": ["out_meta"],
+                    "videoOutput": "no_output"
+                }
+            )
         else:
             mock.assert_called_with(f'{self.test_eyepop_url}/pops/{self.test_eyepop_pop_id}/config?auto_start=True',
                                     method='GET',
