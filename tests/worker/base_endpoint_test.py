@@ -119,7 +119,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
                 headers={'Authorization': f'Bearer {provided_access_token}'},
                 data=None,
                 json={
-                    "pop": None,
+                    "pop": Pop(components=[]).model_dump(),
                     "source": {
                         "sourceType": "NONE",
                     },
