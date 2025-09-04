@@ -6,6 +6,7 @@ import pytest
 from aioresponses import aioresponses, CallbackResult
 
 from eyepop import EyePopSdk
+from eyepop.worker.worker_types import Pop
 from tests.worker.base_endpoint_test import BaseEndpointTest
 import tests
 
@@ -21,13 +22,14 @@ class TestEndpointUpload(BaseEndpointTest):
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
         # automatic call to get pop comp and store
-        def get_pop_comp(url, **kwargs) -> CallbackResult:
+        def get_pop(url, **kwargs) -> CallbackResult:
             if kwargs['headers']['Authorization'] != f'Bearer {self.test_access_token}':
                 return CallbackResult(status=401, reason='test auth token expired')
             else:
-                return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
+                return CallbackResult(status=200, body=json.dumps({'pop': Pop(components=[]).model_dump()
+}))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
-                    callback=get_pop_comp)
+                    callback=get_pop)
         with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                       pop_id=self.test_eyepop_pop_id) as endpoint:
             self.assertBaseMock(mock)
@@ -70,13 +72,14 @@ class TestEndpointUpload(BaseEndpointTest):
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
         # automatic call to get pop comp and store
-        def get_pop_comp(url, **kwargs) -> CallbackResult:
+        def get_pop(url, **kwargs) -> CallbackResult:
             if kwargs['headers']['Authorization'] != f'Bearer {self.test_access_token}':
                 return CallbackResult(status=401, reason='test auth token expired')
             else:
-                return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
+                return CallbackResult(status=200, body=json.dumps({'pop': Pop(components=[]).model_dump()
+}))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
-                    callback=get_pop_comp)
+                    callback=get_pop)
         async with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                             pop_id=self.test_eyepop_pop_id, is_async=True) as endpoint:
             self.assertBaseMock(mock)

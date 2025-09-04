@@ -94,40 +94,4 @@ class SyncWorkerEndpoint(SyncEndpoint):
     def set_pop(self, pop: Pop) -> dict:
         return run_coro_thread_save(self.event_loop, self.endpoint.set_pop(pop))
 
-    def get_pop_comp(self) -> dict:
-        return run_coro_thread_save(self.event_loop, self.endpoint.get_pop_comp())
-
-    def set_pop_comp(self, popComp: str, model_refs: list[dict] = []) -> dict:
-        return run_coro_thread_save(self.event_loop, self.endpoint.set_pop_comp(popComp, model_refs))
-
-    def get_post_transform(self) -> dict:
-        return run_coro_thread_save(self.event_loop, self.endpoint.get_post_transform())
-
-    def set_post_transform(self, transform: str) -> dict:
-        return run_coro_thread_save(self.event_loop, self.endpoint.set_post_transform(transform))
-
-    '''
-    Start Block
-    Below methods are not meant for the end user to use directly. They are used by the SDK internally.
-    '''
-
-    def list_models(self) -> dict:
-        return run_coro_thread_save(self.event_loop, self.endpoint.list_models())
-
-    def get_manifest(self) -> dict:
-        return run_coro_thread_save(self.event_loop, self.endpoint.get_manifest())
-
-    def set_manifest(self, manifest: dict) -> None:
-        return run_coro_thread_save(self.event_loop, self.endpoint.set_manifest(manifest))
-
-    def load_model(self, model: dict, override: bool = False) -> dict:
-        return run_coro_thread_save(self.event_loop, self.endpoint.load_model(model, override))
-
-    def unload_model(self, model_id: str) -> None:
-        return run_coro_thread_save(self.event_loop, self.endpoint.unload_model(model_id))
-
-    '''
-    End Block
-    '''
-
 
