@@ -129,11 +129,12 @@ class TestEndpointLoadBalance(BaseEndpointTest):
                   repeat=True)
 
         # automatic call to get pop comp and store
-        def get_pop_comp(url, **kwargs) -> CallbackResult:
+        def get_pop(url, **kwargs) -> CallbackResult:
             if kwargs['headers']['Authorization'] != f'Bearer {self.test_access_token}':
                 return CallbackResult(status=401, reason='test auth token expired')
             else:
-                return CallbackResult(status=200, body=json.dumps({'inferPipeline': self.test_pop_comp}))
+                return CallbackResult(status=200, body=json.dumps({'pop': Pop(components=[]).model_dump()
+}))
 
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-0',
-                 callback=get_pop_comp)
+                 callback=get_pop)

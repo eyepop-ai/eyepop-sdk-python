@@ -1,11 +1,8 @@
-from deprecated import deprecated
-import json
 import logging
 import time
 from io import StringIO
 from typing import Callable, BinaryIO, Any
 from urllib.parse import urljoin
-import warnings
 
 import aiohttp
 
@@ -40,7 +37,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             auto_start: bool,
             stop_jobs: bool,
             job_queue_length: int,
-            is_sandbox: bool,
             request_tracer_max_buffer: int,
             dataset_uuid: str | None = None,
     ):
@@ -54,10 +50,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.pop_id = pop_id
         self.auto_start = auto_start
         self.stop_jobs = stop_jobs
-        self.is_sandbox = is_sandbox
         self.dataset_uuid = dataset_uuid
-
-        self.sandbox_id = None
 
         self.is_dev_mode = True
 
@@ -66,13 +59,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.last_fetch_config_error = None
         self.last_fetch_config_error_time = None
 
-        # old way, TODO remove
-        self.pop_comp = None
-        self.model_refs = []
-        self.post_transform = None
-
         # new way
-        self.pop = None
+        self.pop = Pop(components=[])
 
         self.add_retry_handler(404, self._retry_404)
 
@@ -89,7 +77,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if timeout is not None:
             client_timeout = aiohttp.ClientTimeout(total=timeout)
         if (self.is_dev_mode and self.pop_id == 'transient'
-                and self.worker_config is not None and self.worker_config['pipeline_id'] is not None):
+                and self.worker_config is not None and self.worker_config.get('pipeline_id') is not None):
             try:
                 base_url = await self.dev_mode_base_url()
                 delete_pipeline_url = f'{base_url}/pipelines/{self.worker_config["pipeline_id"]}'
@@ -104,22 +92,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 log.exception(e, exc_info=True)
             finally:
                 del self.worker_config["pipeline_id"]
-
-        if self.sandbox_id is not None:
-            try:
-                base_url = await self.dev_mode_base_url()
-                delete_sandbox_url = f'{base_url}/sandboxes/{self.sandbox_id}'
-                headers = {}
-                authorization_header = await self._authorization_header()
-                if authorization_header is not None:
-                    headers['Authorization'] = authorization_header
-                log_requests.debug('before DELETE %s', delete_sandbox_url)
-                await self.client_session.delete(delete_sandbox_url, headers=headers, timeout=client_timeout)
-                log_requests.debug('after DELETE %s', delete_sandbox_url)
-            except Exception as e:
-                log.exception(e, exc_info=True)
-            finally:
-                self.sandbox_id = None
 
     async def _reconnect(self):
         if self.worker_config is not None:
@@ -166,62 +138,25 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self.last_fetch_config_error_time = time.time()
             raise e
 
-        self.is_dev_mode = self.is_sandbox or self.pop_id == 'transient' or self.worker_config[
-            'status'] != 'active_prod'
+        self.is_dev_mode = self.pop_id == 'transient' or self.worker_config['status'] != 'active_prod'
 
         log_requests.debug(f'after GET {config_url}: {self.worker_config}')
 
         base_url = await self.dev_mode_base_url()
 
-        if self.is_sandbox and self.sandbox_id is None:
-            create_sandbox_url = f'{base_url}/sandboxes'
-            headers = {}
-            authorization_header = await self._authorization_header()
-            if authorization_header is not None:
-                headers['Authorization'] = authorization_header
-            log_requests.debug('before POST %s', create_sandbox_url)
-            async with self.client_session.post(create_sandbox_url, headers=headers) as response:
-                response_json = await response.json()
-            log_requests.debug('after POST %s', create_sandbox_url)
-            self.sandbox_id = response_json
-
         if self.pop_id == 'transient':
-            if self.sandbox_id is None:
-                start_pipeline_url = f'{base_url}/pipelines'
-            else:
-                start_pipeline_url = f'{base_url}/pipelines?sandboxId={self.sandbox_id}'
-            if self.pop is not None:
-                body = {
-                    "pop": self.pop,
-                    "source": {
-                        "sourceType": "NONE"
-                    },
-                    "idleTimeoutSeconds": 60,
-                    "logging": ["out_meta"],
-                    "videoOutput": "no_output",
-                }
-                if self.dataset_uuid is not None:
-                    body["datasetUuid"] = self.dataset_uuid
-            else:
-                if self.pop_comp is None:
-                    self.pop_comp = 'identity'
-                body = {
-                    'inferPipelineDef': {
-                        'pipeline': self.pop_comp,
-                        'modelRefs': self.model_refs
-                    },
-                    'postTransformDef': {
-                        'transform': self.post_transform
-                    },
-                    "source": {
-                        "sourceType": "NONE"
-                    },
-                    "idleTimeoutSeconds": 60,
-                    "logging": ["out_meta"],
-                    "videoOutput": "no_output",
-                }
-                if self.dataset_uuid is not None:
-                    body["datasetUuid"] = self.dataset_uuid
+            start_pipeline_url = f'{base_url}/pipelines'
+            body = {
+                "pop": self.pop.model_dump(),
+                "source": {
+                    "sourceType": "NONE"
+                },
+                "idleTimeoutSeconds": 60,
+                "logging": ["out_meta"],
+                "videoOutput": "no_output",
+            }
+            if self.dataset_uuid is not None:
+                body["datasetUuid"] = self.dataset_uuid
 
             headers = {}
             authorization_header = await self._authorization_header()
@@ -248,7 +183,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 pass
             log_requests.debug('after PATCH %s', stop_jobs_url)
 
-        if self.is_dev_mode and self.pop_comp is None:
+        if self.is_dev_mode and self.pop is None:
             # get current pipeline string and store
             get_url = await self.dev_mode_pipeline_base_url()
             headers = {}
@@ -258,10 +193,13 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             log_requests.debug('before GET %s', get_url)
             async with self.client_session.get(get_url, headers=headers) as response:
                 response_json = await response.json()
-                self.pop_comp = response_json.get('inferPipeline')
-                self.post_transform = response_json.get('postTransform')
+                pop_as_dict = response_json.get('pop')
+                if pop_as_dict is None:
+                    self.pop = None
+                else:
+                    self.pop = Pop(**pop_as_dict)
             log_requests.debug('after GET %s', get_url)
-            log.debug('current popComp is %s', self.pop_comp)
+            log.debug('current pop is %s', self.pop)
 
         if self.is_dev_mode:
             endpoint = {'base_url': urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/"),
@@ -270,13 +208,13 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         else:
             self.load_balancer = EndpointLoadBalancer(self.worker_config['endpoints'])
 
+
     async def session(self) -> dict:
         session = await super().session()
         session['popId'] = self.pop_id
         if self.worker_config:
             session['baseUrl'] = self.worker_config['base_url']
             session['pipelineId'] = self.worker_config['pipeline_id']
-        session['sandboxId'] = self.sandbox_id
         return session
 
     async def get_pop(self) -> Pop | None:
@@ -284,100 +222,11 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
     async def set_pop(self, pop: Pop):
         if not self.is_dev_mode:
-            raise PopConfigurationException(self.pop_id, 'set_pop_comp not supported in production mode')
+            raise PopConfigurationException(self.pop_id, 'set_pop not supported in production mode')
         response = await self.pipeline_patch('pop', content_type='application/json',
                                              data=pop.model_dump_json())
         self.pop = pop
-        self.pop_comp = None
-        self.model_refs = []
-        self.post_transform = None
-
         return response
-
-    @deprecated(version='1.0.0', reason='Use get_pop() instead')
-    async def get_pop_comp(self) -> str:
-        return self.pop_comp
-
-    @deprecated(version='1.0.0', reason='Use set_pop() instead')
-    async def set_pop_comp(self, pop_comp: str = None, model_refs: list[dict] = []):
-        if not self.is_dev_mode:
-            raise PopConfigurationException(self.pop_id, 'set_pop_comp not supported in production mode')
-        response = await self.pipeline_patch('inferencePipeline', content_type='application/json',
-                                             data=json.dumps({'pipeline': pop_comp, 'modelRefs': model_refs}))
-        self.pop_comp = pop_comp
-        self.model_refs = model_refs
-        return response
-
-    @deprecated(version='1.0.0', reason='Use get_pop() instead')
-    async def get_post_transform(self) -> str:
-        return self.post_transform
-
-    @deprecated(version='1.0.0', reason='Use set_pop() instead')
-    async def set_post_transform(self, transform: str = None):
-        if not self.is_dev_mode:
-            raise PopConfigurationException(self.pop_id, 'set_post_transform not supported in production mode')
-        response = await self.pipeline_patch('postTransform', content_type='application/json',
-                                             data=json.dumps({'transform': transform}))
-        self.post_transform = transform
-        return response
-
-    async def list_models(self) -> list[dict]:
-        warnings.warn("list_models for development use only", DeprecationWarning)
-        if self.sandbox_id is None:
-            get_path = 'models/instances'
-        else:
-            get_path = f'models/instances?sandboxId={self.sandbox_id}'
-
-        response = await self._worker_request_with_retry('GET', url_path_and_query=get_path)
-        return await response.json()
-
-    async def get_manifest(self) -> list[dict]:
-        warnings.warn("get_manifest for development use only", DeprecationWarning)
-        if self.sandbox_id is None:
-            get_path = 'models/sources'
-        else:
-            get_path = f'models/sources?sandboxId={self.sandbox_id}'
-        response = await self._worker_request_with_retry('GET', url_path_and_query=get_path)
-        return await response.json()
-
-    async def set_manifest(self, manifests: list[dict]):
-        if not self.is_dev_mode:
-            raise PopConfigurationException(self.pop_id, 'set_manifest not supported in production mode')
-        warnings.warn("set_manifest for development use only", DeprecationWarning)
-        if self.sandbox_id is None:
-            put_path = 'models/sources'
-        else:
-            put_path = f'models/sources?sandboxId={self.sandbox_id}'
-        await self._worker_request_with_retry('PUT', url_path_and_query=put_path, content_type='application/json',
-                                              data=json.dumps(manifests))
-
-    async def load_model(self, model: dict, override: bool = False) -> dict:
-        if not self.is_dev_mode:
-            raise PopConfigurationException(self.pop_id, 'load_model not supported in production mode')
-        warnings.warn("load_model for development use only", DeprecationWarning)
-        if override:
-            await self.unload_model(model)
-        if self.sandbox_id is None:
-            post_path = f'models/instances'
-        else:
-            post_path = f'models/instances?sandboxId={self.sandbox_id}'
-        response = await self._worker_request_with_retry('POST', url_path_and_query=post_path,
-                                                         content_type='application/json', data=json.dumps(model))
-        return await response.json()
-
-    async def unload_model(self, model_id: str):
-        if not self.is_dev_mode:
-            raise PopConfigurationException(self.pop_id, 'unload_model not supported in production mode')
-        warnings.warn("purge_model for development use only", DeprecationWarning)
-        if self.sandbox_id is None:
-            delete_path = 'models/instances/{model["id"]}'
-        else:
-            delete_path = f'models/instances/{model_id}?sandboxId={self.sandbox_id}'
-
-        await self._worker_request_with_retry('DELETE', url_path_and_query=delete_path)
-
-    '''
-    '''
 
     async def dev_mode_pipeline_base_url(self):
         if self.is_dev_mode:

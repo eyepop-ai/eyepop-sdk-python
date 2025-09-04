@@ -39,7 +39,7 @@ async def async_load_from_photos(endpoint: WorkerEndpoint, urls: list[str]):
 async def run_test_async(urls: list[str]):
     t0 = time.time()
     async with EyePopSdk.workerEndpoint(is_async=True, pop_id='transient', job_queue_length=10124) as endpoint:
-        await endpoint.set_pop_comp('ep_infer model=eyepop-person:EPPersonB1_Person_TorchScriptCpu_float32')
+        await endpoint.set_pop('ep_infer model=eyepop-person:EPPersonB1_Person_TorchScriptCpu_float32')
         t1 = time.time()
         await async_load_from_photos(endpoint, urls)
     t2 = time.time()
