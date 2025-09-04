@@ -241,6 +241,7 @@ parser = argparse.ArgumentParser(
                     prog='Pop examples',
                     description='Demonstrates the composition of a Pop',
                     epilog='.')
+parser.add_argument('-d', '--dump', required=False, help="dump composable pop definition to stdout", default=False, action="store_true")
 parser.add_argument('-l', '--local-path', required=False, type=str, default=False, help="run the inference on a local file, or all files on a directory")
 parser.add_argument('-a', '--asset-uuid', required=False, type=str, default=False, help="run the inference on an asset by its Uuid")
 parser.add_argument('-u', '--url', required=False, type=str, default=False, help="run the inference on a remote Url")
@@ -261,6 +262,15 @@ parser.add_argument('-ct', '--confidence-threshold', required=False, type=float,
 
 
 main_args = parser.parse_args()
+
+if main_args.dump:
+    if main_args.pop:
+        pop = pop_examples[main_args.pop]
+        print(pop.model_dump_json(indent=2, exclude_unset=True))
+    else:
+        for name, pop in pop_examples.items():
+            print(f"{name}: ", pop.model_dump_json(indent=2, exclude_unset=True))
+    sys.exit(0)
 
 if not main_args.local_path and not main_args.url and not main_args.asset_uuid:
     print("Need something to run inference on; pass either --url or --local-path or --asset-uuid")
