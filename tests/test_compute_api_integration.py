@@ -2,6 +2,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint
 from eyepop.compute.models import ComputeContext
@@ -99,6 +100,45 @@ def test_creates_session_when_none_exists(mock_get, mock_post, clean_environment
     assert session_response.session_endpoint == "https://integration-pipeline.example.com"
 
     mock_get.assert_called_once()
+    mock_post.assert_called_once_with(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        headers=TEST_REQUEST_HEADERS
+    )
+
+@patch("eyepop.compute.api.requests.post")
+@patch("eyepop.compute.api.requests.get")
+def test_creates_session_when_get_returns_404(mock_get, mock_post, clean_environment):
+    """Test session creation when GET returns 404 (no sessions exist)"""
+    # Mock GET request to return 404
+    mock_get_response = MagicMock()
+    mock_http_error = requests.HTTPError()
+    mock_http_error.response = MagicMock()
+    mock_http_error.response.status_code = 404
+    mock_get_response.raise_for_status.side_effect = mock_http_error
+    mock_get.return_value = mock_get_response
+
+    # Mock POST request to succeed
+    mock_post_response = MagicMock()
+    mock_post_response.json.return_value = MOCK_SESSION_RESPONSE
+    mock_post_response.raise_for_status.return_value = None
+    mock_post.return_value = mock_post_response
+
+    compute_config = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        secret_key="test-secret-key"
+    )
+    
+    # Should create a new session despite 404
+    session_response = fetch_new_compute_session(compute_config)
+    assert session_response.session_endpoint == "https://integration-pipeline.example.com"
+    assert session_response.access_token == "jwt-token-123"
+    assert session_response.session_uuid == "session-456"
+
+    # Verify both GET and POST were called
+    mock_get.assert_called_once_with(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        headers=TEST_REQUEST_HEADERS
+    )
     mock_post.assert_called_once_with(
         "https://compute.staging.eyepop.xyz/v1/sessions",
         headers=TEST_REQUEST_HEADERS

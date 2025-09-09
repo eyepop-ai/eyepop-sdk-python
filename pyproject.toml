@@ -36,6 +36,7 @@ dependencies = [
     "websockets>=13.1",
     "pyarrow>=18.1.0",
     "pandas>=2.2.3",
+    "python-dotenv>=1.1.1",
 ]
 
 [project.urls]

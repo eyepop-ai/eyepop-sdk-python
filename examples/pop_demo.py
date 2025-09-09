@@ -19,6 +19,9 @@ from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
 from eyepop.worker.worker_types import Pop, InferenceComponent, \
     ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams, TracingComponent
+from dotenv import load_dotenv
+
+load_dotenv()
 
 script_dir = os.path.dirname(__file__)
 
@@ -383,7 +386,7 @@ elif main_args.single_prompt is not None:
         })
     ]
 
-async def main(args) -> (dict[str, Any] | None, str | None):
+async def main(args) -> tuple[dict[str, Any] | None, str | None]:
     visualize_result = None
     example_image_src = None
     async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True) as endpoint:
