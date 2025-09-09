@@ -184,21 +184,21 @@ def test_compute_context_creation():
     assert context.access_token == "jwt-123"
     assert context.session_endpoint == "https://session.example.com"
     assert context.pipeline_id == "pipeline-456"
-    assert context.wait_for_session_timeout == 10
-    assert context.wait_for_session_interval == 1
+    assert context.wait_for_session_timeout == 60
+    assert context.wait_for_session_interval == 2
 
 
 def test_compute_context_defaults():
     """It creates ComputeContext with defaults."""
     context = ComputeContext()
 
-    assert context.compute_url == "https://compute-api.staging.eyepop.xyz"
+    assert context.compute_url == "https://compute.staging.eyepop.xyz"
     assert context.session_endpoint == ""
     assert context.session_uuid == ""
     assert context.pipeline_uuid == ""
     assert context.access_token == ""
-    assert context.wait_for_session_timeout == 10
-    assert context.wait_for_session_interval == 1
+    assert context.wait_for_session_timeout == 60
+    assert context.wait_for_session_interval == 2
 
 
 def test_handles_empty_pipelines_list():
