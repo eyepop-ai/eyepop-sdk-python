@@ -38,7 +38,7 @@ def test_session_response_with_defaults():
         "access_token": "jwt-token-123"
     }
 
-    response = ComputeApiSessionResponse(**response_data)
+    response = ComputeApiSessionResponse.model_validate(response_data)
 
     assert response.session_endpoint == "https://pipeline.example.com"
     assert response.access_token == "jwt-token-123"
@@ -72,17 +72,40 @@ def test_validates_pipeline_status_enum():
         assert response.session_status == status
 
 
-def test_rejects_invalid_pipeline_status():
-    """It rejects invalid pipeline status values."""
+def test_handles_unknown_pipeline_status_gracefully():
+    """It handles unknown pipeline status values using the _missing_ method."""
+    # Test the explicitly defined status first
     response_data = {
         "session_uuid": "session-456",
         "session_endpoint": "https://pipeline.example.com",
         "access_token": "jwt-token-123",
-        "session_status": "invalid_status"
+        "session_status": "pipeline_creating"
     }
-
-    with pytest.raises(ValidationError):
-        ComputeApiSessionResponse(**response_data)
+    response = ComputeApiSessionResponse.model_validate(response_data)
+    assert response.session_status == PipelineStatus.PIPELINE_CREATING
+    
+    # Test various unknown status strings that should be mapped via _missing_
+    test_cases = [
+        ("pipeline_running", PipelineStatus.RUNNING),   # contains "running"
+        ("is_running", PipelineStatus.RUNNING),         # contains "running"
+        ("started", PipelineStatus.PENDING),            # contains "start"
+        ("creating_pipeline", PipelineStatus.PENDING),  # contains "creat"
+        ("failed_to_start", PipelineStatus.FAILED),     # contains "fail"
+        ("error_occurred", PipelineStatus.ERROR),       # contains "error"
+        ("stopped_by_user", PipelineStatus.STOPPED),    # contains "stop"
+        ("completely_unknown", PipelineStatus.UNKNOWN), # no match -> UNKNOWN
+        ("random_status", PipelineStatus.UNKNOWN),      # no match -> UNKNOWN
+    ]
+    
+    for status_str, expected_enum in test_cases:
+        response_data = {
+            "session_uuid": "session-456",
+            "session_endpoint": "https://pipeline.example.com",
+            "access_token": "jwt-token-123",
+            "session_status": status_str
+        }
+        response = ComputeApiSessionResponse.model_validate(response_data)
+        assert response.session_status == expected_enum, f"Status '{status_str}' should map to {expected_enum}"
 
 
 def test_requires_core_fields():
@@ -94,7 +117,7 @@ def test_requires_core_fields():
     }
 
     with pytest.raises(ValidationError):
-        ComputeApiSessionResponse(**incomplete_data)
+        ComputeApiSessionResponse.model_validate(incomplete_data)
 
 
 def test_validates_field_types():
@@ -106,7 +129,7 @@ def test_validates_field_types():
     }
 
     with pytest.raises(ValidationError):
-        ComputeApiSessionResponse(**response_data)
+        ComputeApiSessionResponse.model_validate(response_data)
 
 
 def test_serializes_to_dict():
@@ -119,7 +142,7 @@ def test_serializes_to_dict():
         "session_status": PipelineStatus.RUNNING
     }
 
-    response = ComputeApiSessionResponse(**response_data)
+    response = ComputeApiSessionResponse.model_validate(response_data)
     serialized = response.model_dump()
     
     assert serialized["session_uuid"] == "session-456"
@@ -187,7 +210,7 @@ def test_handles_empty_pipelines_list():
         "pipelines": []
     }
 
-    response = ComputeApiSessionResponse(**response_data)
+    response = ComputeApiSessionResponse.model_validate(response_data)
     assert response.pipelines == []
     assert response.pipeline_uuid == ""
 
@@ -204,7 +227,7 @@ def test_handles_multiple_pipelines():
         ]
     }
 
-    response = ComputeApiSessionResponse(**response_data)
+    response = ComputeApiSessionResponse.model_validate(response_data)
     assert len(response.pipelines) == 2
     assert response.pipelines[0]["pipeline_id"] == "p1"
     assert response.pipelines[1]["pipeline_id"] == "p2"

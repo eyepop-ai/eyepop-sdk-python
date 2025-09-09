@@ -1,3 +1,4 @@
+import logging
 import os
 
 import requests
@@ -5,6 +6,8 @@ from pydantic import TypeAdapter
 
 from eyepop.compute.models import ComputeApiSessionResponse, ComputeContext
 from eyepop.compute.status import wait_for_session
+
+log = logging.getLogger('eyepop.compute')
 
 
 def fetch_session_endpoint(compute_config: ComputeContext | None = None) -> ComputeContext:
@@ -28,27 +31,56 @@ def fetch_new_compute_session(compute_config: ComputeContext) -> ComputeContext:
         "Accept": "application/json"
     }
     
-    get_response = requests.get(
-        f"{compute_config.compute_url}/v1/sessions", 
-        headers=headers,
-    )
-    get_response.raise_for_status()
+    log.info(f"Fetching sessions from: {compute_config.compute_url}/v1/sessions")
     
-    res = get_response.json()
+    # Initialize res variable for later use
+    res = None
+    need_new_session = False
     
-    if not res or (isinstance(res, list) and len(res) == 0):
+    try:
+        get_response = requests.get(
+            f"{compute_config.compute_url}/v1/sessions", 
+            headers=headers,
+        )
+        get_response.raise_for_status()
+        res = get_response.json()
+        log.info(f"GET /v1/sessions response: {res}")
+        
+        # Check if we need to create a new session
+        if not res:
+            need_new_session = True
+            log.info("Response is empty/None, need to create new session")
+        elif isinstance(res, list) and len(res) == 0:
+            need_new_session = True
+            log.info("Response is empty list, need to create new session")
+        elif isinstance(res, dict) and not res.get('session_uuid'):
+            need_new_session = True
+            log.info("Response is dict without session_uuid, need to create new session")
+            
+    except requests.HTTPError as e:
+        if e.response.status_code == 404:
+            need_new_session = True
+            log.info("GET /v1/sessions returned 404, will create new session")
+        else:
+            # Re-raise for other HTTP errors
+            raise
+    
+    if need_new_session:
         try:
+            log.info(f"Creating new session via POST to: {compute_config.compute_url}/v1/sessions")
             post_response = requests.post(
                 f"{compute_config.compute_url}/v1/sessions", 
                 headers=headers,
             )
             post_response.raise_for_status()
             res = post_response.json()
+            log.info(f"POST /v1/sessions response: {res}")
         except Exception as e:
             raise Exception(f"No existing session and failed to create new one: {e}") from e
     
     is_arr = isinstance(res, list) and len(res) > 0
     if is_arr:
+        log.info(f"Response is array with {len(res)} items, using first one")
         res = res[0]
     
     session_response = TypeAdapter(ComputeApiSessionResponse).validate_python(res)
@@ -57,9 +89,15 @@ def fetch_new_compute_session(compute_config: ComputeContext) -> ComputeContext:
     compute_config.session_uuid = session_response.session_uuid
     compute_config.access_token = session_response.access_token
     
+    log.info(f"Session endpoint: {session_response.session_endpoint}")
+    log.info(f"Session UUID: {session_response.session_uuid}")
+    log.info(f"Access token present: {bool(session_response.access_token)}")
+    log.info(f"Pipelines: {session_response.pipelines}")
+    
     if not session_response.access_token or len(session_response.access_token.strip()) == 0:
         raise Exception("No access_token received from compute API session response. M2M authentication is not configured properly.")
     
     pipeline_id = session_response.pipelines[0]["pipeline_id"] if len(session_response.pipelines) > 0 else ""
     compute_config.pipeline_id = pipeline_id
+    log.info(f"Pipeline ID: {pipeline_id}")
     return compute_config

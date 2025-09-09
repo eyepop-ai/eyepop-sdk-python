@@ -174,9 +174,12 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.last_fetch_config_error_time = time.time()
                 raise e
 
-        self.is_dev_mode = self.pop_id == 'transient' or self.worker_config['status'] != 'active_prod'
+        self.is_dev_mode = self.pop_id == 'transient' or self.worker_config.get('status') != 'active_prod'
 
-        log_requests.debug(f'after GET {config_url}: {self.worker_config}')
+        if self.compute_ctx:
+            log_requests.debug(f'Using compute context config: {self.worker_config}')
+        else:
+            log_requests.debug(f'after GET {config_url}: {self.worker_config}')
 
         base_url = await self.dev_mode_base_url()
 
@@ -209,6 +212,17 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             if self.compute_ctx:
                 self.compute_ctx.pipeline_uuid = response_json['id']
                 logging.info(f"Created pipeline with ID: {response_json['id']}")
+                
+            # Reinitialize load balancer with the new pipeline_id
+            if self.is_dev_mode:
+                # Handle both compute API (session_endpoint) and old API (base_url)
+                if 'session_endpoint' in self.worker_config:
+                    base_url = self.worker_config['session_endpoint'].rstrip("/")
+                else:
+                    base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+                endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
+                self.load_balancer = EndpointLoadBalancer([endpoint])
+                log.debug(f"Reinitialized load balancer with pipeline_id: {self.worker_config['pipeline_id']}")
 
         # Check if we have the necessary config for dev mode
         if self.is_dev_mode:
@@ -256,8 +270,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
             endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
             self.load_balancer = EndpointLoadBalancer([endpoint])
+            log.info(f"Initialized load balancer with endpoint: {endpoint}")
         else:
             self.load_balancer = EndpointLoadBalancer(self.worker_config['endpoints'])
+            log.info(f"Initialized load balancer with endpoints: {self.worker_config['endpoints']}")
 
 
     async def session(self) -> dict:
@@ -415,6 +431,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 await self._reconnect()
 
             entry = self.load_balancer.next_entry(MAX_RETRY_TIME_SECS + 1)
+            log.debug(f"Load balancer entry: {entry}")
             if entry is None:
                 if not retried_re_config:
                     # pipeline might have just shut down
