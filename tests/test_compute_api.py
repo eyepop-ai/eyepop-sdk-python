@@ -189,7 +189,7 @@ def test_raises_exception_when_post_fails(mock_get, mock_post, mock_compute_conf
         fetch_new_compute_session(mock_compute_config)
 
 
-@patch("eyepop.compute.status.wait_for_session")
+@patch("eyepop.compute.api.wait_for_session")
 @patch("eyepop.compute.api.fetch_new_compute_session")
 def test_fetch_session_endpoint_with_health_check(mock_fetch_new, mock_wait):
     mock_context = ComputeContext(
@@ -208,7 +208,7 @@ def test_fetch_session_endpoint_with_health_check(mock_fetch_new, mock_wait):
     assert result == mock_context
 
 
-@patch("eyepop.compute.status.wait_for_session")
+@patch("eyepop.compute.api.wait_for_session")
 @patch("eyepop.compute.api.fetch_new_compute_session")
 def test_fetch_session_endpoint_raises_on_health_check_failure(mock_fetch_new, mock_wait):
     mock_context = ComputeContext()
@@ -220,7 +220,7 @@ def test_fetch_session_endpoint_raises_on_health_check_failure(mock_fetch_new, m
 
 
 @patch.dict(os.environ, {"EYEPOP_URL": "https://custom.compute.com", "EYEPOP_SECRET_KEY": "env-key"})
-@patch("eyepop.compute.status.wait_for_session")
+@patch("eyepop.compute.api.wait_for_session")
 @patch("eyepop.compute.api.fetch_new_compute_session")
 def test_fetch_session_endpoint_uses_env_vars(mock_fetch_new, mock_wait):
     mock_context = ComputeContext(
