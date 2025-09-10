@@ -8,8 +8,8 @@ from pydantic import TypeAdapter
 from eyepop.compute.models import ComputeApiSessionResponse, ComputeContext
 from eyepop.compute.status import wait_for_session
 
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper())
 log = logging.getLogger('eyepop.compute')
-
 
 def fetch_session_endpoint(compute_config: ComputeContext | None = None) -> ComputeContext:
     if compute_config is None:
@@ -78,8 +78,8 @@ def fetch_new_compute_session(compute_config: ComputeContext) -> ComputeContext:
     
     is_arr = isinstance(res, list) and len(res) > 0
     if is_arr:
-        log.debug(f"Response is array with {len(res)} items, using first one")
-        res = res[0]
+        log.debug(f"Response is array with {len(res)} items, using first one")  # pyright: ignore[reportArgumentType]
+        res = res[0] if res else None
     
     session_response = TypeAdapter(ComputeApiSessionResponse).validate_python(res)
     
