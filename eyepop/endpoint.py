@@ -2,11 +2,12 @@ import asyncio
 import logging
 import time
 from types import TracebackType
-from typing import Optional, Type, Callable, Any
+from typing import Any, Callable, Optional, Type
 
 import aiohttp
 
 from eyepop.client_session import ClientSession
+from eyepop.compute.models import ComputeContext
 from eyepop.metrics import MetricCollector
 from eyepop.periodic import Periodic
 from eyepop.request_tracer import RequestTracer
@@ -28,13 +29,13 @@ async def response_check_with_error_body(response: aiohttp.ClientResponse):
 
 
 class Endpoint(ClientSession):
-    """
-    Abstract EyePop Endpoint.
+    """Abstract EyePop Endpoint.
     """
 
     def __init__(self, secret_key: str | None, access_token: str | None,
                  eyepop_url: str,
-                 job_queue_length: int, request_tracer_max_buffer: int):
+                 job_queue_length: int, request_tracer_max_buffer: int, compute_ctx: ComputeContext | None = None):
+        self.compute_ctx = compute_ctx
         self.secret_key = secret_key
         self.provided_access_token = access_token
         self.eyepop_url = eyepop_url
@@ -116,8 +117,9 @@ class Endpoint(ClientSession):
 
         if self.request_tracer and self.client_session:
             await self.event_sender.stop()
-            await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events', await self._authorization_header(),
-                                                     None)
+            if self.compute_ctx is None:
+                await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events', await self._authorization_header(),
+                                                         None)
 
         if self.client_session:
             try:
@@ -157,10 +159,10 @@ class Endpoint(ClientSession):
         }
 
     async def _reconnect(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     async def _disconnect(self, timeout: float | None = None):
-        raise NotImplemented
+        raise NotImplementedError
 
     async def __get_access_token(self) -> str | None:
         if self.provided_access_token is not None:
@@ -168,6 +170,8 @@ class Endpoint(ClientSession):
         if self.secret_key is None:
             return None
         now = time.time()
+        if self.compute_ctx is not None:
+            return self.compute_ctx.access_token
         if self.token is None or self.expire_token_time < now:
             body = {'secret_key': self.secret_key}
             post_url = f'{self.eyepop_url}/authentication/token'
