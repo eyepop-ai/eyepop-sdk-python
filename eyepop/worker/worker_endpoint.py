@@ -22,10 +22,30 @@ log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
 log_metrics = logging.getLogger('eyepop.metrics')
 
+secret_key = os.getenv("EYEPOP_SECRET_KEY", None)
+
 MIN_CONFIG_RECONNECT_SECS = 10.0
 MAX_RETRY_TIME_SECS = 30.0
 FORCE_REFRESH_CONFIG_SECS = (61.0 * 61.0)
 
+
+def should_use_compute_api(eyepop_url: str, pop_id: str) -> bool:
+    has_compute = "compute" in eyepop_url
+    is_transient = pop_id == "transient" or not pop_id
+
+    if not has_compute:
+        log.debug(f"URL {eyepop_url} does not contain 'compute', will not use compute API")
+        return False 
+    
+    if not is_transient:
+        log.debug(f"Pop ID {pop_id} is not transient, will not use compute API")
+        return False
+
+    if has_compute and is_transient:
+        raise Exception(f"Compute API is not supported for non-transient pops. Pop ID: {pop_id}, URL: {eyepop_url}")
+    
+    
+    return True
 
 class WorkerEndpoint(Endpoint, WorkerClientSession):
     """
@@ -45,18 +65,15 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             dataset_uuid: str | None = None,
     ):
         # Fetch compute context BEFORE calling super().__init__
-        # Only use compute API if the URL contains "compute"
+        # Only use compute API if the URL contains "compute" and we're in transient mode
         compute_ctx = None
-        if eyepop_url and "compute" in eyepop_url:
+        if should_use_compute_api(eyepop_url, pop_id):
             from eyepop.compute.models import ComputeContext
             compute_config = ComputeContext(
-                compute_url=eyepop_url,
-                secret_key=secret_key if secret_key else os.getenv("EYEPOP_SECRET_KEY", ""),
+                compute_url=eyepop_url
             )
             compute_ctx = fetch_session_endpoint(compute_config)
-            # Use the session endpoint, not the compute URL
             eyepop_url = compute_ctx.session_endpoint
-            # Keep using the secret key from compute context
             secret_key = compute_ctx.secret_key
             
         super().__init__(
@@ -65,7 +82,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             eyepop_url=eyepop_url,
             job_queue_length=job_queue_length,
             request_tracer_max_buffer=request_tracer_max_buffer,
-            compute_ctx=compute_ctx  # Pass compute_ctx to parent
+            compute_ctx=compute_ctx
         )
         self.pop_id = pop_id
         self.auto_start = auto_start
