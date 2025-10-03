@@ -84,6 +84,7 @@ class TracingComponent(BaseComponent):
     maxAgeSeconds: float | None = None
     iouThreshold: float | None = None
     simThreshold: float | None = None
+    agnostic: bool | None = None
 
 
 class ContourType(enum.StrEnum):
