@@ -19,7 +19,7 @@ from PIL import Image
 from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
 from eyepop.worker.worker_types import Pop, InferenceComponent, \
-    ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams, ForwardComponent, TracingComponent
+    ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams, ForwardComponent, TrackingComponent
 
 script_dir = os.path.dirname(__file__)
 
@@ -239,21 +239,21 @@ def list_of_boxes(arg: str) -> list[dict[str, any]]:
     return boxes
 
 
-def add_optional_tracing_to_component(component: ForwardComponent, tracing_args: Namespace):
-    if tracing_args.tracing:
-        tracing_component = TracingComponent()
-        if tracing_args.tracing_reid_model is not None:
-            tracing_component.reidModel = tracing_args.tracing_reid_model
-        if tracing_args.tracing_max_age is not None:
-            tracing_component.maxAgeSeconds = tracing_args.tracing_max_age
-        if tracing_args.tracing_iou_threshold is not None:
-            tracing_component.iouThreshold = tracing_args.tracing_iou_threshold
-        if tracing_args.tracing_sim_threshold is not None:
-            tracing_component.simThreshold = tracing_args.tracing_sim_threshold
-        if tracing_args.tracing_agnostic is not None:
-            tracing_component.agnostic = tracing_args.tracing_agnostic
+def add_optional_tracking_to_component(component: ForwardComponent, tracking_args: Namespace):
+    if tracking_args.tracking:
+        tracking_component = TrackingComponent()
+        if tracking_args.tracking_reid_model is not None:
+            tracking_component.reidModel = tracking_args.tracking_reid_model
+        if tracking_args.tracking_max_age is not None:
+            tracking_component.maxAgeSeconds = tracking_args.tracking_max_age
+        if tracking_args.tracking_iou_threshold is not None:
+            tracking_component.iouThreshold = tracking_args.tracking_iou_threshold
+        if tracking_args.tracking_sim_threshold is not None:
+            tracking_component.simThreshold = tracking_args.tracking_sim_threshold
+        if tracking_args.tracking_agnostic is not None:
+            tracking_component.agnostic = tracking_args.tracking_agnostic
         component.forward = CropForward(
-            targets=[tracing_component],
+            targets=[tracking_component]
         )
 
 
@@ -280,13 +280,13 @@ parser.add_argument('-ds', '--dataset-uuid', required=False, type=str, help="Ing
 parser.add_argument('-tk', '--top-k', required=False, type=int, help="For --model-uuid and -model-alias apply this top-k filter", default=None)
 parser.add_argument('-ct', '--confidence-threshold', required=False, type=float, help="For --model-uuid and -model-alias apply this confidence threshold filter", default=None)
 
-# Optional tracing for simple pops my model uuid oder model alias
-parser.add_argument('--tracing', required=False, help="Trace objects in videos", default=False, action="store_true")
-parser.add_argument('--tracing-reid-model', required=False, help="Use re-id model uuid for tracing", default=None, type=str)
-parser.add_argument('--tracing-agnostic', required=False, help="Trace objects class-agnostic", default=False, action="store_true")
-parser.add_argument('--tracing-max-age', required=False, help="Max age in seconds for unmatched traces", default=None, type=float)
-parser.add_argument('--tracing-iou-threshold', required=False, help="IoU threshold to match traces", default=None, type=float)
-parser.add_argument('--tracing-sim-threshold', required=False, help="Similarity threshold to match traces by re-id", default=None, type=float)
+# Optional tracking for simple pops my model uuid oder model alias
+parser.add_argument('--tracking', required=False, help="Track objects in videos", default=False, action="store_true")
+parser.add_argument('--tracking-reid-model', required=False, help="Use re-id model uuid for tracking", default=None, type=str)
+parser.add_argument('--tracking-agnostic', required=False, help="Track objects class-agnostic", default=False, action="store_true")
+parser.add_argument('--tracking-max-age', required=False, help="Max age in seconds for unmatched tracks", default=None, type=float)
+parser.add_argument('--tracking-iou-threshold', required=False, help="IoU threshold to match tracks", default=None, type=float)
+parser.add_argument('--tracking-sim-threshold', required=False, help="Similarity threshold to match tracks by re-id", default=None, type=float)
 
 main_args = parser.parse_args()
 
@@ -324,7 +324,7 @@ elif main_args.model_uuid:
     if main_args.confidence_threshold is not None:
         for c in pop.components:
             c.confidenceThreshold = main_args.confidence_threshold
-    add_optional_tracing_to_component(pop.components[0], main_args)
+    add_optional_tracking_to_component(pop.components[0], main_args)
 elif main_args.model_alias:
     pop = Pop(components=[
         InferenceComponent(
@@ -338,7 +338,7 @@ elif main_args.model_alias:
     if main_args.confidence_threshold is not None:
         for c in pop.components:
             c.confidenceThreshold = main_args.confidence_threshold
-    add_optional_tracing_to_component(pop.components[0], main_args)
+    add_optional_tracking_to_component(pop.components[0], main_args)
 elif main_args.model_uuid_sam1:
     pop = Pop(components=[
         InferenceComponent(
@@ -413,7 +413,8 @@ elif main_args.single_prompt is not None:
     ]
 
 async def main(args) -> (dict[str, Any] | None, str | None):
-    visualize_result = None
+    visualize_prediction = None
+    visualize_path = None
     example_image_src = None
     async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True) as endpoint:
         await endpoint.set_pop(pop)
@@ -432,17 +433,18 @@ async def main(args) -> (dict[str, Any] | None, str | None):
                         local_files.append(local_file)
             jobs = []
             async def on_ready(job: Job, path: str):
+                nonlocal visualize_prediction
+                nonlocal visualize_path
                 while result := await job.predict():
-                   if args.output:
+                    visualize_prediction = result
+                    visualize_path = path
+                    if args.output:
                         print(path, json.dumps(result, indent=2))
-                return (result, path)
             for local_file in local_files:
                 job = await endpoint.upload(local_file, params=params)
                 jobs.append(on_ready(job, local_file))
-            results = await asyncio.gather(*jobs)
-            if args.visualize and len(results) > 0:
-                visualize_result = results[0][0]
-                visualize_path = results[0][1]
+            await asyncio.gather(*jobs)
+            if args.visualize and visualize_prediction is not None:
                 image = Image.open(visualize_path)
                 buffer = BytesIO()
                 image.save(buffer, format="PNG")
@@ -450,7 +452,7 @@ async def main(args) -> (dict[str, Any] | None, str | None):
         elif args.url:
             job = await endpoint.load_from(args.url, params=params)
             while result := await job.predict():
-                visualize_result = result
+                visualize_prediction = result
                 if args.output:
                     log.info(json.dumps(result, indent=2))
             if args.visualize:
@@ -458,7 +460,7 @@ async def main(args) -> (dict[str, Any] | None, str | None):
         elif args.asset_uuid:
             job = await endpoint.load_asset(args.asset_uuid, params=params)
             while result := await job.predict():
-                visualize_result = result
+                visualize_prediction = result
                 if args.output:
                     print(json.dumps(result, indent=2))
             if args.visualize:
@@ -468,7 +470,7 @@ async def main(args) -> (dict[str, Any] | None, str | None):
                         transcode_mode=TranscodeMode.image_original_size
                     ).read()
                     example_image_src = f"data:image/jpeg;base64, {base64.b64encode(buffer).decode()}"
-    return visualize_result, example_image_src
+    return visualize_prediction, example_image_src
 
 visualize_result, example_image_src = asyncio.run(main(main_args))
 if main_args.visualize:

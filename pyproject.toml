@@ -9,29 +9,29 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eyepop"
-version = "2.0.2"
+version = "3.0.0"
 description="EyePop.ai Python SDK"
 readme = "README.md"
 license.file = "./LICENSE"
 authors = [
     { name = "EyePop.ai", email = "support@eyepop.ai" },
 ]
-requires-python = ">= 3.11"
+requires-python = ">= 3.12"
 
 keywords=["EyePop", "AI", "ML", "CV"]
 dependencies = [
-    "aiohttp>=3.9.1",
-    "build>=1.0.3",
-    "twine>=4.0.2",
-    "matplotlib>=3.8.2",
-    "cryptography>=38.0.4",
-    "flatbuffers>=24.3.25",
-    "deprecated>=1.2.14",
-    "pydantic>=2.8.2",
-    "deprecated>=1.2.14",
-    "websockets>=13.1",
-    "pyarrow>=18.1.0",
-    "pandas>=2.2.3",
+    "aiohttp~=3.13.1",
+    "build~=1.3.0",
+    "twine~=6.2.0",
+    "matplotlib~=3.10.7",
+    "cryptography~=46.0.3",
+    "flatbuffers~=25.9.23",
+    "deprecated~=1.2.18",
+    "pydantic~=2.12.3",
+    "deprecated~=1.2.18",
+    "websockets~=15.0.1",
+    "pyarrow~=21.0.0",
+    "pandas~=2.3.3",
 ]
 
 [project.urls]
