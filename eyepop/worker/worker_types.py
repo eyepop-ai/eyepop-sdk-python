@@ -13,7 +13,7 @@ class PopComponentType(enum.StrEnum):
     BASE = "<invalid>"
     FORWARD = "forward"
     INFERENCE = "inference"
-    TRACING = "tracing"
+    TRACKING = "tracking"
     CONTOUR_FINDER = "contour_finder"
     COMPONENT_FINDER = "component_finder"
 
@@ -77,8 +77,8 @@ class InferenceComponent(BaseComponent):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-class TracingComponent(BaseComponent):
-    type: Literal[PopComponentType.TRACING] = PopComponentType.TRACING
+class TrackingComponent(BaseComponent):
+    type: Literal[PopComponentType.TRACKING] = PopComponentType.TRACKING
     reidModelUuid: str | None = None
     reidModel: str | None = None
     maxAgeSeconds: float | None = None
@@ -111,7 +111,7 @@ class ComponentFinderComponent(BaseComponent):
     componentClassLabel: str | None = None
 
 
-DynamicComponent = Annotated[Union[ForwardComponent | InferenceComponent | TracingComponent | ContourFinderComponent | ComponentFinderComponent], Field(discriminator="type")]
+DynamicComponent = Annotated[Union[ForwardComponent | InferenceComponent | TrackingComponent | ContourFinderComponent | ComponentFinderComponent], Field(discriminator="type")]
 
 
 class Pop(BaseModel):
