@@ -253,7 +253,7 @@ def add_optional_tracing_to_component(component: ForwardComponent, tracing_args:
         if tracing_args.tracing_agnostic is not None:
             tracing_component.agnostic = tracing_args.tracing_agnostic
         component.forward = CropForward(
-            targets=[tracing_component]
+            targets=[tracing_component],
         )
 
 

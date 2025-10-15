@@ -28,25 +28,30 @@ class PopCrop(BaseModel):
     maxItems: int | None = None
     boxPadding: float | None = None
     orientationTargetAngle: float | None = None
+    model_config = ConfigDict(extra='forbid')
 
 
 class PopForwardOperator(BaseModel):
     type: ForwardOperatorType
     includeClasses: list[str] | None = None
     crop: PopCrop | None = None
+    model_config = ConfigDict(extra='forbid')
 
 class PopForward(BaseModel):
     operator: PopForwardOperator | None = None
     targets: List["DynamicComponent"] | None = None
+    model_config = ConfigDict(extra='forbid')
 
 class BaseComponent(BaseModel):
     type: Literal[PopComponentType.BASE] = PopComponentType.BASE
     id: int | None = None
     forward: PopForward | None = None
+    model_config = ConfigDict(extra='forbid')
 
 
 class ForwardComponent(BaseComponent):
     type: Literal[PopComponentType.FORWARD] = PopComponentType.FORWARD
+    model_config = ConfigDict(extra='forbid')
 
 
 class InferenceType(enum.StrEnum):
@@ -74,7 +79,7 @@ class InferenceComponent(BaseComponent):
     topK: int | None = None
     targetFps: str | None = None
     params: dict[str, Any] | None = None
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
 
 class TracingComponent(BaseComponent):
@@ -85,6 +90,7 @@ class TracingComponent(BaseComponent):
     iouThreshold: float | None = None
     simThreshold: float | None = None
     agnostic: bool | None = None
+    model_config = ConfigDict(extra='forbid')
 
 
 class ContourType(enum.StrEnum):
@@ -101,6 +107,7 @@ class ContourFinderComponent(BaseComponent):
     type: Literal[PopComponentType.CONTOUR_FINDER] = PopComponentType.CONTOUR_FINDER
     contourType: ContourType
     areaThreshold: float | None = None
+    model_config = ConfigDict(extra='forbid')
 
 
 class ComponentFinderComponent(BaseComponent):
@@ -109,6 +116,7 @@ class ComponentFinderComponent(BaseComponent):
     erode: float | None = None
     keepSource: bool | None = None
     componentClassLabel: str | None = None
+    model_config = ConfigDict(extra='forbid')
 
 
 DynamicComponent = Annotated[Union[ForwardComponent | InferenceComponent | TracingComponent | ContourFinderComponent | ComponentFinderComponent], Field(discriminator="type")]
@@ -117,6 +125,7 @@ DynamicComponent = Annotated[Union[ForwardComponent | InferenceComponent | Traci
 class Pop(BaseModel):
     components: List[DynamicComponent]
     postTransform: str | None = None
+    model_config = ConfigDict(extra='forbid')
 
 # Helper factories
 
@@ -157,4 +166,4 @@ def FullForward(
 class ComponentParams(BaseComponent):
     componentId: int
     values: dict[str, Any]
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra='forbid')

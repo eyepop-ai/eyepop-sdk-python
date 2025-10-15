@@ -132,6 +132,7 @@ class DatasetCreate(BaseModel):
     auto_annotates: list[AutoAnnotate] = []
     auto_annotate_params: AutoAnnotateParams | None = None
     searchable: bool | None = None
+    model_config = ConfigDict(extra='forbid')
 
 
 class DatasetUpdate(DatasetCreate):
@@ -141,6 +142,7 @@ class DatasetUpdate(DatasetCreate):
     auto_annotates: List[AutoAnnotate]  | None = None
     auto_annotate_params: AutoAnnotateParams | None = None
     searchable: bool | None = None
+    model_config = ConfigDict(extra='forbid')
 
 
 class Point2d(BaseModel):
