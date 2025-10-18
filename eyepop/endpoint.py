@@ -33,10 +33,12 @@ class Endpoint(ClientSession):
     """
 
     def __init__(self, secret_key: str | None, access_token: str | None,
+                 api_key: str | None,
                  eyepop_url: str,
                  job_queue_length: int, request_tracer_max_buffer: int, compute_ctx: ComputeContext | None = None):
         self.compute_ctx = compute_ctx
         self.secret_key = secret_key
+        self.api_key = api_key
         self.provided_access_token = access_token
         self.eyepop_url = eyepop_url
         self.token = None
@@ -52,6 +54,8 @@ class Endpoint(ClientSession):
         self.retry_handlers = dict()
         if self.secret_key is not None:
             self.retry_handlers[401] = self._retry_401
+        elif self.compute_ctx is not None:
+            self.retry_handlers[401] = self._retry_401_compute
         self.retry_handlers[500] = self._retry_50x
         self.retry_handlers[502] = self._retry_50x
         self.retry_handlers[503] = self._retry_50x
@@ -167,11 +171,12 @@ class Endpoint(ClientSession):
     async def __get_access_token(self) -> str | None:
         if self.provided_access_token is not None:
             return self.provided_access_token
+        # Check compute_ctx BEFORE secret_key (compute API doesn't use secret_key)
+        if self.compute_ctx is not None:
+            return self.compute_ctx.access_token
         if self.secret_key is None:
             return None
         now = time.time()
-        if self.compute_ctx is not None:
-            return self.compute_ctx.access_token
         if self.token is None or self.expire_token_time < now:
             body = {'secret_key': self.secret_key}
             post_url = f'{self.eyepop_url}/authentication/token'
@@ -202,6 +207,23 @@ class Endpoint(ClientSession):
             self.token = None
             self.expire_token_time = None
             return True
+
+    async def _retry_401_compute(self, status_code: int, failed_attempts: int) -> bool:
+        if failed_attempts > 1:
+            return False
+        else:
+            log_requests.debug('retry handler: after 401, about to refresh compute API token')
+            if self.compute_ctx is None:
+                log_requests.error('retry handler: compute_ctx is None, cannot refresh token')
+                return False
+            try:
+                from eyepop.compute import refresh_compute_token
+                self.compute_ctx = refresh_compute_token(self.compute_ctx)
+                log_requests.debug('retry handler: compute token refreshed successfully')
+                return True
+            except Exception as e:
+                log_requests.error(f'retry handler: failed to refresh compute token: {e}')
+                return False
 
     async def _retry_50x(self, status_code: int, failed_attempts: int) -> bool:
         if failed_attempts > 3:

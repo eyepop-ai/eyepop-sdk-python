@@ -23,7 +23,7 @@ MOCK_SESSION_RESPONSE = {
 TEST_REQUEST_HEADERS = {
     "Content-Type": "application/json",
     "Accept": "application/json",
-    "Authorization": "Bearer test-secret-key"
+    "Authorization": "Bearer test-api-key"
 }
 
 
@@ -31,24 +31,24 @@ TEST_REQUEST_HEADERS = {
 def clean_environment():
     """Clean environment before and after tests"""
     original_url = os.environ.get("EYEPOP_URL")
-    original_key = os.environ.get("EYEPOP_SECRET_KEY")
+    original_key = os.environ.get("EYEPOP_API_KEY")
 
     if "EYEPOP_URL" in os.environ:
         del os.environ["EYEPOP_URL"]
-    if "EYEPOP_SECRET_KEY" in os.environ:
-        del os.environ["EYEPOP_SECRET_KEY"]
+    if "EYEPOP_API_KEY" in os.environ:
+        del os.environ["EYEPOP_API_KEY"]
 
     yield
 
     if "EYEPOP_URL" in os.environ:
         del os.environ["EYEPOP_URL"]
-    if "EYEPOP_SECRET_KEY" in os.environ:
-        del os.environ["EYEPOP_SECRET_KEY"]
+    if "EYEPOP_API_KEY" in os.environ:
+        del os.environ["EYEPOP_API_KEY"]
 
     if original_url is not None:
         os.environ["EYEPOP_URL"] = original_url
     if original_key is not None:
-        os.environ["EYEPOP_SECRET_KEY"] = original_key
+        os.environ["EYEPOP_API_KEY"] = original_key
 
 
 @patch("eyepop.compute.api.requests.get")
@@ -61,7 +61,7 @@ def test_integrates_successfully_with_compute_api(mock_get, clean_environment):
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
-        secret_key="test-secret-key",
+        api_key="test-api-key",
         wait_for_session_timeout=30,
         wait_for_session_interval=2
     )
@@ -93,9 +93,9 @@ def test_creates_session_when_none_exists(mock_get, mock_post, clean_environment
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
-        secret_key="test-secret-key"
+        api_key="test-api-key"
     )
-    
+
     session_response = fetch_new_compute_session(compute_config)
     assert session_response.session_endpoint == "https://integration-pipeline.example.com"
 
@@ -125,9 +125,9 @@ def test_creates_session_when_get_returns_404(mock_get, mock_post, clean_environ
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
-        secret_key="test-secret-key"
+        api_key="test-api-key"
     )
-    
+
     # Should create a new session despite 404
     session_response = fetch_new_compute_session(compute_config)
     assert session_response.session_endpoint == "https://integration-pipeline.example.com"
@@ -152,7 +152,7 @@ def test_handles_network_error(mock_get, clean_environment):
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
-        secret_key="test-secret-key"
+        api_key="test-api-key"
     )
 
     with pytest.raises(Exception, match="Network error"):
@@ -169,9 +169,9 @@ def test_mimics_worker_endpoint_integration(mock_get, clean_environment):
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
-        secret_key="test-secret-key"
+        api_key="test-api-key"
     )
-    
+
     session_response = fetch_new_compute_session(compute_config)
     
     # Simulate worker endpoint logic
@@ -188,15 +188,15 @@ def test_mimics_worker_endpoint_integration(mock_get, clean_environment):
 def test_uses_environment_variables(clean_environment):
     """Test using environment variables for configuration"""
     os.environ["EYEPOP_URL"] = "https://custom.compute.com"
-    os.environ["EYEPOP_SECRET_KEY"] = "env-secret-key"
+    os.environ["EYEPOP_API_KEY"] = "env-api-key"
 
     compute_config = ComputeContext()
-    
+
     # Note: ComputeContext doesn't automatically use env vars in __init__
     # The fetch_session_endpoint function uses them
     assert compute_config.compute_url == "https://compute.staging.eyepop.xyz"  # Default
-    # secret_key will be empty since defaults are evaluated at import time
-    assert compute_config.secret_key == ""  # Empty because defaults are evaluated at import
+    # api_key will be empty since defaults are evaluated at import time
+    assert compute_config.api_key == ""  # Empty because defaults are evaluated at import
 
 
 @patch("eyepop.compute.api.requests.get")
@@ -219,9 +219,9 @@ def test_handles_array_response_from_sessions(mock_get, clean_environment):
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
-        secret_key="test-token"
+        api_key="test-token"
     )
-    
+
     session_response = fetch_new_compute_session(compute_config)
     assert session_response.session_endpoint == "https://sessions.staging.eyepop.xyz/3b3a8b91"
     assert session_response.access_token == "jwt-abc-123"
@@ -237,9 +237,9 @@ def test_handles_single_object_response(mock_get, clean_environment):
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
-        secret_key="test-token"
+        api_key="test-token"
     )
-    
+
     session_response = fetch_new_compute_session(compute_config)
     assert session_response.session_endpoint == "https://integration-pipeline.example.com"
 
@@ -257,9 +257,9 @@ def test_raises_on_empty_response_and_failed_create(mock_get, mock_post, clean_e
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
-        secret_key="test-token"
+        api_key="test-token"
     )
-    
+
     with pytest.raises(Exception, match="No existing session and failed to create new one"):
         fetch_new_compute_session(compute_config)
 
@@ -277,9 +277,9 @@ def test_validates_access_token_presence(mock_get, clean_environment):
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
-        secret_key="test-token"
+        api_key="test-token"
     )
-    
+
     with pytest.raises(Exception, match="No access_token received"):
         fetch_new_compute_session(compute_config)
 
@@ -290,7 +290,7 @@ def test_full_flow_with_health_check(mock_fetch_new, mock_wait, clean_environmen
     """Test complete flow including health check"""
     mock_context = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
-        secret_key="test-key",
+        api_key="test-key",
         session_endpoint="https://session.example.com",
         access_token="jwt-123",
         pipeline_id="pipeline-456"
@@ -307,24 +307,27 @@ def test_full_flow_with_health_check(mock_fetch_new, mock_wait, clean_environmen
     assert result.pipeline_id == "pipeline-456"
 
 
-@patch.dict(os.environ, {"EYEPOP_URL": "https://custom.compute.com", "EYEPOP_SECRET_KEY": "env-key"})
 @patch("eyepop.compute.api.wait_for_session")
 @patch("eyepop.compute.api.fetch_new_compute_session")
-def test_fetch_session_endpoint_with_env_vars(mock_fetch_new, mock_wait):
-    """Test fetch_session_endpoint using environment variables"""
+def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
+    """Test that fetch_session_endpoint correctly passes context through"""
+    input_context = ComputeContext(
+        compute_url="https://custom.compute.com",
+        api_key="custom-key"
+    )
     mock_context = ComputeContext(
         compute_url="https://custom.compute.com",
-        secret_key="env-key",
+        api_key="custom-key",
         session_endpoint="https://session.example.com",
         access_token="jwt-123"
     )
     mock_fetch_new.return_value = mock_context
     mock_wait.return_value = True
 
-    # Call without arguments to use env vars
-    result = fetch_session_endpoint()
+    # Call with explicit context
+    result = fetch_session_endpoint(input_context)
 
-    # Verify it created context with env vars
+    # Verify it passed the context through correctly
     called_context = mock_fetch_new.call_args[0][0]
     assert called_context.compute_url == "https://custom.compute.com"
-    assert called_context.secret_key == "env-key"
+    assert called_context.api_key == "custom-key"

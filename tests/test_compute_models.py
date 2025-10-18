@@ -173,14 +173,14 @@ def test_compute_context_creation():
     """It creates a valid ComputeContext."""
     context = ComputeContext(
         compute_url="https://compute.example.com",
-        secret_key="test-key",
+        api_key="test-key",
         access_token="jwt-123",
         session_endpoint="https://session.example.com",
         pipeline_id="pipeline-456"
     )
 
     assert context.compute_url == "https://compute.example.com"
-    assert context.secret_key == "test-key"
+    assert context.api_key == "test-key"
     assert context.access_token == "jwt-123"
     assert context.session_endpoint == "https://session.example.com"
     assert context.pipeline_id == "pipeline-456"

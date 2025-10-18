@@ -19,22 +19,25 @@ def wait_for_session(compute_config: ComputeContext) -> bool:
     timeout = compute_config.wait_for_session_timeout
     interval = compute_config.wait_for_session_interval
     
-    # Use access_token if available (M2M JWT), otherwise use secret_key
-    if compute_config.access_token and len(compute_config.access_token.strip()) > 0:
-        auth_header = f"Bearer {compute_config.access_token}"
-        log.info("Using access_token for session health check")
-    else:
-        auth_header = f"Bearer {compute_config.secret_key}"
-        log.info("Using secret_key for session health check")
-    
+    # Session endpoint health check ALWAYS uses the JWT access_token
+    if not compute_config.access_token or len(compute_config.access_token.strip()) == 0:
+        raise Exception(
+            "No access_token in compute_config. "
+            "Cannot perform session health check. "
+            "This should never happen - fetch_new_compute_session should have set it."
+        )
+
+    auth_header = f"Bearer {compute_config.access_token}"
+    log.debug(f"Using JWT access_token for session health check at {compute_config.session_endpoint}/health")
+
     headers = {
         "Authorization": auth_header,
         "Accept": "application/json",
     }
     
     health_url = f"{compute_config.session_endpoint}/health"
-    log.info(f"Waiting for session to be ready at: {health_url}")
-    log.info(f"Timeout: {timeout}s, Interval: {interval}s")
+    log.debug(f"Waiting for session to be ready at: {health_url}")
+    log.debug(f"Timeout: {timeout}s, Interval: {interval}s")
     
     end_time = time.time() + timeout
     last_message = "No message received"
