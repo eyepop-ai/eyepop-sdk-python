@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint
+from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint, refresh_compute_token
 from eyepop.compute.models import ComputeContext
 
 MOCK_SESSION_RESPONSE = {
@@ -28,7 +28,7 @@ MOCK_SESSION_RESPONSE_NO_PIPELINES = {
 TEST_REQUEST_HEADERS = {
     "Content-Type": "application/json",
     "Accept": "application/json",
-    "Authorization": "Bearer test-secret-key"
+    "Authorization": "Bearer test-api-key"
 }
 
 
@@ -36,7 +36,7 @@ TEST_REQUEST_HEADERS = {
 def mock_compute_config():
     return ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
-        secret_key="test-secret-key"
+        api_key="test-api-key"
     )
 
 
@@ -194,7 +194,7 @@ def test_raises_exception_when_post_fails(mock_get, mock_post, mock_compute_conf
 def test_fetch_session_endpoint_with_health_check(mock_fetch_new, mock_wait):
     mock_context = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
-        secret_key="test-key",
+        api_key="test-key",
         session_endpoint="https://session.example.com",
         access_token="jwt-123"
     )
@@ -219,19 +219,25 @@ def test_fetch_session_endpoint_raises_on_health_check_failure(mock_fetch_new, m
         fetch_session_endpoint(mock_context)
 
 
-@patch.dict(os.environ, {"EYEPOP_URL": "https://custom.compute.com", "EYEPOP_SECRET_KEY": "env-key"})
 @patch("eyepop.compute.api.wait_for_session")
 @patch("eyepop.compute.api.fetch_new_compute_session")
-def test_fetch_session_endpoint_uses_env_vars(mock_fetch_new, mock_wait):
+def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
+    """Test that fetch_session_endpoint correctly passes context through"""
+    input_context = ComputeContext(
+        compute_url="https://custom.compute.com",
+        api_key="custom-key"
+    )
     mock_context = ComputeContext(
         compute_url="https://custom.compute.com",
-        secret_key="env-key"
+        api_key="custom-key",
+        session_endpoint="https://session.example.com",
+        access_token="jwt-123"
     )
     mock_fetch_new.return_value = mock_context
     mock_wait.return_value = True
 
-    result = fetch_session_endpoint()
+    result = fetch_session_endpoint(input_context)
 
     called_context = mock_fetch_new.call_args[0][0]
     assert called_context.compute_url == "https://custom.compute.com"
-    assert called_context.secret_key == "env-key"
+    assert called_context.api_key == "custom-key"

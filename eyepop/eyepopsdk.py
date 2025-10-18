@@ -17,6 +17,7 @@ class EyePopSdk:
     def workerEndpoint(
             pop_id: str | None = None,
             secret_key: str | None = None,
+            api_key: str | None = None,
             access_token: str | None = None,
             auto_start: bool = True,
             stop_jobs: bool = True,
@@ -37,13 +38,14 @@ class EyePopSdk:
         elif not is_local_mode:
             is_local_mode = None
 
-        if access_token is None and secret_key is None:
+        if access_token is None and secret_key is None and api_key is None:
             if is_local_mode is None:
                 secret_key = os.getenv("EYEPOP_SECRET_KEY")
-                if secret_key is None:
+                api_key = os.getenv("EYEPOP_API_KEY")
+                if secret_key is None and api_key is None:
                     raise KeyError(
-                        "parameter 'secret_key' or environment 'EYEPOP_SECRET_KEY' "
-                        "or parameter 'access_token' is required"
+                        "At least one authentication method required: "
+                        "EYEPOP_SECRET_KEY or EYEPOP_API_KEY or access_token"
                     )
 
         if eyepop_url is None:
@@ -59,9 +61,28 @@ class EyePopSdk:
             if pop_id is None:
                 pop_id = "transient"
 
+        # Validate: api_key can only be used with transient pops
+        if api_key is not None and pop_id != "transient":
+            raise ValueError(
+                f"EYEPOP_API_KEY can only be used with transient pops. "
+                f"Current pop_id: '{pop_id}'. Use EYEPOP_SECRET_KEY for named pops."
+            )
+
+        # Validate: Compute URL requires api_key and transient mode
+        if eyepop_url and "compute" in eyepop_url.lower():
+            if api_key is None:
+                raise ValueError(
+                    f"Compute API endpoint ({eyepop_url}) requires EYEPOP_API_KEY"
+                )
+            if pop_id != "transient":
+                raise ValueError(
+                    f"Compute API only supports transient mode. Current pop_id: '{pop_id}'"
+                )
+
         endpoint = WorkerEndpoint(
             secret_key=secret_key,
             access_token=access_token,
+            api_key=api_key,
             pop_id=pop_id,
             auto_start=auto_start,
             stop_jobs=stop_jobs,

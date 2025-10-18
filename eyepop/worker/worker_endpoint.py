@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import time
@@ -14,7 +13,7 @@ from eyepop.endpoint import Endpoint
 from eyepop.exceptions import PopNotStartedException, PopConfigurationException, PopNotReachableException
 from eyepop.worker.worker_client_session import WorkerClientSession
 from eyepop.worker.worker_jobs import WorkerJob, _UploadFileJob, _LoadFromJob, _UploadStreamJob, _LoadFromAssetUuidJob
-from eyepop.worker.load_balancer import EndpointEntry, EndpointLoadBalancer
+from eyepop.worker.load_balancer import EndpointLoadBalancer
 from eyepop.worker.worker_syncify import SyncWorkerJob
 from eyepop.worker.worker_types import Pop, VideoMode, ComponentParams
 
@@ -29,22 +28,17 @@ MAX_RETRY_TIME_SECS = 30.0
 FORCE_REFRESH_CONFIG_SECS = (61.0 * 61.0)
 
 
-def should_use_compute_api(eyepop_url: str, pop_id: str) -> bool:
-    has_compute = "compute" in eyepop_url
+def should_use_compute_api(pop_id: str, api_key: str | None) -> bool:
+    if not api_key:
+        return False
+
     is_transient = pop_id == "transient" or not pop_id
 
-    if not has_compute:
-        log.debug(f"URL {eyepop_url} does not contain 'compute', will not use compute API")
-        return False 
-    
     if not is_transient:
         log.debug(f"Pop ID {pop_id} is not transient, will not use compute API")
         return False
 
-    if has_compute and is_transient:
-        raise Exception(f"Compute API is not supported for non-transient pops. Pop ID: {pop_id}, URL: {eyepop_url}")
-    
-    
+    log.debug(f"Using compute api")
     return True
 
 class WorkerEndpoint(Endpoint, WorkerClientSession):
@@ -56,6 +50,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self,
             secret_key: str | None,
             access_token: str | None,
+            api_key: str | None,
             eyepop_url: str,
             pop_id: str,
             auto_start: bool,
@@ -67,19 +62,20 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         # Fetch compute context BEFORE calling super().__init__
         # Only use compute API if the URL contains "compute" and we're in transient mode
         compute_ctx = None
-        if should_use_compute_api(eyepop_url, pop_id):
+        if should_use_compute_api(pop_id, api_key):
             from eyepop.compute.models import ComputeContext
             compute_config = ComputeContext(
-                compute_url=eyepop_url
+                compute_url=eyepop_url,
+                api_key=api_key
             )
             compute_ctx = fetch_session_endpoint(compute_config)
             eyepop_url = compute_ctx.session_endpoint
-            secret_key = compute_ctx.secret_key
-            
+
         super().__init__(
             secret_key=secret_key,
             access_token=access_token,
             eyepop_url=eyepop_url,
+            api_key=api_key,
             job_queue_length=job_queue_length,
             request_tracer_max_buffer=request_tracer_max_buffer,
             compute_ctx=compute_ctx
@@ -114,7 +110,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if timeout is not None:
             client_timeout = aiohttp.ClientTimeout(total=timeout)
         if (self.is_dev_mode and self.pop_id == 'transient'
-                and self.worker_config is not None and self.worker_config.get('pipeline_id') is not None):
+                and self.worker_config is not None and self.worker_config.get('pipeline_id') is not None
+                and self.client_session is not None):
             try:
                 base_url = await self.dev_mode_base_url()
                 delete_pipeline_url = f'{base_url}/pipelines/{self.worker_config["pipeline_id"]}'

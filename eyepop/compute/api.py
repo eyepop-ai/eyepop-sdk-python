@@ -11,12 +11,7 @@ from eyepop.compute.status import wait_for_session
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper())
 log = logging.getLogger('eyepop.compute')
 
-def fetch_session_endpoint(compute_config: ComputeContext | None = None) -> ComputeContext:
-    if compute_config is None:
-        compute_config = ComputeContext(
-            compute_url=os.getenv("EYEPOP_URL", "https://compute.staging.eyepop.xyz"),
-            secret_key=os.getenv("EYEPOP_SECRET_KEY", ""),
-        )
+def fetch_session_endpoint(compute_config: ComputeContext = ComputeContext()) -> ComputeContext:
     compute_context = fetch_new_compute_session(compute_config)
     
     got_session = wait_for_session(compute_context)
@@ -27,7 +22,7 @@ def fetch_session_endpoint(compute_config: ComputeContext | None = None) -> Comp
 
 def fetch_new_compute_session(compute_config: ComputeContext) -> ComputeContext:
     headers = {
-        "Authorization": f"Bearer {compute_config.secret_key}",
+        "Authorization": f"Bearer {compute_config.api_key}",
         "Content-Type": "application/json",
         "Accept": "application/json"
     }
@@ -82,14 +77,18 @@ def fetch_new_compute_session(compute_config: ComputeContext) -> ComputeContext:
         res = res[0] if res else None
     
     session_response = TypeAdapter(ComputeApiSessionResponse).validate_python(res)
-    
+
     compute_config.session_endpoint = session_response.session_endpoint
     compute_config.session_uuid = session_response.session_uuid
     compute_config.access_token = session_response.access_token
-    
+    compute_config.access_token_expires_at = session_response.access_token_expires_at
+    compute_config.access_token_expires_in = session_response.access_token_expires_in
+
     log.debug(f"Session endpoint: {session_response.session_endpoint}")
     log.debug(f"Session UUID: {session_response.session_uuid}")
     log.debug(f"Access token present: {bool(session_response.access_token)}")
+    log.debug(f"Access token expires at: {session_response.access_token_expires_at}")
+    log.debug(f"Access token expires in: {session_response.access_token_expires_in}s")
     log.debug(f"Pipelines: {session_response.pipelines}")
     
     if not session_response.access_token or len(session_response.access_token.strip()) == 0:
@@ -99,3 +98,48 @@ def fetch_new_compute_session(compute_config: ComputeContext) -> ComputeContext:
     compute_config.pipeline_id = pipeline_id
     log.debug(f"Pipeline ID: {pipeline_id}")
     return compute_config
+
+def refresh_compute_token(compute_config: ComputeContext) -> ComputeContext:
+    """
+    Refresh the access token for a compute session.
+
+    Args:
+        compute_config: ComputeContext with session_uuid and api_key
+
+    Returns:
+        Updated ComputeContext with new access token and expiry info
+
+    Raises:
+        Exception: If token refresh fails
+    """
+    if not compute_config.session_uuid:
+        raise Exception("Cannot refresh token: no session_uuid in compute_config")
+
+    if not compute_config.api_key:
+        raise Exception("Cannot refresh token: no api_key in compute_config")
+
+    headers = {
+        "Authorization": f"Bearer {compute_config.api_key}",
+        "Accept": "application/json"
+    }
+
+    refresh_url = f"{compute_config.compute_url}/v1/sessions/{compute_config.session_uuid}/token"
+    log.info(f"Refreshing token at: {refresh_url}")
+
+    try:
+        response = requests.post(refresh_url, headers=headers)
+        response.raise_for_status()
+        token_response = response.json()
+        log.debug(f"Token refresh response: {token_response}")
+
+        # Update the compute context with new token info
+        compute_config.access_token = token_response.get("access_token", "")
+        compute_config.access_token_expires_at = token_response.get("access_token_expires_at", "")
+        compute_config.access_token_expires_in = token_response.get("access_token_expires_in", 0)
+
+        log.info(f"Token refreshed successfully, expires in: {compute_config.access_token_expires_in}s")
+
+        return compute_config
+    except Exception as e:
+        log.error(f"Failed to refresh token: {e}")
+        raise Exception(f"Token refresh failed: {e}") from e

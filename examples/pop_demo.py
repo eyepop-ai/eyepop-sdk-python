@@ -24,7 +24,7 @@ from eyepop.worker.worker_types import Pop, InferenceComponent, \
 script_dir = os.path.dirname(__file__)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.INFO)
+logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
 
 log = logging.getLogger('eyepop.example')
 
@@ -416,7 +416,7 @@ async def main(args) -> (dict[str, Any] | None, str | None):
     visualize_prediction = None
     visualize_path = None
     example_image_src = None
-    async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True) as endpoint:
+    async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True, api_key=os.getenv("EYEPOP_API_KEY")) as endpoint:
         await endpoint.set_pop(pop)
         if args.local_path:
             if not os.path.exists(args.local_path):
