@@ -104,9 +104,9 @@ class _UploadJob(WorkerJob):
         try:
             if self.needs_full_duplex:
                 self._response = await session.pipeline_post(
-                    'prepareSource?timeout=120s',
+                    'prepareSource?timeout=600s',
                     accept='application/jsonl',
-                    timeout=aiohttp.ClientTimeout(total=None, sock_read=60)
+                    timeout=aiohttp.ClientTimeout(total=None, sock_read=610)
                 )
                 # Read first event to get the prepared source id and then use
                 # two HTTP connections to simulate ful duplex HTTP.
