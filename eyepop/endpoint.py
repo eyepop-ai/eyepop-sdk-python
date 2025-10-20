@@ -11,12 +11,11 @@ from eyepop.compute.models import ComputeContext
 from eyepop.metrics import MetricCollector
 from eyepop.periodic import Periodic
 from eyepop.request_tracer import RequestTracer
+from eyepop.settings import settings
 
 log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
 log_metrics = logging.getLogger('eyepop.metrics')
-
-SEND_TRACE_THRESHOLD_SECS = 10.0
 
 
 async def response_check_with_error_body(response: aiohttp.ClientResponse):
@@ -46,7 +45,7 @@ class Endpoint(ClientSession):
 
         if request_tracer_max_buffer > 0:
             self.request_tracer = RequestTracer(max_events=request_tracer_max_buffer)
-            self.event_sender = Periodic(self.send_trace_recordings, SEND_TRACE_THRESHOLD_SECS / 2)
+            self.event_sender = Periodic(self.send_trace_recordings, settings.send_trace_threshold_secs / 2)
         else:
             self.request_tracer = None
             self.event_sender = None
@@ -80,7 +79,6 @@ class Endpoint(ClientSession):
 
     def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
                  exc_tb: Optional[TracebackType], ) -> None:
-        # __exit__ should exist in pair with __enter__ but never executed
         pass  # pragma: no cover
 
     async def __aenter__(self) -> "Endpoint":
@@ -217,8 +215,8 @@ class Endpoint(ClientSession):
                 log_requests.error('retry handler: compute_ctx is None, cannot refresh token')
                 return False
             try:
-                from eyepop.compute import refresh_compute_token
-                self.compute_ctx = refresh_compute_token(self.compute_ctx)
+                from eyepop.compute.api import refresh_compute_token
+                self.compute_ctx = await refresh_compute_token(self.compute_ctx, self.client_session)
                 log_requests.debug('retry handler: compute token refreshed successfully')
                 return True
             except Exception as e:
@@ -270,4 +268,4 @@ class Endpoint(ClientSession):
         if self.request_tracer is not None:
             await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events',
                                                      await self._authorization_header(),
-                                                     SEND_TRACE_THRESHOLD_SECS)
+                                                     settings.send_trace_threshold_secs)

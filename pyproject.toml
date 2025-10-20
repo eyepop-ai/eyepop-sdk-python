@@ -16,7 +16,7 @@ name = "eyepop"
 version = "2.0.0"
 description="EyePop.ai Python SDK"
 readme = "README.md"
-license.file = "./LICENSE"
+license = {file = "LICENSE"}
 authors = [
     { name = "EyePop.ai", email = "support@eyepop.ai" },
 ]
@@ -32,7 +32,7 @@ dependencies = [
     "flatbuffers>=24.3.25",
     "deprecated>=1.2.14",
     "pydantic>=2.8.2",
-    "deprecated>=1.2.14",
+    "pydantic-settings>=2.0.0",
     "websockets>=13.1",
     "pyarrow>=18.1.0",
     "pandas>=2.2.3",

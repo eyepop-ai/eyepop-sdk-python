@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 from io import StringIO
 from typing import Callable, BinaryIO, Any
@@ -11,6 +10,7 @@ import aiohttp
 from eyepop.compute.api import fetch_session_endpoint
 from eyepop.endpoint import Endpoint
 from eyepop.exceptions import PopNotStartedException, PopConfigurationException, PopNotReachableException
+from eyepop.settings import settings
 from eyepop.worker.worker_client_session import WorkerClientSession
 from eyepop.worker.worker_jobs import WorkerJob, _UploadFileJob, _LoadFromJob, _UploadStreamJob, _LoadFromAssetUuidJob
 from eyepop.worker.load_balancer import EndpointLoadBalancer
@@ -21,14 +21,9 @@ log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
 log_metrics = logging.getLogger('eyepop.metrics')
 
-secret_key = os.getenv("EYEPOP_SECRET_KEY", None)
-
-MIN_CONFIG_RECONNECT_SECS = 10.0
-MAX_RETRY_TIME_SECS = 30.0
-FORCE_REFRESH_CONFIG_SECS = (61.0 * 61.0)
-
 
 def should_use_compute_api(pop_id: str, api_key: str | None) -> bool:
+    """Determine if we should use Compute API based on pop_id and api_key."""
     if not api_key:
         return False
 
@@ -38,7 +33,7 @@ def should_use_compute_api(pop_id: str, api_key: str | None) -> bool:
         log.debug(f"Pop ID {pop_id} is not transient, will not use compute API")
         return False
 
-    log.debug(f"Using compute api")
+    log.debug("Using compute API")
     return True
 
 class WorkerEndpoint(Endpoint, WorkerClientSession):
@@ -59,17 +54,14 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             request_tracer_max_buffer: int,
             dataset_uuid: str | None = None,
     ):
-        # Fetch compute context BEFORE calling super().__init__
-        # Only use compute API if the URL contains "compute" and we're in transient mode
         compute_ctx = None
         if should_use_compute_api(pop_id, api_key):
             from eyepop.compute.models import ComputeContext
-            compute_config = ComputeContext(
+            compute_ctx = ComputeContext(
                 compute_url=eyepop_url,
                 api_key=api_key
             )
-            compute_ctx = fetch_session_endpoint(compute_config)
-            eyepop_url = compute_ctx.session_endpoint
+            log.debug(f"Compute API will be used, session will be fetched in _reconnect()")
 
         super().__init__(
             secret_key=secret_key,
@@ -92,12 +84,11 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.last_fetch_config_error = None
         self.last_fetch_config_error_time = None
 
-        # new way
         self.pop = Pop(components=[])
 
         self.add_retry_handler(404, self._retry_404)
 
-    async def _retry_404(self, status_code: int, failed_attempts: int) -> bool:
+    async def _retry_404(self, _status_code: int, failed_attempts: int) -> bool:
         if failed_attempts > 1:
             return False
         else:
@@ -131,28 +122,30 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.worker_config is not None:
             return
 
-        if self.last_fetch_config_error_time is not None and self.last_fetch_config_error_time > time.time() - MIN_CONFIG_RECONNECT_SECS:
+        if self.last_fetch_config_error_time is not None and self.last_fetch_config_error_time > time.time() - settings.min_config_reconnect_secs:
             raise self.last_fetch_config_error
 
-        if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time > time.time() - MIN_CONFIG_RECONNECT_SECS:
+        if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time > time.time() - settings.min_config_reconnect_secs:
             raise aiohttp.ClientConnectionError()
 
-
-        # If we have compute context, we already have all the config we need
         if self.compute_ctx:
+            if not self.compute_ctx.session_endpoint:
+                log_requests.debug("Fetching compute API session")
+                self.compute_ctx = await fetch_session_endpoint(self.compute_ctx, self.client_session)
+                self.eyepop_url = self.compute_ctx.session_endpoint
+                log_requests.debug(f"Compute session ready: {self.compute_ctx.session_endpoint}")
+
             self.worker_config = {
                 "session_endpoint": self.compute_ctx.session_endpoint,
                 "pipeline_id": self.compute_ctx.pipeline_uuid,
                 "endpoints": []
             }
-            # If no pipeline_id from compute API, we need to create one
             if not self.compute_ctx.pipeline_uuid or self.compute_ctx.pipeline_uuid == "":
-                logging.info("No pipeline_uuid from compute API, will create one...")
+                log.info("No pipeline_uuid from compute API, will create one...")
             self.last_fetch_config_success_time = time.time()
             self.last_fetch_config_error = None
             self.last_fetch_config_error_time = None
         else:
-            # Use the old config endpoints for backward compatibility
             if self.pop_id == 'transient':
                 config_url = f'{self.eyepop_url}/workers/config'
             else:
@@ -197,7 +190,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
         base_url = await self.dev_mode_base_url()
 
-        # Create pipeline if we're in transient mode OR if we have compute_ctx but no pipeline_id
         if self.pop_id == 'transient' or (self.compute_ctx and (not self.compute_ctx.pipeline_uuid or self.compute_ctx.pipeline_uuid == "")):
             start_pipeline_url = f'{base_url}/pipelines'
             body = {
@@ -221,15 +213,12 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 response_json = await response.json()
             log_requests.debug('after POST %s', start_pipeline_url)
             self.worker_config['pipeline_id'] = response_json['id']
-            
-            # If using compute_ctx, also store the pipeline_id there
+
             if self.compute_ctx:
                 self.compute_ctx.pipeline_uuid = response_json['id']
                 logging.info(f"Created pipeline with ID: {response_json['id']}")
-                
-            # Reinitialize load balancer with the new pipeline_id
+
             if self.is_dev_mode:
-                # Handle both compute API (session_endpoint) and old API (base_url)
                 if 'session_endpoint' in self.worker_config:
                     base_url = self.worker_config['session_endpoint'].rstrip("/")
                 else:
@@ -238,7 +227,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.load_balancer = EndpointLoadBalancer([endpoint])
                 log.debug(f"Reinitialized load balancer with pipeline_id: {self.worker_config['pipeline_id']}")
 
-        # Check if we have the necessary config for dev mode
         if self.is_dev_mode:
             has_base_url = ('base_url' in self.worker_config and self.worker_config['base_url'] is not None) or \
                           ('session_endpoint' in self.worker_config and self.worker_config['session_endpoint'] is not None)
@@ -259,7 +247,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             log_requests.debug('after PATCH %s', stop_jobs_url)
 
         if self.is_dev_mode and self.pop is None:
-            # get current pipeline string and store
             get_url = await self.dev_mode_pipeline_base_url()
             headers = {}
             authorization_header = await self._authorization_header()
@@ -277,7 +264,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             log.debug('current pop is %s', self.pop)
 
         if self.is_dev_mode:
-            # Handle both compute API (session_endpoint) and old API (base_url)
             if 'session_endpoint' in self.worker_config:
                 base_url = self.worker_config['session_endpoint'].rstrip("/")
             else:
@@ -294,7 +280,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         session = await super().session()
         session['popId'] = self.pop_id
         if self.worker_config:
-            # Handle both compute API (session_endpoint) and old API (base_url)
             if 'session_endpoint' in self.worker_config:
                 session['baseUrl'] = self.worker_config['session_endpoint']
             elif 'base_url' in self.worker_config:
@@ -391,7 +376,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
     async def dev_mode_base_url(self) -> str:
         if self.worker_config is None:
             await self._reconnect()
-        # Handle both compute API (session_endpoint) and old API (base_url)
         if 'session_endpoint' in self.worker_config:
             return self.worker_config['session_endpoint'].rstrip("/")
         return urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
@@ -413,9 +397,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
     async def pipeline_patch(self, url_path_and_query: str, accept: str | None = None, data: Any = None,
                              content_type: str | None = None,
                              timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
-        def noop():
-            pass
-
         def open_data():
             if isinstance(data, str):
                 return StringIO(data)
@@ -432,19 +413,18 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
     async def _pipeline_request_with_retry(self, method: str, url_path_and_query: str, accept: str | None = None,
                                            open_data: Callable = None, content_type: str | None = None,
                                            timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
-        if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time < time.time() - FORCE_REFRESH_CONFIG_SECS:
-            self.worker_config is None
+        if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time < time.time() - settings.force_refresh_config_secs:
+            self.worker_config = None
 
         failed_attempts = 0
-        retried_re_auth = False
         retried_re_config = False
         start_time = time.time()
 
-        while time.time() - start_time < MAX_RETRY_TIME_SECS:
+        while time.time() - start_time < settings.max_retry_time_secs:
             if self.worker_config is None:
                 await self._reconnect()
 
-            entry = self.load_balancer.next_entry(MAX_RETRY_TIME_SECS + 1)
+            entry = self.load_balancer.next_entry(settings.max_retry_time_secs + 1)
             log.debug(f"Load balancer entry: {entry}")
             if entry is None:
                 if not retried_re_config:
@@ -504,7 +484,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 log_requests.exception('unexpected error', e)
                 raise e
 
-        raise PopNotReachableException(self.pop_id, f"no success after {MAX_RETRY_TIME_SECS} secs")
+        raise PopNotReachableException(self.pop_id, [])
 
     async def _worker_request_with_retry(self, method: str, url_path_and_query: str, accept: str | None = None,
                                          data: Any = None, content_type: str | None = None,
