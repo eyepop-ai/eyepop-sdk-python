@@ -5,7 +5,7 @@ import pytest
 from aioresponses import aioresponses, CallbackResult
 
 from eyepop import EyePopSdk
-from eyepop.worker.worker_types import Pop
+from eyepop.worker.worker_types import Pop, PredictionVersion, DEFAULT_PREDICTION_VERSION
 from tests.worker.base_endpoint_test import BaseEndpointTest
 
 
@@ -60,7 +60,7 @@ class TestEndpointLoadFrom(BaseEndpointTest):
                     'Content-Type': 'application/json',
                     'Authorization': f'Bearer {self.test_access_token}'
                 },
-                data=json.dumps({'sourceType': 'URL', 'url': self.test_url}),
+                data=json.dumps({'sourceType': 'URL', 'url': self.test_url, 'version': DEFAULT_PREDICTION_VERSION}),
                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
 
     @aioresponses()
@@ -112,5 +112,5 @@ class TestEndpointLoadFrom(BaseEndpointTest):
                     'Content-Type': 'application/json',
                     'Authorization': f'Bearer {self.test_access_token}'
                 },
-                data=json.dumps({'sourceType': 'URL', 'url': self.test_url}),
+                data=json.dumps({'sourceType': 'URL', 'url': self.test_url, 'version': DEFAULT_PREDICTION_VERSION}),
                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))

@@ -4,6 +4,7 @@ import aiohttp
 from aioresponses import aioresponses, CallbackResult
 
 from eyepop import EyePopSdk
+from eyepop.worker.worker_types import DEFAULT_PREDICTION_VERSION, Pop
 from tests.worker.base_endpoint_test import BaseEndpointTest
 
 
@@ -51,7 +52,7 @@ class TestEndpointLoadBalance(BaseEndpointTest):
                     'Content-Type': 'application/json',
                     'Authorization': f'Bearer {self.test_access_token}'
                 },
-                data=json.dumps({'sourceType': 'URL', 'url': self.test_url}),
+                data=json.dumps({'sourceType': 'URL', 'url': self.test_url, 'version': DEFAULT_PREDICTION_VERSION}),
                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
 
     @aioresponses()
@@ -105,7 +106,7 @@ class TestEndpointLoadBalance(BaseEndpointTest):
                     'Content-Type': 'application/json',
                     'Authorization': f'Bearer {self.test_access_token}'
                 },
-                data=json.dumps({'sourceType': 'URL', 'url': self.test_url}),
+                data=json.dumps({'sourceType': 'URL', 'url': self.test_url, 'version': DEFAULT_PREDICTION_VERSION}),
                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
 
             mock.assert_called_with(
@@ -116,7 +117,7 @@ class TestEndpointLoadBalance(BaseEndpointTest):
                     'Content-Type': 'application/json',
                     'Authorization': f'Bearer {self.test_access_token}'
                 },
-                data=json.dumps({'sourceType': 'URL', 'url': self.test_url}),
+                data=json.dumps({'sourceType': 'URL', 'url': self.test_url, 'version': DEFAULT_PREDICTION_VERSION}),
                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
 
     def _prepare_mock(self, mock, num_endpoints):
