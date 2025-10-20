@@ -10,7 +10,7 @@ import aiohttp
 
 from eyepop.worker.worker_client_session import (WorkerClientSession)
 from eyepop.jobs import Job, JobStateCallback
-from eyepop.worker.worker_types import VideoMode, ComponentParams
+from eyepop.worker.worker_types import VideoMode, ComponentParams, PredictionVersion, DEFAULT_PREDICTION_VERSION
 
 log_requests = logging.getLogger('eyepop.requests')
 
@@ -19,14 +19,20 @@ class WorkerJob(Job):
     """
     Abstract Job submitted to an EyePop.ai WorkerEndpoint.
     """
-    _component_params = list[ComponentParams] | None
-    def __init__(self,
-                 session: WorkerClientSession,
-                 component_params: list[ComponentParams] | None,
-                 on_ready: Callable[["WorkerJob"], None] | None,
-                 callback: JobStateCallback | None = None):
+    _component_params: list[ComponentParams] | None
+    _version: PredictionVersion
+
+    def __init__(
+            self,
+            session: WorkerClientSession,
+            component_params: list[ComponentParams] | None,
+            on_ready: Callable[["WorkerJob"], None] | None,
+            callback: JobStateCallback | None = None,
+            version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
+    ):
         super().__init__(session, on_ready, callback)
         self._component_params = component_params
+        self._version = version
 
     async def predict(self) -> dict:
         result = await self.pop_result()
@@ -67,20 +73,23 @@ class _UploadJob(WorkerJob):
     open_stream: Callable[[], Any]
     needs_full_duplex: bool
 
-    def __init__(self,
-                 mime_type: str,
-                 open_stream: Callable[[], Any],
-                 video_mode: VideoMode | None,
-                 component_params: list[ComponentParams] | None,
-                 session: WorkerClientSession,
-                 on_ready: Callable[[WorkerJob], None] | None = None,
-                 callback: JobStateCallback | None = None
-     ):
+    def __init__(
+            self,
+            mime_type: str,
+            open_stream: Callable[[], Any],
+            video_mode: VideoMode | None,
+            component_params: list[ComponentParams] | None,
+            session: WorkerClientSession,
+            on_ready: Callable[[WorkerJob], None] | None = None,
+            callback: JobStateCallback | None = None,
+            version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
+    ):
         super().__init__(
             session=session,
             component_params=component_params,
             on_ready=on_ready,
-            callback=callback
+            callback=callback,
+            version=version
         )
         self.mime_type = mime_type
         self.video_mode = video_mode
@@ -121,7 +130,8 @@ class _UploadJob(WorkerJob):
                 if source_id is None:
                     raise ValueError("did not get a prepared sourceId to simulate full duplex")
                 video_mode_query = f'&videoMode={self.video_mode.value}' if self.video_mode else ''
-                upload_url = f'source?mode=queue&processing=async&sourceId={source_id}{video_mode_query}'
+                version_query = f'&version={self._version}' if self._version else ''
+                upload_url = f'source?mode=queue&processing=async&sourceId={source_id}{video_mode_query}{version_query}'
                 if self._component_params is None:
                     upload_coro = session.pipeline_post(upload_url,
                                                         accept='application/jsonl',
@@ -164,21 +174,25 @@ def _guess_mime_type_from_location(location: str):
 
 
 class _UploadFileJob(_UploadJob):
-    def __init__(self,
-                 location: str,
-                 video_mode: VideoMode | None,
-                 component_params: list[ComponentParams] | None,
-                 session: WorkerClientSession,
-                 on_ready: Callable[[WorkerJob], None] | None = None,
-                 callback: JobStateCallback | None = None
+    def __init__(
+            self,
+            location: str,
+            video_mode: VideoMode | None,
+            component_params: list[ComponentParams] | None,
+            session: WorkerClientSession,
+            on_ready: Callable[[WorkerJob], None] | None = None,
+            callback: JobStateCallback | None = None,
+            version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
-        super().__init__(mime_type=_guess_mime_type_from_location(location),
-                         open_stream=self.open_stream,
-                         video_mode=video_mode,
-                         component_params=component_params,
-                         session=session,
-                         on_ready=on_ready,
-                         callback=callback
+        super().__init__(
+            mime_type=_guess_mime_type_from_location(location),
+            open_stream=self.open_stream,
+            video_mode=video_mode,
+            component_params=component_params,
+            session=session,
+            on_ready=on_ready,
+            callback=callback,
+            version=version
         )
         self.location = location
 
@@ -187,22 +201,26 @@ class _UploadFileJob(_UploadJob):
 
 
 class _UploadStreamJob(_UploadJob):
-    def __init__(self,
-                 stream: BinaryIO,
-                 mime_type: str,
-                 video_mode: VideoMode | None,
-                 component_params: list[ComponentParams] | None,
-                 session: WorkerClientSession,
-                 on_ready: Callable[[WorkerJob], None] | None = None,
-                 callback: JobStateCallback | None = None
+    def __init__(
+            self,
+            stream: BinaryIO,
+            mime_type: str,
+            video_mode: VideoMode | None,
+            component_params: list[ComponentParams] | None,
+            session: WorkerClientSession,
+            on_ready: Callable[[WorkerJob], None] | None = None,
+            callback: JobStateCallback | None = None,
+            version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
-        super().__init__(mime_type=mime_type,
-                         open_stream=self.open_stream,
-                         video_mode=video_mode,
-                         component_params=component_params,
-                         session=session,
-                         on_ready=on_ready,
-                         callback=callback
+        super().__init__(
+            mime_type=mime_type,
+            open_stream=self.open_stream,
+            video_mode=video_mode,
+            component_params=component_params,
+            session=session,
+            on_ready=on_ready,
+            callback=callback,
+            version=version
         )
         self.stream = stream
 
@@ -211,24 +229,28 @@ class _UploadStreamJob(_UploadJob):
 
 
 class _LoadFromJob(WorkerJob):
-    def __init__(self,
-                 location: str,
-                 component_params: list[ComponentParams] | None,
-                 session: WorkerClientSession,
-                 on_ready: Callable[[WorkerJob], None] | None = None,
-                 callback: JobStateCallback | None = None
-     ):
+    def __init__(
+            self,
+            location: str,
+            component_params: list[ComponentParams] | None,
+            session: WorkerClientSession,
+            on_ready: Callable[[WorkerJob], None] | None = None,
+            callback: JobStateCallback | None = None,
+            version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
+    ):
         super().__init__(
             session=session,
             component_params=component_params,
             on_ready=on_ready,
-            callback=callback
+            callback=callback,
+            version=version
         )
         self.location = location
         self.target_url = 'source?mode=queue&processing=sync'
         self.body = {
             "sourceType": "URL",
             "url": self.location,
+            "version": self._version,
         }
         if self._component_params is not None:
             self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
@@ -250,24 +272,28 @@ class _LoadFromJob(WorkerJob):
 
 
 class _LoadFromAssetUuidJob(WorkerJob):
-    def __init__(self,
-                 asset_uuid: str,
-                 component_params: list[ComponentParams] | None,
-                 session: WorkerClientSession,
-                 on_ready: Callable[[WorkerJob], None] | None = None,
-                 callback: JobStateCallback | None = None
-     ):
+    def __init__(
+            self,
+            asset_uuid: str,
+            component_params: list[ComponentParams] | None,
+            session: WorkerClientSession,
+            on_ready: Callable[[WorkerJob], None] | None = None,
+            callback: JobStateCallback | None = None,
+            version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
+    ):
         super().__init__(
             session=session,
             component_params=component_params,
             on_ready=on_ready,
-            callback=callback
+            callback=callback,
+            version=version
         )
         self.asset_uuid = asset_uuid
         self.target_url = 'source?mode=queue&processing=sync'
         self.body = {
             "sourceType": "ASSET_UUID",
             "assetUuid": self.asset_uuid,
+            "version": self._version
         }
         if self._component_params is not None:
             self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)

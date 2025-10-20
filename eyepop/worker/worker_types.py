@@ -3,6 +3,13 @@ from typing import List, Literal, Annotated, Union, Any
 
 from pydantic import BaseModel, Field, ConfigDict
 
+class PredictionVersion(enum.IntEnum):
+    V1 = 1
+    V2 = 2
+
+
+DEFAULT_PREDICTION_VERSION = PredictionVersion.V2
+
 
 class VideoMode(enum.StrEnum):
     STREAM = "stream"
@@ -13,7 +20,10 @@ class PopComponentType(enum.StrEnum):
     BASE = "<invalid>"
     FORWARD = "forward"
     INFERENCE = "inference"
+    # backward compatibility for persisted Pops < 3.0.0
     TRACING = "tracing"
+    # since 3.0.0, replaced 'tracing'
+    TRACKING = "tracking"
     CONTOUR_FINDER = "contour_finder"
     COMPONENT_FINDER = "component_finder"
 
@@ -82,8 +92,8 @@ class InferenceComponent(BaseComponent):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
 
-class TracingComponent(BaseComponent):
-    type: Literal[PopComponentType.TRACING] = PopComponentType.TRACING
+class TrackingComponent(BaseComponent):
+    type: Literal[PopComponentType.TRACKING] = PopComponentType.TRACKING
     reidModelUuid: str | None = None
     reidModel: str | None = None
     maxAgeSeconds: float | None = None
@@ -119,7 +129,7 @@ class ComponentFinderComponent(BaseComponent):
     model_config = ConfigDict(extra='forbid')
 
 
-DynamicComponent = Annotated[Union[ForwardComponent | InferenceComponent | TracingComponent | ContourFinderComponent | ComponentFinderComponent], Field(discriminator="type")]
+DynamicComponent = Annotated[Union[ForwardComponent | InferenceComponent | TrackingComponent | ContourFinderComponent | ComponentFinderComponent], Field(discriminator="type")]
 
 
 class Pop(BaseModel):

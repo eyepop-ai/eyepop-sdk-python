@@ -212,7 +212,7 @@ class PredictedKeyPoints(BaseModel):
 
 
 class PredictedObject(PredictedClass):
-    traceId: int | None = None
+    trackId: int | None = None
     x: float
     y: float
     width: float
