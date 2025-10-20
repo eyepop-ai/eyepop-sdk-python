@@ -1,30 +1,42 @@
-
+import asyncio
 import logging
-import time
 
-import requests
+import aiohttp
 
 from eyepop.compute.models import ComputeApiSessionResponse, ComputeContext, PipelineStatus
+from eyepop.exceptions import ComputeHealthCheckException
 
 log = logging.getLogger('eyepop.compute')
 
 
-class WaitException(Exception):
-    def __init__(self, message: str):
-        self.message = message
-        super().__init__(self.message)
+async def wait_for_session(
+    compute_config: ComputeContext,
+    client_session: aiohttp.ClientSession
+) -> bool:
+    """
+    Wait for compute session to become ready by polling health endpoint.
 
+    Args:
+        compute_config: Configuration with session_endpoint and access_token
+        client_session: Existing aiohttp session to reuse connections
 
-def wait_for_session(compute_config: ComputeContext) -> bool:
+    Returns:
+        True if session is ready, False otherwise
+
+    Raises:
+        ComputeHealthCheckException: If session enters terminal state or validation fails
+        TimeoutError: If session doesn't become ready within timeout period
+    """
     timeout = compute_config.wait_for_session_timeout
     interval = compute_config.wait_for_session_interval
-    
+
     # Session endpoint health check ALWAYS uses the JWT access_token
     if not compute_config.access_token or len(compute_config.access_token.strip()) == 0:
-        raise Exception(
+        raise ComputeHealthCheckException(
             "No access_token in compute_config. "
             "Cannot perform session health check. "
-            "This should never happen - fetch_new_compute_session should have set it."
+            "This should never happen - fetch_new_compute_session should have set it.",
+            session_endpoint=compute_config.session_endpoint
         )
 
     auth_header = f"Bearer {compute_config.access_token}"
@@ -34,64 +46,66 @@ def wait_for_session(compute_config: ComputeContext) -> bool:
         "Authorization": auth_header,
         "Accept": "application/json",
     }
-    
+
     health_url = f"{compute_config.session_endpoint}/health"
     log.debug(f"Waiting for session to be ready at: {health_url}")
     log.debug(f"Timeout: {timeout}s, Interval: {interval}s")
-    
-    end_time = time.time() + timeout
+
+    end_time = asyncio.get_event_loop().time() + timeout
     last_message = "No message received"
     attempt = 0
-    while time.time() < end_time:
+
+    while asyncio.get_event_loop().time() < end_time:
         attempt += 1
         try:
             log.debug(f"Health check attempt {attempt}")
-            response = requests.get(health_url, headers=headers)
-            log.debug(f"Health check response status: {response.status_code}")
-            
-            if response.status_code == 200:
-                log.info("Session is ready (status 200)")
-                return True
-            
-            # If not 200, try to parse the response as session info
-            if response.status_code != 200:
-                last_message = f"Health check returned status {response.status_code}"
-                log.debug(last_message)
-                time.sleep(interval)
-                continue
-                
-            session_response = ComputeApiSessionResponse(**response.json())
 
-            # Check status - the enum's _missing_ method will handle unknown values
-            status = session_response.session_status
-            
-            if status == PipelineStatus.RUNNING:
-                log.info("Session is running")
-                return True
-            elif status == PipelineStatus.PENDING:
-                # Continue waiting for these statuses
-                last_message = f"Session status: {status.value}"
-                log.debug(f"Session still pending/creating: {last_message}")
-                time.sleep(interval)
-                continue
-            elif status in [PipelineStatus.FAILED, PipelineStatus.ERROR, PipelineStatus.STOPPED]:
-                # Terminal states - stop waiting
-                raise WaitException(f"Session in terminal state: {status.value}. Message: {session_response.session_message}")
-            else:
-                # Unknown status - log and continue waiting
-                last_message = f"Session status: {status.value}"
-                log.debug(f"Unknown session status, continuing to wait: {last_message}")
-                time.sleep(interval)
-                continue
+            async with client_session.get(health_url, headers=headers) as response:
+                log.debug(f"Health check response status: {response.status}")
 
-        except WaitException as e:
-            last_message = str(e)
-            log.warning(f"Session wait exception: {last_message}")
+                if response.status == 200:
+                    log.info("Session is ready (status 200)")
+                    return True
+
+                if response.status != 200:
+                    last_message = f"Health check returned status {response.status}"
+                    log.debug(last_message)
+                    await asyncio.sleep(interval)
+                    continue
+
+                session_response = ComputeApiSessionResponse(**(await response.json()))
+                status = session_response.session_status
+
+                if status == PipelineStatus.RUNNING:
+                    log.info("Session is running")
+                    return True
+                elif status == PipelineStatus.PENDING:
+                    last_message = f"Session status: {status.value}"
+                    log.debug(f"Session still pending/creating: {last_message}")
+                    await asyncio.sleep(interval)
+                    continue
+                elif status in [PipelineStatus.FAILED, PipelineStatus.ERROR, PipelineStatus.STOPPED]:
+                    raise ComputeHealthCheckException(
+                        f"Session in terminal state: {status.value}. Message: {session_response.session_message}",
+                        session_endpoint=compute_config.session_endpoint,
+                        last_status=status.value
+                    )
+                else:
+                    last_message = f"Session status: {status.value}"
+                    log.debug(f"Unknown session status, continuing to wait: {last_message}")
+                    await asyncio.sleep(interval)
+                    continue
+
+        except ComputeHealthCheckException:
+            raise
+        except aiohttp.ClientResponseError as e:
+            last_message = f"HTTP {e.status}: {e.message}"
+            log.debug(f"HTTP error during health check: {last_message}")
         except Exception as e:
-            # Don't immediately raise, just log and continue trying
             last_message = str(e)
             log.debug(f"Exception during health check: {last_message}")
-        time.sleep(interval)
+
+        await asyncio.sleep(interval)
 
     log.error(f"Session timed out after {timeout}s. Last message: {last_message}")
-    raise TimeoutError(f"Session timedout. Last message: {last_message}")
+    raise TimeoutError(f"Session timed out after {timeout}s. Last message: {last_message}")

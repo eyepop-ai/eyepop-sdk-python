@@ -3,9 +3,19 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+from eyepop.settings import settings
+
 
 class ComputeContext(BaseModel):
-    compute_url: str = Field(description="The url of the compute api", default=os.getenv("EYEPOP_URL", "https://compute.staging.eyepop.xyz"))
+    """
+    Context for Compute API operations.
+
+    Contains session details, authentication tokens, and configuration.
+    """
+    compute_url: str = Field(
+        description="The url of the compute api",
+        default_factory=lambda: os.getenv("EYEPOP_URL", settings.default_compute_url)
+    )
     session_endpoint: str = Field(description="The endpoint of the session", default="")
     session_uuid: str = Field(description="The uuid of the session", default="")
     pipeline_uuid: str = Field(description="The uuid of the pipeline", default="")
@@ -15,10 +25,20 @@ class ComputeContext(BaseModel):
     access_token: str = Field(description="The JWT access token from compute API", default="")
     access_token_expires_at: str = Field(description="ISO timestamp when access token expires", default="")
     access_token_expires_in: int = Field(description="Seconds until access token expires", default=0)
-    wait_for_session_timeout: int = Field(description="The timeout for the session", default=60)
-    wait_for_session_interval: int = Field(description="The interval for the session", default=2)
+    wait_for_session_timeout: int = Field(
+        description="The timeout for the session",
+        default_factory=lambda: settings.session_timeout
+    )
+    wait_for_session_interval: int = Field(
+        description="The interval for the session",
+        default_factory=lambda: settings.session_interval
+    )
+
 
 class PipelineStatus(str, Enum):
+    """
+    Possible states for a compute API session/pipeline.
+    """
     UNKNOWN = "unknown"
     PENDING = "pending"
     PIPELINE_CREATING = "pipeline_creating"
@@ -26,13 +46,16 @@ class PipelineStatus(str, Enum):
     STOPPED = "stopped"
     FAILED = "failed"
     ERROR = "error"
-    
+
     @classmethod
     def _missing_(cls, value):
-        """Handle unknown status values by checking if they contain known keywords."""
+        """
+        Handle unknown status values by checking if they contain known keywords.
+
+        This makes the enum more resilient to API changes.
+        """
         if isinstance(value, str):
             value_lower = value.lower()
-            # Check for keywords in the status string (order matters - check more specific first)
             if "error" in value_lower:
                 return cls.ERROR
             elif "fail" in value_lower:
@@ -43,20 +66,22 @@ class PipelineStatus(str, Enum):
                 return cls.RUNNING
             elif "pending" in value_lower or "creat" in value_lower or "start" in value_lower:
                 return cls.PENDING
-        # If no match, return UNKNOWN instead of raising an error
         return cls.UNKNOWN
 
 
 class ComputeApiPipelineStatus(BaseModel):
+    """Status information for a pipeline."""
     status: PipelineStatus = Field(description="The status of the pipeline")
     reason: str = Field(description="The reason for the status")
 
 
 class ComputeApiSessionRequest(BaseModel):
+    """Request body for creating a new session."""
     account_uuid: str = Field(description="Required account uuid to create a session")
 
 
 class ComputeApiSessionResponse(BaseModel):
+    """Response from compute API session endpoints."""
     session_uuid: str = Field(description="The related session uuid for this session")
     session_endpoint: str = Field(description="The related session url for this session")
     access_token: str = Field(description="The JWT access token for session authentication")
