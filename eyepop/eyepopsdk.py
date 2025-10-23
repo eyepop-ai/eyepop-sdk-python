@@ -28,6 +28,7 @@ class EyePopSdk:
             request_tracer_max_buffer: int = 1204,
             dataset_uuid: str | None = None
     ) -> WorkerEndpoint | SyncWorkerEndpoint:
+        print(f"EyepopSDK {eyepop_url}")
         if is_local_mode is None:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE")
             if local_mode_env is not None:
@@ -106,19 +107,22 @@ class EyePopSdk:
         account_id: str | None = None,
         secret_key: str | None = None,
         access_token: str | None = None,
+        api_key: str | None = None,
         eyepop_url: str | None = None,
         job_queue_length: int = 1024,
         is_async: bool = False,
         request_tracer_max_buffer: int = 1204,
         disable_ws: bool = True,
     ) -> DataEndpoint | SyncDataEndpoint:
-        if access_token is None and secret_key is None:
-            secret_key = os.getenv("EYEPOP_SECRET_KEY")
-            if secret_key is None:
-                raise KeyError(
-                    "parameter 'secret_key' or environment 'EYEPOP_SECRET_KEY' "
-                    "or parameter 'access_token' is required"
-                )
+        if access_token is None and secret_key is None and api_key is None:
+            api_key = os.getenv("EYEPOP_API_KEY")
+            if api_key is None:
+                secret_key = os.getenv("EYEPOP_SECRET_KEY")
+                if secret_key is None:
+                    raise KeyError(
+                        "parameter 'secret_key' or environment 'EYEPOP_SECRET_KEY' "
+                        "or parameter 'access_token' is required"
+                    )
 
         if eyepop_url is None:
             eyepop_url = os.getenv("EYEPOP_URL")
@@ -134,6 +138,7 @@ class EyePopSdk:
             secret_key=secret_key,
             access_token=access_token,
             account_id=account_id,
+            api_key=api_key,
             eyepop_url=eyepop_url,
             job_queue_length=job_queue_length,
             request_tracer_max_buffer=request_tracer_max_buffer,

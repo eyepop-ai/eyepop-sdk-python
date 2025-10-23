@@ -12,7 +12,7 @@ def mock_compute_context():
         compute_url="https://compute.staging.eyepop.xyz",
         session_uuid="session-123",
         api_key="test-api-key",
-        access_token="old-token",
+        m2m_access_token="old-token",
         access_token_expires_at="2025-10-17T12:00:00Z",
         access_token_expires_in=3600
     )

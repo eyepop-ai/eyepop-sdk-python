@@ -174,14 +174,14 @@ def test_compute_context_creation():
     context = ComputeContext(
         compute_url="https://compute.example.com",
         api_key="test-key",
-        access_token="jwt-123",
+        m2m_access_token="jwt-123",
         session_endpoint="https://session.example.com",
         pipeline_id="pipeline-456"
     )
 
     assert context.compute_url == "https://compute.example.com"
     assert context.api_key == "test-key"
-    assert context.access_token == "jwt-123"
+    assert context.m2m_access_token == "jwt-123"
     assert context.session_endpoint == "https://session.example.com"
     assert context.pipeline_id == "pipeline-456"
     assert context.wait_for_session_timeout == 60
@@ -196,7 +196,7 @@ def test_compute_context_defaults():
     assert context.session_endpoint == ""
     assert context.session_uuid == ""
     assert context.pipeline_uuid == ""
-    assert context.access_token == ""
+    assert context.m2m_access_token == ""
     assert context.wait_for_session_timeout == 60
     assert context.wait_for_session_interval == 2
 

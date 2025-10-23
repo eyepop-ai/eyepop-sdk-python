@@ -22,7 +22,7 @@ class ComputeContext(BaseModel):
     pipeline_id: str = Field(description="The id of the pipeline", default="")
     user_uuid: str = Field(description="The uuid of the user", default=os.getenv("EYEPOP_USER_UUID", ""))
     api_key: str = Field(description="The api key of the user", default=os.getenv("EYEPOP_API_KEY", ""))
-    access_token: str = Field(description="The JWT access token from compute API", default="")
+    m2m_access_token: str = Field(description="The JWT access token from compute API", default="")
     access_token_expires_at: str = Field(description="ISO timestamp when access token expires", default="")
     access_token_expires_in: int = Field(description="Seconds until access token expires", default=0)
     wait_for_session_timeout: int = Field(

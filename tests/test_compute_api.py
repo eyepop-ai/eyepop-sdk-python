@@ -196,7 +196,7 @@ def test_fetch_session_endpoint_with_health_check(mock_fetch_new, mock_wait):
         compute_url="https://compute.staging.eyepop.xyz",
         api_key="test-key",
         session_endpoint="https://session.example.com",
-        access_token="jwt-123"
+        m2m_access_token="jwt-123"
     )
     mock_fetch_new.return_value = mock_context
     mock_wait.return_value = True
@@ -231,7 +231,7 @@ def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
         compute_url="https://custom.compute.com",
         api_key="custom-key",
         session_endpoint="https://session.example.com",
-        access_token="jwt-123"
+        m2m_access_token="jwt-123"
     )
     mock_fetch_new.return_value = mock_context
     mock_wait.return_value = True

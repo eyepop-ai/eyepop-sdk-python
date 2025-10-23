@@ -31,7 +31,7 @@ async def wait_for_session(
     interval = compute_config.wait_for_session_interval
 
     # Session endpoint health check ALWAYS uses the JWT access_token
-    if not compute_config.access_token or len(compute_config.access_token.strip()) == 0:
+    if not compute_config.m2m_access_token or len(compute_config.m2m_access_token.strip()) == 0:
         raise ComputeHealthCheckException(
             "No access_token in compute_config. "
             "Cannot perform session health check. "
@@ -39,7 +39,7 @@ async def wait_for_session(
             session_endpoint=compute_config.session_endpoint
         )
 
-    auth_header = f"Bearer {compute_config.access_token}"
+    auth_header = f"Bearer {compute_config.m2m_access_token}"
     log.debug(f"Using JWT access_token for session health check at {compute_config.session_endpoint}/health")
 
     headers = {
