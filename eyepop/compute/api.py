@@ -136,7 +136,7 @@ async def fetch_new_compute_session(
 
     compute_config.session_endpoint = session_response.session_endpoint
     compute_config.session_uuid = session_response.session_uuid
-    compute_config.access_token = session_response.access_token
+    compute_config.m2m_access_token = session_response.access_token
     compute_config.access_token_expires_at = session_response.access_token_expires_at
     compute_config.access_token_expires_in = session_response.access_token_expires_in
 
@@ -194,7 +194,7 @@ async def refresh_compute_token(
         "Accept": "application/json"
     }
 
-    refresh_url = f"{compute_config.compute_url}/v1/sessions/{compute_config.session_uuid}/token"
+    refresh_url = f"{compute_config.compute_url}/v1/auth/authenticate"
     log.info(f"Refreshing token at: {refresh_url}")
 
     try:
@@ -203,12 +203,12 @@ async def refresh_compute_token(
             token_response = await response.json()
             log.debug(f"Token refresh response: {token_response}")
 
-            compute_config.access_token = token_response.get("access_token", "")
-            compute_config.access_token_expires_at = token_response.get("access_token_expires_at", "")
-            compute_config.access_token_expires_in = token_response.get("access_token_expires_in", 0)
+            compute_config.m2m_access_token = token_response.get("access_token", "")
+            compute_config.access_token_expires_at = token_response.get("expires_at", "")
+            compute_config.access_token_expires_in = token_response.get("expires_in", 0)
 
             log.info(f"Token refreshed successfully, expires in: {compute_config.access_token_expires_in}s")
-
+            print(compute_config.m2m_access_token)
             return compute_config
 
     except aiohttp.ClientResponseError as e:

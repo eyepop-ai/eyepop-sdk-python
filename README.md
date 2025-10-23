@@ -220,27 +220,67 @@ See [Composable Pops](https://github.com/eyepop-ai/eyepop-sdk-node/blob/main/src
 for a preview of client side composability of pops, introduced in v1.0.0.
 
 ## Release Process
-The EyePop SDK is released via GitHub Actions. The release process is as follows:
-1. Choose a `your_new_version` that is appropriate but different. Bump up the last number for patch releases, the middle number for minor releases and the first number for major releases.
-    - For example, if the previous release was `1.14.4`, and a bug was fixed, then you create a new release with the tag `1.14.5`. If you added a new feature, then you create a new release with the tag `1.15.0`.
-2. Before Merging your PR, bump up the tag version you will be releasing to `pyproject.toml` 
-```toml
-[project]
-name = "eyepop"
-version = your_new_version # "3.0.0"
-description="EyePop.ai Python SDK"
-readme = "README.md"
-license.file = "./LICENSE"
-authors = [
-    { name = "EyePop.ai", email = "support@eyepop.ai" },
-]
-requires-python = ">= 3.12"
-```
-3. Merge your PR to main
-4. Hit **Release** -> [Draft a new release](https://github.com/eyepop-ai/eyepop-sdk-python/releases/new) and follow the flow
-  1. **Choose a tag** -> you created earlier in 1.
-  2. Fill in Release title as `your_new_version`
-  3. Hit **Generate Release Notes** to populate the description.
-  4. Hit **Publish Release** to trigger the release process.
-  5. You should see in [Github Action](https://github.com/eyepop-ai/eyepop-sdk-python/actions) that
-    the release is being built and published to PyPI.
+
+The EyePop SDK uses **dynamic versioning** from Git tags via `setuptools-scm`. Version numbers are automatically determined from Git tags - no manual `pyproject.toml` updates needed.
+
+### Stable Release (Production)
+
+1. **Merge your PR to main**
+
+2. **Create and push a version tag** following semantic versioning (MAJOR.MINOR.PATCH):
+   ```bash
+   # For a patch release (bug fixes)
+   git tag v2.1.1
+
+   # For a minor release (new features)
+   git tag v2.2.0
+
+   # For a major release (breaking changes)
+   git tag v3.0.0
+
+   # Push the tag
+   git push origin v2.1.1
+   ```
+
+3. **Create a GitHub Release**:
+   - Go to [Draft a new release](https://github.com/eyepop-ai/eyepop-sdk-python/releases/new)
+   - Choose the tag you just created
+   - Fill in Release title (e.g., `v2.1.1`)
+   - Hit **Generate Release Notes** to populate the description
+   - Hit **Publish Release**
+
+4. **Automatic Build & Publish**: GitHub Actions will automatically:
+   - Build the package with the version from the tag
+   - Run tests
+   - Publish to PyPI
+
+### Pre-Release (Alpha/Beta/RC)
+
+For testing releases before making them official:
+
+1. **Go to [Actions](https://github.com/eyepop-ai/eyepop-sdk-python/actions)**
+
+2. **Select "Upload Python Package"** workflow
+
+3. **Click "Run workflow"** and fill in:
+   - **Version**: Enter pre-release version (e.g., `2.1.0rc1`, `2.2.0a1`, `2.2.0b2`)
+   - **Publish to PyPI**:
+     - `false` → Publishes to TestPyPI (recommended for testing)
+     - `true` → Publishes to PyPI (use for official pre-releases)
+
+4. The workflow will build and publish with your specified version.
+
+### Version Formats
+
+- **Stable**: `2.1.0` (from git tag `v2.1.0`)
+- **Release Candidate**: `2.1.0rc1` (manual workflow)
+- **Beta**: `2.1.0b1` (manual workflow)
+- **Alpha**: `2.1.0a1` (manual workflow)
+- **Development**: `2.1.0.dev5+g203414d` (auto-generated between tags)
+
+### Notes
+
+- Always include patch version in tags (e.g., `v2.0.0`, not `v2.0`)
+- Tags must start with `v` followed by the version number
+- TestPyPI is useful for testing the release process without affecting production
+- You'll need `TEST_PYPI_API_TOKEN` secret configured for TestPyPI publishing

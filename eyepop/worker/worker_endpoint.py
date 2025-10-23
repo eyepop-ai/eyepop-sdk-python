@@ -54,15 +54,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             request_tracer_max_buffer: int,
             dataset_uuid: str | None = None,
     ):
-        compute_ctx = None
-        if should_use_compute_api(pop_id, api_key):
-            from eyepop.compute.models import ComputeContext
-            compute_ctx = ComputeContext(
-                compute_url=eyepop_url,
-                api_key=api_key
-            )
-            log.debug(f"Compute API will be used, session will be fetched in _reconnect()")
-
         super().__init__(
             secret_key=secret_key,
             access_token=access_token,
@@ -70,7 +61,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             api_key=api_key,
             job_queue_length=job_queue_length,
             request_tracer_max_buffer=request_tracer_max_buffer,
-            compute_ctx=compute_ctx
         )
         self.pop_id = pop_id
         self.auto_start = auto_start

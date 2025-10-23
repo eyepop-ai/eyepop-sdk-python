@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from types import TracebackType
-from typing import Any, Callable, Optional, Type
+from typing import Any, Callable, Optional, TYPE_CHECKING, Type
 
 import aiohttp
 
@@ -17,6 +17,9 @@ log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
 log_metrics = logging.getLogger('eyepop.metrics')
 
+
+if TYPE_CHECKING:
+    from aiohttp import _RequestContextManager
 
 async def response_check_with_error_body(response: aiohttp.ClientResponse):
     if not response.ok:
@@ -34,14 +37,21 @@ class Endpoint(ClientSession):
     def __init__(self, secret_key: str | None, access_token: str | None,
                  api_key: str | None,
                  eyepop_url: str,
-                 job_queue_length: int, request_tracer_max_buffer: int, compute_ctx: ComputeContext | None = None):
-        self.compute_ctx = compute_ctx
+                 job_queue_length: int, request_tracer_max_buffer: int):
         self.secret_key = secret_key
         self.api_key = api_key
         self.provided_access_token = access_token
         self.eyepop_url = eyepop_url
         self.token = None
         self.expire_token_time = None
+
+        if api_key is not None:
+            from eyepop.compute.models import ComputeContext
+            self.compute_ctx = ComputeContext(
+                compute_url=eyepop_url,
+                api_key=api_key
+            )
+            log.debug(f"Compute API will be used, session will be fetched in _reconnect()")
 
         if request_tracer_max_buffer > 0:
             self.request_tracer = RequestTracer(max_events=request_tracer_max_buffer)
@@ -169,9 +179,22 @@ class Endpoint(ClientSession):
     async def __get_access_token(self) -> str | None:
         if self.provided_access_token is not None:
             return self.provided_access_token
-        # Check compute_ctx BEFORE secret_key (compute API doesn't use secret_key)
         if self.compute_ctx is not None:
-            return self.compute_ctx.access_token
+            if self.compute_ctx.m2m_access_token:
+                return self.compute_ctx.m2m_access_token
+            else:
+                log.debug("compute ctx m2m access token is None, fetching new token")
+                authenticate_url = f'{self.compute_ctx.compute_url}/v1/auth/authenticate'
+                api_auth_header = {
+                    'Authorization': f'Bearer {self.compute_ctx.api_key}',
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+                async with self.client_session.post(authenticate_url, headers=api_auth_header) as response:
+                    response_json = await response.json()
+                    self.compute_ctx.m2m_access_token = response_json['access_token']
+                    print(response_json)
+                    return self.compute_ctx.m2m_access_token
         if self.secret_key is None:
             return None
         now = time.time()

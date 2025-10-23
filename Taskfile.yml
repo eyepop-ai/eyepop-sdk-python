@@ -1,0 +1,36 @@
+version: '3'
+
+tasks:
+  clean:
+    cmds:
+      - rm -rf dist/ build/ *.egg-info eyepop.egg-info
+
+  build:
+    deps: [clean]
+    cmds:
+      - uv pip install build setuptools-scm
+      - .venv/bin/python -m build
+
+  install:editable:
+    cmds:
+      - uv pip install -e .
+
+  test:
+    cmds:
+      - uv pip install -e .[test]
+      - .venv/bin/pytest
+
+  typecheck:
+    cmds:
+      - uv pip install mypy
+      - .venv/bin/mypy eyepop --check-untyped-defs
+
+  inspect-wheel:
+    cmds:
+      - unzip -l dist/*.whl | grep -E "py.typed|\.py$|\.pyi$"
+
+  verify-version:
+    cmds:
+      - .venv/bin/python -c "import eyepop; print('Version:', eyepop.__version__)"
+
+
