@@ -4,7 +4,7 @@ import aiohttp
 from aioresponses import aioresponses, CallbackResult
 
 from eyepop import EyePopSdk
-from eyepop.worker.worker_types import Pop
+from eyepop.worker.worker_types import Pop, DEFAULT_PREDICTION_VERSION
 from tests.worker.base_endpoint_test import BaseEndpointTest
 
 
@@ -33,7 +33,7 @@ class TestEndpointRetry(BaseEndpointTest):
                 else:
                     return CallbackResult(status=401, reason='test auth token expired')
 
-            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
+            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync&version=2',
                        callback=loadFrom, repeat=True)
 
             job = endpoint.load_from(self.test_url)
@@ -45,7 +45,7 @@ class TestEndpointRetry(BaseEndpointTest):
             self.assertIsNone(job.predict())
 
             mock.assert_called_with(
-                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
+                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync&version=2',
                 method='PATCH',
                 headers={
                     'Accept': 'application/jsonl',
@@ -95,7 +95,7 @@ class TestEndpointRetry(BaseEndpointTest):
                     'Content-Type': 'application/json',
                     'Authorization': f'Bearer {self.test_access_token}'
                 },
-                data=json.dumps({'sourceType': 'URL', 'url': self.test_url}),
+                data=json.dumps({'sourceType': 'URL', 'url': self.test_url, 'version': DEFAULT_PREDICTION_VERSION}),
                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
 
 

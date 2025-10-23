@@ -59,7 +59,7 @@ class TestEndpointConnect(BaseEndpointTest):
             ))
             dataset = endpoint.update_dataset(dataset.uuid, DatasetUpdate(
                 name="test updated",
-                auto_anotates=["ep_coco"]
+                auto_annotates=["ep_coco"]
             ))
             endpoint.delete_dataset(dataset.uuid)
 
@@ -86,7 +86,7 @@ class TestEndpointConnect(BaseEndpointTest):
             },
             data=DatasetUpdate(
                 name="test updated",
-                auto_anotates=["ep_coco"]
+                auto_annotates=["ep_coco"]
             ).model_dump_json(exclude_none=True, exclude_unset=True)
         )
         mock.assert_called_with(

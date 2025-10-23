@@ -3,7 +3,7 @@ The EyePop.ai Python SDK provides convenient access to the EyePop.ai's inference
 Python language. 
 
 ## Requirements 
-* Python 3.8+
+* Python 3.12+
 
 ## Install
 ```shell
@@ -60,9 +60,6 @@ be queued and processed immediately when the worker becomes available.
 one single prediction result and subsequent calls to predict() will return None. If the uploaded file is a video
 e.g. 'video/mp4' or image container format e.g. 'image/gif', subsequent calls to predict() will return a prediction 
 for each individual frame and None when the entire file has been processed.
-
-Note: since v0.19.0 `EyePopSdk.workerEndpoint()` was introduced and replaces `EyePopSdk.endpoint()` which is now deprecated. 
-Support for `EyePopSdk.endpoint()` will be removed in v1.0.0.
 
 To upload a binary stream, i.e. a file-like object, you can use the method `upload_stream()` and pass the file-like 
 object and the mime-type:
@@ -230,14 +227,14 @@ The EyePop SDK is released via GitHub Actions. The release process is as follows
 ```toml
 [project]
 name = "eyepop"
-version = your_new_version # "1.14.5"
+version = your_new_version # "3.0.0"
 description="EyePop.ai Python SDK"
 readme = "README.md"
 license.file = "./LICENSE"
 authors = [
     { name = "EyePop.ai", email = "support@eyepop.ai" },
 ]
-requires-python = ">= 3.11"
+requires-python = ">= 3.12"
 ```
 3. Merge your PR to main
 4. Hit **Release** -> [Draft a new release](https://github.com/eyepop-ai/eyepop-sdk-python/releases/new) and follow the flow

@@ -1,16 +1,22 @@
 # Get Started
 ## Installation
 ```shell
-pip install eyepop
+cd examples
+python3 -m venv .venv
+. ./.venv/bin/activate
+pip install -r requirements.txt
 ```
 ## Set Up Environment Variables
 ### How to get secret key
 Check existence after login at dashboard.eyepop.ai. If forget/not there, recreate/create the api key and store in secure place.
-### How to get UUID
-Should show in Info tab of current pipeline at dashboard.eyepop.ai.
 ### Export them
 ```shell
 export EYEPOP_SECRET_KEY=... # your secret key
-export EYEPOP_POP_ID=... # your pop's uuid
-export EYEPOP_URL=https://staging-api.eyepop.ai # if not specified, default to "api.eyepop.ai"
+```
+## Run an example script
+```shell
+python pop_demo.py \
+  --pop person \
+  --output \
+  --local-path ./example.jpg
 ```
