@@ -441,6 +441,14 @@ class ChangeType(enum.StrEnum):
     model_status_modified = enum.auto()
     model_progress = enum.auto()
     events_lost = enum.auto()
+    
+    workflow_started = enum.auto()
+    workflow_succeeded = enum.auto()
+    workflow_failed = enum.auto()
+
+    workflow_task_started = enum.auto()
+    workflow_task_succeeded = enum.auto()
+    workflow_task_failed = enum.auto()
 
 
 class ChangeEvent(BaseModel):
@@ -450,6 +458,9 @@ class ChangeEvent(BaseModel):
     dataset_version: int | None
     asset_uuid: str | None
     mdl_uuid: str | None
+    workflow_id: str | None
+    message: str | None
+    workflow_task_name: str | None
 
 
 
