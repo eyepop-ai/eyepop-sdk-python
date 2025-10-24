@@ -12,6 +12,18 @@ on:
   release:
     types: [published]
 
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 2.1.0rc1, 2.1.0a1, 2.1.0b2)'
+        required: true
+        type: string
+      publish_to_pypi:
+        description: 'Publish to PyPI (vs TestPyPI)'
+        required: true
+        type: boolean
+        default: false
+
 permissions:
   contents: read
 
@@ -21,23 +33,46 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
     - name: Set up Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install build
+
     - name: Build package
+      env:
+        SETUPTOOLS_SCM_PRETEND_VERSION: ${{ github.event.inputs.version }}
       run: python -m build
+
+    - name: Display version
+      run: |
+        pip install dist/*.whl
+        python -c "import eyepop; print(f'Built version: {eyepop.__version__}')"
+
     - name: Test package
       run: |
-        pip install -e .[test,doc,example]
+        pip install -e .[test]
         python -m pytest
-    - name: Publish package
-      uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
+
+    - name: Publish to PyPI
+      if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to_pypi == 'true')
+      uses: pypa/gh-action-pypi-publish@release/v1
       with:
         user: __token__
         password: ${{ secrets.PYPI_API_TOKEN }}
+
+    - name: Publish to TestPyPI
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to_pypi == 'false'
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        user: __token__
+        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        repository-url: https://test.pypi.org/legacy/

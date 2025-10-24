@@ -9,7 +9,6 @@ import os
 import sys
 from argparse import Namespace
 from io import BytesIO
-from typing import Any
 
 from webui import webui
 from pybars import Compiler
@@ -22,9 +21,11 @@ from eyepop.worker.worker_types import Pop, InferenceComponent, \
     ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams, ForwardComponent, TrackingComponent
 
 script_dir = os.path.dirname(__file__)
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+debug = log_level == "DEBUG"
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.INFO)
+logging.basicConfig(level=log_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.getLogger('eyepop.requests').setLevel(level=debug)
 
 log = logging.getLogger('eyepop.example')
 
