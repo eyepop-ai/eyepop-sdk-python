@@ -9,7 +9,6 @@ import os
 import sys
 from argparse import Namespace
 from io import BytesIO
-from typing import Any
 
 from webui import webui
 from pybars import Compiler
@@ -22,9 +21,11 @@ from eyepop.worker.worker_types import Pop, InferenceComponent, \
     ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams, ForwardComponent, TrackingComponent
 
 script_dir = os.path.dirname(__file__)
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+debug = log_level == "DEBUG"
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
+logging.basicConfig(level=log_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.getLogger('eyepop.requests').setLevel(level=debug)
 
 log = logging.getLogger('eyepop.example')
 
@@ -416,7 +417,7 @@ async def main(args) -> (dict[str, Any] | None, str | None):
     visualize_prediction = None
     visualize_path = None
     example_image_src = None
-    async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True, api_key=os.getenv("EYEPOP_API_KEY")) as endpoint:
+    async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True) as endpoint:
         await endpoint.set_pop(pop)
         if args.local_path:
             if not os.path.exists(args.local_path):
