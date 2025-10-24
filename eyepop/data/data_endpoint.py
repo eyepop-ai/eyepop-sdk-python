@@ -169,7 +169,14 @@ class DataEndpoint(Endpoint):
         ChangeType.dataset_added,
         ChangeType.dataset_modified,
         ChangeType.dataset_removed,
-        ChangeType.dataset_version_modified
+        ChangeType.dataset_version_modified,
+        ChangeType.workflow_started,
+        ChangeType.workflow_succeeded,
+        ChangeType.workflow_failed,
+        ChangeType.workflow_task_started,
+        ChangeType.workflow_task_succeeded,
+        ChangeType.workflow_task_failed
+
     }
     dataset_event_handlers = {
         ChangeType.dataset_added,
