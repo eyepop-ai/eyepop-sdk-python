@@ -1,6 +1,5 @@
 import os
 
-from deprecated import deprecated
 from matplotlib.axes import Axes
 
 from eyepop.data.data_endpoint import DataEndpoint
@@ -8,6 +7,10 @@ from eyepop.data.data_syncify import SyncDataEndpoint
 from eyepop.visualize import EyePopPlot
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_syncify import SyncWorkerEndpoint
+
+from logging import getLogger
+
+log = getLogger(__name__)
 
 
 class EyePopSdk:
@@ -28,57 +31,48 @@ class EyePopSdk:
             request_tracer_max_buffer: int = 1204,
             dataset_uuid: str | None = None
     ) -> WorkerEndpoint | SyncWorkerEndpoint:
-        print(f"EyepopSDK {eyepop_url}")
-        if is_local_mode is None:
-            local_mode_env = os.getenv("EYEPOP_LOCAL_MODE")
-            if local_mode_env is not None:
-                if local_mode_env.lower() != "true" and local_mode_env.lower() != "yes":
-                    is_local_mode = None
-                else:
-                    is_local_mode = True
-        elif not is_local_mode:
-            is_local_mode = None
+        log.debug("EyepopSDK (initializing)")
 
-        if access_token is None and secret_key is None and api_key is None:
-            if is_local_mode is None:
-                secret_key = os.getenv("EYEPOP_SECRET_KEY")
-                api_key = os.getenv("EYEPOP_API_KEY")
-                if secret_key is None and api_key is None:
-                    raise KeyError(
-                        "At least one authentication method required: "
-                        "EYEPOP_SECRET_KEY or EYEPOP_API_KEY or access_token"
-                    )
+        if is_local_mode is None:
+            local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
+            is_local_mode = local_mode_env.lower() in ("true", "yes")
 
         if eyepop_url is None:
-            if is_local_mode is not None:
+            if is_local_mode:
                 eyepop_url = "http://127.0.0.1:8080/standalone"
             else:
-                eyepop_url = os.getenv("EYEPOP_URL")
-                if eyepop_url is None:
-                    eyepop_url = "https://api.eyepop.ai"
+                eyepop_url = os.getenv("EYEPOP_URL", "https://api.eyepop.ai")
 
         if pop_id is None:
-            pop_id = os.getenv("EYEPOP_POP_ID")
-            if pop_id is None:
-                pop_id = "transient"
+            pop_id = os.getenv("EYEPOP_POP_ID", "transient")
 
-        # Validate: api_key can only be used with transient pops
-        if api_key is not None and pop_id != "transient":
+        has_any_auth_key = access_token is not None or secret_key is not None or api_key is not None
+
+        if not has_any_auth_key and not is_local_mode:
+            secret_key = os.getenv("EYEPOP_SECRET_KEY")
+            api_key = os.getenv("EYEPOP_API_KEY")
+            if secret_key is None and api_key is None:
+                raise KeyError(
+                    "At least one authentication method required: "
+                    "EYEPOP_SECRET_KEY or EYEPOP_API_KEY or access_token"
+                )
+
+        is_transient_pop = pop_id == "transient"
+
+        if api_key and not is_transient_pop:
             raise ValueError(
                 f"EYEPOP_API_KEY can only be used with transient pops. "
                 f"Current pop_id: '{pop_id}'. Use EYEPOP_SECRET_KEY for named pops."
             )
 
-        # Validate: Compute URL requires api_key and transient mode
-        if eyepop_url and "compute" in eyepop_url.lower():
-            if api_key is None:
-                raise ValueError(
-                    f"Compute API endpoint ({eyepop_url}) requires EYEPOP_API_KEY"
-                )
-            if pop_id != "transient":
-                raise ValueError(
-                    f"Compute API only supports transient mode. Current pop_id: '{pop_id}'"
-                )
+        is_compute_url = eyepop_url and "https://compute" in eyepop_url.lower()
+        if is_compute_url:
+            if not api_key:
+                raise ValueError(f"Compute API endpoint ({eyepop_url}) requires EYEPOP_API_KEY")
+            if not is_transient_pop:
+                raise ValueError(f"Compute API only supports transient mode. Current pop_id: '{pop_id}'")
+
+        log.debug(f"EyepopSDK {eyepop_url}")
 
         endpoint = WorkerEndpoint(
             secret_key=secret_key,
@@ -120,8 +114,8 @@ class EyePopSdk:
                 secret_key = os.getenv("EYEPOP_SECRET_KEY")
                 if secret_key is None:
                     raise KeyError(
-                        "parameter 'secret_key' or environment 'EYEPOP_SECRET_KEY' "
-                        "or parameter 'access_token' is required"
+                        "At least one authentication method required: "
+                        "EYEPOP_SECRET_KEY or EYEPOP_API_KEY or access_token"
                     )
 
         if eyepop_url is None:

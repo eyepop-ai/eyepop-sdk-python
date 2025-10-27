@@ -4,7 +4,7 @@ import asyncio
 import base64
 import json
 import logging
-
+from typing import Any
 import os
 import sys
 from argparse import Namespace
@@ -19,6 +19,9 @@ from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
 from eyepop.worker.worker_types import Pop, InferenceComponent, \
     ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams, ForwardComponent, TrackingComponent
+from dotenv import load_dotenv
+
+load_dotenv()
 
 script_dir = os.path.dirname(__file__)
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -413,7 +416,7 @@ elif main_args.single_prompt is not None:
         })
     ]
 
-async def main(args) -> (dict[str, Any] | None, str | None):
+async def main(args) -> tuple[dict[str, Any] | None, str | None]:
     visualize_prediction = None
     visualize_path = None
     example_image_src = None

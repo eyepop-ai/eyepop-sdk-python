@@ -44,6 +44,7 @@ class Endpoint(ClientSession):
         self.eyepop_url = eyepop_url
         self.token = None
         self.expire_token_time = None
+        self.compute_ctx = None
 
         if api_key is not None:
             from eyepop.compute.models import ComputeContext
