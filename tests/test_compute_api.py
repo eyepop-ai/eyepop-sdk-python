@@ -1,10 +1,9 @@
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
-from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint, refresh_compute_token
+from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint
 from eyepop.compute.models import ComputeContext
 
 MOCK_SESSION_RESPONSE = {
@@ -222,7 +221,7 @@ def test_fetch_session_endpoint_raises_on_health_check_failure(mock_fetch_new, m
 @patch("eyepop.compute.api.wait_for_session")
 @patch("eyepop.compute.api.fetch_new_compute_session")
 def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
-    """Test that fetch_session_endpoint correctly passes context through"""
+    """Test that fetch_session_endpoint correctly passes context through."""
     input_context = ComputeContext(
         compute_url="https://custom.compute.com",
         api_key="custom-key"
@@ -236,7 +235,7 @@ def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
     mock_fetch_new.return_value = mock_context
     mock_wait.return_value = True
 
-    result = fetch_session_endpoint(input_context)
+    fetch_session_endpoint(input_context)
 
     called_context = mock_fetch_new.call_args[0][0]
     assert called_context.compute_url == "https://custom.compute.com"

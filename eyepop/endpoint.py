@@ -2,12 +2,11 @@ import asyncio
 import logging
 import time
 from types import TracebackType
-from typing import Any, Callable, Optional, TYPE_CHECKING, Type
+from typing import TYPE_CHECKING, Any, Callable, Optional, Type
 
 import aiohttp
 
 from eyepop.client_session import ClientSession
-from eyepop.compute.models import ComputeContext
 from eyepop.metrics import MetricCollector
 from eyepop.periodic import Periodic
 from eyepop.request_tracer import RequestTracer
@@ -31,8 +30,7 @@ async def response_check_with_error_body(response: aiohttp.ClientResponse):
 
 
 class Endpoint(ClientSession):
-    """Abstract EyePop Endpoint.
-    """
+    """Abstract EyePop Endpoint."""
 
     def __init__(self, secret_key: str | None, access_token: str | None,
                  api_key: str | None,
@@ -52,7 +50,7 @@ class Endpoint(ClientSession):
                 compute_url=eyepop_url,
                 api_key=api_key
             )
-            log.debug(f"Compute API will be used, session will be fetched in _reconnect()")
+            log.debug("Compute API will be used, session will be fetched in _reconnect()")
 
         if request_tracer_max_buffer > 0:
             self.request_tracer = RequestTracer(max_events=request_tracer_max_buffer)

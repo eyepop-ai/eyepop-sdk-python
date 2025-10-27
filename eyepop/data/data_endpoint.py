@@ -1,25 +1,53 @@
 import asyncio
 import json
 from asyncio import StreamReader
-from typing import Callable, BinaryIO, Any, AsyncIterable
-from urllib.parse import urljoin, quote_plus
+from typing import Any, AsyncIterable, BinaryIO, Callable
+from urllib.parse import quote_plus, urljoin
 
 import aiohttp
 import websockets
 from pydantic import TypeAdapter
-from websockets.asyncio.client import ClientConnection
-
 from pydantic.tools import parse_obj_as
+from websockets.asyncio.client import ClientConnection
 
 from eyepop.client_session import ClientSession
 from eyepop.data.arrow.schema import MIME_TYPE_APACHE_ARROW_FILE_VERSIONED
-from eyepop.data.data_jobs import DataJob, _UploadStreamJob, _ImportFromJob
+from eyepop.data.data_jobs import DataJob, _ImportFromJob, _UploadStreamJob
 from eyepop.data.data_syncify import SyncDataJob
-from eyepop.data.data_types import ArgoWorkflowPhase, Dataset, DatasetCreate, DatasetUpdate, Asset, ListWorkflowItem, Prediction, \
-    AssetImport, AutoAnnotate, UserReview, TranscodeMode, Model, ModelCreate, ModelUpdate, \
-    ModelTrainingProgress, ChangeEvent, ChangeType, EventHandler, ModelAlias, ModelAliasCreate, \
-    ModelAliasUpdate, ModelExportFormat, QcAiHubExportParams, AssetUrlType, AssetInclusionMode, AnnotationInclusionMode, \
-    ModelTrainingAuditRecord, ExportedUrlResponse, ModelTrainingEvent, ArtifactType, CreateWorkflowBody, CreateWorkflowResponse
+from eyepop.data.data_types import (
+    AnnotationInclusionMode,
+    ArgoWorkflowPhase,
+    ArtifactType,
+    Asset,
+    AssetImport,
+    AssetInclusionMode,
+    AssetUrlType,
+    AutoAnnotate,
+    ChangeEvent,
+    ChangeType,
+    CreateWorkflowBody,
+    CreateWorkflowResponse,
+    Dataset,
+    DatasetCreate,
+    DatasetUpdate,
+    EventHandler,
+    ExportedUrlResponse,
+    ListWorkflowItem,
+    Model,
+    ModelAlias,
+    ModelAliasCreate,
+    ModelAliasUpdate,
+    ModelCreate,
+    ModelExportFormat,
+    ModelTrainingAuditRecord,
+    ModelTrainingEvent,
+    ModelTrainingProgress,
+    ModelUpdate,
+    Prediction,
+    QcAiHubExportParams,
+    TranscodeMode,
+    UserReview,
+)
 from eyepop.endpoint import Endpoint, log_requests
 
 APPLICATION_JSON = "application/json"
@@ -41,9 +69,7 @@ class DataClientSession(ClientSession):
 
 
 class DataEndpoint(Endpoint):
-    """
-    Endpoint to the EyePop.ai Data API.
-    """
+    """Endpoint to the EyePop.ai Data API."""
     account_uuid: str
     data_config: dict[str, Any] | None
 

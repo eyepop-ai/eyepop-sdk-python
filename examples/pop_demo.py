@@ -4,22 +4,30 @@ import asyncio
 import base64
 import json
 import logging
-from typing import Any
 import os
 import sys
 from argparse import Namespace
 from io import BytesIO
+from typing import Any
 
-from webui import webui
-from pybars import Compiler
-
+from dotenv import load_dotenv
 from PIL import Image
+from pybars import Compiler
+from webui import webui
 
 from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
-from eyepop.worker.worker_types import Pop, InferenceComponent, \
-    ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams, ForwardComponent, TrackingComponent
-from dotenv import load_dotenv
+from eyepop.worker.worker_types import (
+    ComponentParams,
+    ContourFinderComponent,
+    ContourType,
+    CropForward,
+    ForwardComponent,
+    FullForward,
+    InferenceComponent,
+    Pop,
+    TrackingComponent,
+)
 
 load_dotenv()
 

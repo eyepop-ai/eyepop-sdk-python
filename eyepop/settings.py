@@ -2,8 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """
-    Main SDK settings.
+    """Main SDK settings.
 
     All environment variables use the prefix: EYEPOP_
 

@@ -13,8 +13,7 @@ async def wait_for_session(
     compute_config: ComputeContext,
     client_session: aiohttp.ClientSession
 ) -> bool:
-    """
-    Wait for compute session to become ready by polling health endpoint.
+    """Wait for compute session to become ready by polling health endpoint.
 
     Args:
         compute_config: Configuration with session_endpoint and access_token

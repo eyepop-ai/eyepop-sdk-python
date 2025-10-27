@@ -20,7 +20,7 @@ def mock_compute_context():
 
 @patch("eyepop.compute.api.requests.post")
 def test_refresh_compute_token_success(mock_post, mock_compute_context):
-    """Test successful token refresh"""
+    """Test successful token refresh."""
     mock_response = MagicMock()
     mock_response.json.return_value = {
         "access_token": "new-refreshed-token",
@@ -49,7 +49,7 @@ def test_refresh_compute_token_success(mock_post, mock_compute_context):
 
 @patch("eyepop.compute.api.requests.post")
 def test_refresh_compute_token_missing_session_uuid(mock_post):
-    """Test token refresh fails when session_uuid is missing"""
+    """Test token refresh fails when session_uuid is missing."""
     context = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
         api_key="test-api-key"
@@ -63,7 +63,7 @@ def test_refresh_compute_token_missing_session_uuid(mock_post):
 
 @patch("eyepop.compute.api.requests.post")
 def test_refresh_compute_token_missing_api_key(mock_post):
-    """Test token refresh fails when api_key is missing"""
+    """Test token refresh fails when api_key is missing."""
     context = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
         session_uuid="session-123"
@@ -77,7 +77,7 @@ def test_refresh_compute_token_missing_api_key(mock_post):
 
 @patch("eyepop.compute.api.requests.post")
 def test_refresh_compute_token_http_error(mock_post, mock_compute_context):
-    """Test token refresh handles HTTP errors"""
+    """Test token refresh handles HTTP errors."""
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = Exception("HTTP 401 Unauthorized")
     mock_post.return_value = mock_response
@@ -88,7 +88,7 @@ def test_refresh_compute_token_http_error(mock_post, mock_compute_context):
 
 @patch("eyepop.compute.api.requests.post")
 def test_refresh_compute_token_network_error(mock_post, mock_compute_context):
-    """Test token refresh handles network errors"""
+    """Test token refresh handles network errors."""
     mock_post.side_effect = Exception("Network error")
 
     with pytest.raises(Exception, match="Token refresh failed"):

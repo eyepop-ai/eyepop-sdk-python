@@ -29,7 +29,7 @@ TEST_REQUEST_HEADERS = {
 
 @pytest.fixture
 def clean_environment():
-    """Clean environment before and after tests"""
+    """Clean environment before and after tests."""
     original_url = os.environ.get("EYEPOP_URL")
     original_key = os.environ.get("EYEPOP_API_KEY")
 
@@ -53,7 +53,7 @@ def clean_environment():
 
 @patch("eyepop.compute.api.requests.get")
 def test_integrates_successfully_with_compute_api(mock_get, clean_environment):
-    """Test successful integration with compute API"""
+    """Test successful integration with compute API."""
     mock_response = MagicMock()
     mock_response.json.return_value = [MOCK_SESSION_RESPONSE]
     mock_response.raise_for_status.return_value = None
@@ -80,7 +80,7 @@ def test_integrates_successfully_with_compute_api(mock_get, clean_environment):
 @patch("eyepop.compute.api.requests.post")
 @patch("eyepop.compute.api.requests.get")
 def test_creates_session_when_none_exists(mock_get, mock_post, clean_environment):
-    """Test session creation when no sessions exist"""
+    """Test session creation when no sessions exist."""
     mock_get_response = MagicMock()
     mock_get_response.json.return_value = []
     mock_get_response.raise_for_status.return_value = None
@@ -108,7 +108,7 @@ def test_creates_session_when_none_exists(mock_get, mock_post, clean_environment
 @patch("eyepop.compute.api.requests.post")
 @patch("eyepop.compute.api.requests.get")
 def test_creates_session_when_get_returns_404(mock_get, mock_post, clean_environment):
-    """Test session creation when GET returns 404 (no sessions exist)"""
+    """Test session creation when GET returns 404 (no sessions exist)."""
     # Mock GET request to return 404
     mock_get_response = MagicMock()
     mock_http_error = requests.HTTPError()
@@ -147,7 +147,7 @@ def test_creates_session_when_get_returns_404(mock_get, mock_post, clean_environ
 
 @patch("eyepop.compute.api.requests.get")
 def test_handles_network_error(mock_get, clean_environment):
-    """Test handling of network errors"""
+    """Test handling of network errors."""
     mock_get.side_effect = Exception("Network error")
 
     compute_config = ComputeContext(
@@ -161,7 +161,7 @@ def test_handles_network_error(mock_get, clean_environment):
 
 @patch("eyepop.compute.api.requests.get")
 def test_mimics_worker_endpoint_integration(mock_get, clean_environment):
-    """Test worker endpoint integration scenario"""
+    """Test worker endpoint integration scenario."""
     mock_response = MagicMock()
     mock_response.json.return_value = [MOCK_SESSION_RESPONSE]
     mock_response.raise_for_status.return_value = None
@@ -186,7 +186,7 @@ def test_mimics_worker_endpoint_integration(mock_get, clean_environment):
 
 
 def test_uses_environment_variables(clean_environment):
-    """Test using environment variables for configuration"""
+    """Test using environment variables for configuration."""
     os.environ["EYEPOP_URL"] = "https://custom.compute.com"
     os.environ["EYEPOP_API_KEY"] = "env-api-key"
 
@@ -201,7 +201,7 @@ def test_uses_environment_variables(clean_environment):
 
 @patch("eyepop.compute.api.requests.get")
 def test_handles_array_response_from_sessions(mock_get, clean_environment):
-    """Test handling of array response from /v1/sessions endpoint"""
+    """Test handling of array response from /v1/sessions endpoint."""
     mock_response = MagicMock()
     mock_response.json.return_value = [
         {
@@ -229,7 +229,7 @@ def test_handles_array_response_from_sessions(mock_get, clean_environment):
 
 @patch("eyepop.compute.api.requests.get")
 def test_handles_single_object_response(mock_get, clean_environment):
-    """Test handling of single object response"""
+    """Test handling of single object response."""
     mock_response = MagicMock()
     mock_response.json.return_value = MOCK_SESSION_RESPONSE  # Single object, not array
     mock_response.raise_for_status.return_value = None
@@ -247,7 +247,7 @@ def test_handles_single_object_response(mock_get, clean_environment):
 @patch("eyepop.compute.api.requests.post")
 @patch("eyepop.compute.api.requests.get")
 def test_raises_on_empty_response_and_failed_create(mock_get, mock_post, clean_environment):
-    """Test error when no sessions exist and creation fails"""
+    """Test error when no sessions exist and creation fails."""
     mock_get_response = MagicMock()
     mock_get_response.json.return_value = []
     mock_get_response.raise_for_status.return_value = None
@@ -266,7 +266,7 @@ def test_raises_on_empty_response_and_failed_create(mock_get, mock_post, clean_e
 
 @patch("eyepop.compute.api.requests.get")
 def test_validates_access_token_presence(mock_get, clean_environment):
-    """Test validation of access_token presence"""
+    """Test validation of access_token presence."""
     response_without_token = {**MOCK_SESSION_RESPONSE}
     response_without_token["access_token"] = ""
     
@@ -287,7 +287,7 @@ def test_validates_access_token_presence(mock_get, clean_environment):
 @patch("eyepop.compute.api.wait_for_session")
 @patch("eyepop.compute.api.fetch_new_compute_session")
 def test_full_flow_with_health_check(mock_fetch_new, mock_wait, clean_environment):
-    """Test complete flow including health check"""
+    """Test complete flow including health check."""
     mock_context = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
         api_key="test-key",
@@ -310,7 +310,7 @@ def test_full_flow_with_health_check(mock_fetch_new, mock_wait, clean_environmen
 @patch("eyepop.compute.api.wait_for_session")
 @patch("eyepop.compute.api.fetch_new_compute_session")
 def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
-    """Test that fetch_session_endpoint correctly passes context through"""
+    """Test that fetch_session_endpoint correctly passes context through."""
     input_context = ComputeContext(
         compute_url="https://custom.compute.com",
         api_key="custom-key"
@@ -325,7 +325,7 @@ def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
     mock_wait.return_value = True
 
     # Call with explicit context
-    result = fetch_session_endpoint(input_context)
+    fetch_session_endpoint(input_context)
 
     # Verify it passed the context through correctly
     called_context = mock_fetch_new.call_args[0][0]

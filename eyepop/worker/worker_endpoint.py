@@ -1,21 +1,31 @@
 import logging
 import time
 from io import StringIO
-from typing import Callable, BinaryIO, Any
-from aiohttp.client import _RequestContextManager
+from typing import Any, BinaryIO, Callable
 from urllib.parse import urljoin
 
 import aiohttp
+from aiohttp.client import _RequestContextManager
 
 from eyepop.compute.api import fetch_session_endpoint
 from eyepop.endpoint import Endpoint
-from eyepop.exceptions import PopNotStartedException, PopConfigurationException, PopNotReachableException
+from eyepop.exceptions import (
+    PopConfigurationException,
+    PopNotReachableException,
+    PopNotStartedException,
+)
 from eyepop.settings import settings
-from eyepop.worker.worker_client_session import WorkerClientSession
-from eyepop.worker.worker_jobs import WorkerJob, _UploadFileJob, _LoadFromJob, _UploadStreamJob, _LoadFromAssetUuidJob
 from eyepop.worker.load_balancer import EndpointLoadBalancer
+from eyepop.worker.worker_client_session import WorkerClientSession
+from eyepop.worker.worker_jobs import (
+    WorkerJob,
+    _LoadFromAssetUuidJob,
+    _LoadFromJob,
+    _UploadFileJob,
+    _UploadStreamJob,
+)
 from eyepop.worker.worker_syncify import SyncWorkerJob
-from eyepop.worker.worker_types import Pop, VideoMode, ComponentParams
+from eyepop.worker.worker_types import ComponentParams, Pop, VideoMode
 
 log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
@@ -37,9 +47,7 @@ def should_use_compute_api(pop_id: str, api_key: str | None) -> bool:
     return True
 
 class WorkerEndpoint(Endpoint, WorkerClientSession):
-    """
-    Endpoint to an EyePop.ai worker.
-    """
+    """Endpoint to an EyePop.ai worker."""
 
     def __init__(
             self,

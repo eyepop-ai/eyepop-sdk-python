@@ -1,4 +1,5 @@
 import os
+from logging import getLogger
 
 from matplotlib.axes import Axes
 
@@ -7,8 +8,6 @@ from eyepop.data.data_syncify import SyncDataEndpoint
 from eyepop.visualize import EyePopPlot
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_syncify import SyncWorkerEndpoint
-
-from logging import getLogger
 
 log = getLogger(__name__)
 

@@ -14,8 +14,7 @@ async def fetch_session_endpoint(
     compute_config: ComputeContext,
     client_session: aiohttp.ClientSession
 ) -> ComputeContext:
-    """
-    Fetch or create a compute API session and wait for it to become ready.
+    """Fetch or create a compute API session and wait for it to become ready.
 
     Args:
         compute_config: Configuration containing API key and compute URL
@@ -43,8 +42,7 @@ async def fetch_new_compute_session(
     compute_config: ComputeContext,
     client_session: aiohttp.ClientSession
 ) -> ComputeContext:
-    """
-    Fetch existing session or create new compute API session.
+    """Fetch existing session or create new compute API session.
 
     Attempts to GET existing sessions first. If none exist or GET returns 404,
     creates a new session via POST.
@@ -165,8 +163,7 @@ async def refresh_compute_token(
     compute_config: ComputeContext,
     client_session: aiohttp.ClientSession
 ) -> ComputeContext:
-    """
-    Refresh the JWT access token for a compute session.
+    """Refresh the JWT access token for a compute session.
 
     Args:
         compute_config: ComputeContext with session_uuid and api_key
