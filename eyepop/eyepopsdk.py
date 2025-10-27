@@ -47,7 +47,7 @@ class EyePopSdk:
 
         if eyepop_url is None:
             if is_local_mode is not None:
-                eyepop_url = 'http://127.0.0.1:8080/standalone'
+                eyepop_url = 'http://127.0.0.1:8080'
             else:
                 eyepop_url = os.getenv('EYEPOP_URL')
                 if eyepop_url is None:
