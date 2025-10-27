@@ -9,6 +9,9 @@
 name: Upload Python Package
 
 on:
+  push:
+    branches:
+    - feat/compute
   release:
     types: [published]
 
@@ -63,7 +66,8 @@ jobs:
         python -m pytest
 
     - name: Publish to PyPI
-      if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to_pypi == 'true')
+      # if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_to_pypi == 'true')
+      if: false
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         user: __token__
