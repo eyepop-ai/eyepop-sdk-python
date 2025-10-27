@@ -9,9 +9,9 @@
 name: Upload Python Package
 
 on:
-  push:
-    branches:
-    - feat/compute
+  # push:
+  #   branches:
+  #   - feat/compute
   release:
     types: [published]
 

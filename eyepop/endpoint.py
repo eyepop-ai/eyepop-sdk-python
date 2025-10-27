@@ -194,7 +194,6 @@ class Endpoint(ClientSession):
                 async with self.client_session.post(authenticate_url, headers=api_auth_header) as response:
                     response_json = await response.json()
                     self.compute_ctx.m2m_access_token = response_json['access_token']
-                    print(response_json)
                     return self.compute_ctx.m2m_access_token
         if self.secret_key is None:
             return None

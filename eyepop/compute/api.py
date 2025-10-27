@@ -79,7 +79,7 @@ async def fetch_new_compute_session(
             else:
                 get_response.raise_for_status()
                 res = await get_response.json()
-                log.debug(f"GET /v1/sessions response: {res}")
+                log.debug(f"GET /v1/sessions: {get_response.status}")
 
                 if not res:
                     need_new_session = True
@@ -208,7 +208,6 @@ async def refresh_compute_token(
             compute_config.access_token_expires_in = token_response.get("expires_in", 0)
 
             log.info(f"Token refreshed successfully, expires in: {compute_config.access_token_expires_in}s")
-            print(compute_config.m2m_access_token)
             return compute_config
 
     except aiohttp.ClientResponseError as e:

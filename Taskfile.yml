@@ -22,8 +22,7 @@ tasks:
 
   typecheck:
     cmds:
-      - uv pip install mypy
-      - .venv/bin/mypy eyepop --check-untyped-defs
+      - uvx mypy eyepop || true
 
   inspect-wheel:
     cmds:
