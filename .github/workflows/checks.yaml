@@ -1,7 +1,7 @@
 on:
   push:
     branches:
-      - feat/compute
+      - feat/compute-api
 
 jobs:
   checks:
