@@ -11,9 +11,9 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v6
     - name: Install dependencies
-      run: uv pip install -e .[test]
+      run: uv sync --locked --all-extras --dev
     - name: Lint
-      run: uv run ruff check . 
+      run: uv run ruff check --new . 
     - name: Typechecks
       continue-on-error: true
       run: uv run mypy eyepop --check-untyped-defs
@@ -25,6 +25,6 @@ jobs:
     - name: Install uv
       uses: astral-sh/setup-uv@v6
     - name: Install dependencies
-      run: uv pip install -e .[test]
+      run: uv sync --locked --all-extras --dev
     - name: Tests
       run: uv run pytest
