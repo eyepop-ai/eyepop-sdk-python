@@ -1,4 +1,4 @@
-name: Upload to TestPyPI
+name: Upload test package to TestPyPI
 
 on:
   push:
@@ -11,11 +11,15 @@ on:
         required: false
         type: string
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
-  test-deploy:
+  test-pypi-publish:
     runs-on: ubuntu-latest
 
     steps:
@@ -53,4 +57,4 @@ jobs:
       with:
         user: __token__
         password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        repository-url: https://test.pypi.org/simple/
+        repository-url: https://test.pypi.org/legacy/.
