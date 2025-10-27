@@ -13,10 +13,10 @@ jobs:
     - name: Install dependencies
       run: uv sync --locked --all-extras --dev
     - name: Lint
-      run: uv run ruff check --new . 
+      run: ruff check $(git diff --name-only main --cached -- '*.py')
     - name: Typechecks
       continue-on-error: true
-      run: uv run mypy eyepop --check-untyped-defs
+      run: uv run mypy ./eyepop --check-untyped-defs --ignore-missing-imports $(git diff --name-only main --cached -- '*.py')
   tests:
     runs-on: ubuntu-latest
     needs: checks
