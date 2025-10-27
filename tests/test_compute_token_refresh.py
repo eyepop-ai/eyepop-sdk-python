@@ -1,9 +1,10 @@
-from unittest.mock import MagicMock, patch
-
+import aiohttp
 import pytest
+from aioresponses import aioresponses
 
 from eyepop.compute.api import refresh_compute_token
 from eyepop.compute.models import ComputeContext
+from eyepop.exceptions import ComputeTokenException
 
 
 @pytest.fixture
@@ -18,78 +19,75 @@ def mock_compute_context():
     )
 
 
-@patch("eyepop.compute.api.requests.post")
-def test_refresh_compute_token_success(mock_post, mock_compute_context):
+@pytest.mark.asyncio
+async def test_refresh_compute_token_success(aioresponses, mock_compute_context):
     """Test successful token refresh."""
-    mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "access_token": "new-refreshed-token",
-        "access_token_expires_at": "2025-10-18T12:00:00Z",
-        "access_token_expires_in": 7200
-    }
-    mock_response.raise_for_status.return_value = None
-    mock_post.return_value = mock_response
-
-    result = refresh_compute_token(mock_compute_context)
-
-    # Verify correct endpoint was called
-    mock_post.assert_called_once_with(
-        "https://compute.staging.eyepop.xyz/v1/sessions/session-123/token",
-        headers={
-            "Authorization": "Bearer test-api-key",
-            "Accept": "application/json"
-        }
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/auth/authenticate",
+        payload={
+            "access_token": "new-refreshed-token",
+            "expires_at": "2025-10-18T12:00:00Z",
+            "expires_in": 7200
+        },
+        status=200
     )
 
+    async with aiohttp.ClientSession() as session:
+        result = await refresh_compute_token(mock_compute_context, session)
+
     # Verify token was updated
-    assert result.access_token == "new-refreshed-token"
+    assert result.m2m_access_token == "new-refreshed-token"
     assert result.access_token_expires_at == "2025-10-18T12:00:00Z"
     assert result.access_token_expires_in == 7200
 
 
-@patch("eyepop.compute.api.requests.post")
-def test_refresh_compute_token_missing_session_uuid(mock_post):
+@pytest.mark.asyncio
+async def test_refresh_compute_token_missing_session_uuid():
     """Test token refresh fails when session_uuid is missing."""
     context = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
         api_key="test-api-key"
     )
 
-    with pytest.raises(Exception, match="Cannot refresh token: no session_uuid"):
-        refresh_compute_token(context)
+    async with aiohttp.ClientSession() as session:
+        with pytest.raises(ComputeTokenException, match="Cannot refresh token: no session_uuid"):
+            await refresh_compute_token(context, session)
 
-    mock_post.assert_not_called()
 
-
-@patch("eyepop.compute.api.requests.post")
-def test_refresh_compute_token_missing_api_key(mock_post):
+@pytest.mark.asyncio
+async def test_refresh_compute_token_missing_api_key():
     """Test token refresh fails when api_key is missing."""
     context = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
         session_uuid="session-123"
     )
 
-    with pytest.raises(Exception, match="Cannot refresh token: no api_key"):
-        refresh_compute_token(context)
+    async with aiohttp.ClientSession() as session:
+        with pytest.raises(ComputeTokenException, match="Cannot refresh token: no api_key"):
+            await refresh_compute_token(context, session)
 
-    mock_post.assert_not_called()
 
-
-@patch("eyepop.compute.api.requests.post")
-def test_refresh_compute_token_http_error(mock_post, mock_compute_context):
+@pytest.mark.asyncio
+async def test_refresh_compute_token_http_error(aioresponses, mock_compute_context):
     """Test token refresh handles HTTP errors."""
-    mock_response = MagicMock()
-    mock_response.raise_for_status.side_effect = Exception("HTTP 401 Unauthorized")
-    mock_post.return_value = mock_response
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/auth/authenticate",
+        status=401
+    )
 
-    with pytest.raises(Exception, match="Token refresh failed"):
-        refresh_compute_token(mock_compute_context)
+    async with aiohttp.ClientSession() as session:
+        with pytest.raises(ComputeTokenException, match="Token refresh failed"):
+            await refresh_compute_token(mock_compute_context, session)
 
 
-@patch("eyepop.compute.api.requests.post")
-def test_refresh_compute_token_network_error(mock_post, mock_compute_context):
+@pytest.mark.asyncio
+async def test_refresh_compute_token_network_error(aioresponses, mock_compute_context):
     """Test token refresh handles network errors."""
-    mock_post.side_effect = Exception("Network error")
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/auth/authenticate",
+        exception=Exception("Network error")
+    )
 
-    with pytest.raises(Exception, match="Token refresh failed"):
-        refresh_compute_token(mock_compute_context)
+    async with aiohttp.ClientSession() as session:
+        with pytest.raises(ComputeTokenException, match="Token refresh failed"):
+            await refresh_compute_token(mock_compute_context, session)

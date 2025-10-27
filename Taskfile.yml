@@ -9,7 +9,7 @@ tasks:
     deps: [clean]
     cmds:
       - uv pip install build setuptools-scm
-      - .venv/bin/python -m build
+      - uv run python -m build
 
   install:editable:
     cmds:
@@ -17,8 +17,7 @@ tasks:
 
   test:
     cmds:
-      - uv pip install -e .[test]
-      - .venv/bin/pytest
+      - uvx pytest
 
   typecheck:
     cmds:
@@ -31,5 +30,3 @@ tasks:
   verify-version:
     cmds:
       - .venv/bin/python -c "import eyepop; print('Version:', eyepop.__version__)"
-
-

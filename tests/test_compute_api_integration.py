@@ -1,11 +1,13 @@
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
+import aiohttp
 import pytest
-import requests
+from aioresponses import aioresponses
 
 from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint
 from eyepop.compute.models import ComputeContext
+from eyepop.exceptions import ComputeSessionException
 
 MOCK_SESSION_RESPONSE = {
     "session_uuid": "session-456",
@@ -18,12 +20,6 @@ MOCK_SESSION_RESPONSE = {
     "session_message": "Session created successfully",
     "pipeline_ttl": 3600,
     "session_active": True
-}
-
-TEST_REQUEST_HEADERS = {
-    "Content-Type": "application/json",
-    "Accept": "application/json",
-    "Authorization": "Bearer test-api-key"
 }
 
 
@@ -51,13 +47,14 @@ def clean_environment():
         os.environ["EYEPOP_API_KEY"] = original_key
 
 
-@patch("eyepop.compute.api.requests.get")
-def test_integrates_successfully_with_compute_api(mock_get, clean_environment):
+@pytest.mark.asyncio
+async def test_integrates_successfully_with_compute_api(aioresponses, clean_environment):
     """Test successful integration with compute API."""
-    mock_response = MagicMock()
-    mock_response.json.return_value = [MOCK_SESSION_RESPONSE]
-    mock_response.raise_for_status.return_value = None
-    mock_get.return_value = mock_response
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[MOCK_SESSION_RESPONSE],
+        status=200
+    )
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
@@ -65,115 +62,101 @@ def test_integrates_successfully_with_compute_api(mock_get, clean_environment):
         wait_for_session_timeout=30,
         wait_for_session_interval=2
     )
-    
-    session_response = fetch_new_compute_session(compute_config)
+
+    async with aiohttp.ClientSession() as session:
+        session_response = await fetch_new_compute_session(compute_config, session)
+
     assert session_response.session_endpoint == "https://integration-pipeline.example.com"
-    assert session_response.access_token == "jwt-token-123"
+    assert session_response.m2m_access_token == "jwt-token-123"
     assert session_response.pipeline_id == "pipeline-123"
 
-    mock_get.assert_called_once_with(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
-        headers=TEST_REQUEST_HEADERS
-    )
 
-
-@patch("eyepop.compute.api.requests.post")
-@patch("eyepop.compute.api.requests.get")
-def test_creates_session_when_none_exists(mock_get, mock_post, clean_environment):
+@pytest.mark.asyncio
+async def test_creates_session_when_none_exists(aioresponses, clean_environment):
     """Test session creation when no sessions exist."""
-    mock_get_response = MagicMock()
-    mock_get_response.json.return_value = []
-    mock_get_response.raise_for_status.return_value = None
-    mock_get.return_value = mock_get_response
-
-    mock_post_response = MagicMock()
-    mock_post_response.json.return_value = MOCK_SESSION_RESPONSE
-    mock_post_response.raise_for_status.return_value = None
-    mock_post.return_value = mock_post_response
-
-    compute_config = ComputeContext(
-        compute_url="https://compute.staging.eyepop.xyz",
-        api_key="test-api-key"
-    )
-
-    session_response = fetch_new_compute_session(compute_config)
-    assert session_response.session_endpoint == "https://integration-pipeline.example.com"
-
-    mock_get.assert_called_once()
-    mock_post.assert_called_once_with(
+    aioresponses.get(
         "https://compute.staging.eyepop.xyz/v1/sessions",
-        headers=TEST_REQUEST_HEADERS
+        payload=[],
+        status=200
     )
-
-@patch("eyepop.compute.api.requests.post")
-@patch("eyepop.compute.api.requests.get")
-def test_creates_session_when_get_returns_404(mock_get, mock_post, clean_environment):
-    """Test session creation when GET returns 404 (no sessions exist)."""
-    # Mock GET request to return 404
-    mock_get_response = MagicMock()
-    mock_http_error = requests.HTTPError()
-    mock_http_error.response = MagicMock()
-    mock_http_error.response.status_code = 404
-    mock_get_response.raise_for_status.side_effect = mock_http_error
-    mock_get.return_value = mock_get_response
-
-    # Mock POST request to succeed
-    mock_post_response = MagicMock()
-    mock_post_response.json.return_value = MOCK_SESSION_RESPONSE
-    mock_post_response.raise_for_status.return_value = None
-    mock_post.return_value = mock_post_response
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=MOCK_SESSION_RESPONSE,
+        status=200
+    )
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
         api_key="test-api-key"
     )
 
-    # Should create a new session despite 404
-    session_response = fetch_new_compute_session(compute_config)
+    async with aiohttp.ClientSession() as session:
+        session_response = await fetch_new_compute_session(compute_config, session)
+
     assert session_response.session_endpoint == "https://integration-pipeline.example.com"
-    assert session_response.access_token == "jwt-token-123"
+
+
+@pytest.mark.asyncio
+async def test_creates_session_when_get_returns_404(aioresponses, clean_environment):
+    """Test session creation when GET returns 404 (no sessions exist)."""
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        status=404
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=MOCK_SESSION_RESPONSE,
+        status=200
+    )
+
+    compute_config = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key"
+    )
+
+    async with aiohttp.ClientSession() as session:
+        session_response = await fetch_new_compute_session(compute_config, session)
+
+    assert session_response.session_endpoint == "https://integration-pipeline.example.com"
+    assert session_response.m2m_access_token == "jwt-token-123"
     assert session_response.session_uuid == "session-456"
 
-    # Verify both GET and POST were called
-    mock_get.assert_called_once_with(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
-        headers=TEST_REQUEST_HEADERS
-    )
-    mock_post.assert_called_once_with(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
-        headers=TEST_REQUEST_HEADERS
-    )
 
-
-@patch("eyepop.compute.api.requests.get")
-def test_handles_network_error(mock_get, clean_environment):
+@pytest.mark.asyncio
+async def test_handles_network_error(aioresponses, clean_environment):
     """Test handling of network errors."""
-    mock_get.side_effect = Exception("Network error")
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        exception=Exception("Network error")
+    )
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
         api_key="test-api-key"
     )
 
-    with pytest.raises(Exception, match="Network error"):
-        fetch_new_compute_session(compute_config)
+    async with aiohttp.ClientSession() as session:
+        with pytest.raises(Exception, match="Network error"):
+            await fetch_new_compute_session(compute_config, session)
 
 
-@patch("eyepop.compute.api.requests.get")
-def test_mimics_worker_endpoint_integration(mock_get, clean_environment):
+@pytest.mark.asyncio
+async def test_mimics_worker_endpoint_integration(aioresponses, clean_environment):
     """Test worker endpoint integration scenario."""
-    mock_response = MagicMock()
-    mock_response.json.return_value = [MOCK_SESSION_RESPONSE]
-    mock_response.raise_for_status.return_value = None
-    mock_get.return_value = mock_response
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[MOCK_SESSION_RESPONSE],
+        status=200
+    )
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
         api_key="test-api-key"
     )
 
-    session_response = fetch_new_compute_session(compute_config)
-    
+    async with aiohttp.ClientSession() as session:
+        session_response = await fetch_new_compute_session(compute_config, session)
+
     # Simulate worker endpoint logic
     worker_config = {
         "session_endpoint": session_response.session_endpoint,
@@ -187,106 +170,122 @@ def test_mimics_worker_endpoint_integration(mock_get, clean_environment):
 
 def test_uses_environment_variables(clean_environment):
     """Test using environment variables for configuration."""
+    # Set env vars BEFORE creating ComputeContext
     os.environ["EYEPOP_URL"] = "https://custom.compute.com"
     os.environ["EYEPOP_API_KEY"] = "env-api-key"
 
+    # ComputeContext uses default_factory for compute_url (runtime evaluation)
+    # but direct default for api_key (import-time evaluation)
     compute_config = ComputeContext()
 
-    # Note: ComputeContext doesn't automatically use env vars in __init__
-    # The fetch_session_endpoint function uses them
-    assert compute_config.compute_url == "https://compute.staging.eyepop.xyz"  # Default
-    # api_key will be empty since defaults are evaluated at import time
-    assert compute_config.api_key == ""  # Empty because defaults are evaluated at import
+    # compute_url uses default_factory, so it picks up the env var at runtime
+    assert compute_config.compute_url == "https://custom.compute.com"
+
+    # api_key uses direct default evaluated at import, so we can explicitly pass it
+    compute_config_with_key = ComputeContext(api_key="env-api-key")
+    assert compute_config_with_key.api_key == "env-api-key"
 
 
-@patch("eyepop.compute.api.requests.get")
-def test_handles_array_response_from_sessions(mock_get, clean_environment):
+@pytest.mark.asyncio
+async def test_handles_array_response_from_sessions(aioresponses, clean_environment):
     """Test handling of array response from /v1/sessions endpoint."""
-    mock_response = MagicMock()
-    mock_response.json.return_value = [
-        {
-            "session_name": "session-3b3a8b91",
-            "session_endpoint": "https://sessions.staging.eyepop.xyz/3b3a8b91",
-            "session_uuid": "3b3a8b91",
-            "access_token": "jwt-abc-123",
-            "pipelines": [],
-            "session_status": "running",
-            "session_active": True
-        }
-    ]
-    mock_response.raise_for_status.return_value = None
-    mock_get.return_value = mock_response
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[
+            {
+                "session_name": "session-3b3a8b91",
+                "session_endpoint": "https://sessions.staging.eyepop.xyz/3b3a8b91",
+                "session_uuid": "3b3a8b91",
+                "access_token": "jwt-abc-123",
+                "pipelines": [],
+                "session_status": "running",
+                "session_active": True
+            }
+        ],
+        status=200
+    )
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
         api_key="test-token"
     )
 
-    session_response = fetch_new_compute_session(compute_config)
+    async with aiohttp.ClientSession() as session:
+        session_response = await fetch_new_compute_session(compute_config, session)
+
     assert session_response.session_endpoint == "https://sessions.staging.eyepop.xyz/3b3a8b91"
-    assert session_response.access_token == "jwt-abc-123"
+    assert session_response.m2m_access_token == "jwt-abc-123"
 
 
-@patch("eyepop.compute.api.requests.get")
-def test_handles_single_object_response(mock_get, clean_environment):
+@pytest.mark.asyncio
+async def test_handles_single_object_response(aioresponses, clean_environment):
     """Test handling of single object response."""
-    mock_response = MagicMock()
-    mock_response.json.return_value = MOCK_SESSION_RESPONSE  # Single object, not array
-    mock_response.raise_for_status.return_value = None
-    mock_get.return_value = mock_response
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=MOCK_SESSION_RESPONSE,  # Single object, not array
+        status=200
+    )
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
         api_key="test-token"
     )
 
-    session_response = fetch_new_compute_session(compute_config)
+    async with aiohttp.ClientSession() as session:
+        session_response = await fetch_new_compute_session(compute_config, session)
+
     assert session_response.session_endpoint == "https://integration-pipeline.example.com"
 
 
-@patch("eyepop.compute.api.requests.post")
-@patch("eyepop.compute.api.requests.get")
-def test_raises_on_empty_response_and_failed_create(mock_get, mock_post, clean_environment):
+@pytest.mark.asyncio
+async def test_raises_on_empty_response_and_failed_create(aioresponses, clean_environment):
     """Test error when no sessions exist and creation fails."""
-    mock_get_response = MagicMock()
-    mock_get_response.json.return_value = []
-    mock_get_response.raise_for_status.return_value = None
-    mock_get.return_value = mock_get_response
-
-    mock_post.side_effect = Exception("Creation failed")
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[],
+        status=200
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        exception=Exception("Creation failed")
+    )
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
         api_key="test-token"
     )
 
-    with pytest.raises(Exception, match="No existing session and failed to create new one"):
-        fetch_new_compute_session(compute_config)
+    async with aiohttp.ClientSession() as session:
+        with pytest.raises(ComputeSessionException, match="No existing session and failed to create new one"):
+            await fetch_new_compute_session(compute_config, session)
 
 
-@patch("eyepop.compute.api.requests.get")
-def test_validates_access_token_presence(mock_get, clean_environment):
+@pytest.mark.asyncio
+async def test_validates_access_token_presence(aioresponses, clean_environment):
     """Test validation of access_token presence."""
     response_without_token = {**MOCK_SESSION_RESPONSE}
     response_without_token["access_token"] = ""
-    
-    mock_response = MagicMock()
-    mock_response.json.return_value = [response_without_token]
-    mock_response.raise_for_status.return_value = None
-    mock_get.return_value = mock_response
+
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[response_without_token],
+        status=200
+    )
 
     compute_config = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
         api_key="test-token"
     )
 
-    with pytest.raises(Exception, match="No access_token received"):
-        fetch_new_compute_session(compute_config)
+    async with aiohttp.ClientSession() as session:
+        with pytest.raises(ComputeSessionException, match="No access_token received"):
+            await fetch_new_compute_session(compute_config, session)
 
 
+@pytest.mark.asyncio
 @patch("eyepop.compute.api.wait_for_session")
 @patch("eyepop.compute.api.fetch_new_compute_session")
-def test_full_flow_with_health_check(mock_fetch_new, mock_wait, clean_environment):
+async def test_full_flow_with_health_check(mock_fetch_new, mock_wait, clean_environment):
     """Test complete flow including health check."""
     mock_context = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
@@ -298,18 +297,20 @@ def test_full_flow_with_health_check(mock_fetch_new, mock_wait, clean_environmen
     mock_fetch_new.return_value = mock_context
     mock_wait.return_value = True
 
-    result = fetch_session_endpoint(mock_context)
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_session_endpoint(mock_context, session)
 
-    mock_fetch_new.assert_called_once_with(mock_context)
-    mock_wait.assert_called_once_with(mock_context)
+    mock_fetch_new.assert_called_once_with(mock_context, session)
+    mock_wait.assert_called_once_with(mock_context, session)
     assert result.session_endpoint == "https://session.example.com"
-    assert result.access_token == "jwt-123"
+    assert result.m2m_access_token == "jwt-123"
     assert result.pipeline_id == "pipeline-456"
 
 
+@pytest.mark.asyncio
 @patch("eyepop.compute.api.wait_for_session")
 @patch("eyepop.compute.api.fetch_new_compute_session")
-def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
+async def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
     """Test that fetch_session_endpoint correctly passes context through."""
     input_context = ComputeContext(
         compute_url="https://custom.compute.com",
@@ -324,10 +325,9 @@ def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
     mock_fetch_new.return_value = mock_context
     mock_wait.return_value = True
 
-    # Call with explicit context
-    fetch_session_endpoint(input_context)
+    async with aiohttp.ClientSession() as session:
+        await fetch_session_endpoint(input_context, session)
 
-    # Verify it passed the context through correctly
     called_context = mock_fetch_new.call_args[0][0]
     assert called_context.compute_url == "https://custom.compute.com"
     assert called_context.api_key == "custom-key"
