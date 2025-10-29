@@ -3,8 +3,8 @@ import logging
 
 import aiohttp
 
-from eyepop.compute.responses import ComputeApiSessionResponse
 from eyepop.compute.context import ComputeContext, PipelineStatus
+from eyepop.compute.responses import ComputeApiSessionResponse
 from eyepop.exceptions import ComputeHealthCheckException
 
 log = logging.getLogger("eyepop.compute")

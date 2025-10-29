@@ -4,8 +4,8 @@ from unittest.mock import patch
 import aiohttp
 import pytest
 
-from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint
 from eyepop.compute import ComputeContext
+from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint
 from eyepop.exceptions import ComputeSessionException
 
 MOCK_SESSION_RESPONSE = {

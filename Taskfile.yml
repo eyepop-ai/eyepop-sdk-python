@@ -23,6 +23,16 @@ tasks:
     cmds:
       - uvx mypy eyepop || true
 
+  lint:
+    desc: "Run ruff on changed files (vs main branch)"
+    cmds:
+      - git diff --name-only --diff-filter=AM main | grep '\.py$' | xargs -r uvx ruff check
+
+  lint:all:
+    desc: "Run ruff on all files matching ruff.toml patterns"
+    cmds:
+      - uvx ruff check .
+
   inspect-wheel:
     cmds:
       - unzip -l dist/*.whl | grep -E "py.typed|\.py$|\.pyi$"

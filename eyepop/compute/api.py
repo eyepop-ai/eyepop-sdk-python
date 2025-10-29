@@ -3,8 +3,8 @@ import logging
 import aiohttp
 from pydantic import TypeAdapter
 
-from eyepop.compute.responses import ComputeApiSessionResponse
 from eyepop.compute.context import ComputeContext
+from eyepop.compute.responses import ComputeApiSessionResponse
 from eyepop.compute.status import wait_for_session
 from eyepop.exceptions import ComputeSessionException, ComputeTokenException
 
@@ -176,7 +176,7 @@ async def refresh_compute_token(
             session_uuid=compute_ctx.session_uuid,
         ) from e
     except Exception as e:
-        log.error(f"Failed to refresh token")
+        log.error("Failed to refresh token")
         log.debug(str(e))
         raise ComputeTokenException(
             f"Token refresh failed: {str(e)}", session_uuid=compute_ctx.session_uuid
