@@ -4,21 +4,15 @@ from eyepop.compute.context import PipelineStatus
 
 
 class ComputeApiPipelineStatus(BaseModel):
-    """Status information for a pipeline."""
-
     status: PipelineStatus = Field(description="The status of the pipeline")
     reason: str = Field(description="The reason for the status")
 
 
 class ComputeApiSessionRequest(BaseModel):
-    """Request body for creating a new session."""
-
     account_uuid: str = Field(description="Required account uuid to create a session")
 
 
 class ComputeApiSessionResponse(BaseModel):
-    """Response from compute API session endpoints."""
-
     session_uuid: str = Field(description="The related session uuid for this session")
     session_endpoint: str = Field(description="The related session url for this session")
     access_token: str = Field(description="The JWT access token for session authentication")

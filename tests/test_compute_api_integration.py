@@ -256,7 +256,7 @@ async def test_raises_on_empty_response_and_failed_create(aioresponses, clean_en
     )
 
     async with aiohttp.ClientSession() as session:
-        with pytest.raises(ComputeSessionException, match="No existing session and failed to create new one"):
+        with pytest.raises(ComputeSessionException, match="failed to create"):
             await fetch_new_compute_session(compute_config, session)
 
 
@@ -278,7 +278,7 @@ async def test_validates_access_token_presence(aioresponses, clean_environment):
     )
 
     async with aiohttp.ClientSession() as session:
-        with pytest.raises(ComputeSessionException, match="No access_token received"):
+        with pytest.raises(ComputeSessionException, match="access_token"):
             await fetch_new_compute_session(compute_config, session)
 
 

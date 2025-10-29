@@ -31,8 +31,6 @@ class EyePopSdk:
             request_tracer_max_buffer: int = 1204,
             dataset_uuid: str | None = None
     ) -> WorkerEndpoint | SyncWorkerEndpoint:
-        log.debug("EyepopSDK (initializing)")
-
         if is_local_mode is None:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
             is_local_mode = local_mode_env.lower() in ("true", "yes")
@@ -88,7 +86,7 @@ class EyePopSdk:
         )
 
         if not is_async:
-            endpoint = SyncWorkerEndpoint(endpoint)
+            return SyncWorkerEndpoint(endpoint)
 
         return endpoint
 

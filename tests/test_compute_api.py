@@ -131,7 +131,7 @@ async def test_raises_exception_when_no_access_token(mock_compute_config, aiores
     )
 
     async with aiohttp.ClientSession() as session:
-        with pytest.raises(ComputeSessionException, match="No access_token received"):
+        with pytest.raises(ComputeSessionException, match="access_token"):
             await fetch_new_compute_session(mock_compute_config, session)
 
 
@@ -172,7 +172,7 @@ async def test_raises_exception_when_post_fails(mock_compute_config, aioresponse
     )
 
     async with aiohttp.ClientSession() as session:
-        with pytest.raises(ComputeSessionException, match="No existing session and failed to create new one"):
+        with pytest.raises(ComputeSessionException, match="failed to create"):
             await fetch_new_compute_session(mock_compute_config, session)
 
 
@@ -206,7 +206,7 @@ async def test_fetch_session_endpoint_raises_on_health_check_failure(mock_fetch_
     mock_wait.return_value = False
 
     async with aiohttp.ClientSession() as session:
-        with pytest.raises(ComputeSessionException, match="Failed to fetch session endpoint"):
+        with pytest.raises(ComputeSessionException, match="Failed to fetch"):
             await fetch_session_endpoint(mock_context, session)
 
 

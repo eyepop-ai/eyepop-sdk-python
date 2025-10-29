@@ -13,19 +13,6 @@ log = logging.getLogger("eyepop.compute")
 async def wait_for_session(
     compute_config: ComputeContext, client_session: aiohttp.ClientSession
 ) -> bool:
-    """Wait for compute session to become ready by polling health endpoint.
-
-    Args:
-        compute_config: Configuration with session_endpoint and access_token
-        client_session: Existing aiohttp session to reuse connections
-
-    Returns:
-        True if session is ready, False otherwise
-
-    Raises:
-        ComputeHealthCheckException: If session enters terminal state or validation fails
-        TimeoutError: If session doesn't become ready within timeout period
-    """
     timeout = compute_config.wait_for_session_timeout
     interval = compute_config.wait_for_session_interval
 

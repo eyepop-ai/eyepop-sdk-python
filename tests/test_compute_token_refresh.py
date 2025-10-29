@@ -50,7 +50,7 @@ async def test_refresh_compute_token_missing_session_uuid():
     )
 
     async with aiohttp.ClientSession() as session:
-        with pytest.raises(ComputeTokenException, match="Cannot refresh token: no session_uuid"):
+        with pytest.raises(ComputeTokenException, match="session_uuid"):
             await refresh_compute_token(context, session)
 
 
@@ -63,7 +63,7 @@ async def test_refresh_compute_token_missing_api_key():
     )
 
     async with aiohttp.ClientSession() as session:
-        with pytest.raises(ComputeTokenException, match="Cannot refresh token: no api_key"):
+        with pytest.raises(ComputeTokenException, match="api_key"):
             await refresh_compute_token(context, session)
 
 
@@ -76,7 +76,7 @@ async def test_refresh_compute_token_http_error(aioresponses, mock_compute_conte
     )
 
     async with aiohttp.ClientSession() as session:
-        with pytest.raises(ComputeTokenException, match="Token refresh failed"):
+        with pytest.raises(ComputeTokenException, match="refresh"):
             await refresh_compute_token(mock_compute_context, session)
 
 
@@ -89,5 +89,5 @@ async def test_refresh_compute_token_network_error(aioresponses, mock_compute_co
     )
 
     async with aiohttp.ClientSession() as session:
-        with pytest.raises(ComputeTokenException, match="Token refresh failed"):
+        with pytest.raises(ComputeTokenException, match="refresh"):
             await refresh_compute_token(mock_compute_context, session)

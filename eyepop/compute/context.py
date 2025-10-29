@@ -9,7 +9,7 @@ from eyepop.settings import settings
 class ComputeContext(BaseModel):
     """Context for Compute API operations.
 
-    Contains session details, authentication tokens, and configuration.
+    Core context for a compute API session.
     """
     compute_url: str = Field(
         description="The url of the compute api",
@@ -35,7 +35,6 @@ class ComputeContext(BaseModel):
 
 
 class PipelineStatus(str, Enum):
-    """Possible states for a compute API session/pipeline."""
     UNKNOWN = "unknown"
     PENDING = "pending"
     PIPELINE_CREATING = "pipeline_creating"
@@ -46,10 +45,6 @@ class PipelineStatus(str, Enum):
 
     @classmethod
     def _missing_(cls, value):
-        """Handle unknown status values by checking if they contain known keywords.
-
-        This makes the enum more resilient to API changes.
-        """
         if isinstance(value, str):
             value_lower = value.lower()
             if "error" in value_lower:
