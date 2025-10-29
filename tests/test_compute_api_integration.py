@@ -3,7 +3,6 @@ from unittest.mock import patch
 
 import aiohttp
 import pytest
-from aioresponses import aioresponses
 
 from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint
 from eyepop.compute import ComputeContext
@@ -25,7 +24,6 @@ MOCK_SESSION_RESPONSE = {
 
 @pytest.fixture
 def clean_environment():
-    """Clean environment before and after tests."""
     original_url = os.environ.get("EYEPOP_URL")
     original_key = os.environ.get("EYEPOP_API_KEY")
 
@@ -157,7 +155,6 @@ async def test_mimics_worker_endpoint_integration(aioresponses, clean_environmen
     async with aiohttp.ClientSession() as session:
         session_response = await fetch_new_compute_session(compute_config, session)
 
-    # Simulate worker endpoint logic
     worker_config = {
         "session_endpoint": session_response.session_endpoint,
         "pipeline_id": session_response.pipeline_id,
@@ -170,18 +167,13 @@ async def test_mimics_worker_endpoint_integration(aioresponses, clean_environmen
 
 def test_uses_environment_variables(clean_environment):
     """Test using environment variables for configuration."""
-    # Set env vars BEFORE creating ComputeContext
     os.environ["EYEPOP_URL"] = "https://custom.compute.com"
     os.environ["EYEPOP_API_KEY"] = "env-api-key"
 
-    # ComputeContext uses default_factory for compute_url (runtime evaluation)
-    # but direct default for api_key (import-time evaluation)
     compute_config = ComputeContext()
 
-    # compute_url uses default_factory, so it picks up the env var at runtime
     assert compute_config.compute_url == "https://custom.compute.com"
 
-    # api_key uses direct default evaluated at import, so we can explicitly pass it
     compute_config_with_key = ComputeContext(api_key="env-api-key")
     assert compute_config_with_key.api_key == "env-api-key"
 

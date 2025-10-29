@@ -107,14 +107,13 @@ class EyePopSdk:
         disable_ws: bool = True,
     ) -> DataEndpoint | SyncDataEndpoint:
         if access_token is None and secret_key is None and api_key is None:
+            secret_key = os.getenv("EYEPOP_SECRET_KEY")
             api_key = os.getenv("EYEPOP_API_KEY")
-            if api_key is None:
-                secret_key = os.getenv("EYEPOP_SECRET_KEY")
-                if secret_key is None:
-                    raise KeyError(
-                        "At least one authentication method required: "
-                        "EYEPOP_SECRET_KEY or EYEPOP_API_KEY or access_token"
-                    )
+            if secret_key is None and api_key is None:
+                raise KeyError(
+                    "At least one authentication method required: "
+                    "EYEPOP_SECRET_KEY or EYEPOP_API_KEY or access_token"
+                )
 
         if eyepop_url is None:
             eyepop_url = os.getenv("EYEPOP_URL")
@@ -138,7 +137,7 @@ class EyePopSdk:
         )
 
         if not is_async:
-            endpoint = SyncDataEndpoint(endpoint)
+            return SyncDataEndpoint(endpoint)
 
         return endpoint
 

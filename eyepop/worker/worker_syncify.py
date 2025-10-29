@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import typing
 
@@ -27,7 +25,7 @@ class SyncWorkerJob:
 
 
 class SyncWorkerEndpoint(SyncEndpoint):
-    def __init__(self, endpoint: WorkerEndpoint):
+    def __init__(self, endpoint: "WorkerEndpoint"):
         super().__init__(endpoint)
 
     def upload(

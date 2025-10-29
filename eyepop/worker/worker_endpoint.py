@@ -138,8 +138,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 "pipeline_id": self.compute_ctx.pipeline_uuid,
                 "endpoints": []
             }
-            if not self.compute_ctx.pipeline_uuid or self.compute_ctx.pipeline_uuid == "":
-                log.info("No pipeline_uuid from compute API, will create one...")
+
             self.last_fetch_config_success_time = time.time()
             self.last_fetch_config_error = None
             self.last_fetch_config_error_time = None
