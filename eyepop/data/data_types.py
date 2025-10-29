@@ -351,6 +351,7 @@ ModelExportResponse = ModelExport
 class ModelTask(enum.StrEnum):
     object_detection = enum.auto()
     image_classification = enum.auto()
+    keypoint_detection = enum.auto()
 
 
 class Model(BaseModel):
