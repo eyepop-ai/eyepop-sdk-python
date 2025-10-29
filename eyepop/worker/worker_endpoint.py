@@ -90,7 +90,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if failed_attempts > 1:
             return False
         else:
-            log_requests.debug('after 404, about to retry with fresh config')
             self.worker_config = None
             return True
 
@@ -108,9 +107,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 authorization_header = await self._authorization_header()
                 if authorization_header is not None:
                     headers['Authorization'] = authorization_header
-                log_requests.debug('before DELETE %s', delete_pipeline_url)
                 await self.client_session.delete(delete_pipeline_url, headers=headers, timeout=client_timeout)
-                log_requests.debug('after DELETE %s', delete_pipeline_url)
             except Exception as e:
                 log.exception(e, exc_info=True)
             finally:
@@ -152,7 +149,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             if authorization_header is not None:
                 headers['Authorization'] = authorization_header
             try:
-                log_requests.debug('before GET %s', config_url)
                 async with self.client_session.get(config_url, headers=headers) as response:
                     self.worker_config = await response.json()
                 self.last_fetch_config_success_time = time.time()
@@ -164,7 +160,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                     self.last_fetch_config_error_time = time.time()
                     raise e
                 else:
-                    log_requests.debug('after GET %s: 401, about to retry with fresh access token', config_url)
                     self.token = None
                     self.expire_token_time = None
                     headers = {}
@@ -182,8 +177,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
         if self.compute_ctx:
             log_requests.debug(f'Using compute context config: {self.worker_config}')
-        else:
-            log_requests.debug(f'after GET {config_url}: {self.worker_config}')
 
         base_url = await self.dev_mode_base_url()
 
@@ -205,10 +198,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             authorization_header = await self._authorization_header()
             if authorization_header is not None:
                 headers['Authorization'] = authorization_header
-            log_requests.debug('before POST %s', start_pipeline_url)
             async with self.client_session.post(start_pipeline_url, headers=headers, json=body) as response:
                 response_json = await response.json()
-            log_requests.debug('after POST %s', start_pipeline_url)
             self.worker_config['pipeline_id'] = response_json['id']
 
             if self.compute_ctx:
@@ -238,10 +229,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             authorization_header = await self._authorization_header()
             if authorization_header is not None:
                 headers['Authorization'] = authorization_header
-            log_requests.debug('before PATCH %s', stop_jobs_url)
             async with self.client_session.patch(stop_jobs_url, headers=headers, json=body) as response:
                 pass
-            log_requests.debug('after PATCH %s', stop_jobs_url)
 
         if self.is_dev_mode and self.pop is None:
             get_url = await self.dev_mode_pipeline_base_url()
@@ -249,7 +238,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             authorization_header = await self._authorization_header()
             if authorization_header is not None:
                 headers['Authorization'] = authorization_header
-            log_requests.debug('before GET %s', get_url)
             async with self.client_session.get(get_url, headers=headers) as response:
                 response_json = await response.json()
                 pop_as_dict = response_json.get('pop')
@@ -257,7 +245,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                     self.pop = None
                 else:
                     self.pop = Pop(**pop_as_dict)
-            log_requests.debug('after GET %s', get_url)
             log.debug('current pop is %s', self.pop)
 
         if self.is_dev_mode:
@@ -444,7 +431,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             if content_type is not None:
                 headers['Content-Type'] = content_type
             try:
-                log_requests.debug('before %s %s', method, url)
                 if open_data is not None:
                     with open_data() as data:
                         if isinstance(data, StringIO):
@@ -458,27 +444,23 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
                 entry.mark_success()
 
-                log_requests.debug('after %s %s status=%d headers=%s', method, url, response.status, response.headers)
-
                 return response
             except aiohttp.ClientResponseError as e:
                 if e.status == 404:
                     # in load balanced configuration, we overwrite the standard 404 handler
                     entry.mark_error()
-                    log_requests.debug('after %s %s: 404, about to retry fail-over', method, url)
                 else:
                     failed_attempts += 1
                     if e.status not in self.retry_handlers:
                         log_requests.exception('unexpected error: %s', e)
                         raise e
                     if not await self.retry_handlers[e.status](e.status, failed_attempts):
-                        log_requests.exception('unexpected error: %s', e)
+                        log_requests.exception('unexpected error')
                         raise e
             except aiohttp.ClientConnectionError:
                 entry.mark_error()
-                log_requests.debug('after %s %s: 404, about to retry fail-over', method, url)
             except Exception as e:
-                log_requests.exception('unexpected error', e)
+                log_requests.exception('unexpected error')
                 raise e
 
         raise PopNotReachableException(self.pop_id, [])
