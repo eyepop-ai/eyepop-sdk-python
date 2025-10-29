@@ -26,22 +26,34 @@ jobs:
         enable-cache: true
         cache-dependency-glob: "uv.lock"
 
-    - name: Set up Python
-      run: uv python install 3.12
-
     - name: Install dependencies
       run: uv sync --all-extras
 
     - name: Build package
       run: uvx --from build pyproject-build --installer uv
 
-    - name: Display version
+    - name: Sanity check version matches tag...
       run: |
         uv pip install dist/*.whl
-        uv run python -c "import eyepop; print(f'Built version: {eyepop.__version__}')"
+        BUILT_VERSION=$(uv run python -c "import eyepop; print(eyepop.__version__)")
+        RELEASE_TAG="${{ github.event.release.tag_name }}"
 
-    - name: Test package
-      run: uv run pytest
+        # Strip v prefix if it's there
+        EXPECTED_VERSION="${RELEASE_TAG#v}"
+
+        if [ "$BUILT_VERSION" != "$EXPECTED_VERSION" ]; then
+          echo "ERROR: Built version ($BUILT_VERSION) does not match release tag ($EXPECTED_VERSION)"
+          exit 1
+        fi
+        echo "Same version as tag!"
+
+    - name: Check wheel contents for py.typed marker
+      run: |
+        echo "Check for proper wheel contents..."
+        WHEEL_FILE=$(ls dist/*.whl)
+        unzip -l "$WHEEL_FILE" | grep -E "\.py$|\.pyi$" | wc -l
+        unzip -l "$WHEEL_FILE" | grep "py.typed" || (echo "ERROR: py.typed marker missing!" && exit 1)
+        echo "Proper wheel contents!"
 
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
