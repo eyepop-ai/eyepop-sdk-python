@@ -45,7 +45,7 @@ class Endpoint(ClientSession):
         self.compute_ctx = None
 
         if api_key is not None:
-            from eyepop.compute.models import ComputeContext
+            from eyepop.compute import ComputeContext
             self.compute_ctx = ComputeContext(
                 compute_url=eyepop_url,
                 api_key=api_key

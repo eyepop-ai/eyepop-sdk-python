@@ -3,15 +3,15 @@ import logging
 
 import aiohttp
 
-from eyepop.compute.models import ComputeApiSessionResponse, ComputeContext, PipelineStatus
+from eyepop.compute.responses import ComputeApiSessionResponse
+from eyepop.compute.context import ComputeContext, PipelineStatus
 from eyepop.exceptions import ComputeHealthCheckException
 
-log = logging.getLogger('eyepop.compute')
+log = logging.getLogger("eyepop.compute")
 
 
 async def wait_for_session(
-    compute_config: ComputeContext,
-    client_session: aiohttp.ClientSession
+    compute_config: ComputeContext, client_session: aiohttp.ClientSession
 ) -> bool:
     """Wait for compute session to become ready by polling health endpoint.
 
@@ -35,11 +35,13 @@ async def wait_for_session(
             "No access_token in compute_config. "
             "Cannot perform session health check. "
             "This should never happen - fetch_new_compute_session should have set it.",
-            session_endpoint=compute_config.session_endpoint
+            session_endpoint=compute_config.session_endpoint,
         )
 
     auth_header = f"Bearer {compute_config.m2m_access_token}"
-    log.debug(f"Using JWT access_token for session health check at {compute_config.session_endpoint}/health")
+    log.debug(
+        f"Using JWT access_token for session health check at {compute_config.session_endpoint}/health"
+    )
 
     headers = {
         "Authorization": auth_header,
@@ -83,11 +85,15 @@ async def wait_for_session(
                     log.debug(f"Session still pending/creating: {last_message}")
                     await asyncio.sleep(interval)
                     continue
-                elif status in [PipelineStatus.FAILED, PipelineStatus.ERROR, PipelineStatus.STOPPED]:
+                elif status in [
+                    PipelineStatus.FAILED,
+                    PipelineStatus.ERROR,
+                    PipelineStatus.STOPPED,
+                ]:
                     raise ComputeHealthCheckException(
                         f"Session in terminal state: {status.value}. Message: {session_response.session_message}",
                         session_endpoint=compute_config.session_endpoint,
-                        last_status=status.value
+                        last_status=status.value,
                     )
                 else:
                     last_message = f"Session status: {status.value}"

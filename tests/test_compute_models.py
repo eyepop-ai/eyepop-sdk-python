@@ -1,7 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from eyepop.compute.models import ComputeApiSessionResponse, ComputeContext, PipelineStatus
+from eyepop.compute import ComputeApiSessionResponse, ComputeContext
+from eyepop.compute.context import PipelineStatus
 
 
 def test_creates_valid_session_response():

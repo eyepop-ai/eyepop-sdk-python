@@ -5,7 +5,7 @@ import pytest
 from aioresponses import aioresponses
 
 from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint
-from eyepop.compute.models import ComputeContext
+from eyepop.compute import ComputeContext
 from eyepop.exceptions import ComputeSessionException
 
 MOCK_SESSION_RESPONSE = {

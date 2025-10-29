@@ -3,7 +3,7 @@ import pytest
 from aioresponses import aioresponses
 
 from eyepop.compute.api import refresh_compute_token
-from eyepop.compute.models import ComputeContext
+from eyepop.compute import ComputeContext
 from eyepop.exceptions import ComputeTokenException
 
 
