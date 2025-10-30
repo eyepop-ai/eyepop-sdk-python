@@ -11,6 +11,7 @@ from eyepop.data.arrow.schema_1_1 import ASSET_SCHEMA as ASSET_SCHEMA_1_1
 from eyepop.data.arrow.schema_1_2 import ASSET_SCHEMA as ASSET_SCHEMA_1_2
 from eyepop.data.arrow.schema_1_3 import ASSET_SCHEMA as ASSET_SCHEMA_1_3
 from eyepop.data.arrow.schema_1_5 import ASSET_SCHEMA as ASSET_SCHEMA_1_5
+from eyepop.data.arrow.schema_1_6 import ASSET_SCHEMA as ASSET_SCHEMA_1_6
 
 from eyepop.data.arrow.eyepop.annotations import table_from_eyepop_annotations, eyepop_annotations_from_table
 from eyepop.data.data_normalize import normalize_eyepop_annotations, normalize_eyepop_prediction
@@ -77,7 +78,7 @@ class TestArrowToFromAnnotation:
 
     def test_1_0_to_0_0(self):
         source_table = create_test_table(schema=ASSET_SCHEMA_1_0)
-        target_assets = eyepop_assets_from_table(source_table)
+        target_assets = eyepop_assets_from_table(source_table, schema=ASSET_SCHEMA_1_0)
         assert target_assets is not None
         assert len(target_assets) == 1
         assert len(target_assets[0].annotations) == 2
@@ -112,7 +113,7 @@ class TestArrowToFromAnnotation:
 
     def test_1_1_to_0_0(self):
         source_table = create_test_table(schema=ASSET_SCHEMA_1_1, test_file_name="prediction_2_keypoints_2_objects.json")
-        target_assets = eyepop_assets_from_table(source_table)
+        target_assets = eyepop_assets_from_table(source_table, schema=ASSET_SCHEMA_1_1)
         assert target_assets is not None
         assert len(target_assets) == 1
         assert len(target_assets[0].annotations) == 2
@@ -139,7 +140,7 @@ class TestArrowToFromAnnotation:
 
     def test_1_2_to_1_1(self):
         source_table = create_test_table(schema=ASSET_SCHEMA_1_2, test_file_name="prediction_2_objects_category_texts.json")
-        target_assets = eyepop_assets_from_table(source_table)
+        target_assets = eyepop_assets_from_table(source_table, schema=ASSET_SCHEMA_1_2)
         assert target_assets is not None
         assert len(target_assets) == 1
         assert len(target_assets[0].annotations) == 2
@@ -160,7 +161,7 @@ class TestArrowToFromAnnotation:
 
     def test_1_3_to_1_2(self):
         source_table = create_test_table(schema=ASSET_SCHEMA_1_3, test_file_name="prediction_1_embeddings.json")
-        target_assets = eyepop_assets_from_table(source_table)
+        target_assets = eyepop_assets_from_table(source_table, schema=ASSET_SCHEMA_1_3)
         assert target_assets is not None
         assert len(target_assets) == 1
         assert len(target_assets[0].annotations) == 2
@@ -176,6 +177,14 @@ class TestArrowToFromAnnotation:
         source_table = create_test_table(schema=ASSET_SCHEMA_1_5, test_file_name="prediction_2_embeddings.json")
         target_assets = eyepop_assets_from_table(source_table, schema=ASSET_SCHEMA_1_5)
         target_table = table_from_eyepop_assets(target_assets, schema=ASSET_SCHEMA_1_5)
+        assert target_table.schema == source_table.schema
+        assert target_table == source_table
+
+    def test_1_6(self):
+        """ verify that the new fields `mimie_type`, `original_duration` and `original_frames` in `asset` in 1.6 are converted """
+        source_table = create_test_table(schema=ASSET_SCHEMA_1_6, test_file_name="prediction_2_embeddings.json")
+        target_assets = eyepop_assets_from_table(source_table, schema=ASSET_SCHEMA_1_6)
+        target_table = table_from_eyepop_assets(target_assets, schema=ASSET_SCHEMA_1_6)
         assert target_table.schema == source_table.schema
         assert target_table == source_table
 

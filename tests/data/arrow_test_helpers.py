@@ -22,6 +22,10 @@ def create_test_table(schema: pa.Schema = ASSET_SCHEMA_LATEST, test_file_name: s
         AssetResponse(
             uuid=uuid4().hex,
             mime_type="image/jpeg",
+            original_duration=10.0,
+            original_frames=4711,
+            original_image_width=640,
+            original_image_height=480,
             status=AssetStatus.accepted,
             created_at=datetime(2000, 1, 1, 0, 0, 0, 0, timezone.utc),
             updated_at=datetime(2000, 1, 1, 0, 0, 0, 0, timezone.utc),

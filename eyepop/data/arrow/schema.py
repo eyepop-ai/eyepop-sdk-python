@@ -1,11 +1,11 @@
 from pyarrow._compute import CastOptions
 import pyarrow as pa
 
-from . import schema_1_5 as schema_latest
+from . import schema_1_6 as schema_latest
 
 """ The latest official Arrow schema for the EyePop Dataset API.
 
-The latest officially supported schema is: 1.5
+The latest officially supported schema is: 1.6
 
 These are references to the types and schemas that are currently 
 supported. For backward compatibility, we keep schemas versioned 
