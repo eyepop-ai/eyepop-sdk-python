@@ -14,10 +14,16 @@ class DataJob(Job):
     """
     Abstract Job submitted to an EyePop.ai DataEndpoint.
     """
+    timeout: aiohttp.ClientTimeout | None
 
-    def __init__(self, session: ClientSession, on_ready: Callable[["DataJob"], None] | None,
-                 callback: JobStateCallback | None = None):
+    def __init__(
+            self, session: ClientSession,
+            on_ready: Callable[["DataJob"], None] | None,
+            callback: JobStateCallback | None = None,
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
+    ):
         super().__init__(session, on_ready, callback)
+        self.timeout = timeout
 
     async def result(self) -> Asset:
         return await self.pop_result()
@@ -38,9 +44,10 @@ class _UploadStreamJob(DataJob):
             no_transform: bool | None,
             session: ClientSession,
             on_ready: Callable[[DataJob], None] | None = None,
-            callback: JobStateCallback | None = None
+            callback: JobStateCallback | None = None,
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, on_ready, callback, timeout)
         self.stream = stream
         self.mime_type = mime_type
         self.dataset_uuid = dataset_uuid
@@ -65,7 +72,7 @@ class _UploadStreamJob(DataJob):
                 url=post_path,
                 data=self.stream,
                 content_type=self.mime_type,
-                timeout=aiohttp.ClientTimeout(total=None, sock_read=60)
+                timeout=self.timeout
         ) as resp:
             result = Asset.model_validate(await resp.json())
             await queue.put(result)
@@ -83,9 +90,10 @@ class _ImportFromJob(DataJob):
             no_transform: bool | None,
             session: ClientSession,
             on_ready: Callable[[DataJob], None] | None = None,
-            callback: JobStateCallback | None = None
+            callback: JobStateCallback | None = None,
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, on_ready, callback, timeout)
         self.asset_import = asset_import
         self.dataset_uuid = dataset_uuid
         self.dataset_version = dataset_version
@@ -112,6 +120,7 @@ class _ImportFromJob(DataJob):
                 post_path,
                 data=self.asset_import.model_dump_json(exclude_unset=True),
                 content_type="application/json",
-                timeout=aiohttp.ClientTimeout(total=None, sock_read=60)) as resp:
+                timeout=self.timeout
+        ) as resp:
             result = Asset.model_validate(await resp.json())
             await queue.put(result)
