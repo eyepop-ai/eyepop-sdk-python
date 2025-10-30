@@ -15,6 +15,7 @@ class AssetStatus(enum.StrEnum):
 
 class TranscodeMode(enum.StrEnum):
     original = enum.auto()
+    video_original_size = enum.auto()
     image_original_size = enum.auto()
     image_fit_1024 = enum.auto()
     image_fit_640 = enum.auto()
@@ -283,6 +284,10 @@ class Asset(BaseModel):
     updated_at: datetime | None = None
     mime_type: str | None = None
     file_size_bytes: int | None = None
+    original_image_width: int | None = None
+    original_image_height: int | None = None
+    original_duration: float | None = None
+    original_frames: int | None = None
     is_transformed: bool | None = None
     status: AssetStatus | None = None
     status_message: str | None = None
