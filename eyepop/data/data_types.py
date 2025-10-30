@@ -15,6 +15,7 @@ class AssetStatus(enum.StrEnum):
 
 class TranscodeMode(enum.StrEnum):
     original = enum.auto()
+    normalized = enum.auto()
     video_original_size = enum.auto()
     image_original_size = enum.auto()
     image_fit_1024 = enum.auto()
@@ -65,6 +66,7 @@ class UserReview(enum.StrEnum):
 class DatasetVersionAssetStats(BaseModel):
     total: int | None = None
     accepted: int | None = None
+    rejected: int | None = None
     annotated: int | None = None
     auto_annotated: int | None = None
     auto_annotated_approved: int | None = None

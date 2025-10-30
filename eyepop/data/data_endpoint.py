@@ -359,7 +359,8 @@ class DataEndpoint(Endpoint):
             external_id: str | None = None,
             sync_transform: bool | None = None,
             no_transform: bool | None = None,
-            on_ready: Callable[[DataJob], None] | None = None
+            on_ready: Callable[[DataJob], None] | None = None,
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
     ) -> DataJob | SyncDataJob:
         session = DataClientSession(self, await self.data_base_url())
         job = _UploadStreamJob(
@@ -372,7 +373,8 @@ class DataEndpoint(Endpoint):
             no_transform=no_transform,
             session=session,
             on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
+            timeout=timeout
         )
         await self._task_start(job.execute())
         return job
@@ -386,7 +388,8 @@ class DataEndpoint(Endpoint):
             partition: str | None = None,
             sync_transform: bool | None = None,
             no_transform: bool | None = None,
-            on_ready: Callable[[DataJob], None] | None = None
+            on_ready: Callable[[DataJob], None] | None = None,
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
     ) -> DataJob | SyncDataJob:
         session = DataClientSession(self, await self.data_base_url())
         job = _ImportFromJob(
@@ -399,7 +402,8 @@ class DataEndpoint(Endpoint):
             session=session,
             partition=partition,
             on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
+            timeout=timeout
         )
         await self._task_start(job.execute())
         return job
