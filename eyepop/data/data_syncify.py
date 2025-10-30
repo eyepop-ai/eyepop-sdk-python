@@ -2,6 +2,8 @@ import asyncio
 import typing
 from typing import BinaryIO, Callable, Optional, List
 
+import aiohttp
+
 from eyepop.data.data_jobs import DataJob
 from eyepop.data.data_types import AssetImport, Dataset, DatasetCreate, DatasetUpdate, Asset, \
     Prediction, AutoAnnotate, UserReview, TranscodeMode, Model, ModelCreate, ModelUpdate, ModelTrainingProgress, \
@@ -129,22 +131,27 @@ class SyncDataEndpoint(SyncEndpoint):
             external_id: str | None = None,
             sync_transform: bool | None = None,
             no_transform: bool | None = None,
-            on_ready: Callable[[DataJob], None] | None = None
+            on_ready: Callable[[DataJob], None] | None = None,
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
     ) -> DataJob | SyncDataJob:
         if on_ready is not None:
             raise TypeError("'on_ready' callback not supported for sync endpoints. "
                             "Use 'EyePopSdk.dataEndpoint(is_async=True)` to create "
                             "an endpoint with callback support")
-        job = run_coro_thread_save(self.event_loop,
-                                   self.endpoint.upload_asset_job(
-                                       stream=stream,
-                                       mime_type=mime_type,
-                                       dataset_uuid=dataset_uuid,
-                                       dataset_version=dataset_version,
-                                       external_id=external_id,
-                                       sync_transform=sync_transform,
-                                       no_transform=no_transform,
-                                       on_ready=None))
+        job = run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.upload_asset_job(
+                stream=stream,
+                mime_type=mime_type,
+                dataset_uuid=dataset_uuid,
+                dataset_version=dataset_version,
+                external_id=external_id,
+                sync_transform=sync_transform,
+                no_transform=no_transform,
+                on_ready=None,
+                timeout=timeout
+            )
+        )
         return SyncDataJob(job, self.event_loop)
 
     def import_asset_job(
@@ -156,22 +163,27 @@ class SyncDataEndpoint(SyncEndpoint):
             partition: Optional[str] = None,
             sync_transform: bool | None = None,
             no_transform: bool | None = None,
-            on_ready: Callable[[DataJob], None] | None = None
+            on_ready: Callable[[DataJob], None] | None = None,
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
     ) -> DataJob | SyncDataJob:
         if on_ready is not None:
             raise TypeError("'on_ready' callback not supported for sync endpoints. "
                             "Use 'EyePopSdk.dataEndpoint(is_async=True)` to create "
                             "an endpoint with callback support")
-        job = run_coro_thread_save(self.event_loop,
-                                   self.endpoint.import_asset_job(
-                                       asset_import=asset_import,
-                                       dataset_uuid=dataset_uuid,
-                                       dataset_version=dataset_version,
-                                       external_id=external_id,
-                                       partition=partition,
-                                       sync_transform=sync_transform,
-                                       no_transform=no_transform,
-                                       on_ready=None))
+        job = run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.import_asset_job(
+                asset_import=asset_import,
+                dataset_uuid=dataset_uuid,
+                dataset_version=dataset_version,
+                external_id=external_id,
+                partition=partition,
+                sync_transform=sync_transform,
+                no_transform=no_transform,
+                on_ready=None,
+                timeout=timeout
+            )
+        )
         return SyncDataJob(job, self.event_loop)
 
     def list_assets(self, dataset_uuid: str, dataset_version: Optional[int] = None,

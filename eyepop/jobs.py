@@ -1,7 +1,7 @@
 import asyncio
 from asyncio import Queue
 from enum import Enum
-from typing import Callable
+from typing import Callable, Any
 
 from eyepop.client_session import ClientSession
 from eyepop.worker.worker_client_session import WorkerClientSession
@@ -67,7 +67,7 @@ class Job:
     async def push_result(self, result) -> None:
         await self._queue.put(result)
 
-    async def pop_result(self) -> dict:
+    async def pop_result(self) -> Any:
         queue = self._queue
         if queue is None:
             return None
