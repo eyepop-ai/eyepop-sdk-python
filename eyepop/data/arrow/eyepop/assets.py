@@ -27,6 +27,10 @@ def record_batch_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASS
     review_priorities = uuids.copy()
     model_relevance = uuids.copy()
     annotationss = uuids.copy()
+    # since 1.6
+    mime_types = uuids.copy() if "mime_type" in schema.names else None
+    original_durations = uuids.copy() if "original_duration" in schema.names else None
+    original_framess = uuids.copy() if "original_frames" in schema.names else None
 
     for i, e in enumerate(assets):
         uuids[i] = e.uuid
@@ -48,23 +52,37 @@ def record_batch_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASS
                 annotationss[i] = table_from_eyepop_annotations(e.annotations, schema=annotations_schema).to_struct_array()
             else:
                 annotationss[i] = pa.chunked_array([], type=pa.struct(annotation_fields))
+        # sinc 1.6
+        if mime_types is not None:
+            mime_types[i] = e.mime_type
+        if original_durations is not None:
+            original_durations[i] = e.original_duration
+        if original_framess is not None:
+            original_framess[i] = e.original_frames
+    columns = [
+        pa.array(uuids),
+        pa.array(external_ids),
+        pa.array(created_ats),
+        pa.array(updated_ats),
+        pa.array(asset_urls),
+        pa.array(original_image_widths),
+        pa.array(original_image_height),
+        pa.array(partitions).dictionary_encode(),
+        pa.array(review_priorities),
+        pa.array(model_relevance),
+        annotationss,
+    ]
+    # sinc 1.6
+    if mime_types is not None:
+        columns.append(pa.array(mime_types).dictionary_encode())
+    if original_durations is not None:
+        columns.append(pa.array(original_durations))
+    if original_framess is not None:
+        columns.append(pa.array(original_framess))
 
     return pa.RecordBatch.from_arrays(
-        [
-            pa.array(uuids),
-            pa.array(external_ids),
-            pa.array(created_ats),
-            pa.array(updated_ats),
-            pa.array(asset_urls),
-            pa.array(original_image_widths),
-            pa.array(original_image_height),
-            pa.array(partitions).dictionary_encode(),
-            pa.array(review_priorities),
-            pa.array(model_relevance),
-            annotationss
-        ], schema=schema
+        columns, schema=schema
     )
-
 
 def eyepop_assets_from_table(
         table: pa.Table,
@@ -87,7 +105,10 @@ def eyepop_assets_from_table(
         review_priorities = batch.column(8).to_pylist()
         model_relevances = batch.column(9).to_pylist()
         annotationss = batch.column(10).to_pylist()
-
+        # since 1.6
+        mime_types = batch.column(11).to_pylist() if "mime_type" in schema.names else None
+        original_durations = batch.column(12).to_pylist() if "original_duration" in schema.names else None
+        original_framess = batch.column(13).to_pylist() if "original_frames" in schema.names else None
         for j in range(len(uuids)):
             review_priority = review_priorities[j]
             if review_priority is not None:
@@ -97,12 +118,14 @@ def eyepop_assets_from_table(
                 model_relevance = round(model_relevance, CONFIDENCE_N_DIGITS)
             assets[i] = Asset(
                 uuid=uuids[j],
-                mime_type=UNKNOWN_MIME_TYPE,
+                mime_type=mime_types[i] if "mime_type" in schema.names else UNKNOWN_MIME_TYPE,
                 external_id=external_ids[j],
                 created_at=created_ats[j],
                 updated_at=updated_ats[j],
                 original_image_width=original_image_widths[j],
                 original_image_height=original_image_height[j],
+                original_duration=original_durations[j] if original_durations is not None else None,
+                original_frames=original_framess[j] if original_framess is not None else None,
                 partition=partitions[j],
                 review_priority=review_priority,
                 model_relevance=model_relevance,
