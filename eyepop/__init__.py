@@ -1,9 +1,12 @@
-__version__ = '1.0.2'
+try:
+    from eyepop._version import version as __version__
+except ImportError:
+    __version__ = "0.0.0+unknown"
 
-import eyepop.eyepopsdk
-import eyepop.worker.worker_jobs
-import eyepop.visualize
+from eyepop import eyepopsdk
+from eyepop.worker import worker_jobs
+from eyepop import visualize
 
 EyePopSdk = eyepopsdk.EyePopSdk
-Job = eyepop.worker.worker_jobs.WorkerJob
+Job = worker_jobs.WorkerJob
 Plot = visualize.EyePopPlot

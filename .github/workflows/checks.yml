@@ -1,0 +1,24 @@
+name: Checks and tests
+on:
+  push:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+    - name: Install dependencies
+      run: uv sync --locked --all-extras --dev
+    - name: Lint
+      run: uvx ruff check $(git diff --name-only main --cached -- '*.py')
+    - name: Typechecks
+      continue-on-error: true
+      run: uvx mypy ./eyepop --check-untyped-defs --ignore-missing-imports $(git diff --name-only main --cached -- '*.py')
+    - name: Unit tests
+      run: uv run pytest
