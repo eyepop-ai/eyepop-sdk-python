@@ -1,3 +1,4 @@
+import os
 import pytest
 from pydantic import ValidationError
 
@@ -191,15 +192,18 @@ def test_compute_context_creation():
 
 def test_compute_context_defaults():
     """It creates ComputeContext with defaults."""
+    os.environ["EYEPOP_URL"] = "https://compute.eyepop.ai"
     context = ComputeContext()
 
-    assert context.compute_url == "https://compute.staging.eyepop.xyz"
+    assert context.compute_url == "https://compute.eyepop.ai"
     assert context.session_endpoint == ""
     assert context.session_uuid == ""
     assert context.pipeline_uuid == ""
     assert context.m2m_access_token == ""
     assert context.wait_for_session_timeout == 60
     assert context.wait_for_session_interval == 2
+
+    del os.environ["EYEPOP_URL"]
 
 
 def test_handles_empty_pipelines_list():

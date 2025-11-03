@@ -46,7 +46,6 @@ test = [
     "pytest-cov",
     "codecov",
     "pre-commit",
-    "aioresponses"
 ]
 doc = [
     "mkdocs",

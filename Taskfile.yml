@@ -17,7 +17,7 @@ tasks:
 
   test:
     cmds:
-      - uvx pytest
+      - uv run pytest
 
   typecheck:
     cmds:
