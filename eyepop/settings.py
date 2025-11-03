@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix='EYEPOP_')
     session_timeout: int = 60
     session_interval: int = 2
-    default_compute_url: str = "https://compute.staging.eyepop.xyz"
+    default_compute_url: str = "https://compute.eyepop.ai"
     min_config_reconnect_secs: float = 10.0
     max_retry_time_secs: float = 30.0
     force_refresh_config_secs: float = 3721.0  # 61 * 61
@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     confidence_n_digits: int = 3
     coordinate_n_digits: int = 3
     embedding_n_digits: int = 1
+    default_data_url: str = "https://dataset-api.eyepop.ai"
 
 
 settings = Settings()

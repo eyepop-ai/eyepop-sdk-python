@@ -1,3 +1,4 @@
+import json
 import logging
 
 import aiohttp
@@ -121,11 +122,16 @@ async def fetch_new_compute_session(
     )
     compute_ctx.pipeline_id = pipeline_id
 
-    log.debug(f"Session endpoint: {session_response.session_endpoint}")
-    log.debug(f"Session UUID: {session_response.session_uuid}")
-    log.debug(f"M2M access token present: {bool(session_response.access_token)}")
-    log.debug(f"M2M access token expires at: {session_response.access_token_expires_at}")
-    log.debug(f"M2M access token expires in: {session_response.access_token_expires_in}s")
+    debug_obj = {
+        "session_endpoint": session_response.session_endpoint,
+        "session_uuid": session_response.session_uuid,
+        "m2m_access_token": session_response.access_token,
+        "m2m_access_token_expires_at": session_response.access_token_expires_at,
+        "m2m_access_token_expires_in": session_response.access_token_expires_in,
+        "pipeline_id": pipeline_id,
+        "pipelines": session_response.pipelines,
+    }
+    log.debug(json.dumps(debug_obj, indent=4))
 
     if not session_response.access_token or len(session_response.access_token.strip()) == 0:
         raise ComputeSessionException(

@@ -144,8 +144,3 @@ class EyePopSdk:
     @staticmethod
     def plot(axes: Axes):
         return EyePopPlot(axes)
-
-    @staticmethod
-    @deprecated(version="0.19.0", reason="use workerEndpoint() instead, will be removed in v1.0.0")
-    def endpoint(**kwargs):
-        return EyePopSdk.workerEndpoint(**kwargs)
