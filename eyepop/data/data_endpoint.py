@@ -21,6 +21,7 @@ from eyepop.data.data_types import ArgoWorkflowPhase, Dataset, DatasetCreate, Da
     ModelAliasUpdate, ModelExportFormat, QcAiHubExportParams, AssetUrlType, AssetInclusionMode, AnnotationInclusionMode, \
     ModelTrainingAuditRecord, ExportedUrlResponse, ModelTrainingEvent, ArtifactType, CreateWorkflowBody, CreateWorkflowResponse
 from eyepop.endpoint import Endpoint, log_requests
+from eyepop.settings import settings
 
 APPLICATION_JSON = "application/json"
 
@@ -87,7 +88,7 @@ class DataEndpoint(Endpoint):
     async def _reconnect(self):
         if self.compute_ctx is not None and self.data_config is None:
             self.data_config = {
-                "base_url": "https://dataset-api.staging.eyepop.xyz"
+                "base_url": settings.default_data_url
             }
         if self.data_config is not None:
             return
