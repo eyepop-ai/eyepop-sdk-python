@@ -1,9 +1,9 @@
 name: Upload test package to TestPyPI
 
 on:
-  push:
-    branches:
-      - feat/compute-api
+  pull_request:
+    types: [opened, synchronize]
+
   workflow_dispatch:
     inputs:
       version:
