@@ -19,7 +19,8 @@ from PIL import Image
 from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
 from eyepop.worker.worker_types import Pop, InferenceComponent, \
-    ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams, ForwardComponent, TrackingComponent
+    ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams, ForwardComponent, TrackingComponent, \
+    MotionModel
 
 script_dir = os.path.dirname(__file__)
 
@@ -252,6 +253,8 @@ def add_optional_tracking_to_component(component: ForwardComponent, tracking_arg
             tracking_component.simThreshold = tracking_args.tracking_sim_threshold
         if tracking_args.tracking_agnostic is not None:
             tracking_component.agnostic = tracking_args.tracking_agnostic
+        if tracking_args.tracking_motion_model is not None:
+            tracking_component.motionModel = MotionModel(tracking_args.tracking_motion_model)
         component.forward = CropForward(
             targets=[tracking_component]
         )
@@ -287,17 +290,9 @@ parser.add_argument('--tracking-agnostic', required=False, help="Track objects c
 parser.add_argument('--tracking-max-age', required=False, help="Max age in seconds for unmatched tracks", default=None, type=float)
 parser.add_argument('--tracking-iou-threshold', required=False, help="IoU threshold to match tracks", default=None, type=float)
 parser.add_argument('--tracking-sim-threshold', required=False, help="Similarity threshold to match tracks by re-id", default=None, type=float)
+parser.add_argument('--tracking-motion-model', required=False, help="Pick a motion model for tracking, one of 'random_walk', 'constant_velocity' or 'constant_acceleration'", default=None, type=str)
 
 main_args = parser.parse_args()
-
-if main_args.dump:
-    if main_args.pop:
-        pop = pop_examples[main_args.pop]
-        print(pop.model_dump_json(indent=2, exclude_unset=True))
-    else:
-        for name, pop in pop_examples.items():
-            print(f"{name}: ", pop.model_dump_json(indent=2, exclude_unset=True))
-    sys.exit(0)
 
 if not main_args.local_path and not main_args.url and not main_args.asset_uuid:
     print("Need something to run inference on; pass either --url or --local-path or --asset-uuid")
@@ -416,6 +411,8 @@ async def main(args) -> (dict[str, Any] | None, str | None):
     visualize_prediction = None
     visualize_path = None
     example_image_src = None
+    if args.dump:
+        print(pop.model_dump_json(indent=2, exclude_unset=True))
     async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True) as endpoint:
         await endpoint.set_pop(pop)
         if args.local_path:
