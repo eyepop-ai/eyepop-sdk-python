@@ -92,6 +92,12 @@ class InferenceComponent(BaseComponent):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
 
+class MotionModel(enum.StrEnum):
+    RANDOM_WALK = "random_walk"
+    CONSTANT_VELOCITY = "constant_velocity"
+    CONSTANT_ACCELERATION = "constant_acceleration"
+
+
 class TrackingComponent(BaseComponent):
     type: Literal[PopComponentType.TRACKING] = PopComponentType.TRACKING
     reidModelUuid: str | None = None
@@ -100,6 +106,18 @@ class TrackingComponent(BaseComponent):
     iouThreshold: float | None = None
     simThreshold: float | None = None
     agnostic: bool | None = None
+    processNoisePosition: float | None = None
+    processNoiseVelocity: float | None = None
+    processNoiseAcceleration: float | None = None
+    processNoiseScale: float | None = None
+    processNoiseAspectRatio: float | None = None
+    measurementNoiseCx: float | None = None
+    measurementNoiseCy: float | None = None
+    measurementNoiseArea: float | None = None
+    measurementNoiseAspectRatio: float | None = None
+    motionModel: MotionModel | None = None
+    downweightLowConfidenceDetections: bool | None = None
+
     model_config = ConfigDict(extra='forbid')
 
 
