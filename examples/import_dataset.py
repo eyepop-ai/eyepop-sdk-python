@@ -11,10 +11,6 @@ from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_jobs import DataJob
 from eyepop.data.data_types import DatasetCreate, Dataset, Asset
 
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
-
 log = logging.getLogger(__name__)
 
 class LocalAsset(Callable[[], Any]):
@@ -46,7 +42,7 @@ async def import_assets(endpoint: DataEndpoint, dataset: Dataset, assets_paths: 
     for asset_path in os.listdir(assets_paths):
         full_path = os.path.join(assets_paths, asset_path)
         if os.path.isfile(full_path):
-            log.info("importing asset: %s", asset_path)
+            log.debug("importing asset: %s", asset_path)
             local_asset = LocalAsset(full_path)
             job = await endpoint.upload_asset_job(
                 local_asset,
@@ -57,7 +53,7 @@ async def import_assets(endpoint: DataEndpoint, dataset: Dataset, assets_paths: 
             )
             jobs.append(on_ready(job, local_asset))
     await asyncio.gather(*jobs)
-    log.info("imported %d assets to %s", len(assets), dataset.uuid)
+    log.debug("imported %d assets to %s", len(assets), dataset.uuid)
     return assets
 
 
@@ -75,14 +71,14 @@ async def main():
         try:
             if main_args.dataset_uuid is None:
                 dataset = await endpoint.create_dataset(DatasetCreate(name="test import dataset"))
-                log.info("using newly created dataset: %s", dataset.uuid)
+                log.debug("using newly created dataset: %s", dataset.uuid)
             else:
                 dataset = await endpoint.get_dataset(main_args.dataset_uuid)
-                log.info("using existing dataset: %s", dataset.uuid)
+                log.debug("using existing dataset: %s", dataset.uuid)
             await import_assets(endpoint, dataset, main_args.assets_path)
         finally:
             if main_args.dataset_uuid is None and main_args.remove:
-                log.info("removing dataset: %s", dataset.uuid)
+                log.debug("removing dataset: %s", dataset.uuid)
                 await endpoint.delete_dataset(dataset.uuid)
 
 asyncio.run(main())

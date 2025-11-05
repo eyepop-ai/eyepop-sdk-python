@@ -10,13 +10,16 @@ import aiohttp
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_types import ModelCreate, ModelExportFormat, ModelUpdate, ModelStatus, ModelAliasCreate
 from eyepop.eyepopsdk import EyePopSdk
+from eyepop.logging import configure_logging, get_logging_config
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_types import Pop, InferenceComponent, InferenceType
 from importlib import resources
 from examples.experimental import sample_assets
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
+# Configure logging: INFO level with DEBUG for requests
+config = get_logging_config(level='INFO')
+config['loggers']['eyepop.requests']['level'] = 'DEBUG'
+configure_logging(config=config)
 
 log = logging.getLogger(__name__)
 

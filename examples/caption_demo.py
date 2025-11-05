@@ -7,12 +7,15 @@ import sys
 from typing import Any
 
 from eyepop import EyePopSdk, Job
+from eyepop.logging import configure_logging, get_logging_config
 from eyepop.worker.worker_types import Pop, InferenceComponent, FullForward
 
 script_dir = os.path.dirname(__file__)
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.INFO)
+# Configure logging: INFO level with INFO for requests (instead of default WARNING)
+config = get_logging_config(level='INFO')
+config['loggers']['eyepop.requests']['level'] = 'INFO'
+configure_logging(config=config)
 
 log = logging.getLogger('eyepop.example')
 

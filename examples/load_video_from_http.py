@@ -4,13 +4,14 @@ import time
 from pathlib import Path
 
 from eyepop import EyePopSdk
+from eyepop.logging import configure_logging
 
 source_path = Path(__file__).resolve()
 source_dir = source_path.parent
 example_url_1 = 'https://demo-eyepop-videos.s3.amazonaws.com/test1_vlog.mp4'
 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
+# Configure logging at DEBUG level
+configure_logging(level='DEBUG')
 
 
 def load_video_from_url(url: str):

@@ -6,10 +6,13 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 from eyepop import EyePopSdk
+from eyepop.logging import configure_logging, get_logging_config
 from eyepop.worker.worker_types import Pop, InferenceComponent, InferenceType
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
+# Configure logging: INFO level with DEBUG for requests
+config = get_logging_config(level='INFO')
+config['loggers']['eyepop.requests']['level'] = 'DEBUG'
+configure_logging(config=config)
 
 example_image_path = sys.argv[1]
 
