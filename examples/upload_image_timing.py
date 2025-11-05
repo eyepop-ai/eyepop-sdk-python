@@ -5,10 +5,13 @@ import time
 
 from eyepop import EyePopSdk
 from eyepop import Job
+from eyepop.logging import configure_logging, get_logging_config
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.metrics').setLevel(level=logging.DEBUG)
+# Configure logging: INFO level with DEBUG for metrics
+config = get_logging_config(level='INFO')
+config['loggers']['eyepop.metrics']['level'] = 'DEBUG'
+configure_logging(config=config)
 
 
 def upload_photos_sequentially(file_paths: list[str]):

@@ -5,13 +5,14 @@ from pathlib import Path
 
 from eyepop import EyePopSdk
 from eyepop import Job
+from eyepop.logging import configure_logging
 
 source_path = Path(__file__).resolve()
 source_dir = source_path.parent
 example_url_1 = 'rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4'
 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
+# Configure logging at DEBUG level
+configure_logging(level='DEBUG')
 
 
 async def async_load_from_rtmp(url: str):

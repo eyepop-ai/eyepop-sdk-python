@@ -1,16 +1,17 @@
+import logging
 import os
-from logging import getLogger
 
 from matplotlib.axes import Axes
 
+from eyepop import __version__
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_syncify import SyncDataEndpoint
 from eyepop.visualize import EyePopPlot
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_syncify import SyncWorkerEndpoint
 
-log = getLogger(__name__)
-
+log = logging.getLogger('eyepop')
+log.debug(f"EyePop SDK v{__version__} initializing...")
 
 class EyePopSdk:
     """EyePop.ai Python SDK for Worker API."""

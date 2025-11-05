@@ -5,11 +5,12 @@ import time
 from pathlib import Path
 
 from eyepop import EyePopSdk
+from eyepop.logging import configure_logging
 
 example_file_1 = sys.argv[1]
 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
+# Configure logging at DEBUG level
+configure_logging(level='DEBUG')
 
 
 def upload_streaming(location: str):

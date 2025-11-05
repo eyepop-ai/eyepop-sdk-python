@@ -5,14 +5,15 @@ import time
 from pathlib import Path
 
 from eyepop import EyePopSdk
+from eyepop.logging import configure_logging
 from eyepop.worker.worker_types import VideoMode
 
 example_file_1 = sys.argv[1]
 
 is_streaming = len(sys.argv) > 2 and sys.argv[2].startswith("s")
 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
+# Configure logging at DEBUG level
+configure_logging(level='DEBUG')
 
 
 def upload_video(location: str):
