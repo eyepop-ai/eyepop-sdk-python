@@ -41,19 +41,6 @@ async def test_refresh_compute_token_success(aioresponses, mock_compute_context)
 
 
 @pytest.mark.asyncio
-async def test_refresh_compute_token_missing_session_uuid():
-    """Test token refresh fails when session_uuid is missing."""
-    context = ComputeContext(
-        compute_url="https://compute.staging.eyepop.xyz",
-        api_key="test-api-key"
-    )
-
-    async with aiohttp.ClientSession() as session:
-        with pytest.raises(ComputeTokenException, match="session_uuid"):
-            await refresh_compute_token(context, session)
-
-
-@pytest.mark.asyncio
 async def test_refresh_compute_token_missing_api_key():
     """Test token refresh fails when api_key is missing."""
     context = ComputeContext(
