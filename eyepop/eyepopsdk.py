@@ -1,7 +1,6 @@
 import os
 from logging import getLogger
 
-from deprecated import deprecated
 from matplotlib.axes import Axes
 
 from eyepop.data.data_endpoint import DataEndpoint

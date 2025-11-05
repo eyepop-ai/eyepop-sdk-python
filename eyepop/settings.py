@@ -1,8 +1,8 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix='EYEPOP_')
+    log_level: str = "INFO"
     session_timeout: int = 60
     session_interval: int = 2
     default_compute_url: str = "https://compute.eyepop.ai"
