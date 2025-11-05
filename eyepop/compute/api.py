@@ -146,9 +146,6 @@ async def fetch_new_compute_session(
 async def refresh_compute_token(
     compute_ctx: ComputeContext, client_session: aiohttp.ClientSession
 ) -> ComputeContext:
-    if not compute_ctx.session_uuid:
-        raise ComputeTokenException("Cannot refresh token: no session_uuid in compute_ctx")
-
     if not compute_ctx.api_key:
         raise ComputeTokenException(
             "Cannot refresh token: no api_key in compute_ctx",

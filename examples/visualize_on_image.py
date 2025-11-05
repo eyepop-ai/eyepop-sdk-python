@@ -6,12 +6,6 @@ import json
 import matplotlib.pyplot as plt
 
 from eyepop import EyePopSdk
-from eyepop.logging import configure_logging, get_logging_config
-
-# Configure logging: INFO level with DEBUG for requests
-config = get_logging_config(level='INFO')
-config['loggers']['eyepop.requests']['level'] = 'DEBUG'
-configure_logging(config=config)
 
 example_image_path = sys.argv[1]
 

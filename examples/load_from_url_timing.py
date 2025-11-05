@@ -5,13 +5,7 @@ import time
 
 from eyepop import EyePopSdk
 from eyepop import Job
-from eyepop.logging import configure_logging, get_logging_config
 from eyepop.worker.worker_endpoint import WorkerEndpoint
-
-# Configure logging: INFO level with DEBUG for metrics
-config = get_logging_config(level='INFO')
-config['loggers']['eyepop.metrics']['level'] = 'DEBUG'
-configure_logging(config=config)
 
 
 async def async_load_from_photos(endpoint: WorkerEndpoint, urls: list[str]):
