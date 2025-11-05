@@ -3,6 +3,7 @@ try:
 except ImportError:
     __version__ = "0.0.0+unknown"
 
+import eyepop.logging
 from eyepop import eyepopsdk
 from eyepop.worker import worker_jobs
 from eyepop import visualize

@@ -19,21 +19,9 @@ from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
 from eyepop.worker.worker_types import Pop, InferenceComponent, \
     ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams, ForwardComponent, TrackingComponent
-from eyepop.logging import configure_logging, get_logging_config
 from dotenv import load_dotenv
 
 load_dotenv()
-
-# Configure logging with custom format for eyepop.requests
-config = get_logging_config()
-config['formatters']['requests'] = {'format': '%(levelname)s - %(message)s'}
-config['handlers']['requests_handler'] = {
-    'class': 'logging.StreamHandler',
-    'formatter': 'requests',
-    'stream': 'ext://sys.stdout'
-}
-config['loggers']['eyepop.requests']['handlers'] = ['requests_handler']
-configure_logging(config=config)
 
 script_dir = os.path.dirname(__file__)
 log = logging.getLogger('eyepop.example')

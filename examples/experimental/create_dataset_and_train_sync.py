@@ -9,14 +9,8 @@ from eyepop.data.data_syncify import SyncDataEndpoint, SyncDataJob
 from eyepop.data.data_types import DatasetCreate, AssetImport, \
     AutoAnnotateParams, Dataset, Asset, ChangeEvent, ChangeType, DatasetUpdate, UserReview, \
     Model, ModelCreate, ModelStatus
-from eyepop.logging import configure_logging, get_logging_config
 
 from examples.experimental import sample_assets
-
-# Configure logging: INFO level with INFO for requests (instead of default WARNING)
-config = get_logging_config(level='INFO')
-config['loggers']['eyepop.requests']['level'] = 'INFO'
-configure_logging(config=config)
 
 log = logging.getLogger(__name__)
 
