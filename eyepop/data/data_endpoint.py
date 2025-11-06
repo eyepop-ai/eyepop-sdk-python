@@ -352,7 +352,7 @@ class DataEndpoint(Endpoint):
 
     async def upload_asset_job(
             self,
-            stream: BinaryIO,
+            stream: BinaryIO | Callable[[], Any],
             mime_type: str,
             dataset_uuid: str,
             dataset_version: int | None = None,

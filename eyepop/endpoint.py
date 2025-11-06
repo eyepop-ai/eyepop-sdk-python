@@ -224,6 +224,8 @@ class Endpoint(ClientSession):
                 headers['Content-Type'] = content_type
             try:
                 log_requests.debug('before %s %s', method, url)
+                if isinstance(data, Callable):
+                    data = data()
                 response = await self.client_session.request(method, url, headers=headers, data=data, timeout=timeout)
                 log_requests.debug('after %s %s', method, url)
                 return response
