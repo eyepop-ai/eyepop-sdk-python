@@ -57,7 +57,7 @@ doc = [
 example = [
     "pyqt5",
     "webui2",
-    "pybars3"
+    "pybars3",
 ]
 all = ["eyepop[test,doc,example]"]
 
