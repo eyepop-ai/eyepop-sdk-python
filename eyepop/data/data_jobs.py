@@ -1,6 +1,6 @@
 import json
 from asyncio import Queue
-from typing import Callable, BinaryIO
+from typing import Callable, BinaryIO, Any
 from urllib.parse import quote_plus
 
 import aiohttp
@@ -35,7 +35,7 @@ class DataJob(Job):
 class _UploadStreamJob(DataJob):
     def __init__(
             self,
-            stream: BinaryIO,
+            stream: BinaryIO | Callable[[], Any],
             mime_type: str,
             dataset_uuid: str,
             dataset_version: int | None,
