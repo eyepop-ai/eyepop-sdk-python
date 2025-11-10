@@ -12,9 +12,6 @@ from eyepop.data.data_types import DatasetCreate, AssetImport, \
 
 from examples.experimental import sample_assets
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.INFO)
-
 log = logging.getLogger(__name__)
 
 

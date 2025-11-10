@@ -1,0 +1,61 @@
+name: Upload test package to TestPyPI
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 3.0.1rc1, 3.0.1.dev1)'
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test-pypi-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+
+    - name: Set up Python
+      run: uv python install 3.12
+
+    - name: Install dependencies
+      run: uv sync --all-extras
+
+    - name: Build package
+      env:
+        SETUPTOOLS_SCM_PRETEND_VERSION: ${{ github.event.inputs.version }}
+      run: uvx --from build pyproject-build --installer uv
+
+    - name: Display version
+      run: |
+        uv pip install dist/*.whl
+        uv run python -c "import eyepop; print(f'Built version: {eyepop.__version__}')"
+
+    - name: Test package
+      run: uv run pytest
+
+    - name: Publish to TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        user: __token__
+        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        repository-url: https://test.pypi.org/legacy/.
+        verbose: true

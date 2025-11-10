@@ -8,9 +8,6 @@ from eyepop import EyePopSdk
 
 example_file_1 = sys.argv[1]
 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
-
 
 def upload_streaming(location: str):
     with EyePopSdk.workerEndpoint() as endpoint:

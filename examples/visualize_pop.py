@@ -8,9 +8,6 @@ from PIL import Image
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import Pop, InferenceComponent, InferenceType
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
-
 example_image_path = sys.argv[1]
 
 with EyePopSdk.workerEndpoint(pop_id='transient') as endpoint:
