@@ -11,9 +11,6 @@ from eyepop.worker.worker_types import Pop, InferenceComponent, FullForward
 
 script_dir = os.path.dirname(__file__)
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.INFO)
-
 log = logging.getLogger('eyepop.example')
 
 parser = argparse.ArgumentParser(

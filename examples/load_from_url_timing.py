@@ -7,10 +7,6 @@ from eyepop import EyePopSdk
 from eyepop import Job
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
-logging.getLogger('eyepop.metrics').setLevel(level=logging.DEBUG)
-
 
 async def async_load_from_photos(endpoint: WorkerEndpoint, urls: list[str]):
     '''

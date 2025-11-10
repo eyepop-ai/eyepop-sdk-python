@@ -7,9 +7,6 @@ from eyepop import EyePopSdk
 from eyepop import Job
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.metrics').setLevel(level=logging.DEBUG)
-
 
 def upload_photos_sequentially(file_paths: list[str]):
     '''

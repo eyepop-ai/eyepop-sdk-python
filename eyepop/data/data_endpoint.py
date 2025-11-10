@@ -21,6 +21,7 @@ from eyepop.data.data_types import ArgoWorkflowPhase, Dataset, DatasetCreate, Da
     ModelAliasUpdate, ModelExportFormat, QcAiHubExportParams, AssetUrlType, AssetInclusionMode, AnnotationInclusionMode, \
     ModelTrainingAuditRecord, ExportedUrlResponse, ModelTrainingEvent, ArtifactType, CreateWorkflowBody, CreateWorkflowResponse
 from eyepop.endpoint import Endpoint, log_requests
+from eyepop.settings import settings
 
 APPLICATION_JSON = "application/json"
 
@@ -54,11 +55,11 @@ class DataEndpoint(Endpoint):
     account_event_handlers: set[EventHandler]
     dataset_uuid_to_event_handlers: dict[str, set[EventHandler]]
 
-    def __init__(self, secret_key: str | None, access_token: str | None,
+    def __init__(self, secret_key: str | None, access_token: str | None, api_key: str | None,
                  eyepop_url: str, account_id: str, job_queue_length: int,
                  request_tracer_max_buffer: int, disable_ws: bool = True):
         super().__init__(
-            secret_key=secret_key, access_token=access_token, eyepop_url=eyepop_url,
+            secret_key=secret_key, access_token=access_token, eyepop_url=eyepop_url, api_key=api_key,
             job_queue_length=job_queue_length, request_tracer_max_buffer=request_tracer_max_buffer
         )
         self.account_uuid = account_id
@@ -85,6 +86,10 @@ class DataEndpoint(Endpoint):
         await self._ws_disconnect()
 
     async def _reconnect(self):
+        if self.compute_ctx is not None and self.data_config is None:
+            self.data_config = {
+                "base_url": settings.default_data_url
+            }
         if self.data_config is not None:
             return
         config_url = f'{self.eyepop_url}/data/config?account_uuid={self.account_uuid}'

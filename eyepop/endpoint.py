@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from types import TracebackType
-from typing import Optional, Type, Callable, Any
+from typing import TYPE_CHECKING, Any, Callable, Optional, Type
 
 import aiohttp
 
@@ -10,13 +10,15 @@ from eyepop.client_session import ClientSession
 from eyepop.metrics import MetricCollector
 from eyepop.periodic import Periodic
 from eyepop.request_tracer import RequestTracer
+from eyepop.settings import settings
 
 log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
 log_metrics = logging.getLogger('eyepop.metrics')
 
-SEND_TRACE_THRESHOLD_SECS = 10.0
 
+if TYPE_CHECKING:
+    from aiohttp import _RequestContextManager
 
 async def response_check_with_error_body(response: aiohttp.ClientResponse):
     if not response.ok:
@@ -28,22 +30,31 @@ async def response_check_with_error_body(response: aiohttp.ClientResponse):
 
 
 class Endpoint(ClientSession):
-    """
-    Abstract EyePop Endpoint.
-    """
+    """Abstract EyePop Endpoint."""
 
     def __init__(self, secret_key: str | None, access_token: str | None,
+                 api_key: str | None,
                  eyepop_url: str,
                  job_queue_length: int, request_tracer_max_buffer: int):
         self.secret_key = secret_key
+        self.api_key = api_key
         self.provided_access_token = access_token
         self.eyepop_url = eyepop_url
         self.token = None
         self.expire_token_time = None
+        self.compute_ctx = None
+
+        if api_key is not None:
+            from eyepop.compute import ComputeContext
+            self.compute_ctx = ComputeContext(
+                compute_url=eyepop_url,
+                api_key=api_key
+            )
+            log.debug("Compute API will be used, session will be fetched in _reconnect()")
 
         if request_tracer_max_buffer > 0:
             self.request_tracer = RequestTracer(max_events=request_tracer_max_buffer)
-            self.event_sender = Periodic(self.send_trace_recordings, SEND_TRACE_THRESHOLD_SECS / 2)
+            self.event_sender = Periodic(self.send_trace_recordings, settings.send_trace_threshold_secs / 2)
         else:
             self.request_tracer = None
             self.event_sender = None
@@ -51,6 +62,8 @@ class Endpoint(ClientSession):
         self.retry_handlers = dict()
         if self.secret_key is not None:
             self.retry_handlers[401] = self._retry_401
+        elif self.compute_ctx is not None:
+            self.retry_handlers[401] = self._retry_401_compute
         self.retry_handlers[500] = self._retry_50x
         self.retry_handlers[502] = self._retry_50x
         self.retry_handlers[503] = self._retry_50x
@@ -75,7 +88,6 @@ class Endpoint(ClientSession):
 
     def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
                  exc_tb: Optional[TracebackType], ) -> None:
-        # __exit__ should exist in pair with __enter__ but never executed
         pass  # pragma: no cover
 
     async def __aenter__(self) -> "Endpoint":
@@ -116,8 +128,9 @@ class Endpoint(ClientSession):
 
         if self.request_tracer and self.client_session:
             await self.event_sender.stop()
-            await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events', await self._authorization_header(),
-                                                     None)
+            if self.compute_ctx is None:
+                await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events', await self._authorization_header(),
+                                                         None)
 
         if self.client_session:
             try:
@@ -157,14 +170,30 @@ class Endpoint(ClientSession):
         }
 
     async def _reconnect(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     async def _disconnect(self, timeout: float | None = None):
-        raise NotImplemented
+        raise NotImplementedError
 
     async def __get_access_token(self) -> str | None:
         if self.provided_access_token is not None:
             return self.provided_access_token
+        if self.compute_ctx is not None:
+            if self.compute_ctx.m2m_access_token:
+                return self.compute_ctx.m2m_access_token
+            else:
+                log.debug("compute ctx m2m access token is None, fetching new token")
+                authenticate_url = f'{self.compute_ctx.compute_url}/v1/auth/authenticate'
+                api_auth_header = {
+                    'Authorization': f'Bearer {self.compute_ctx.api_key}',
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+                async with self.client_session.post(authenticate_url, headers=api_auth_header) as response:
+                    response_json = await response.json()
+                    self.compute_ctx.m2m_access_token = response_json['access_token']
+                    log.debug(f"compute ctx m2m access token: {self.compute_ctx.m2m_access_token}")
+                    return self.compute_ctx.m2m_access_token
         if self.secret_key is None:
             return None
         now = time.time()
@@ -198,6 +227,23 @@ class Endpoint(ClientSession):
             self.token = None
             self.expire_token_time = None
             return True
+
+    async def _retry_401_compute(self, status_code: int, failed_attempts: int) -> bool:
+        if failed_attempts > 1:
+            return False
+        else:
+            log_requests.debug('retry handler: after 401, about to refresh compute API token')
+            if self.compute_ctx is None:
+                log_requests.error('retry handler: compute_ctx is None, cannot refresh token')
+                return False
+            try:
+                from eyepop.compute.api import refresh_compute_token
+                self.compute_ctx = await refresh_compute_token(self.compute_ctx, self.client_session)
+                log_requests.debug('retry handler: compute token refreshed successfully')
+                return True
+            except Exception as e:
+                log_requests.error(f'retry handler: failed to refresh compute token: {e}')
+                return False
 
     async def _retry_50x(self, status_code: int, failed_attempts: int) -> bool:
         if failed_attempts > 3:
@@ -246,4 +292,4 @@ class Endpoint(ClientSession):
         if self.request_tracer is not None:
             await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events',
                                                      await self._authorization_header(),
-                                                     SEND_TRACE_THRESHOLD_SECS)
+                                                     settings.send_trace_threshold_secs)

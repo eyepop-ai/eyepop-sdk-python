@@ -9,9 +9,6 @@ from eyepop import EyePopSdk
 
 script_dir = os.path.dirname(__file__)
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
-
 example_image_path = sys.argv[1]
 
 with open(os.path.join(script_dir, 'viewer.html')) as file:

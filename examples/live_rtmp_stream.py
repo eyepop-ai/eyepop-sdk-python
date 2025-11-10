@@ -10,9 +10,6 @@ source_path = Path(__file__).resolve()
 source_dir = source_path.parent
 example_url_1 = 'rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4'
 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
-
 
 async def async_load_from_rtmp(url: str):
     async def on_ready(job: Job):

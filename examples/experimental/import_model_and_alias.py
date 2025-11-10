@@ -15,9 +15,6 @@ from eyepop.worker.worker_types import Pop, InferenceComponent, InferenceType
 from importlib import resources
 from examples.experimental import sample_assets
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logging.getLogger('eyepop.requests').setLevel(level=logging.DEBUG)
-
 log = logging.getLogger(__name__)
 
 LABELS_URL = 'https://s3.amazonaws.com/models.eyepop.ai/releases/yolov7/1.0.1/models/YOLOv7/COCO/Latest/COCO_Latest_labels.txt'

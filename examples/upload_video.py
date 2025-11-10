@@ -11,9 +11,6 @@ example_file_1 = sys.argv[1]
 
 is_streaming = len(sys.argv) > 2 and sys.argv[2].startswith("s")
 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger('eyepop').setLevel(level=logging.DEBUG)
-
 
 def upload_video(location: str):
     try:
