@@ -49,7 +49,7 @@ async def import_assets(endpoint: DataEndpoint, dataset: Dataset, assets_paths: 
                 dataset_uuid=dataset.uuid,
                 mime_type='application/octet-stream',
                 sync_transform=True,
-                timeout=aiohttp.ClientTimeout(total=10*60)
+                timeout=aiohttp.ClientTimeout(total=60*60)
             )
             jobs.append(on_ready(job, local_asset))
     await asyncio.gather(*jobs)
