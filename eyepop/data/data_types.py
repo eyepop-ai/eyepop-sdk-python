@@ -243,6 +243,11 @@ class Prediction(BaseModel):
         default=None,
         description="Temporal offset of prediction from start of the media (video or audio) in nano seconds."
     )
+    captured_at: int | None = Field(
+        default=None,
+        description="Real time when the media was captured as epoch timestamp in nano seconds. "
+                    "Only provided if source provides this timestamp e.g. as timestamp/x-ntp in RTSP."
+    )
     duration: int | None = Field(
         default=None,
         description="Temporal length of the chunk that was the source for this prediction in nano seconds."
