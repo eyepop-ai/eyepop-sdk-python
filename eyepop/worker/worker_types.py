@@ -118,6 +118,12 @@ class TrackingComponent(BaseComponent):
     measurementNoiseAspectRatio: float | None = None
     motionModel: MotionModel | None = None
     downweightLowConfidenceDetections: bool | None = None
+    classBeta: float | None = None
+    classGamma: float | None = None
+    classHysteresis: bool | None = None
+    classHysteresisHighThreshold: float | None = None
+    classHysteresisLowThreshold: float | None = None
+    classHysteresisMinHoldFrames: int | None = None
 
     model_config = ConfigDict(extra='forbid')
 
