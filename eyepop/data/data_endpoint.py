@@ -55,9 +55,9 @@ class DataEndpoint(Endpoint):
     account_event_handlers: set[EventHandler]
     dataset_uuid_to_event_handlers: dict[str, set[EventHandler]]
 
-    def __init__(self, secret_key: str | None, access_token: str | None, api_key: str | None,
+    def __init__(self, secret_key: str | None, access_token: str | None,
                  eyepop_url: str, account_id: str, job_queue_length: int,
-                 request_tracer_max_buffer: int, disable_ws: bool = True):
+                 request_tracer_max_buffer: int, disable_ws: bool = True, api_key: str | None = None):
         super().__init__(
             secret_key=secret_key, access_token=access_token, eyepop_url=eyepop_url, api_key=api_key,
             job_queue_length=job_queue_length, request_tracer_max_buffer=request_tracer_max_buffer
