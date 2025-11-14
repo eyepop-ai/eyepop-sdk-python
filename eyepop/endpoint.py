@@ -33,9 +33,8 @@ class Endpoint(ClientSession):
     """Abstract EyePop Endpoint."""
 
     def __init__(self, secret_key: str | None, access_token: str | None,
-                 api_key: str | None,
                  eyepop_url: str,
-                 job_queue_length: int, request_tracer_max_buffer: int):
+                 job_queue_length: int, request_tracer_max_buffer: int, api_key: str | None = None):
         self.secret_key = secret_key
         self.api_key = api_key
         self.provided_access_token = access_token
