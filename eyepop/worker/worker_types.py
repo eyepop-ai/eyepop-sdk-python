@@ -124,6 +124,7 @@ class TrackingComponent(BaseComponent):
     classHysteresisHighThreshold: float | None = None
     classHysteresisLowThreshold: float | None = None
     classHysteresisMinHoldFrames: int | None = None
+    includeClasses: list[str] | None = None
 
     model_config = ConfigDict(extra='forbid')
 
