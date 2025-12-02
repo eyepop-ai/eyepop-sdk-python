@@ -43,6 +43,7 @@ class TestArrowToFromAnnotation:
                 type=AnnotationType.ground_truth,
                 user_review=UserReview.unknown,
                 source="foo bar",
+                predictions=(source_prediction,),
                 annotation=source_prediction
             )
         ]

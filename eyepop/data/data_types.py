@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from typing import Any, Dict, List, Callable, Awaitable
+from typing import Any, Dict, List, Callable, Awaitable, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -277,6 +277,8 @@ class AssetAnnotation(BaseModel):
     auto_annotate: AutoAnnotate | None = None
     auto_annotate_params: AutoAnnotateParams | None = None
     source: str | None = None
+    predictions: Sequence[Prediction] | None = None
+    # depredated, use predictions instead of annotation
     annotation: Prediction | None = None
     uncertainty_score: float | None = None
     source_model_uuid: str | None = None
@@ -318,9 +320,23 @@ class Asset(BaseModel):
 
 AssetResponse = Asset
 
+class AssetAnnotationImport(BaseModel):
+    type: AnnotationType
+    auto_annotate: AutoAnnotate | None = None
+    auto_annotate_params: AutoAnnotateParams | None = None
+    predictions: Sequence[Prediction] | None = None
+    annotation: Prediction | None = None
+    source: str | None = None
+    user_review: UserReview | None = None
+    approved_threshold: float | None = None
+    source_model_uuid: str | None = None
 
 class AssetImport(BaseModel):
     url: str
+    mime_type: str | None = None
+    file_size_bytes: int | None = None
+    external_id: str | None = None
+    annotations: list[AssetAnnotationImport] | None = None
     ground_truth: Prediction | None = None
 
 

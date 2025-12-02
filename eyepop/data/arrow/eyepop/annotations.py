@@ -189,23 +189,26 @@ def eyepop_annotations_from_table(table: pa.Table) -> list[AssetAnnotationRespon
             else:
                 child_embeddings = eyepop_predicted_embeddings_from_pylist(embeddings[j])
 
+            prediction = Prediction(
+                source_width=1.0,
+                source_height=1.0,
+                timestamp=timestamps[j],
+                duration=durations[j],
+                offset=offsets[j],
+                offset_duration=offset_durations[j],
+                objects=child_objects,
+                classes=child_classes,
+                keyPoints=child_key_pointss,
+                texts=child_texts,
+                embeddings=child_embeddings,
+            )
+
             annotations.append(AssetAnnotationResponse(
                 type=types[j],
                 user_review=user_reviews[j],
                 source=sources[j],
-                annotation=Prediction(
-                    source_width=1.0,
-                    source_height=1.0,
-                    timestamp=timestamps[j],
-                    duration=durations[j],
-                    offset=offsets[j],
-                    offset_duration=offset_durations[j],
-                    objects=child_objects,
-                    classes=child_classes,
-                    keyPoints=child_key_pointss,
-                    texts=child_texts,
-                    embeddings=child_embeddings,
-                ),
+                predictions=(prediction,),
+                annotation=prediction,
                 source_model_uuid=source_model_uuid[j],
             ))
             i += 1
@@ -242,23 +245,25 @@ def eyepop_annotations_from_pylist(py_list: list[dict]) -> list[AssetAnnotationR
             child_embeddings = None
         else:
             child_embeddings = eyepop_predicted_embeddings_from_pylist(embeddings)
+        prediction = Prediction(
+            source_width=1.0,
+            source_height=1.0,
+            timestamp=o.get('timestamp', None),
+            duration=o.get('duration', None),
+            offset=o.get('offset', None),
+            offset_duration=o.get('offset_duration', None),
+            objects=child_objects,
+            classes=child_classes,
+            keyPoints=child_key_pointss,
+            texts=child_texts,
+            embeddings=child_embeddings
+        )
         annotations.append(AssetAnnotationResponse(
             type=o['type'],
             user_review=o['user_review'],
             source=o['source'],
-            annotation=Prediction(
-                source_width=1.0,
-                source_height=1.0,
-                timestamp=o.get('timestamp', None),
-                duration=o.get('duration', None),
-                offset=o.get('offset', None),
-                offset_duration=o.get('offset_duration', None),
-                objects=child_objects,
-                classes=child_classes,
-                keyPoints=child_key_pointss,
-                texts=child_texts,
-                embeddings=child_embeddings
-            ),
+            predictions=(prediction,),
+            annotation=prediction,
             source_model_uuid = o.get('source_model_uuid', None)
         ))
     return annotations

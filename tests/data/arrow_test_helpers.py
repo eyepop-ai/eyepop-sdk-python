@@ -34,12 +34,14 @@ def create_test_table(schema: pa.Schema = ASSET_SCHEMA_LATEST, test_file_name: s
                     type=AnnotationType.ground_truth,
                     user_review=UserReview.unknown,
                     source="foo bar",
+                    predictions=(source_prediction,),
                     annotation=source_prediction
                 ),
                 AssetAnnotationResponse(
                     type=AnnotationType.auto,
                     user_review=UserReview.unknown,
                     source="magic",
+                    predictions=(source_prediction,),
                     annotation=source_prediction,
                     source_model_uuid="magic uuid"
                 )

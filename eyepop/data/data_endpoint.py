@@ -1,7 +1,7 @@
 import asyncio
 import json
 from asyncio import StreamReader
-from typing import Callable, BinaryIO, Any, AsyncIterable
+from typing import Callable, BinaryIO, Any, AsyncIterable, Sequence
 from urllib.parse import urljoin, quote_plus
 
 import aiohttp
@@ -445,14 +445,16 @@ class DataEndpoint(Endpoint):
 
     async def update_asset_ground_truth(self, asset_uuid: str, dataset_uuid: str | None = None,
                                         dataset_version: int | None = None,
-                                        ground_truth: Prediction | None = None) -> None:
+                                        ground_truth: Sequence[Prediction] | None = None) -> None:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         patch_url = f'{await self.data_base_url()}/assets/{asset_uuid}/ground_truth?{dataset_query}{version_query}'
         async with await self.request_with_retry("PATCH", patch_url,
                                                  content_type=APPLICATION_JSON if ground_truth else None,
-                                                 data=ground_truth.model_dump_json(
-                                                     exclude_unset=True, exclude_none=True
+                                                 data=TypeAdapter(Sequence[Prediction]).dump_json(
+                                                     ground_truth,
+                                                     exclude_unset=True,
+                                                     exclude_none=True,
                                                  ) if ground_truth else None):
             return
 
