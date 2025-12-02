@@ -1,4 +1,4 @@
-from typing import Callable, Any
+from typing import Any, Callable
 
 import aiohttp
 
@@ -8,7 +8,7 @@ class WorkerClientSession:
             self, url_path_and_query: str,
             accept: str | None = None,
             timeout: aiohttp.ClientTimeout | None = None
-    ) -> "_RequestContextManager":
+    ) -> aiohttp.client._RequestContextManager:
         pass
 
     async def pipeline_post(
@@ -17,7 +17,7 @@ class WorkerClientSession:
             open_data: Callable = None,
             content_type: str | None = None,
             timeout: aiohttp.ClientTimeout | None = None
-    ) -> "_RequestContextManager":
+    ) -> aiohttp.client._RequestContextManager:
         pass
 
     async def pipeline_patch(
@@ -26,11 +26,11 @@ class WorkerClientSession:
             data: Any = None,
             content_type: str | None = None,
             timeout: aiohttp.ClientTimeout | None = None
-    ) -> "_RequestContextManager":
+    ) -> aiohttp.client._RequestContextManager:
         pass
 
     async def pipeline_delete(
             self, url_path_and_query: str,
             timeout: aiohttp.ClientTimeout | None = None
-    ) -> "_RequestContextManager":
+    ) -> aiohttp.client._RequestContextManager:
         pass

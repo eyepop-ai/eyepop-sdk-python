@@ -10,16 +10,25 @@ from argparse import Namespace
 from io import BytesIO
 from typing import Any
 
-from webui import webui
-from pybars import Compiler
-
+from dotenv import load_dotenv
 from PIL import Image
+from pybars import Compiler
+from webui import webui
 
 from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
-from eyepop.worker.worker_types import Pop, InferenceComponent, \
-    ContourFinderComponent, ContourType, CropForward, FullForward, ComponentParams, ForwardComponent, TrackingComponent
-from dotenv import load_dotenv
+from eyepop.worker.worker_types import (
+    ComponentParams,
+    ContourFinderComponent,
+    ContourType,
+    CropForward,
+    ForwardComponent,
+    FullForward,
+    InferenceComponent,
+    MotionModel,
+    Pop,
+    TrackingComponent,
+)
 
 load_dotenv()
 
@@ -409,7 +418,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
     visualize_path = None
     example_image_src = None
     if args.dump:
-        print(pop.model_dump_json(indent=2, exclude_unset=True))
+        print(pop.model_dump_json(indent=2))
     async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True) as endpoint:
         await endpoint.set_pop(pop)
         if args.local_path:

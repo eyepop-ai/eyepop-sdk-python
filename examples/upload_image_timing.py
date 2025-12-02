@@ -1,17 +1,14 @@
-import sys
 import asyncio
 import logging
+import sys
 import time
 
-from eyepop import EyePopSdk
-from eyepop import Job
+from eyepop import EyePopSdk, Job
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 
 
 def upload_photos_sequentially(file_paths: list[str]):
-    '''
-    Sequential processing of batch uploads - simple but slowest option.
-    '''
+    """Sequential processing of batch uploads - simple but slowest option."""
     with EyePopSdk.workerEndpoint() as endpoint:
         for file_path in file_paths:
             job = endpoint.upload(file_path)
@@ -20,9 +17,7 @@ def upload_photos_sequentially(file_paths: list[str]):
 
 
 def upload_photos(file_paths: list[str]):
-    '''
-    Parallel processing of batch uploads - fast but limited by memory
-    '''
+    """Parallel processing of batch uploads - fast but limited by memory."""
     with EyePopSdk.workerEndpoint() as endpoint:
         jobs = []
         for file_path in file_paths:
@@ -33,9 +28,7 @@ def upload_photos(file_paths: list[str]):
 
 
 def upload_photos_threaded(file_paths: list[str]):
-    '''
-    Parallel processing in separate threads - fast but limited by parallelism doesn't adjust to network response times
-    '''
+    """Parallel processing in separate threads - fast but limited by parallelism doesn't adjust to network response times."""
     import concurrent.futures
 
     def run_upload(e: WorkerEndpoint, file_path: str):
@@ -56,9 +49,7 @@ def upload_photos_threaded(file_paths: list[str]):
 
 
 async def async_upload_photos(file_paths: list[str]):
-    '''
-    Async processing of batch uploads - fast and memory efficient
-    '''
+    """Async processing of batch uploads - fast and memory efficient."""
     sem = asyncio.Semaphore(0)
 
     async def on_ready(job: Job):
@@ -76,7 +67,7 @@ async def async_upload_photos(file_paths: list[str]):
         for file_path in file_paths:
             await endpoint.upload(file_path, on_ready=on_ready)
             n += 1
-        for i in range(n):
+        for _ in range(n):
             await sem.acquire()
 
 

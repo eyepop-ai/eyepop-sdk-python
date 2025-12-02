@@ -1,6 +1,6 @@
 import asyncio
-from asyncio import Future, sleep
-from typing import Callable, Awaitable
+from asyncio import Future
+from typing import Awaitable, Callable
 
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_types import ChangeEvent
@@ -18,11 +18,13 @@ class WaitFor:
         self.future = None
 
     async def __aenter__(self) -> "WaitFor":
+        """Async enter this context manager."""
         self.future = asyncio.get_running_loop().create_future()
         await self.endpoint.add_dataset_event_handler(self.dataset_uuid, self._on_change_event)
         return self
 
     async def __aexit__(self, exc_type, exc_value, traceback):
+        """Async exit this context manager."""
         try:
             await self.future
         finally:

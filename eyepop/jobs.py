@@ -1,10 +1,9 @@
 import asyncio
 from asyncio import Queue
 from enum import Enum
-from typing import Callable, Any
+from typing import Any, Callable
 
 from eyepop.client_session import ClientSession
-from eyepop.worker.worker_client_session import WorkerClientSession
 
 
 class JobState(Enum):
@@ -16,6 +15,7 @@ class JobState(Enum):
     DRAINED = 6
 
     def __repr__(self):
+        """String representation of the enum."""
         return self._name_
 
 
@@ -43,9 +43,7 @@ class JobStateCallback:
 
 
 class Job:
-    """
-    Abstract Job submitted to an EyePop.ai Endpoint.
-    """
+    """Abstract Job submitted to an EyePop.ai Endpoint."""
 
     def __init__(self,
                  session: ClientSession,
@@ -62,6 +60,7 @@ class Job:
         self._callback.created(self)
 
     def __del__(self):
+        """Destructor."""
         self._callback.finalized(self)
 
     async def push_result(self, result) -> None:

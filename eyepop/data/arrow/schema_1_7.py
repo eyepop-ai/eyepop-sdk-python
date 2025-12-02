@@ -4,7 +4,7 @@ from eyepop.data.data_types import MIME_TYPE_APACHE_ARROW_FILE
 
 """ Arrow schema for Asset export/import form Data API. """
 
-MIME_TYPE_APACHE_ARROW_FILE_VERSIONED = f"{MIME_TYPE_APACHE_ARROW_FILE};version=1.6"
+MIME_TYPE_APACHE_ARROW_FILE_VERSIONED = f"{MIME_TYPE_APACHE_ARROW_FILE};version=1.7"
 
 
 # BEGIN: Extension since v1.3
@@ -92,6 +92,24 @@ _class_fields = [
 CLASS_STRUCT = pa.struct(_class_fields)
 CLASS_SCHEMA = pa.schema(_class_fields)
 
+# BEGIN: Extension since v1.7
+_prediction_fields = [
+    pa.field(name="objects", type=pa.list_(OBJECT_STRUCT)),
+    pa.field(name="classes", type=pa.list_(CLASS_STRUCT)),
+    pa.field(name="keyPoints", type=pa.list_(KEY_POINTS_STRUCT)),
+    pa.field(name="texts", type=pa.list_(TEXT_STRUCT)),
+    pa.field(name="embeddings", type=pa.list_(EMBEDDING_STRUCT)),
+    pa.field(name="timestamp", type=pa.int64()),
+    pa.field(name="duration", type=pa.int64()),
+    pa.field(name="offset", type=pa.int64()),
+    pa.field(name="offset_duration", type=pa.int64()),
+]
+
+PREDICTION_STRUCT = pa.struct(_prediction_fields)
+PREDICTION_SCHEMA = pa.schema(_prediction_fields)
+# END: Extension since v1.7
+
+
 _annotation_fields = [
     # from eyepop.data.data_types import AnnotationType
     pa.field(name="type", type=pa.dictionary(pa.int8(), pa.string())),
@@ -103,6 +121,9 @@ _annotation_fields = [
     pa.field(name="classes", type=pa.list_(CLASS_STRUCT)),
     # read/write, optional, the model that produced this annotation
     pa.field(name="source_model_uuid", type=pa.dictionary(pa.int8(), pa.string())),
+
+    # BEGIN: deprecated since 1.7
+
     # BEGIN: Extension since v1.1
     pa.field(name="keyPoints", type=pa.list_(KEY_POINTS_STRUCT)),
     # END: Extension since v1.1
@@ -118,6 +139,12 @@ _annotation_fields = [
     pa.field(name="offset", type=pa.int64()),
     pa.field(name="offset_duration", type=pa.int64()),
     # END: Extension since v1.4
+
+    # END: deprecated since 1.7
+
+    # BEGIN: Extension since v1.7
+    pa.field(name="predictions", type=pa.list_(PREDICTION_STRUCT)),
+    # END: Extension since v1.7
 ]
 
 ANNOTATION_STRUCT = pa.struct(_annotation_fields)

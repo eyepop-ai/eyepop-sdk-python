@@ -1,9 +1,8 @@
-import logging
-import sys
-from PIL import Image
 import json
+import sys
 
 import matplotlib.pyplot as plt
+from PIL import Image
 
 from eyepop import EyePopSdk
 
