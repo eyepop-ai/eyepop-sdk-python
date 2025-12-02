@@ -1,7 +1,9 @@
 import json
+import unittest
 from importlib import resources
 
-import pytest
+from parameterized import parameterized
+
 from eyepop.data.data_types import Prediction
 
 from eyepop.data.arrow.eyepop.predictions import table_from_eyepop_predicted_objects, \
@@ -9,8 +11,8 @@ from eyepop.data.arrow.eyepop.predictions import table_from_eyepop_predicted_obj
 from . import files
 
 
-class TestArrowToFromPrediction:
-    @pytest.mark.parametrize("file_name, n", [
+class TestArrowToFromPrediction(unittest.TestCase):
+    @parameterized.expand([
         ("prediction_0_bbox.json", 1),
         ("prediction_1_bbox.json", 2),
         ("prediction_2_bbox.json", 3),
@@ -35,7 +37,7 @@ class TestArrowToFromPrediction:
         if source_prediction.objects != target_predicted_objects:
             assert False
 
-    @pytest.mark.parametrize("file_name, n", [
+    @parameterized.expand([
         ("prediction_3_classes.json", 4),
     ])
     def test_prediction_classes_from_file(self, file_name, n):

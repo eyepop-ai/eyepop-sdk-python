@@ -1,7 +1,7 @@
 import json
 from importlib import resources
+from unittest import TestCase
 
-import pytest
 from eyepop.data.data_types import Prediction, AnnotationType, AssetAnnotationResponse, UserReview
 
 from eyepop.data.arrow.eyepop.assets import eyepop_assets_from_table, table_from_eyepop_assets
@@ -15,12 +15,13 @@ from eyepop.data.arrow.schema_1_6 import ASSET_SCHEMA as ASSET_SCHEMA_1_6
 
 from eyepop.data.arrow.eyepop.annotations import table_from_eyepop_annotations, eyepop_annotations_from_table
 from eyepop.data.data_normalize import normalize_eyepop_annotations, normalize_eyepop_prediction
+from parameterized import parameterized
 from . import files
 from .arrow_test_helpers import create_test_table
 
 
-class TestArrowToFromAnnotation:
-    @pytest.mark.parametrize("file_name, n", [
+class TestArrowToFromAnnotation(TestCase):
+    @parameterized.expand([
         ("prediction_0_bbox.json", 1),
         ("prediction_1_bbox.json", 2),
         ("prediction_2_bbox.json", 3),

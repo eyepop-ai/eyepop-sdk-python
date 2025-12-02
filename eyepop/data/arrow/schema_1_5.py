@@ -4,7 +4,7 @@ from eyepop.data.data_types import MIME_TYPE_APACHE_ARROW_FILE
 
 """ Arrow schema for Asset export/import form Data API. """
 
-MIME_TYPE_APACHE_ARROW_FILE_VERSIONED = f"{MIME_TYPE_APACHE_ARROW_FILE};version=1.4"
+MIME_TYPE_APACHE_ARROW_FILE_VERSIONED = f"{MIME_TYPE_APACHE_ARROW_FILE};version=1.5"
 
 
 # BEGIN: Extension since v1.3
