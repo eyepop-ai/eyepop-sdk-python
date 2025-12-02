@@ -1,8 +1,11 @@
-import click
-import os
 import json
+import os
+
+import click
+
 from eyepop import EyePopSdk
-from eyepop.data.data_types import CreateWorkflowBody, ArgoWorkflowPhase
+from eyepop.data.data_types import ArgoWorkflowPhase, CreateWorkflowBody
+
 
 @click.group(name="workflow", help="Manage and inspect workflows. Use these commands to start, list, and get workflow details. Set EYEPOP_SECRET_KEY to your secret key")
 def workflow():

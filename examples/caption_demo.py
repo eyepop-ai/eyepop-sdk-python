@@ -4,10 +4,9 @@ import json
 import logging
 import os
 import sys
-from typing import Any
 
 from eyepop import EyePopSdk, Job
-from eyepop.worker.worker_types import Pop, InferenceComponent, FullForward
+from eyepop.worker.worker_types import FullForward, InferenceComponent, Pop
 
 script_dir = os.path.dirname(__file__)
 

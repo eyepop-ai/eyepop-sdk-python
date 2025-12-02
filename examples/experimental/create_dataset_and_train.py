@@ -3,15 +3,25 @@ import json
 import logging
 from importlib import resources
 
+from examples.experimental import sample_assets
 from examples.experimental.wait_for import WaitFor
 from eyepop import EyePopSdk
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_jobs import DataJob
-from eyepop.data.data_types import DatasetCreate, AssetImport, \
-    AutoAnnotateParams, Dataset, Asset, ChangeEvent, ChangeType, DatasetUpdate, UserReview, \
-    Model, ModelCreate, ModelStatus
-
-from examples.experimental import sample_assets
+from eyepop.data.data_types import (
+    Asset,
+    AssetImport,
+    AutoAnnotateParams,
+    ChangeEvent,
+    ChangeType,
+    Dataset,
+    DatasetCreate,
+    DatasetUpdate,
+    Model,
+    ModelCreate,
+    ModelStatus,
+    UserReview,
+)
 
 log = logging.getLogger(__name__)
 

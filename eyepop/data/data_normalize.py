@@ -1,4 +1,10 @@
-from eyepop.data.data_types import AssetAnnotationResponse, Prediction, PredictedObject, PredictedClass, PredictedEmbedding
+from eyepop.data.data_types import (
+    AssetAnnotationResponse,
+    PredictedClass,
+    PredictedEmbedding,
+    PredictedObject,
+    Prediction,
+)
 
 # Confidence and coordinates are represented as float16 in the arrow format but Python lacks support for 2-byte floats.
 # To avoid "changing" 4-bytes floats when converted back and forth, we will always round to these precisions.

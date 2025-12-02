@@ -1,8 +1,6 @@
-import asyncio
 import logging
 import sys
 import time
-from pathlib import Path
 
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import VideoMode

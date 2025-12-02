@@ -1,14 +1,21 @@
 
 import pyarrow as pa
-from eyepop.data.data_types import AssetAnnotationResponse, Prediction
 
-from eyepop.data.arrow.eyepop.predictions import table_from_eyepop_predicted_objects, \
-    eyepop_predicted_objects_from_pylist, \
-    eyepop_predicted_classes_from_pylist, table_from_eyepop_predicted_classes, table_from_eyepop_predicted_key_pointss, \
-    eyepop_predicted_key_pointss_from_pylist, table_from_eyepop_predicted_texts, eyepop_predicted_texts_from_pylist, \
-    eyepop_predicted_embeddings_from_pylist, table_from_eyepop_predicted_embeddings
+from eyepop.data.arrow.eyepop.predictions import (
+    eyepop_predicted_classes_from_pylist,
+    eyepop_predicted_embeddings_from_pylist,
+    eyepop_predicted_key_pointss_from_pylist,
+    eyepop_predicted_objects_from_pylist,
+    eyepop_predicted_texts_from_pylist,
+    table_from_eyepop_predicted_classes,
+    table_from_eyepop_predicted_embeddings,
+    table_from_eyepop_predicted_key_pointss,
+    table_from_eyepop_predicted_objects,
+    table_from_eyepop_predicted_texts,
+)
 from eyepop.data.arrow.schema import ANNOTATION_SCHEMA
 from eyepop.data.arrow.schema_version_conversion import convert
+from eyepop.data.data_types import AssetAnnotationResponse, Prediction
 
 
 def table_from_eyepop_annotations(annotations: list[AssetAnnotationResponse], schema: pa.Schema = ANNOTATION_SCHEMA) -> pa.Table:

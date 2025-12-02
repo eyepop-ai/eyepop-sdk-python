@@ -1,6 +1,5 @@
-from typing import Callable, Any
-
 from threading import Condition
+from typing import Any, Callable
 
 from eyepop.data.data_syncify import SyncDataEndpoint
 from eyepop.data.data_types import ChangeEvent

@@ -1,12 +1,15 @@
 from typing import cast
 
 import pyarrow as pa
-from eyepop.data.data_types import Asset
 
-from eyepop.data.arrow.eyepop.annotations import table_from_eyepop_annotations, eyepop_annotations_from_pylist
+from eyepop.data.arrow.eyepop.annotations import (
+    eyepop_annotations_from_pylist,
+    table_from_eyepop_annotations,
+)
 from eyepop.data.arrow.schema import ASSET_SCHEMA
 from eyepop.data.arrow.schema_version_conversion import convert
 from eyepop.data.data_normalize import CONFIDENCE_N_DIGITS
+from eyepop.data.data_types import Asset
 
 UNKNOWN_MIME_TYPE = "application/octet-stream"
 

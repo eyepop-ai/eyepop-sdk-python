@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from typing import Any, Dict, List, Callable, Awaitable, Sequence
+from typing import Any, Awaitable, Callable, Dict, List, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -571,36 +571,36 @@ class ModelTrainingStatusCode(enum.Enum):
 
 
 class ModelTrainingEvent(BaseModel):
-    """ Model training event.
+    """Model training event.
 
-        This structure is used for the model training process to communicate the status events.
-        The model training workflow SHOULD send at least two updates:
+    This structure is used for the model training process to communicate the status events.
+    The model training workflow SHOULD send at least two updates:
 
-        1. At the beginning of each stage, all attributes except `stage` should be none. The actual
-           start time of the stage will be recorded automatically based on the clock time of the receiver.
+    1. At the beginning of each stage, all attributes except `stage` should be none. The actual
+       start time of the stage will be recorded automatically based on the clock time of the receiver.
 
-        2. At the end of each stage, with the same `stage` value and a `status_code`. Any `status_code`
-           other than 200 will be interpreted as failure. In this case, the sender should send a huma
-           readable, `status_message` for developers to debug the root cause.
+    2. At the end of each stage, with the same `stage` value and a `status_code`. Any `status_code`
+       other than 200 will be interpreted as failure. In this case, the sender should send a huma
+       readable, `status_message` for developers to debug the root cause.
 
-        The model training workflow MAY send regular intermediary updates if it can estimate the remaining
-        time it will take to complete the current stage. It does so by passing `elapsed_units`,
-        `remaining_units_min` as lower bound and optionally `remaining_units_max` as upper bound. The units
-        used can be freely chosen by the sender, for example it can be `elapsed seconds`, `used GPU cycles`,
-        `epochs`, `batches` or any other unit that is appropriate to express the remaining "work" left,
-        relative to the "work" already spend.
+    The model training workflow MAY send regular intermediary updates if it can estimate the remaining
+    time it will take to complete the current stage. It does so by passing `elapsed_units`,
+    `remaining_units_min` as lower bound and optionally `remaining_units_max` as upper bound. The units
+    used can be freely chosen by the sender, for example it can be `elapsed seconds`, `used GPU cycles`,
+    `epochs`, `batches` or any other unit that is appropriate to express the remaining "work" left,
+    relative to the "work" already spend.
 
-        The model training workflow MAY include:
-        * `samples` a list of tuples (`asset_uuid`, `prediction`) for a small number of representative
-           asset. The prediction are meant to illustrate the current performance of the model in training
-           on a set of representative assets.
-        * `cpr` A graph described as a list of tuples (`confidence`, `precision`, `recall`) to illustrate
-          the current model performance against the validation partition.
-        * OR `cpr_transposed` a convenience attribute to send the same data just transposed.
-        * `job_identifier` to set an external job identifier if not set already, this will be ignored
-          if the external job identifier is already set.
-        * `work_storage_url` to set the work storage url if not set already, this will be ignored
-          if the work storage url is already set.
+    The model training workflow MAY include:
+    * `samples` a list of tuples (`asset_uuid`, `prediction`) for a small number of representative
+       asset. The prediction are meant to illustrate the current performance of the model in training
+       on a set of representative assets.
+    * `cpr` A graph described as a list of tuples (`confidence`, `precision`, `recall`) to illustrate
+      the current model performance against the validation partition.
+    * OR `cpr_transposed` a convenience attribute to send the same data just transposed.
+    * `job_identifier` to set an external job identifier if not set already, this will be ignored
+      if the external job identifier is already set.
+    * `work_storage_url` to set the work storage url if not set already, this will be ignored
+      if the work storage url is already set.
 
     """
     stage: ModelTrainingStage
@@ -617,7 +617,7 @@ class ModelTrainingEvent(BaseModel):
 
 
 class ModelTrainingAuditRecord(BaseModel):
-    """ Internal audit record for model trainings.
+    """Internal audit record for model trainings.
     """
     model_uuid: str
     model: ModelResponse

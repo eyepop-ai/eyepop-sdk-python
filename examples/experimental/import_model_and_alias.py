@@ -1,19 +1,23 @@
 import asyncio
 import json
 import logging
-from io import StringIO
-from typing import BinaryIO
+from importlib import resources
 from uuid import uuid4
 
 import aiohttp
 
+from examples.experimental import sample_assets
 from eyepop.data.data_endpoint import DataEndpoint
-from eyepop.data.data_types import ModelCreate, ModelExportFormat, ModelUpdate, ModelStatus, ModelAliasCreate
+from eyepop.data.data_types import (
+    ModelAliasCreate,
+    ModelCreate,
+    ModelExportFormat,
+    ModelStatus,
+    ModelUpdate,
+)
 from eyepop.eyepopsdk import EyePopSdk
 from eyepop.worker.worker_endpoint import WorkerEndpoint
-from eyepop.worker.worker_types import Pop, InferenceComponent, InferenceType
-from importlib import resources
-from examples.experimental import sample_assets
+from eyepop.worker.worker_types import InferenceComponent, InferenceType, Pop
 
 log = logging.getLogger(__name__)
 

@@ -4,6 +4,7 @@ from io import BytesIO
 import pyarrow as pa
 from pyarrow.ipc import IpcWriteOptions
 
+
 class RestartAbleArrowStream(typing.AsyncIterable[bytes]):
     table: pa.Table
     schema: pa.Schema

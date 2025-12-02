@@ -1,16 +1,27 @@
-import math
-from unicodedata import category
 
 import numpy
 import numpy as np
 import pyarrow as pa
-from eyepop.data.data_types import PredictedObject, UserReview, PredictedClass, PredictedKeyPoint, PredictedKeyPoints, \
-    PredictedText, PredictedEmbedding
 from pyarrow import Schema
 
-from eyepop.data.arrow.schema import OBJECT_SCHEMA, CLASS_SCHEMA, KEY_POINT_SCHEMA, KEY_POINTS_SCHEMA, \
-    TEXT_SCHEMA, EMBEDDING_SCHEMA
+from eyepop.data.arrow.schema import (
+    CLASS_SCHEMA,
+    EMBEDDING_SCHEMA,
+    KEY_POINT_SCHEMA,
+    KEY_POINTS_SCHEMA,
+    OBJECT_SCHEMA,
+    TEXT_SCHEMA,
+)
 from eyepop.data.data_normalize import CONFIDENCE_N_DIGITS, COORDINATE_N_DIGITS
+from eyepop.data.data_types import (
+    PredictedClass,
+    PredictedEmbedding,
+    PredictedKeyPoint,
+    PredictedKeyPoints,
+    PredictedObject,
+    PredictedText,
+    UserReview,
+)
 
 
 def _round_float_like(float_like: any, digits: int, factor: float = 1.0) -> float | None:

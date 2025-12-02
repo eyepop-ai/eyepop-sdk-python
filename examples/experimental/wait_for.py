@@ -1,6 +1,6 @@
 import asyncio
-from asyncio import Future, sleep
-from typing import Callable, Awaitable
+from asyncio import Future
+from typing import Awaitable, Callable
 
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_types import ChangeEvent

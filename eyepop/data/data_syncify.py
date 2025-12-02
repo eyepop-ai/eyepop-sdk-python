@@ -1,16 +1,41 @@
 import asyncio
 import typing
-from typing import BinaryIO, Callable, Optional, List
+from typing import BinaryIO, Callable, List, Optional
 
 import aiohttp
 
 from eyepop.data.data_jobs import DataJob
-from eyepop.data.data_types import AssetImport, Dataset, DatasetCreate, DatasetUpdate, Asset, \
-    Prediction, AutoAnnotate, UserReview, TranscodeMode, Model, ModelCreate, ModelUpdate, ModelTrainingProgress, \
-    ChangeEvent, EventHandler, ModelAlias, ModelAliasCreate, ModelAliasUpdate, ModelExportFormat, QcAiHubExportParams, \
-    ModelTrainingEvent, ModelTrainingAuditRecord, AssetUrlType, AssetInclusionMode, AnnotationInclusionMode, \
-    ExportedUrlResponse, ArtifactType, CreateWorkflowBody
-from eyepop.syncify import run_coro_thread_save, SyncEndpoint, submit_coro_thread_save
+from eyepop.data.data_types import (
+    AnnotationInclusionMode,
+    ArtifactType,
+    Asset,
+    AssetImport,
+    AssetInclusionMode,
+    AssetUrlType,
+    AutoAnnotate,
+    ChangeEvent,
+    CreateWorkflowBody,
+    Dataset,
+    DatasetCreate,
+    DatasetUpdate,
+    EventHandler,
+    ExportedUrlResponse,
+    Model,
+    ModelAlias,
+    ModelAliasCreate,
+    ModelAliasUpdate,
+    ModelCreate,
+    ModelExportFormat,
+    ModelTrainingAuditRecord,
+    ModelTrainingEvent,
+    ModelTrainingProgress,
+    ModelUpdate,
+    Prediction,
+    QcAiHubExportParams,
+    TranscodeMode,
+    UserReview,
+)
+from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 
 SyncEventHandler = Callable[[ChangeEvent], None]
 

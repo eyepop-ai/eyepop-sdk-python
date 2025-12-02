@@ -1,5 +1,3 @@
-from pyarrow._compute import CastOptions
-import pyarrow as pa
 
 from . import schema_1_6 as schema_latest
 

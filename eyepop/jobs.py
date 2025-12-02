@@ -1,10 +1,9 @@
 import asyncio
 from asyncio import Queue
 from enum import Enum
-from typing import Callable, Any
+from typing import Any, Callable
 
 from eyepop.client_session import ClientSession
-from eyepop.worker.worker_client_session import WorkerClientSession
 
 
 class JobState(Enum):
@@ -43,8 +42,7 @@ class JobStateCallback:
 
 
 class Job:
-    """
-    Abstract Job submitted to an EyePop.ai Endpoint.
+    """Abstract Job submitted to an EyePop.ai Endpoint.
     """
 
     def __init__(self,

@@ -1,7 +1,7 @@
 import json
-import logging
-import sys
 import os
+import sys
+
 from pybars import Compiler
 from webui import webui
 

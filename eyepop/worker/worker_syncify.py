@@ -1,9 +1,9 @@
 import logging
 import typing
 
-from eyepop.syncify import run_coro_thread_save, SyncEndpoint
+from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 from eyepop.worker.worker_jobs import WorkerJob
-from eyepop.worker.worker_types import Pop, VideoMode, ComponentParams
+from eyepop.worker.worker_types import ComponentParams, Pop, VideoMode
 
 if typing.TYPE_CHECKING:
     from eyepop.worker.worker_endpoint import WorkerEndpoint
