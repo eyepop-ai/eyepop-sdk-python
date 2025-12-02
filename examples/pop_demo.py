@@ -27,6 +27,37 @@ script_dir = os.path.dirname(__file__)
 log = logging.getLogger('eyepop.example')
 
 pop_examples = {
+    "techiosoft":
+
+    Pop(components=[
+        InferenceComponent(
+            modelUuid='069168cf06e7766180004f4c01d2aa03',
+            confidenceThreshold=0.7,
+            forward=CropForward(
+                targets=[TrackingComponent(
+                    iouThreshold=0.1,
+                    simThreshold=0.1,
+                    agnostic=True,
+                    maxAgeSeconds=5,
+                    measurementNoiseCy=400,
+                    measurementNoiseCx=250,
+                    measurementNoiseArea=1e-1,
+                    measurementNoiseAspectRatio=10,
+                    processNoisePosition=20,
+                    processNoiseVelocity=15,
+                    processNoiseAcceleration=1e-2,
+                    processNoiseScale=1e-2,
+                    processNoiseAspectRatio=1e-4,
+                    classBeta=0.9,
+                    classHysteresis=True,
+                    classHysteresisHighThreshold=0.8,
+                    classHysteresisLowThreshold=0.5,
+                    classHysteresisMinHoldFrames=30,
+                    classHysteresisAllowedClasses=["$1", "$5", "$10", "$20"],
+                )]
+            )
+        )
+    ]),
     "person": Pop(components=[
         InferenceComponent(
             model='eyepop.person:latest',
