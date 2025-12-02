@@ -1,6 +1,5 @@
-from typing import Callable, Any
-
 from threading import Condition
+from typing import Any, Callable
 
 from eyepop.data.data_syncify import SyncDataEndpoint
 from eyepop.data.data_types import ChangeEvent
@@ -20,7 +19,8 @@ class WaitForSync:
         self.criteria = criteria
         self.condition = None
 
-    def __enter__(self) -> "SyncWaitFor":
+    def __enter__(self) -> "WaitForSync":
+        """Enter this context manager."""
         self.condition = Condition()
         self.result = None
         self.exception = None
@@ -28,6 +28,7 @@ class WaitForSync:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        """Exit the context manager."""
         try:
             with self.condition:
                 if self.result is None and self.exception is None:

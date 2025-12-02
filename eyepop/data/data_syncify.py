@@ -1,16 +1,42 @@
 import asyncio
 import typing
-from typing import BinaryIO, Callable, Optional, List
+from typing import BinaryIO, Callable, List, Optional
 
 import aiohttp
 
+import eyepop
 from eyepop.data.data_jobs import DataJob
-from eyepop.data.data_types import AssetImport, Dataset, DatasetCreate, DatasetUpdate, Asset, \
-    Prediction, AutoAnnotate, UserReview, TranscodeMode, Model, ModelCreate, ModelUpdate, ModelTrainingProgress, \
-    ChangeEvent, EventHandler, ModelAlias, ModelAliasCreate, ModelAliasUpdate, ModelExportFormat, QcAiHubExportParams, \
-    ModelTrainingEvent, ModelTrainingAuditRecord, AssetUrlType, AssetInclusionMode, AnnotationInclusionMode, \
-    ExportedUrlResponse, ArtifactType, CreateWorkflowBody
-from eyepop.syncify import run_coro_thread_save, SyncEndpoint, submit_coro_thread_save
+from eyepop.data.data_types import (
+    AnnotationInclusionMode,
+    ArtifactType,
+    Asset,
+    AssetImport,
+    AssetInclusionMode,
+    AssetUrlType,
+    AutoAnnotate,
+    ChangeEvent,
+    CreateWorkflowBody,
+    Dataset,
+    DatasetCreate,
+    DatasetUpdate,
+    EventHandler,
+    ExportedUrlResponse,
+    Model,
+    ModelAlias,
+    ModelAliasCreate,
+    ModelAliasUpdate,
+    ModelCreate,
+    ModelExportFormat,
+    ModelTrainingAuditRecord,
+    ModelTrainingEvent,
+    ModelTrainingProgress,
+    ModelUpdate,
+    Prediction,
+    QcAiHubExportParams,
+    TranscodeMode,
+    UserReview,
+)
+from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 
 SyncEventHandler = Callable[[ChangeEvent], None]
 
@@ -39,7 +65,7 @@ async def null_event_handler(_: ChangeEvent):
 class SyncDataEndpoint(SyncEndpoint):
     event_handlers: dict[SyncEventHandler, EventHandler]
 
-    def __init__(self, endpoint: "DataEndpoint"):
+    def __init__(self, endpoint: "eyepop.data.data_endpoint.DataEndpoint"):
         super().__init__(endpoint)
         self.event_handlers = {}
 

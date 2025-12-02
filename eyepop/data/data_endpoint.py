@@ -1,25 +1,53 @@
 import asyncio
 import json
 from asyncio import StreamReader
-from typing import Callable, BinaryIO, Any, AsyncIterable
-from urllib.parse import urljoin, quote_plus
+from typing import Any, AsyncIterable, BinaryIO, Callable, Sequence
+from urllib.parse import quote_plus, urljoin
 
 import aiohttp
 import websockets
 from pydantic import TypeAdapter
-from websockets.asyncio.client import ClientConnection
-
 from pydantic.tools import parse_obj_as
+from websockets.asyncio.client import ClientConnection
 
 from eyepop.client_session import ClientSession
 from eyepop.data.arrow.schema import MIME_TYPE_APACHE_ARROW_FILE_VERSIONED
-from eyepop.data.data_jobs import DataJob, _UploadStreamJob, _ImportFromJob
+from eyepop.data.data_jobs import DataJob, _ImportFromJob, _UploadStreamJob
 from eyepop.data.data_syncify import SyncDataJob
-from eyepop.data.data_types import ArgoWorkflowPhase, Dataset, DatasetCreate, DatasetUpdate, Asset, ListWorkflowItem, Prediction, \
-    AssetImport, AutoAnnotate, UserReview, TranscodeMode, Model, ModelCreate, ModelUpdate, \
-    ModelTrainingProgress, ChangeEvent, ChangeType, EventHandler, ModelAlias, ModelAliasCreate, \
-    ModelAliasUpdate, ModelExportFormat, QcAiHubExportParams, AssetUrlType, AssetInclusionMode, AnnotationInclusionMode, \
-    ModelTrainingAuditRecord, ExportedUrlResponse, ModelTrainingEvent, ArtifactType, CreateWorkflowBody, CreateWorkflowResponse
+from eyepop.data.data_types import (
+    AnnotationInclusionMode,
+    ArgoWorkflowPhase,
+    ArtifactType,
+    Asset,
+    AssetImport,
+    AssetInclusionMode,
+    AssetUrlType,
+    AutoAnnotate,
+    ChangeEvent,
+    ChangeType,
+    CreateWorkflowBody,
+    CreateWorkflowResponse,
+    Dataset,
+    DatasetCreate,
+    DatasetUpdate,
+    EventHandler,
+    ExportedUrlResponse,
+    ListWorkflowItem,
+    Model,
+    ModelAlias,
+    ModelAliasCreate,
+    ModelAliasUpdate,
+    ModelCreate,
+    ModelExportFormat,
+    ModelTrainingAuditRecord,
+    ModelTrainingEvent,
+    ModelTrainingProgress,
+    ModelUpdate,
+    Prediction,
+    QcAiHubExportParams,
+    TranscodeMode,
+    UserReview,
+)
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings
 
@@ -36,15 +64,13 @@ class DataClientSession(ClientSession):
 
     async def request_with_retry(self, method: str, url: str, accept: str | None = None, data: Any = None,
                                  content_type: str | None = None,
-                                 timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+                                 timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.client._RequestContextManager:
         url = urljoin(self.base_url, url)
         return await self.delegee.request_with_retry(method, url, accept, data, content_type, timeout)
 
 
 class DataEndpoint(Endpoint):
-    """
-    Endpoint to the EyePop.ai Data API.
-    """
+    """Endpoint to the EyePop.ai Data API."""
     account_uuid: str
     data_config: dict[str, Any] | None
 
@@ -445,14 +471,16 @@ class DataEndpoint(Endpoint):
 
     async def update_asset_ground_truth(self, asset_uuid: str, dataset_uuid: str | None = None,
                                         dataset_version: int | None = None,
-                                        ground_truth: Prediction | None = None) -> None:
+                                        ground_truth: Sequence[Prediction] | None = None) -> None:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         patch_url = f'{await self.data_base_url()}/assets/{asset_uuid}/ground_truth?{dataset_query}{version_query}'
         async with await self.request_with_retry("PATCH", patch_url,
                                                  content_type=APPLICATION_JSON if ground_truth else None,
-                                                 data=ground_truth.model_dump_json(
-                                                     exclude_unset=True, exclude_none=True
+                                                 data=TypeAdapter(Sequence[Prediction]).dump_json(
+                                                     ground_truth,
+                                                     exclude_unset=True,
+                                                     exclude_none=True,
                                                  ) if ground_truth else None):
             return
 

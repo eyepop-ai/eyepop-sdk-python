@@ -1,12 +1,11 @@
 import json
-import logging
 import sys
 
 import matplotlib.pyplot as plt
 from PIL import Image
 
 from eyepop import EyePopSdk
-from eyepop.worker.worker_types import Pop, InferenceComponent, InferenceType
+from eyepop.worker.worker_types import InferenceComponent, InferenceType, Pop
 
 example_image_path = sys.argv[1]
 

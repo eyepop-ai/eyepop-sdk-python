@@ -1,7 +1,8 @@
 import enum
-from typing import List, Literal, Annotated, Union, Any
+from typing import Annotated, Any, List, Literal, Union
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class PredictionVersion(enum.IntEnum):
     V1 = 1

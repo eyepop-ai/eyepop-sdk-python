@@ -1,10 +1,8 @@
 import asyncio
-import logging
 import time
 from pathlib import Path
 
-from eyepop import EyePopSdk
-from eyepop import Job
+from eyepop import EyePopSdk, Job
 
 source_path = Path(__file__).resolve()
 source_dir = source_path.parent

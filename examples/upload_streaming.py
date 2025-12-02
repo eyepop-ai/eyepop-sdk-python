@@ -1,8 +1,6 @@
-import logging
 import mimetypes
 import sys
 import time
-from pathlib import Path
 
 from eyepop import EyePopSdk
 

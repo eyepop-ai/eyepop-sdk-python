@@ -3,22 +3,25 @@ import json
 import logging
 import mimetypes
 from asyncio import Queue
-from typing import Callable, BinaryIO, Any
-from pydantic import TypeAdapter
+from typing import Any, BinaryIO, Callable
 
 import aiohttp
+from pydantic import TypeAdapter
 
-from eyepop.worker.worker_client_session import (WorkerClientSession)
 from eyepop.jobs import Job, JobStateCallback
-from eyepop.worker.worker_types import VideoMode, ComponentParams, PredictionVersion, DEFAULT_PREDICTION_VERSION
+from eyepop.worker.worker_client_session import WorkerClientSession
+from eyepop.worker.worker_types import (
+    DEFAULT_PREDICTION_VERSION,
+    ComponentParams,
+    PredictionVersion,
+    VideoMode,
+)
 
 log_requests = logging.getLogger('eyepop.requests')
 
 
 class WorkerJob(Job):
-    """
-    Abstract Job submitted to an EyePop.ai WorkerEndpoint.
-    """
+    """Abstract Job submitted to an EyePop.ai WorkerEndpoint."""
     _component_params: list[ComponentParams] | None
     _version: PredictionVersion
 
@@ -146,7 +149,7 @@ class _UploadJob(WorkerJob):
                 read_coro = self._do_read_response(queue)
                 _, got_result = await asyncio.gather(upload_coro, read_coro)
             else:
-                upload_url = f'source?mode=queue&processing=sync'
+                upload_url = 'source?mode=queue&processing=sync'
                 if self._component_params is None:
                     self._response = await session.pipeline_post(upload_url,
                                                                  accept='application/jsonl',

@@ -4,6 +4,7 @@ from io import BytesIO
 import pyarrow as pa
 from pyarrow.ipc import IpcWriteOptions
 
+
 class RestartAbleArrowStream(typing.AsyncIterable[bytes]):
     table: pa.Table
     schema: pa.Schema
@@ -20,6 +21,7 @@ class RestartAbleArrowStream(typing.AsyncIterable[bytes]):
         self.callback = callback
 
     def __aiter__(self) -> typing.AsyncIterator[bytes]:
+        """Async iterator that yields rows from table."""
         return _stream(self.table, self.schema, self.max_chunk_size, self.callback).__aiter__()
 
 async def _stream(

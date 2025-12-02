@@ -1,6 +1,5 @@
-import json
 from asyncio import Queue
-from typing import Callable, BinaryIO, Any
+from typing import Any, BinaryIO, Callable
 from urllib.parse import quote_plus
 
 import aiohttp
@@ -11,9 +10,7 @@ from eyepop.jobs import Job, JobStateCallback
 
 
 class DataJob(Job):
-    """
-    Abstract Job submitted to an EyePop.ai DataEndpoint.
-    """
+    """Abstract Job submitted to an EyePop.ai DataEndpoint."""
     timeout: aiohttp.ClientTimeout | None
 
     def __init__(

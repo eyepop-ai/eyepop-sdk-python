@@ -9,7 +9,7 @@ import aiohttp
 from eyepop import EyePopSdk
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_jobs import DataJob
-from eyepop.data.data_types import DatasetCreate, Dataset, Asset
+from eyepop.data.data_types import Asset, Dataset, DatasetCreate
 
 log = logging.getLogger(__name__)
 

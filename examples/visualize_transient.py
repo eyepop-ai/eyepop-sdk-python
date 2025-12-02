@@ -1,5 +1,4 @@
 import json
-import logging
 import sys
 
 import matplotlib.pyplot as plt
@@ -14,7 +13,7 @@ with EyePopSdk.workerEndpoint(pop_id='transient') as endpoint:
         'id': 'my-yolo-v7',
         'folderUrl': 'https://s3.amazonaws.com/models.eyepop.ai/releases/yolov7/1.0.1/models/YOLOv7/COCO/Latest/TensorFlowLite/float32/'
     }
-    endpoint.set_pop(f'ep_infer model=my-yolo-v7', [modelRef])
+    endpoint.set_pop('ep_infer model=my-yolo-v7', [modelRef])
     result = endpoint.upload(example_image_path).predict()
     print(json.dumps(result))
     with Image.open(example_image_path) as image:

@@ -1,24 +1,53 @@
 import asyncio
+import importlib.metadata
 import logging
 import time
 import uuid
-import flatbuffers
 from collections import deque
 from types import SimpleNamespace
-import importlib.metadata
 
 import aiohttp
-from aiohttp import TraceConfig, TraceRequestEndParams, TraceRequestExceptionParams, TraceRequestStartParams, \
-    TraceResponseChunkReceivedParams, ClientConnectionError, ServerTimeoutError, ClientResponseError, \
-    TraceRequestChunkSentParams
+import flatbuffers
+from aiohttp import (
+    ClientConnectionError,
+    ClientResponseError,
+    ServerTimeoutError,
+    TraceConfig,
+    TraceRequestChunkSentParams,
+    TraceRequestEndParams,
+    TraceRequestExceptionParams,
+    TraceRequestStartParams,
+    TraceResponseChunkReceivedParams,
+)
 
-from eyepop.events.Event import EventStart, EventEnd, EventAddMethod, EventAddEventTimeEpochMs, EventAddXRequestId, \
-    EventAddResult, EventAddStatus, EventAddHostIndex, EventAddWaitMs, EventAddProcessMs, EventAddPathIndex, \
-    EventAddBodyBytesSent, EventAddBodyBytesReceived
-from eyepop.events.Record import RecordStart, RecordEnd, RecordAddClientType, RecordAddHosts, \
-    RecordAddClientVersion, RecordStartEventsVector, RecordAddEvents, RecordStartPathsVector, RecordAddPaths
 from eyepop.events.ClientType import ClientType
-from eyepop.events.Record import RecordStartHostsVector
+from eyepop.events.Event import (
+    EventAddBodyBytesReceived,
+    EventAddBodyBytesSent,
+    EventAddEventTimeEpochMs,
+    EventAddHostIndex,
+    EventAddMethod,
+    EventAddPathIndex,
+    EventAddProcessMs,
+    EventAddResult,
+    EventAddStatus,
+    EventAddWaitMs,
+    EventAddXRequestId,
+    EventEnd,
+    EventStart,
+)
+from eyepop.events.Record import (
+    RecordAddClientType,
+    RecordAddClientVersion,
+    RecordAddEvents,
+    RecordAddHosts,
+    RecordAddPaths,
+    RecordEnd,
+    RecordStart,
+    RecordStartEventsVector,
+    RecordStartHostsVector,
+    RecordStartPathsVector,
+)
 from eyepop.events.Result import Result
 
 log = logging.getLogger('eyepop.tracer')
@@ -182,7 +211,7 @@ class RequestTracer():
                 }
                 if authorization_header is not None:
                     headers['authorization'] = authorization_header
-                async with session.post(url, data=buf, headers=headers) as resp:
+                async with session.post(url, data=buf, headers=headers):
                     pass
 
 

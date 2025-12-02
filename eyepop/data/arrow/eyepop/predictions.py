@@ -1,16 +1,30 @@
-import math
-from unicodedata import category
+from typing import Any, Sequence
 
 import numpy
 import numpy as np
 import pyarrow as pa
-from eyepop.data.data_types import PredictedObject, UserReview, PredictedClass, PredictedKeyPoint, PredictedKeyPoints, \
-    PredictedText, PredictedEmbedding
 from pyarrow import Schema
 
-from eyepop.data.arrow.schema import OBJECT_SCHEMA, CLASS_SCHEMA, KEY_POINT_SCHEMA, KEY_POINTS_SCHEMA, \
-    TEXT_SCHEMA, EMBEDDING_SCHEMA
+from eyepop.data.arrow.schema import (
+    CLASS_SCHEMA,
+    EMBEDDING_SCHEMA,
+    KEY_POINT_SCHEMA,
+    KEY_POINTS_SCHEMA,
+    OBJECT_SCHEMA,
+    PREDICTION_SCHEMA,
+    TEXT_SCHEMA,
+)
 from eyepop.data.data_normalize import CONFIDENCE_N_DIGITS, COORDINATE_N_DIGITS
+from eyepop.data.data_types import (
+    PredictedClass,
+    PredictedEmbedding,
+    PredictedKeyPoint,
+    PredictedKeyPoints,
+    PredictedObject,
+    PredictedText,
+    Prediction,
+    UserReview,
+)
 
 
 def _round_float_like(float_like: any, digits: int, factor: float = 1.0) -> float | None:
@@ -22,6 +36,136 @@ def _round_float_like(float_like: any, digits: int, factor: float = 1.0) -> floa
         return round(float_like.astype(float)*factor, digits)
 
 
+""" Predictions since 1.7 """
+def table_from_eyepop_predictions(
+        predictions: Sequence[Prediction],
+        user_review: UserReview | None = None,
+        schema: Schema = PREDICTION_SCHEMA
+) -> pa.Table:
+    objects = []
+    classes = []
+    key_points = []
+    texts = []
+    embeddings = []
+    timestamps = []
+    durations = []
+    offsets = []
+    offset_durations = []
+    for prediction in predictions:
+        if prediction.objects is None:
+            objects.append(None)
+        elif len(prediction.objects) == 0:
+            objects.append([])
+        else:
+            objects.append(table_from_eyepop_predicted_objects(
+                prediction.objects,
+                prediction.source_width,
+                prediction.source_height,
+                user_review,
+                schema=pa.schema(schema.field(0).type.value_type), # schema for "objects" field
+            ).to_struct_array())
+        if prediction.classes is None:
+            classes.append(None)
+        elif len(prediction.classes) == 0:
+            classes.append([])
+        else:
+            classes.append(table_from_eyepop_predicted_classes(
+                prediction.classes,
+                user_review,
+                schema=pa.schema(schema.field(1).type.value_type),  # schema for "classes" field
+            ).to_struct_array())
+        if prediction.keyPoints is None:
+            key_points.append(None)
+        elif len(prediction.keyPoints) == 0:
+            key_points.append([])
+        else:
+            key_points.append(table_from_eyepop_predicted_key_pointss(
+                prediction.keyPoints,
+                prediction.source_width,
+                prediction.source_height,
+                schema=pa.schema(schema.field(2).type.value_type),  # schema for "keyPoints" field
+            ).to_struct_array())
+        if prediction.texts is None:
+            texts.append(None)
+        elif len(prediction.texts) == 0:
+            texts.append([])
+        else:
+            texts.append(table_from_eyepop_predicted_texts(prediction.texts).to_struct_array())
+        if prediction.embeddings is None:
+            embeddings.append(None)
+        elif len(prediction.embeddings) == 0:
+            embeddings.append([])
+        else:
+            embeddings.append(table_from_eyepop_predicted_embeddings(
+                prediction.embeddings,
+                schema=pa.schema(schema.field(4).type.value_type),  # schema for "embeddings" field
+            ).to_struct_array())
+        timestamps.append(prediction.timestamp)
+        durations.append(prediction.duration)
+        offsets.append(prediction.offset)
+        offset_durations.append(prediction.offset_duration)
+
+    columns = [
+        objects,
+        classes,
+        key_points,
+        texts,
+        embeddings,
+        timestamps,
+        durations,
+        offsets,
+        offset_durations,
+    ]
+    return pa.Table.from_arrays(
+        columns, schema=schema
+    )
+
+def eyepop_predictions_from_pylist(py_list: list[dict]) -> list[Prediction]:
+    predictions = []
+    for o in py_list:
+        if o is None:
+            continue
+        objects = o.get('objects', None)
+        if objects is None:
+            child_objects = None
+        else:
+            child_objects = eyepop_predicted_objects_from_pylist(objects, 1.0, 1.0)
+        classes = o.get('classes', None)
+        if classes is None:
+            child_classes = None
+        else:
+            child_classes = eyepop_predicted_classes_from_pylist(classes)
+        key_pointss = o.get("keyPoints", None)
+        if key_pointss is None:
+            child_key_pointss = None
+        else:
+            child_key_pointss = eyepop_predicted_key_pointss_from_pylist(key_pointss, 1.0, 1.0)
+        texts = o.get("texts", None)
+        if texts is None:
+            child_texts = None
+        else:
+            child_texts = eyepop_predicted_texts_from_pylist(texts)
+        embeddings = o.get("embeddings", None)
+        if embeddings is None:
+            child_embeddings = None
+        else:
+            child_embeddings = eyepop_predicted_embeddings_from_pylist(embeddings)
+        prediction = Prediction(
+            source_width=1.0,
+            source_height=1.0,
+            timestamp=o.get('timestamp', None),
+            duration=o.get('duration', None),
+            offset=o.get('offset', None),
+            offset_duration=o.get('offset_duration', None),
+            objects=child_objects,
+            classes=child_classes,
+            keyPoints=child_key_pointss,
+            texts=child_texts,
+            embeddings=child_embeddings
+        )
+        predictions.append(prediction)
+
+    return predictions
 
 """ Objects """
 
@@ -159,11 +303,11 @@ def eyepop_predicted_classes_from_table(table: pa.Table) -> list[PredictedClass]
     return predicted_classes
 
 
-def eyepop_predicted_classes_from_pylist(py_list: list[dict[str, any]]) -> list[PredictedClass] | None:
+def eyepop_predicted_classes_from_pylist(py_list: list[dict[str, Any]]) -> list[PredictedClass] | None:
     if py_list is None:
         return None
     predicted_classes = []
-    for i, o in enumerate(py_list):
+    for o in py_list:
         predicted_classes.append(PredictedClass(
             classLabel=o["classLabel"],
             confidence=_round_float_like(o.get("confidence", None), CONFIDENCE_N_DIGITS),

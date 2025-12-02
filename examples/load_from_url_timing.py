@@ -1,17 +1,14 @@
-import sys
 import asyncio
 import logging
+import sys
 import time
 
-from eyepop import EyePopSdk
-from eyepop import Job
+from eyepop import EyePopSdk, Job
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 
 
 async def async_load_from_photos(endpoint: WorkerEndpoint, urls: list[str]):
-    '''
-    Async processing of batch uploads - fast and memory efficient
-    '''
+    """Async processing of batch uploads - fast and memory efficient."""
     sem = asyncio.Semaphore(0)
 
     async def on_ready(job: Job):
@@ -28,7 +25,7 @@ async def async_load_from_photos(endpoint: WorkerEndpoint, urls: list[str]):
     for url in urls:
         await endpoint.load_from(url, on_ready=on_ready)
         n += 1
-    for i in range(n):
+    for _ in range(n):
         await sem.acquire()
 
 
