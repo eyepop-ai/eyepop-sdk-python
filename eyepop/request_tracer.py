@@ -211,7 +211,7 @@ class RequestTracer():
                 }
                 if authorization_header is not None:
                     headers['authorization'] = authorization_header
-                async with session.post(url, data=buf, headers=headers) as resp:
+                async with session.post(url, data=buf, headers=headers):
                     pass
 
 

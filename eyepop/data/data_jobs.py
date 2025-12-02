@@ -10,8 +10,7 @@ from eyepop.jobs import Job, JobStateCallback
 
 
 class DataJob(Job):
-    """Abstract Job submitted to an EyePop.ai DataEndpoint.
-    """
+    """Abstract Job submitted to an EyePop.ai DataEndpoint."""
     timeout: aiohttp.ClientTimeout | None
 
     def __init__(

@@ -101,7 +101,7 @@ def eyepop_assets_from_table(
         external_ids = batch.column(1).to_pylist()
         created_ats = batch.column(2).to_pylist()
         updated_ats = batch.column(3).to_pylist()
-        asset_urls = batch.column(4).to_pylist()
+        # asset_urls = batch.column(4).to_pylist()
         original_image_widths = batch.column(5).to_pylist()
         original_image_height = batch.column(6).to_pylist()
         partitions = batch.column(7).to_pylist()

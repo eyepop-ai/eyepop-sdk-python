@@ -4,10 +4,14 @@ from importlib import resources
 
 from parameterized import parameterized
 
+from eyepop.data.arrow.eyepop.predictions import (
+    eyepop_predicted_classes_from_table,
+    eyepop_predicted_objects_from_table,
+    table_from_eyepop_predicted_classes,
+    table_from_eyepop_predicted_objects,
+)
 from eyepop.data.data_types import Prediction
 
-from eyepop.data.arrow.eyepop.predictions import table_from_eyepop_predicted_objects, \
-    eyepop_predicted_objects_from_table, table_from_eyepop_predicted_classes, eyepop_predicted_classes_from_table
 from . import files
 
 
@@ -35,7 +39,7 @@ class TestArrowToFromPrediction(unittest.TestCase):
         )
         assert target_predicted_objects is not None
         if source_prediction.objects != target_predicted_objects:
-            assert False
+            raise AssertionError()
 
     @parameterized.expand([
         ("prediction_3_classes.json", 4),
@@ -54,4 +58,4 @@ class TestArrowToFromPrediction(unittest.TestCase):
         )
         assert target_predicted_classes is not None
         if source_prediction.classes != target_predicted_classes:
-            assert False
+            raise AssertionError()

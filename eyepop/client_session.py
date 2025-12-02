@@ -1,9 +1,6 @@
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import aiohttp
-
-if TYPE_CHECKING:
-    from aiohttp import _RequestContextManager
 
 
 class ClientSession:
@@ -15,5 +12,5 @@ class ClientSession:
         data: Any = None,
         content_type: str | None = None,
         timeout: aiohttp.ClientTimeout | None = None,
-    ) -> "_RequestContextManager":
+    ) -> aiohttp.client._RequestContextManager:
         raise NotImplementedError

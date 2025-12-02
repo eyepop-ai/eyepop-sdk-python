@@ -21,8 +21,7 @@ log_requests = logging.getLogger('eyepop.requests')
 
 
 class WorkerJob(Job):
-    """Abstract Job submitted to an EyePop.ai WorkerEndpoint.
-    """
+    """Abstract Job submitted to an EyePop.ai WorkerEndpoint."""
     _component_params: list[ComponentParams] | None
     _version: PredictionVersion
 

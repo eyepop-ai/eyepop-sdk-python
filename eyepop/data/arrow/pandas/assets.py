@@ -31,8 +31,7 @@ def _pandas_compatible_schema(schema: pa.Schema) -> pa.Schema:
 PANDAS_COMPAT_SCHEMA = _pandas_compatible_schema(ASSET_SCHEMA)
 
 def table_from_dataframe(df: pd.DataFrame, schema: pa.Schema = ASSET_SCHEMA) -> pa.Table:
-    """Safely converts a pandas dataframe to a pyarrow.Table that complies with the ASSET_SCHEMA.
-    """
+    """Safely converts a pandas dataframe to a pyarrow.Table that complies with the ASSET_SCHEMA."""
     compat_schema = PANDAS_COMPAT_SCHEMA
     if schema != ASSET_SCHEMA:
         compat_schema = _pandas_compatible_schema(schema)
@@ -41,8 +40,7 @@ def table_from_dataframe(df: pd.DataFrame, schema: pa.Schema = ASSET_SCHEMA) -> 
 
 
 def dataframe_from_table(table: pa.Table, schema: pa.Schema = ASSET_SCHEMA) -> pd.DataFrame:
-    """Safely converts a pyarrow.Table with ASSET_SCHEMA to a pandas dataframe.
-    """
+    """Safely converts a pyarrow.Table with ASSET_SCHEMA to a pandas dataframe."""
     type_mapping = {
         # Needed that to avoid exception when categorical column is completely None
         pa.dictionary(pa.int32(), pa.string()): pd.StringDtype(),

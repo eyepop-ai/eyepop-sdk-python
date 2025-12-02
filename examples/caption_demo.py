@@ -82,15 +82,12 @@ async def main(args):
                     local_file = os.path.join(args.local_path, f)
                     if os.path.isfile(local_file):
                         local_files.append(local_file)
-            jobs = []
             async def on_ready(job: Job, path: str):
                 while result := await job.predict():
                     print(path, json.dumps(result, indent=2))
             for local_file in local_files:
                 job = await endpoint.upload(local_file, params=params)
                 await on_ready(job, local_file)
-            #     jobs.append(on_ready(job, local_file))
-            # await asyncio.gather(*jobs)
         elif args.url:
             job = await endpoint.load_from(args.url, params=params)
             while result := await job.predict():

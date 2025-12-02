@@ -7,7 +7,9 @@ from eyepop.data.arrow.pandas.assets import dataframe_from_table, table_from_dat
 from eyepop.data.arrow.schema import ASSET_SCHEMA as ASSET_SCHEMA_LATEST
 from eyepop.data.arrow.schema_0_0 import ASSET_SCHEMA as ASSET_SCHEMA_0_0
 from eyepop.data.arrow.schema_1_0 import ASSET_SCHEMA as ASSET_SCHEMA_1_0
+
 from .arrow_test_helpers import create_test_table
+
 
 class TestArrowToPandas(TestCase):
     def test_arrow_to_pandas(self):

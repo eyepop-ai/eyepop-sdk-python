@@ -601,7 +601,6 @@ class ModelTrainingEvent(BaseModel):
       if the external job identifier is already set.
     * `work_storage_url` to set the work storage url if not set already, this will be ignored
       if the work storage url is already set.
-
     """
     stage: ModelTrainingStage
     job_identifier: str | None = None
@@ -617,8 +616,7 @@ class ModelTrainingEvent(BaseModel):
 
 
 class ModelTrainingAuditRecord(BaseModel):
-    """Internal audit record for model trainings.
-    """
+    """Internal audit record for model trainings."""
     model_uuid: str
     model: ModelResponse
     work_storage_url: str | None = None

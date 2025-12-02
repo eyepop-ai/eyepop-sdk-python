@@ -64,14 +64,13 @@ class DataClientSession(ClientSession):
 
     async def request_with_retry(self, method: str, url: str, accept: str | None = None, data: Any = None,
                                  content_type: str | None = None,
-                                 timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+                                 timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.client._RequestContextManager:
         url = urljoin(self.base_url, url)
         return await self.delegee.request_with_retry(method, url, accept, data, content_type, timeout)
 
 
 class DataEndpoint(Endpoint):
-    """Endpoint to the EyePop.ai Data API.
-    """
+    """Endpoint to the EyePop.ai Data API."""
     account_uuid: str
     data_config: dict[str, Any] | None
 

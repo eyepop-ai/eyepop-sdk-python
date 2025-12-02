@@ -25,6 +25,7 @@ from eyepop.worker.worker_types import (
     ForwardComponent,
     FullForward,
     InferenceComponent,
+    MotionModel,
     Pop,
     TrackingComponent,
 )
@@ -417,7 +418,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
     visualize_path = None
     example_image_src = None
     if args.dump:
-        print(pop.model_dump_json(indent=2, exclude_unset=True))
+        print(pop.model_dump_json(indent=2))
     async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True) as endpoint:
         await endpoint.set_pop(pop)
         if args.local_path:

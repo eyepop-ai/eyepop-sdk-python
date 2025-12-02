@@ -15,6 +15,7 @@ class JobState(Enum):
     DRAINED = 6
 
     def __repr__(self):
+        """String representation of the enum."""
         return self._name_
 
 
@@ -42,8 +43,7 @@ class JobStateCallback:
 
 
 class Job:
-    """Abstract Job submitted to an EyePop.ai Endpoint.
-    """
+    """Abstract Job submitted to an EyePop.ai Endpoint."""
 
     def __init__(self,
                  session: ClientSession,
@@ -60,6 +60,7 @@ class Job:
         self._callback.created(self)
 
     def __del__(self):
+        """Destructor."""
         self._callback.finalized(self)
 
     async def push_result(self, result) -> None:

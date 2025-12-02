@@ -4,6 +4,7 @@ from typing import BinaryIO, Callable, List, Optional
 
 import aiohttp
 
+import eyepop
 from eyepop.data.data_jobs import DataJob
 from eyepop.data.data_types import (
     AnnotationInclusionMode,
@@ -64,7 +65,7 @@ async def null_event_handler(_: ChangeEvent):
 class SyncDataEndpoint(SyncEndpoint):
     event_handlers: dict[SyncEventHandler, EventHandler]
 
-    def __init__(self, endpoint: "DataEndpoint"):
+    def __init__(self, endpoint: "eyepop.data.data_endpoint.DataEndpoint"):
         super().__init__(endpoint)
         self.event_handlers = {}
 

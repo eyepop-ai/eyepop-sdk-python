@@ -1,3 +1,4 @@
+from typing import cast
 
 import pyarrow as pa
 
@@ -7,11 +8,13 @@ from eyepop.data.arrow.eyepop.predictions import (
     eyepop_predicted_key_pointss_from_pylist,
     eyepop_predicted_objects_from_pylist,
     eyepop_predicted_texts_from_pylist,
+    eyepop_predictions_from_pylist,
     table_from_eyepop_predicted_classes,
     table_from_eyepop_predicted_embeddings,
     table_from_eyepop_predicted_key_pointss,
     table_from_eyepop_predicted_objects,
     table_from_eyepop_predicted_texts,
+    table_from_eyepop_predictions,
 )
 from eyepop.data.arrow.schema import ANNOTATION_SCHEMA
 from eyepop.data.arrow.schema_version_conversion import convert
@@ -32,6 +35,17 @@ def table_from_eyepop_annotations(annotations: list[AssetAnnotationResponse], sc
     durations = [] if "duration" in schema.names else None
     offsets = [] if "offset" in schema.names else None
     offset_durations = [] if "offset_duration" in schema.names else None
+    if "predictions" in schema.names:
+        predictionss = []
+        prediction_fields = cast(
+            pa.StructType,
+            cast(pa.ListType, schema.field("predictions").type).value_type
+        ).fields
+        prediction_schema = pa.schema(prediction_fields)
+    else:
+        predictionss = None
+        prediction_fields = None
+        prediction_schema = None
 
     for e in annotations:
         types.append(e.type)
@@ -98,6 +112,17 @@ def table_from_eyepop_annotations(annotations: list[AssetAnnotationResponse], sc
             offsets.append(e.annotation.offset)
         if offset_durations is not None:
             offset_durations.append(e.annotation.offset_duration)
+        if predictionss is not None:
+            if e.predictions is not None and len(e.predictions) > 0:
+                predictions = table_from_eyepop_predictions(
+                    e.predictions,
+                    e.user_review,
+                    schema=prediction_schema,
+                ).to_struct_array()
+            else:
+                predictions = pa.chunked_array([], type=pa.struct(prediction_fields))
+            predictionss.append(predictions)
+
 
     # since 0.0
     columns = [
@@ -133,6 +158,11 @@ def table_from_eyepop_annotations(annotations: list[AssetAnnotationResponse], sc
         columns.append(offsets)
     if offset_durations is not None:
         columns.append(offset_durations)
+
+    # since 1.7: predictions
+    if predictionss is not None:
+        columns.append(predictionss)
+
     return pa.Table.from_arrays(columns, schema=schema)
 
 
@@ -224,7 +254,7 @@ def eyepop_annotations_from_table(table: pa.Table) -> list[AssetAnnotationRespon
 
 def eyepop_annotations_from_pylist(py_list: list[dict]) -> list[AssetAnnotationResponse]:
     annotations = []
-    for i, o in enumerate(py_list):
+    for o in py_list:
         if o is None:
             continue
         objects = o.get('objects', None)
@@ -265,11 +295,17 @@ def eyepop_annotations_from_pylist(py_list: list[dict]) -> list[AssetAnnotationR
             texts=child_texts,
             embeddings=child_embeddings
         )
+        predictions = o.get("predictions", None)
+        if predictions is None:
+            # backward compatible < 1.7
+            eyepop_predictions = (prediction,)
+        else:
+            eyepop_predictions = eyepop_predictions_from_pylist(predictions)
         annotations.append(AssetAnnotationResponse(
             type=o['type'],
             user_review=o['user_review'],
             source=o['source'],
-            predictions=(prediction,),
+            predictions=eyepop_predictions,
             annotation=prediction,
             source_model_uuid = o.get('source_model_uuid', None)
         ))

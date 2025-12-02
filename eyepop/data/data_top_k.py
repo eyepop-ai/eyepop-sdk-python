@@ -4,7 +4,7 @@ from eyepop.data.data_types import PredictedClass, Prediction
 
 
 def _top_k(classes: list[PredictedClass], k: int) -> list[PredictedClass]:
-    """Find k classes with the top confidence"""
+    """Find k classes with the top confidence."""
 
     if len(classes) <= k:
         return classes
