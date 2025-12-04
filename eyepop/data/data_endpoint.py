@@ -46,7 +46,7 @@ from eyepop.data.data_types import (
     Prediction,
     QcAiHubExportParams,
     TranscodeMode,
-    UserReview,
+    UserReview, DownloadResponse,
 )
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings
@@ -504,14 +504,33 @@ class DataEndpoint(Endpoint):
         async with await self.request_with_retry("PATCH", patch_url):
             return
 
-    async def download_asset(self, asset_uuid: str, dataset_uuid: str | None = None,
-                             dataset_version: int | None = None,
-                             transcode_mode: TranscodeMode = TranscodeMode.original) -> StreamReader:
+    async def download_asset(
+            self,
+            asset_uuid: str,
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None,
+            transcode_mode: TranscodeMode = TranscodeMode.original,
+            start_timestamp: int | None = None,
+            end_timestamp: int | None = None,
+            url_type: AssetUrlType | None = None,
+    ) -> StreamReader | DownloadResponse:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
-        get_url = f'{await self.data_base_url()}/assets/{asset_uuid}/download?transcode_mode={transcode_mode}{dataset_query}{version_query}'
+        start_timestamp_query = f'&start_timestamp={start_timestamp}' if start_timestamp is not None else ''
+        end_timestamp_query = f'&end_timestamp={end_timestamp}' if end_timestamp is not None else ''
+        url_type_query = f'&url_type={url_type}' if url_type is not None else ''
+        get_url = (f'{await self.data_base_url()}/assets/{asset_uuid}/download'
+                   f'?transcode_mode={transcode_mode}'
+                   f'{dataset_query}'
+                   f'{version_query}'
+                   f'{start_timestamp_query}'
+                   f'{end_timestamp_query}'
+                   f'{url_type_query}')
         resp = await self.request_with_retry("GET", get_url)
-        return resp.content
+        if 'application/json' in resp.headers.get('Content-Type', ''):
+            return parse_obj_as(DownloadResponse, await resp.json())
+        else:
+            return resp.content
 
     """ Model methods """
 

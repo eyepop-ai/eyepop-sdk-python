@@ -681,3 +681,8 @@ class ListWorkflowItemMetadata(BaseModel):
 
 class ListWorkflowItem(BaseModel):
     metadata: ListWorkflowItemMetadata
+
+
+class DownloadResponse(BaseModel):
+    url: str
+    url_type: AssetUrlType
