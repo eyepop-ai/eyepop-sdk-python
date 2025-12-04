@@ -34,7 +34,7 @@ from eyepop.data.data_types import (
     Prediction,
     QcAiHubExportParams,
     TranscodeMode,
-    UserReview,
+    UserReview, DownloadResponse,
 )
 from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 
@@ -254,15 +254,32 @@ class SyncDataEndpoint(SyncEndpoint):
                                                                                        user_review, dataset_uuid,
                                                                                        dataset_version))
 
-    def download_asset(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
-                       dataset_version: Optional[int] = None,
-                       transcode_mode: TranscodeMode = TranscodeMode.original) -> typing.BinaryIO:
-        async_stream_reader = run_coro_thread_save(
+    def download_asset(
+            self,
+            asset_uuid: str,
+            dataset_uuid: Optional[str] = None,
+            dataset_version: Optional[int] = None,
+            transcode_mode: TranscodeMode = TranscodeMode.original,
+            start_timestamp: int | None = None,
+            end_timestamp: int | None = None,
+            url_type: AssetUrlType | None = None,
+    ) -> typing.BinaryIO | DownloadResponse:
+        result = run_coro_thread_save(
             self.event_loop,
-            self.endpoint.download_asset(asset_uuid, dataset_uuid, dataset_version, transcode_mode)
+            self.endpoint.download_asset(
+                asset_uuid=asset_uuid,
+                dataset_uuid=dataset_uuid,
+                dataset_version=dataset_version,
+                transcode_mode=transcode_mode,
+                start_timestamp=start_timestamp,
+                end_timestamp=end_timestamp,
+                url_type=url_type
+            )
         )
-        sync_io = self._async_reader_to_sync_binary_io(async_stream_reader)
-        return sync_io
+        if isinstance(result, DownloadResponse):
+            return result
+        else:
+            return self._async_reader_to_sync_binary_io(result)
 
     """ Model methods """
 
