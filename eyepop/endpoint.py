@@ -25,19 +25,48 @@ async def response_check_with_error_body(response: aiohttp.ClientResponse):
         message = await response.text()
         if message is None or len(message) == 0:
             message = response.reason
-        raise aiohttp.ClientResponseError(response.request_info, response.history, status=response.status,
-                                          message=message, headers=response.headers, )
+        raise aiohttp.ClientResponseError(
+            request_info=response.request_info, # type: ignore
+            history=response.history, # type: ignore
+            status=response.status,
+            message=message,
+            headers=response.headers,
+        )
 
 
 class Endpoint(ClientSession):
     """Abstract EyePop Endpoint."""
 
-    def __init__(self, secret_key: str | None, access_token: str | None,
-                 eyepop_url: str,
-                 job_queue_length: int, request_tracer_max_buffer: int, api_key: str | None = None):
+    secret_key: str | None
+    api_key: str | None
+    provided_access_token: str | None
+    eyepop_url: str
+    token: dict[str, Any] | None
+    expire_token_time: float | None
+    compute_ctx: Any | None
+    request_tracer: RequestTracer | None
+    event_sender: Periodic | None
+    retry_handlers: dict[int, Callable]
+    client_session: aiohttp.ClientSession | None
+    tasks: set[asyncio.Task]
+    sem: asyncio.Semaphore
+    metrics_collector: MetricCollector | None
+
+    def __init__(
+            self,
+            secret_key: str | None,
+            access_token: str | None,
+            eyepop_url: str,
+            job_queue_length: int,
+            request_tracer_max_buffer: int,
+            api_key: str | None = None
+    ):
         self.secret_key = secret_key
         self.api_key = api_key
-        self.provided_access_token = access_token
+        if access_token is not None and access_token.lower().startswith("Bearer "):
+            self.provided_access_token = access_token[len("Bearer "):]
+        else:
+            self.provided_access_token = access_token
         self.eyepop_url = eyepop_url
         self.token = None
         self.expire_token_time = None
@@ -69,7 +98,6 @@ class Endpoint(ClientSession):
         self.retry_handlers[504] = self._retry_50x
 
         self.client_session = None
-        self.task_group = None
 
         self.tasks = set()
         self.sem = asyncio.Semaphore(job_queue_length)
@@ -147,8 +175,10 @@ class Endpoint(ClientSession):
 
     async def connect(self):
         trace_configs = [self.request_tracer.get_trace_config()] if self.request_tracer else None
-        self.client_session = aiohttp.ClientSession(raise_for_status=response_check_with_error_body,
-                                                    trace_configs=trace_configs)
+        self.client_session = aiohttp.ClientSession(
+            raise_for_status=response_check_with_error_body,
+            trace_configs=trace_configs
+        )
         try:
             await self._reconnect()
         except Exception as e:

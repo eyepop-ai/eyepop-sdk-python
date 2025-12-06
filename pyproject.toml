@@ -61,7 +61,8 @@ example = [
     "webui2",
     "pybars3",
     "python-dotenv",
-    "aiofiles==25.1.0"
+    "aiofiles==25.1.0",
+    "auth0-python>=4.13.0"
 ]
 dev = [
     "build>=1.0.0,<2.0.0",

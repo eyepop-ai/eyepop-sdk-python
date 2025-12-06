@@ -113,11 +113,26 @@ class SyncDataEndpoint(SyncEndpoint):
 
     """ Model methods """
 
-    def list_datasets(self, include_hero_asset: bool = False, modifiable_version_only: bool | None = None) -> List[Dataset]:
-        return run_coro_thread_save(self.event_loop, self.endpoint.list_datasets(include_hero_asset, modifiable_version_only))
+    def list_datasets(
+            self,
+            include_hero_asset: bool = False,
+            modifiable_version_only: bool | None = None,
+            account_uuid: str | None = None
+    ) -> List[Dataset]:
+        return run_coro_thread_save(self.event_loop, self.endpoint.list_datasets(
+            include_hero_asset=include_hero_asset,
+            modifiable_version_only=modifiable_version_only,
+            account_uuid=account_uuid,
+        ))
 
-    def create_dataset(self, dataset: DatasetCreate) -> Dataset:
-        return run_coro_thread_save(self.event_loop, self.endpoint.create_dataset(dataset))
+    def create_dataset(
+            self, dataset: DatasetCreate,
+            account_uuid: str | None = None
+    ) -> Dataset:
+        return run_coro_thread_save(self.event_loop, self.endpoint.create_dataset(
+            dataset=dataset,
+            account_uuid=account_uuid
+        ))
 
     def get_dataset(self, dataset_uuid: str, dataset_version: int | None = None, include_stats: bool = False, modifiable_version_only: bool | None = None) -> Dataset:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_dataset(dataset_uuid, dataset_version, include_stats, modifiable_version_only))
@@ -283,11 +298,11 @@ class SyncDataEndpoint(SyncEndpoint):
 
     """ Model methods """
 
-    def list_models(self) -> List[Model]:
-        return run_coro_thread_save(self.event_loop, self.endpoint.list_models())
+    def list_models(self, account_uuid: str | None = None) -> List[Model]:
+        return run_coro_thread_save(self.event_loop, self.endpoint.list_models(account_uuid=account_uuid))
 
-    def create_model(self, model: ModelCreate) -> Model:
-        return run_coro_thread_save(self.event_loop, self.endpoint.create_model(model))
+    def create_model(self, model: ModelCreate, account_uuid: str | None = None) -> Model:
+        return run_coro_thread_save(self.event_loop, self.endpoint.create_model(model=model, account_uuid=account_uuid))
 
     def upload_model_artifact(self, model_uuid: str, model_format: ModelExportFormat, artifact_name: str,
                                     stream: BinaryIO, mime_type: str = 'application/octet-stream') -> None:
@@ -316,11 +331,11 @@ class SyncDataEndpoint(SyncEndpoint):
 
     """ Model aliases methods """
 
-    def list_model_aliases(self) -> list[ModelAlias]:
-        return run_coro_thread_save(self.event_loop, self.endpoint.list_model_aliases())
+    def list_model_aliases(self, account_uuid: str | None = None) -> list[ModelAlias]:
+        return run_coro_thread_save(self.event_loop, self.endpoint.list_model_aliases(account_uuid=account_uuid))
 
-    def create_model_alias(self, model_alias: ModelAliasCreate, dry_run: bool = False) -> ModelAlias:
-        return run_coro_thread_save(self.event_loop, self.endpoint.create_model_alias(model_alias, dry_run))
+    def create_model_alias(self, model_alias: ModelAliasCreate, dry_run: bool = False, account_uuid: str | None = None) -> ModelAlias:
+        return run_coro_thread_save(self.event_loop, self.endpoint.create_model_alias(model_alias, dry_run=dry_run, account_uuid=account_uuid))
 
     def get_model_alias(self, name: str) -> ModelAlias:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_model_alias(name))
@@ -469,32 +484,39 @@ class SyncDataEndpoint(SyncEndpoint):
         self,
         template_name: str,
         workflow_create: CreateWorkflowBody,
+        account_uuid: str | None = None
     ):
         return run_coro_thread_save(
             self.event_loop,
             self.endpoint.start_workflow(
                 template_name=template_name,
                 workflow_create=workflow_create,
+                account_uuid=account_uuid
             )
         )
 
-    def get_workflow(self, workflow_id: str):
+    def get_workflow(
+            self,
+            workflow_id: str,
+            account_uuid: str | None = None):
         return run_coro_thread_save(
             self.event_loop,
-            self.endpoint.get_workflow(workflow_id)
+            self.endpoint.get_workflow(workflow_id, account_uuid=account_uuid)
         )
 
     def list_workflows(
         self,
         dataset_uuid: list[str] | None = None,
         model_uuid: list[str] | None = None,
-        phase: list | None = None
+        phase: list | None = None,
+        account_uuid: str | None = None
     ):
         return run_coro_thread_save(
             self.event_loop,
             self.endpoint.list_workflows(
                 dataset_uuid=dataset_uuid,
                 model_uuid=model_uuid,
-                phase=phase
+                phase=phase,
+                account_uuid=account_uuid,
             )
         )
