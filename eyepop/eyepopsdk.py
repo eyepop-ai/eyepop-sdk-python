@@ -1,12 +1,9 @@
 import logging
 import os
 
-from matplotlib.axes import Axes
-
 from eyepop import __version__
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_syncify import SyncDataEndpoint
-from eyepop.visualize import EyePopPlot
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_syncify import SyncWorkerEndpoint
 
@@ -122,8 +119,6 @@ class EyePopSdk:
 
         if account_id is None:
             account_id = os.getenv("EYEPOP_ACCOUNT_ID")
-            if account_id is None:
-                raise KeyError("parameter 'account_id' is required")
 
         endpoint = DataEndpoint(
             secret_key=secret_key,
@@ -141,6 +136,8 @@ class EyePopSdk:
 
         return endpoint
 
+    from matplotlib.axes import Axes
     @staticmethod
     def plot(axes: Axes):
+        from eyepop.visualize import EyePopPlot
         return EyePopPlot(axes)

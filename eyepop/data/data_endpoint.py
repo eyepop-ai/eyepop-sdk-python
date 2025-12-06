@@ -71,7 +71,7 @@ class DataClientSession(ClientSession):
 
 class DataEndpoint(Endpoint):
     """Endpoint to the EyePop.ai Data API."""
-    account_uuid: str
+    account_uuid: str | None
     data_config: dict[str, Any] | None
 
     disable_ws: bool
@@ -81,12 +81,24 @@ class DataEndpoint(Endpoint):
     account_event_handlers: set[EventHandler]
     dataset_uuid_to_event_handlers: dict[str, set[EventHandler]]
 
-    def __init__(self, secret_key: str | None, access_token: str | None,
-                 eyepop_url: str, account_id: str, job_queue_length: int,
-                 request_tracer_max_buffer: int, disable_ws: bool = True, api_key: str | None = None):
+    def __init__(
+            self,
+            secret_key: str | None,
+            access_token: str | None,
+            eyepop_url: str,
+            account_id: str | None,
+            job_queue_length: int,
+            request_tracer_max_buffer: int,
+            disable_ws: bool = True,
+            api_key: str | None = None
+    ):
         super().__init__(
-            secret_key=secret_key, access_token=access_token, eyepop_url=eyepop_url, api_key=api_key,
-            job_queue_length=job_queue_length, request_tracer_max_buffer=request_tracer_max_buffer
+            secret_key=secret_key,
+            access_token=access_token,
+            eyepop_url=eyepop_url,
+            api_key=api_key,
+            job_queue_length=job_queue_length,
+            request_tracer_max_buffer=request_tracer_max_buffer
         )
         self.account_uuid = account_id
         self.data_config = None
@@ -118,7 +130,8 @@ class DataEndpoint(Endpoint):
             }
         if self.data_config is not None:
             return
-        config_url = f'{self.eyepop_url}/data/config?account_uuid={self.account_uuid}'
+        config_url = (f'{self.eyepop_url}/data/config?account_uuid='
+                      f'{self.account_uuid if self.account_uuid is not None else ""}')
         async with await self.request_with_retry("GET", config_url) as resp:
             self.data_config = await resp.json()
         if not self.disable_ws:
@@ -143,13 +156,14 @@ class DataEndpoint(Endpoint):
             message = json.dumps(auth_headers)
             await ws.send(message)
             log_requests.debug("ws send: %s", message)
-        message = json.dumps({
-            "subscribe" : {
-                "account_uuid": self.account_uuid
-            }
-        })
-        await ws.send(message)
-        log_requests.debug("ws send: %s", message)
+        if self.account_uuid is not None:
+            message = json.dumps({
+                "subscribe" : {
+                    "account_uuid": self.account_uuid
+                }
+            })
+            await ws.send(message)
+            log_requests.debug("ws send: %s", message)
         for dataset_uuid in self.dataset_uuid_to_event_handlers:
             message = json.dumps({
                 "subscribe" : {
@@ -307,15 +321,24 @@ class DataEndpoint(Endpoint):
     async def list_datasets(
             self,
             include_hero_asset: bool = False,
-            modifiable_version_only: bool | None = None
+            modifiable_version_only: bool | None = None,
+            account_uuid: str | None = None,
     ) -> list[Dataset]:
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Listing datasets requires an account uuid")
         modifiable_version_only_query = f'&modifiable_version_only={modifiable_version_only}' if modifiable_version_only is not None else ''
-        get_url = f'{await self.data_base_url()}/datasets?account_uuid={self.account_uuid}&include_hero_asset={include_hero_asset}{modifiable_version_only_query}'
+        get_url = f'{await self.data_base_url()}/datasets?account_uuid={account_uuid}&include_hero_asset={include_hero_asset}{modifiable_version_only_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return TypeAdapter(list[Dataset]).validate_python(await resp.json())
 
-    async def create_dataset(self, dataset: DatasetCreate) -> Dataset:
-        post_url = f'{await self.data_base_url()}/datasets?account_uuid={self.account_uuid}'
+    async def create_dataset(self, dataset: DatasetCreate, account_uuid: str | None = None) -> Dataset:
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Creating a dataset requires an account uuid")
+        post_url = f'{await self.data_base_url()}/datasets?account_uuid={account_uuid}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=dataset.model_dump_json(exclude_unset=True)) as resp:
             return TypeAdapter(Dataset).validate_python(await resp.json())
@@ -534,13 +557,24 @@ class DataEndpoint(Endpoint):
 
     """ Model methods """
 
-    async def list_models(self) -> list[Model]:
-        get_url = f'{await self.data_base_url()}/models?account_uuid={self.account_uuid}'
+    async def list_models(
+            self,
+            account_uuid: str | None = None,
+    ) -> list[Model]:
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Listing models requires an account uuid")
+        get_url = f'{await self.data_base_url()}/models?account_uuid={account_uuid}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(list[Model], await resp.json())
 
-    async def create_model(self, model: ModelCreate) -> Model:
-        post_url = f'{await self.data_base_url()}/models?account_uuid={self.account_uuid}&start_training=False'
+    async def create_model(self, model: ModelCreate, account_uuid: str | None = None) -> Model:
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Creating a model requires an account uuid")
+        post_url = f'{await self.data_base_url()}/models?account_uuid={account_uuid}&start_training=False'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=model.model_dump_json(exclude_unset=True)) as resp:
             return parse_obj_as(Model, await resp.json())
@@ -593,13 +627,29 @@ class DataEndpoint(Endpoint):
 
     """ Model aliases methods """
 
-    async def list_model_aliases(self) -> list[ModelAlias]:
-        get_url = f'{await self.data_base_url()}/model_aliases?account_uuid={self.account_uuid}'
+    async def list_model_aliases(
+            self,
+            account_uuid: str | None = None,
+    ) -> list[ModelAlias]:
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Listing model aliases requires an account uuid")
+        get_url = f'{await self.data_base_url()}/model_aliases?account_uuid={account_uuid}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(list[ModelAlias], await resp.json())
 
-    async def create_model_alias(self, model_alias: ModelAliasCreate, dry_run: bool = False) -> ModelAlias:
-        post_url = f'{await self.data_base_url()}/model_aliases?account_uuid={self.account_uuid}&dry_run={dry_run}'
+    async def create_model_alias(
+            self,
+            model_alias: ModelAliasCreate,
+            dry_run: bool = False,
+            account_uuid: str | None = None
+    ) -> ModelAlias:
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Creating a model alias requires an account uuid")
+        post_url = f'{await self.data_base_url()}/model_aliases?account_uuid={account_uuid}&dry_run={dry_run}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=model_alias.model_dump_json(exclude_unset=True)) as resp:
             return parse_obj_as(ModelAlias, await resp.json())
@@ -772,9 +822,14 @@ class DataEndpoint(Endpoint):
         self,
         template_name: str,
         workflow_create: CreateWorkflowBody,
+        account_uuid: str | None = None,
     ) -> CreateWorkflowResponse:
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Starting a workflow requires an account uuid")
         query = f'template_name={template_name}'
-        query += f'&account_uuid={self.account_uuid}'
+        query += f'&account_uuid={account_uuid}'
         post_url = f'{await self.data_base_url()}/workflows?{query}'
         async with await self.request_with_retry(
             "POST", post_url,
@@ -783,8 +838,16 @@ class DataEndpoint(Endpoint):
         ) as resp:
             return parse_obj_as(CreateWorkflowResponse, await resp.json())
 
-    async def get_workflow(self, workflow_id: str) -> ListWorkflowItem:
-        get_url = f'{await self.data_base_url()}/workflows/{workflow_id}?account_uuid={self.account_uuid}'
+    async def get_workflow(
+            self,
+            workflow_id: str,
+            account_uuid: str | None = None
+    ) -> ListWorkflowItem:
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Fetching a workflow requires an account uuid")
+        get_url = f'{await self.data_base_url()}/workflows/{workflow_id}?account_uuid={account_uuid}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(ListWorkflowItem, await resp.json())
 
@@ -792,9 +855,14 @@ class DataEndpoint(Endpoint):
         self,
         dataset_uuid: list[str] | None = None,
         model_uuid: list[str] | None = None,
-        phase: list[ArgoWorkflowPhase] | None = None
+        phase: list[ArgoWorkflowPhase] | None = None,
+        account_uuid: str | None = None
     ) -> list[ListWorkflowItem]:
-        query = f'account_uuid={self.account_uuid}'
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Fetching a workflow requires an account uuid")
+        query = f'account_uuid={account_uuid}'
         if dataset_uuid:
             for uuid in dataset_uuid:
                 query += f'&dataset_uuid={uuid}'
