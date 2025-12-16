@@ -36,6 +36,31 @@ script_dir = os.path.dirname(__file__)
 log = logging.getLogger('eyepop.example')
 
 pop_examples = {
+    "vehicles": Pop(components=[
+        InferenceComponent(
+            model='eyepop.vehicle:latest',
+            categoryName="vehicles",
+            confidenceThreshold=0.8,
+            forward=CropForward(
+                targets=[TrackingComponent(
+                    maxAgeSeconds=5.0,
+                    motionModel=MotionModel.CONSTANT_VELOCITY,
+                    agnostic=True,
+                    classHysteresis=True,
+                ), InferenceComponent(
+                    model='eyepop.vehicle.licence-plate:latest',
+                    topK=1,
+                    forward=CropForward(
+                        targets=[InferenceComponent(
+                            model='eyepop.text.recognize.landscape:latest',
+                            categoryName="licence-plate"
+                        )]
+                    )
+                )]
+            )
+        )
+    ]),
+
     "person": Pop(components=[
         InferenceComponent(
             model='eyepop.person:latest',
