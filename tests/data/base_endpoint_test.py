@@ -39,7 +39,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         def config(url, **kwargs) -> CallbackResult:
             if kwargs['headers']['Authorization'] == f'Bearer {self.test_access_token}':
                 return CallbackResult(status=200,
-                                      body=json.dumps({"base_url": self.test_data_url}))
+                                      body=json.dumps({"dataset_api_url": self.test_data_url}))
             else:
                 return CallbackResult(status=401, reason='test auth token expired')
 
@@ -56,7 +56,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
             else:
                 return CallbackResult(status=401, reason='test auth token expired')
 
-        mock.get(f'{self.test_eyepop_url}/data/config?account_uuid={self.test_eyepop_account_id}', callback=config, repeat=True)
+        mock.get(f'{self.test_eyepop_url}/configs?account_uuid={self.test_eyepop_account_id}', callback=config, repeat=True)
         mock.post(f'{self.test_data_url}/datasets?account_uuid={self.test_eyepop_account_id}', callback=create_dataset, repeat=False)
         mock.delete(f'{self.test_data_url}/datasets/{self.test_dataset_id}', callback=delete_dataset, repeat=False)
 
