@@ -686,3 +686,72 @@ class ListWorkflowItem(BaseModel):
 class DownloadResponse(BaseModel):
     url: str
     url_type: AssetUrlType
+
+
+
+class VlmRuntimeConfig(BaseModel):
+    """
+    Runtime configuration for worker inference. Passed to run().
+
+    Common generation parameters are typed explicitly. Additional HuggingFace
+    kwargs are accepted via extra="allow" and accessible via model_extra.
+    """
+    max_new_tokens: int | None = Field(default=200, description="Maximum tokens to generate")
+    image_size: int | None = Field(
+        default=None, description="Target size for max dimension. 0 means auto-calculate."
+    )
+    fps: float | None = Field(
+        default=None,
+        description="Target frames per second for sampling. 0.0 means auto-calculate.",
+    )
+    max_frames: int | None = Field(default=None, description="Maximum number of frames to load")
+    min_frames: int | None = Field(default=None, description="Minimum number of frames required")
+    max_aspect_ratio: float | None = Field(
+        default=None, description="Maximum allowed aspect ratio"
+    )
+    context_length: int | None = Field(
+        default=None,
+        description="Maximum visual tokens to target for auto-calculation",
+    )
+
+
+class TransformInto(BaseModel):
+    classes: Sequence[str] | None = Field(
+        default=None,
+        description="Transform the text output into categorical classes defined by this class label list"
+    )
+
+
+class VlmInferRequest(BaseModel):
+    """Client-facing VLM API request model."""
+    worker_release: str = Field(
+        ...,
+        description="Worker release name for routing (e.g., qwen3-prod, smol)",
+        examples=["smol"],
+    )
+    text_prompt: str | None = Field(
+        default=None,
+        description="Prompt for the VLM",
+        examples=[
+            "How many distinct human beings are in the scene? Answer with an integer number"
+        ],
+    )
+    config: VlmRuntimeConfig = Field(
+        default_factory=VlmRuntimeConfig,
+        description="Runtime configuration for inference (max_new_tokens, temperature, etc.)",
+        examples=[
+            VlmRuntimeConfig(
+                max_new_tokens=10,
+            )
+        ],
+    )
+    refresh: bool = Field(
+        default=False,
+        description="Bypass cache and force re-inference",
+        examples=[False],
+    )
+    transform_into: TransformInto | None = Field(
+        default_factory=TransformInto,
+        description="Optional instructions to transform the raw VLM text output"
+    )
+
