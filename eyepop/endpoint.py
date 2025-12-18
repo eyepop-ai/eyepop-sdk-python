@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, Optional, Type
+from typing import TYPE_CHECKING, Any, Callable, Optional, Type, Awaitable
 
 import aiohttp
 
@@ -46,7 +46,7 @@ class Endpoint(ClientSession):
     compute_ctx: Any | None
     request_tracer: RequestTracer | None
     event_sender: Periodic | None
-    retry_handlers: dict[int, Callable]
+    retry_handlers: dict[int, Callable[[int, int], Awaitable[bool]]]
     client_session: aiohttp.ClientSession | None
     tasks: set[asyncio.Task]
     sem: asyncio.Semaphore
@@ -107,7 +107,7 @@ class Endpoint(ClientSession):
         else:
             self.metrics_collector = None
 
-    def add_retry_handler(self, status_code: int, handler: Callable[[int], bool]):
+    def add_retry_handler(self, status_code: int, handler: Callable[[int, int], Awaitable[bool]]):
         self.retry_handlers[status_code] = handler
 
     def __enter__(self) -> None:
@@ -284,9 +284,15 @@ class Endpoint(ClientSession):
             await asyncio.sleep(wait_time)
             return True
 
-    async def request_with_retry(self, method: str, url: str, accept: str | None = None,
-                                 data: Any = None, content_type: str | None = None,
-                                 timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+    async def request_with_retry(
+            self,
+            method: str,
+            url: str,
+            accept: str | None = None,
+            data: Any = None,
+            content_type: str | None = None,
+            timeout: aiohttp.ClientTimeout | None = None
+    ) -> "_RequestContextManager":
         failed_attempts = 0
         while True:
             headers = {}

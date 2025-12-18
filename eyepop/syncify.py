@@ -47,7 +47,7 @@ class SyncEndpoint:
         event_loop.run_forever()
         log.debug("_run_event_loop done")
 
-    def _async_reader_to_sync_binary_io(self, async_stream_reader):
+    def _async_reader_to_sync_binary_io(self, async_stream_reader) -> typing.BinaryIO:
         queue = run_coro_thread_save(
             self.event_loop, _create_queue()
         )
@@ -104,7 +104,7 @@ async def _drain_stream_reader_into_queue(stream_reader: StreamReader, queue: as
 # convert the generator into a buffered reader as per below>
 # pass the buffered reader into tarfile.open(fileobj=...)
 
-def _async_queue_to_stream(event_loop, queue: asyncio.Queue):
+def _async_queue_to_stream(event_loop, queue: asyncio.Queue) -> typing.BinaryIO:
     class GeneratorStream(io.RawIOBase):
         def __init__(self):
             self.leftover = None
