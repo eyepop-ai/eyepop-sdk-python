@@ -689,9 +689,9 @@ class DownloadResponse(BaseModel):
 
 
 
-class VlmRuntimeConfig(BaseModel):
+class InferRuntimeConfig(BaseModel):
     """
-    Runtime configuration for worker inference. Passed to run().
+    Runtime configuration for ad-hoc inference [EXPERIMENTAL].
 
     Common generation parameters are typed explicitly. Additional HuggingFace
     kwargs are accepted via extra="allow" and accessible via model_extra.
@@ -722,8 +722,8 @@ class TransformInto(BaseModel):
     )
 
 
-class VlmInferRequest(BaseModel):
-    """Client-facing VLM API request model."""
+class InferRequest(BaseModel):
+    """Client-facing ad-hoc- inference request model [EXPERIMENTAL]."""
     worker_release: str = Field(
         ...,
         description="Worker release name for routing (e.g., qwen3-prod, smol)",
@@ -736,11 +736,11 @@ class VlmInferRequest(BaseModel):
             "How many distinct human beings are in the scene? Answer with an integer number"
         ],
     )
-    config: VlmRuntimeConfig = Field(
-        default_factory=VlmRuntimeConfig,
+    config: InferRuntimeConfig = Field(
+        default_factory=InferRuntimeConfig,
         description="Runtime configuration for inference (max_new_tokens, temperature, etc.)",
         examples=[
-            VlmRuntimeConfig(
+            InferRuntimeConfig(
                 max_new_tokens=10,
             )
         ],
@@ -751,7 +751,7 @@ class VlmInferRequest(BaseModel):
         examples=[False],
     )
     transform_into: TransformInto | None = Field(
-        default_factory=TransformInto,
+        default=None,
         description="Optional instructions to transform the raw VLM text output"
     )
 
