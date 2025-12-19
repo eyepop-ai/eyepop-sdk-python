@@ -583,7 +583,7 @@ class SyncDataEndpoint(SyncEndpoint):
             transcode_mode: TranscodeMode | None = None,
             start_timestamp: int | None = None,
             end_timestamp: int | None = None,
-    ) -> SyncDataJob:
+    ) -> SyncInferJob:
         job = run_coro_thread_save(
             self.event_loop,
             self.endpoint.infer_asset(
@@ -596,4 +596,4 @@ class SyncDataEndpoint(SyncEndpoint):
                 end_timestamp=end_timestamp
             )
         )
-        return SyncDataJob(job, self.event_loop)
+        return SyncInferJob(job, self.event_loop)

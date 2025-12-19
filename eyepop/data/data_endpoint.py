@@ -128,11 +128,15 @@ class DataEndpoint(Endpoint):
             return
         self.dataset_api_url = settings.default_data_url
         if self.compute_ctx is not None:
-            config_url = (f'{self.eyepop_url}/v1/configs?account_uuid='
-                          f'{self.account_uuid if self.account_uuid is not None else ""}')
+            if self.account_uuid:
+                config_url = f'{self.eyepop_url}/v1/configs?account_uuid={self.account_uuid}'
+            else:
+                config_url = f'{self.eyepop_url}/v1/configs'
         else:
-            config_url = (f'{self.eyepop_url}/configs?account_uuid='
-                          f'{self.account_uuid if self.account_uuid is not None else ""}')
+            if self.account_uuid:
+                config_url = f'{self.eyepop_url}/configs?account_uuid={self.account_uuid}'
+            else:
+                config_url = f'{self.eyepop_url}/configs'
         async with await self.request_with_retry("GET", config_url) as resp:
             public_config = await resp.json()
         data_url = public_config.get('dataset_api_url', None)
@@ -909,7 +913,7 @@ class DataEndpoint(Endpoint):
             transcode_mode: TranscodeMode | None = None,
             start_timestamp: int | None = None,
             end_timestamp: int | None = None,
-    ) -> DataJob:
+    ) -> InferJob:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         start_timestamp_query = f'&start_timestamp={start_timestamp}' if start_timestamp is not None else ''
