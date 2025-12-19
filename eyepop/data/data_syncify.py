@@ -6,7 +6,7 @@ import aiohttp
 
 import eyepop
 from eyepop.data.data_endpoint import DataEndpoint
-from eyepop.data.data_jobs import DataJob
+from eyepop.data.data_jobs import DataJob, InferJob
 from eyepop.data.data_types import (
     AnnotationInclusionMode,
     ArtifactType,
@@ -35,7 +35,7 @@ from eyepop.data.data_types import (
     Prediction,
     QcAiHubExportParams,
     TranscodeMode,
-    UserReview, DownloadResponse, VlmInferRequest,
+    UserReview, DownloadResponse, InferRequest,
 )
 from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 
@@ -49,6 +49,19 @@ class SyncDataJob:
 
     def result(self) -> Asset:
         result = run_coro_thread_save(self.event_loop, self.job.result())
+        return result # type: ignore [no-any-return]
+
+    def cancel(self):
+        run_coro_thread_save(self.event_loop, self.job.cancel())
+
+
+class SyncInferJob:
+    def __init__(self, job: InferJob, event_loop):
+        self.job = job
+        self.event_loop = event_loop
+
+    def predict(self) -> dict[str, typing.Any]:
+        result = run_coro_thread_save(self.event_loop, self.job.predict())
         return result # type: ignore [no-any-return]
 
     def cancel(self):
@@ -559,12 +572,12 @@ class SyncDataEndpoint(SyncEndpoint):
             )
         )
 
-    """ VLM Api """
+    """ VLM Api [EXPERIMENTAL] """
 
-    def vlm_infer_asset(
+    def infer_asset(
             self,
             asset_uuid: str,
-            infer_request: VlmInferRequest,
+            infer_request: InferRequest,
             dataset_uuid: str | None = None,
             dataset_version: int | None = None,
             transcode_mode: TranscodeMode | None = None,
@@ -573,7 +586,7 @@ class SyncDataEndpoint(SyncEndpoint):
     ) -> SyncDataJob:
         job = run_coro_thread_save(
             self.event_loop,
-            self.endpoint.vlm_infer_asset(
+            self.endpoint.infer_asset(
                 asset_uuid=asset_uuid,
                 infer_request=infer_request,
                 dataset_uuid=dataset_uuid,

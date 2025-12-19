@@ -12,7 +12,7 @@ from websockets.asyncio.client import ClientConnection
 
 from eyepop.client_session import ClientSession
 from eyepop.data.arrow.schema import MIME_TYPE_APACHE_ARROW_FILE_VERSIONED
-from eyepop.data.data_jobs import DataJob, _ImportFromJob, _UploadStreamJob, _VlmInferJob
+from eyepop.data.data_jobs import DataJob, _ImportFromJob, _UploadStreamJob, InferJob
 from eyepop.data.data_types import (
     AnnotationInclusionMode,
     ArgoWorkflowPhase,
@@ -45,7 +45,7 @@ from eyepop.data.data_types import (
     Prediction,
     QcAiHubExportParams,
     TranscodeMode,
-    UserReview, DownloadResponse, VlmInferRequest,
+    UserReview, DownloadResponse, InferRequest,
 )
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings
@@ -898,12 +898,12 @@ class DataEndpoint(Endpoint):
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(list[ListWorkflowItem], await resp.json()) # type: ignore [no-any-return]
 
-    """ VLM Api """
+    """ Ad hoc inference Api [EXPERIMENTAL] """
 
-    async def vlm_infer_asset(
+    async def infer_asset(
             self,
             asset_uuid: str,
-            infer_request: VlmInferRequest,
+            infer_request: InferRequest,
             dataset_uuid: str | None = None,
             dataset_version: int | None = None,
             transcode_mode: TranscodeMode | None = None,
@@ -925,7 +925,7 @@ class DataEndpoint(Endpoint):
 
         session = DataClientSession(self, await self.vlm_base_url())
 
-        job = _VlmInferJob(
+        job = InferJob(
             asset_url=asset_url,
             infer_request=infer_request,
             session=session,

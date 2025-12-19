@@ -8,7 +8,7 @@ import aiohttp
 from pydantic import BaseModel, Field
 
 from eyepop.client_session import ClientSession
-from eyepop.data.data_types import Asset, AssetImport, VlmInferRequest, Prediction
+from eyepop.data.data_types import Asset, AssetImport, InferRequest, Prediction
 from eyepop.jobs import Job, JobStateCallback
 
 
@@ -158,7 +158,7 @@ class _VlmRunInfo(BaseModel):
     )
 
 
-class _VlmInferResponse(BaseModel):
+class _InferResponse(BaseModel):
     """Client-facing API response model matching WorkerResponse structure."""
 
     raw_output: str | None = Field(
@@ -171,24 +171,26 @@ class _VlmInferResponse(BaseModel):
         default=None, description="Runtime information about the inference execution"
     )
 
-class _VlmInferJob(DataJob):
+class InferJob(Job):
+    timeout: aiohttp.ClientTimeout | None
     def __init__(
             self,
             asset_url: str,
-            infer_request: VlmInferRequest,
+            infer_request: InferRequest,
             session: ClientSession,
             on_ready: Callable[[DataJob], None] | None = None,
             callback: JobStateCallback | None = None,
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
     ):
-        super().__init__(session, on_ready, callback, timeout)
+        super().__init__(session, on_ready, callback)
+        self.timeout = timeout
         self._asset_url = asset_url
         self._infer_request = infer_request
 
         self._post_body = infer_request.model_dump(exclude_none=True)
         self._post_body['url'] = asset_url
 
-    async def predict(self) -> dict:
+    async def predict(self) -> dict[str, Any]:
         return await self.pop_result()
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
@@ -217,7 +219,7 @@ class _VlmInferJob(DataJob):
                 if resp.status == 202:
                     request_id = _VlmInferRequestAccepted.model_validate(await resp.json()).request_id
                 elif resp.status == 200:
-                    result = _VlmInferResponse.model_validate(await resp.json())
+                    result = _InferResponse.model_validate(await resp.json())
                     if result.predictions is not None:
                         for prediction in result.predictions:
                             await queue.put(prediction.model_dump(exclude_none=True))
