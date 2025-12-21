@@ -1,12 +1,11 @@
 import json
 import unittest
-from datetime import datetime
+import datetime
 
-from aiohttp import ClientResponseError
-from aioresponses import aioresponses, CallbackResult
+from aioresponses import aioresponses
 
 from eyepop import EyePopSdk
-from eyepop.data.data_types import DatasetCreate, Dataset, DatasetUpdate, AutoAnnotate
+from eyepop.data.data_types import DatasetCreate, Dataset, DatasetUpdate
 from tests.data.base_endpoint_test import BaseEndpointTest
 
 
@@ -29,8 +28,8 @@ class TestEndpointConnect(BaseEndpointTest):
                     uuid=self.test_dataset_id,
                     name="",
                     description="",
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow(),
+                    created_at=datetime.datetime.now(datetime.UTC),
+                    updated_at=datetime.datetime.now(datetime.UTC),
                     tags=[],
                     account_uuid=self.test_eyepop_account_id,
                     auto_annotates=[],
@@ -41,8 +40,8 @@ class TestEndpointConnect(BaseEndpointTest):
             uuid=self.test_dataset_id,
             name="",
             description="",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.datetime.now(datetime.UTC),
+            updated_at=datetime.datetime.now(datetime.UTC),
             tags=[],
             account_uuid=self.test_eyepop_account_id,
             auto_annotates=[],

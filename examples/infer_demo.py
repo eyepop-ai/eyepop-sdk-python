@@ -9,9 +9,6 @@ from eyepop.data.data_types import InferRequest, TranscodeMode
 
 script_dir = os.path.dirname(__file__)
 
-logging.getLogger('eyepop').setLevel(logging.DEBUG)
-logging.getLogger('eyepop.requests').setLevel(logging.DEBUG)
-
 log = logging.getLogger('eyepop.example')
 
 parser = argparse.ArgumentParser(

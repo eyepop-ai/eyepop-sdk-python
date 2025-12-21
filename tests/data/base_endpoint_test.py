@@ -1,4 +1,4 @@
-from datetime import datetime
+import datetime
 import json
 import os
 import unittest
@@ -20,8 +20,8 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         uuid=test_dataset_id,
         name="test",
         description="",
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.datetime.now(datetime.UTC),
+        updated_at=datetime.datetime.now(datetime.UTC),
         tags=[],
         account_uuid=test_eyepop_account_id,
         auto_annotates=[],
