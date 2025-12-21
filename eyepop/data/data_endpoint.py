@@ -12,7 +12,7 @@ from websockets.asyncio.client import ClientConnection
 
 from eyepop.client_session import ClientSession
 from eyepop.data.arrow.schema import MIME_TYPE_APACHE_ARROW_FILE_VERSIONED
-from eyepop.data.data_jobs import DataJob, _ImportFromJob, _UploadStreamJob, InferJob
+from eyepop.data.data_jobs import DataJob, InferJob, _ImportFromJob, _UploadStreamJob
 from eyepop.data.data_types import (
     AnnotationInclusionMode,
     ArgoWorkflowPhase,
@@ -27,10 +27,15 @@ from eyepop.data.data_types import (
     CreateWorkflowBody,
     CreateWorkflowResponse,
     Dataset,
+    DatasetAutoAnnotate,
+    DatasetAutoAnnotateCreate,
+    DatasetAutoAnnotateUpdate,
     DatasetCreate,
     DatasetUpdate,
+    DownloadResponse,
     EventHandler,
     ExportedUrlResponse,
+    InferRequest,
     ListWorkflowItem,
     Model,
     ModelAlias,
@@ -45,7 +50,7 @@ from eyepop.data.data_types import (
     Prediction,
     QcAiHubExportParams,
     TranscodeMode,
-    UserReview, DownloadResponse, InferRequest,
+    UserReview,
 )
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings
@@ -428,6 +433,50 @@ class DataEndpoint(Endpoint):
         async with await self.request_with_retry("DELETE", delete_url):
             return
 
+    async def create_dataset_auto_annotate(
+            self,
+            auto_annotate_create: DatasetAutoAnnotateCreate,
+            dataset_uuid: str,
+            dataset_version: int | None = None,
+    ):
+        version_query = f'dataset_version={dataset_version}&' if dataset_version is not None else ''
+        post_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/auto_annotates?{version_query}'
+        async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
+                                                 data=auto_annotate_create.model_dump_json(exclude_unset=True)):
+            return
+
+    async def update_dataset_auto_annotate(
+            self,
+            auto_annotate_update: DatasetAutoAnnotateUpdate,
+            dataset_uuid: str,
+            auto_annotate: AutoAnnotate,
+            source: str,
+            dataset_version: int | None = None,
+    ):
+        version_query = f'dataset_version={dataset_version}&' if dataset_version is not None else ''
+        patch_url = (f'{await self.data_base_url()}/datasets/{dataset_uuid}/auto_annotates?'
+                     f'auto_annotate={auto_annotate}&'
+                     f'source={quote_plus(source)}&'
+                     f'{version_query}')
+        async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
+                                                 data=auto_annotate_update.model_dump_json(exclude_unset=True)):
+            return
+
+
+    async def list_dataset_auto_annotates(
+            self,
+            dataset_uuid: str,
+            dataset_version: int | None = None,
+            auto_annotate: AutoAnnotate | None = None,
+            source: str | None = None,
+    ) -> Sequence[DatasetAutoAnnotate]:
+        version_query = f'dataset_version={dataset_version}&' if dataset_version is not None else ''
+        auto_annotate_query = f'auto_annotate={auto_annotate}&' if auto_annotate is not None else ''
+        source_query = f'source={quote_plus(source)}&' if source is not None else ''
+        get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/auto_annotates?{version_query}{auto_annotate_query}{source_query}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return TypeAdapter(list[DatasetAutoAnnotate]).validate_python(await resp.json()) # type: ignore [no-any-return]
+
     """" Asset methods """
 
     async def upload_asset_job(
@@ -580,6 +629,59 @@ class DataEndpoint(Endpoint):
             return parse_obj_as(DownloadResponse, await resp.json()) # type: ignore [no-any-return]
         else:
             return resp.content # type: ignore [no-any-return]
+
+    async def add_asset_annotation(
+            self,
+            asset_uuid: str,
+            predictions: Sequence[Prediction] = (),
+            auto_annotate: AutoAnnotate | None = None,
+            source: str | None = None,
+            user_review: UserReview | None = None,
+            approved_threshold: float | None = None,
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None,
+    ):
+        post_url = "".join([
+            f'{await self.data_base_url()}/assets/{asset_uuid}/annotations?',
+            f'dataset_uuid={dataset_uuid}&' if dataset_uuid is not None else '',
+            f'dataset_version={dataset_version}&' if dataset_version is not None else '',
+            f'auto_annotate={str(auto_annotate)}&' if auto_annotate is not None else '',
+            f'source={quote_plus(source)}&' if source is not None else '',
+            f'user_review={str(user_review)}&' if user_review is not None else '',
+            f'approved_threshold={str(approved_threshold)}&' if approved_threshold is not None else '',
+        ])
+
+        async with await self.request_with_retry("POST", post_url,
+                                                 content_type=APPLICATION_JSON,
+                                                 data=TypeAdapter(Sequence[Prediction]).dump_json(
+                                                     predictions,
+                                                     exclude_unset=True,
+                                                     exclude_none=True,
+                                                 )):
+            return
+
+    async def update_asset_annotation_approval(
+            self,
+            asset_uuid: str,
+            auto_annotate: AutoAnnotate | None = None,
+            source: str | None = None,
+            user_review: UserReview | None = None,
+            approved_threshold: float | None = None,
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None,
+    ):
+        patch_url = "".join([
+            f'{await self.data_base_url()}/assets/{asset_uuid}/annotations?',
+            f'dataset_uuid={dataset_uuid}&' if dataset_uuid is not None else '',
+            f'dataset_version={dataset_version}&' if dataset_version is not None else '',
+            f'auto_annotate={str(auto_annotate)}&' if auto_annotate is not None else '',
+            f'source={quote_plus(source)}&' if source is not None else '',
+            f'user_review={str(user_review)}&' if user_review is not None else '',
+            f'approved_threshold={str(approved_threshold)}&' if approved_threshold is not None else '',
+        ])
+
+        async with await self.request_with_retry("PATCH", patch_url):
+            return
 
     """ Model methods """
 
