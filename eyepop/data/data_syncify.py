@@ -4,7 +4,6 @@ from typing import BinaryIO, Callable, List, Optional
 
 import aiohttp
 
-import eyepop
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_jobs import DataJob, InferJob
 from eyepop.data.data_types import (
@@ -18,10 +17,15 @@ from eyepop.data.data_types import (
     ChangeEvent,
     CreateWorkflowBody,
     Dataset,
+    DatasetAutoAnnotate,
+    DatasetAutoAnnotateCreate,
+    DatasetAutoAnnotateUpdate,
     DatasetCreate,
     DatasetUpdate,
+    DownloadResponse,
     EventHandler,
     ExportedUrlResponse,
+    InferRequest,
     Model,
     ModelAlias,
     ModelAliasCreate,
@@ -35,7 +39,7 @@ from eyepop.data.data_types import (
     Prediction,
     QcAiHubExportParams,
     TranscodeMode,
-    UserReview, DownloadResponse, InferRequest,
+    UserReview,
 )
 from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 
@@ -175,7 +179,58 @@ class SyncDataEndpoint(SyncEndpoint):
                            user_reviews: typing.Sequence[UserReview] = (UserReview.unknown,)):
         run_coro_thread_save(
             self.event_loop,
-            self.delete_annotations(dataset_uuid, dataset_version, user_reviews)
+            self.endpoint.delete_annotations(dataset_uuid, dataset_version, user_reviews)
+        )
+
+    def create_dataset_auto_annotate(
+            self,
+            auto_annotate_create: DatasetAutoAnnotateCreate,
+            dataset_uuid: str,
+            dataset_version: int | None = None,
+    ):
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.create_dataset_auto_annotate(
+                auto_annotate_create=auto_annotate_create,
+                dataset_uuid=dataset_uuid,
+                dataset_version=dataset_version
+            )
+        )
+
+    def update_dataset_auto_annotate(
+            self,
+            auto_annotate_update: DatasetAutoAnnotateUpdate,
+            dataset_uuid: str,
+            auto_annotate: AutoAnnotate,
+            source: str,
+            dataset_version: int | None = None,
+    ):
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.update_dataset_auto_annotate(
+                auto_annotate_update=auto_annotate_update,
+                dataset_uuid=dataset_uuid,
+                auto_annotate=auto_annotate,
+                source=source,
+                dataset_version=dataset_version
+            )
+        )
+
+    def list_dataset_auto_annotates(
+            self,
+            dataset_uuid: str,
+            dataset_version: int | None = None,
+            auto_annotate: AutoAnnotate | None = None,
+            source: str | None = None,
+    ) -> typing.Sequence[DatasetAutoAnnotate]:
+        return run_coro_thread_save( # type: ignore [no-any-return]
+            self.event_loop,
+            self.endpoint.list_dataset_auto_annotates(
+                dataset_uuid=dataset_uuid,
+                dataset_version=dataset_version,
+                auto_annotate=auto_annotate,
+                source=source,
+            )
         )
 
     """" Asset methods """
@@ -346,6 +401,54 @@ class SyncDataEndpoint(SyncEndpoint):
             return result
         else:
             return self._async_reader_to_sync_binary_io(result)
+
+    def add_asset_annotation(
+            self,
+            asset_uuid: str,
+            predictions: typing.Sequence[Prediction] = (),
+            auto_annotate: AutoAnnotate | None = None,
+            source: str | None = None,
+            user_review: UserReview | None = None,
+            approved_threshold: float | None = None,
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None,
+    ):
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.add_asset_annotation(
+                asset_uuid=asset_uuid,
+                predictions=predictions,
+                auto_annotate=auto_annotate,
+                source=source,
+                user_review=user_review,
+                approved_threshold=approved_threshold,
+                dataset_uuid=dataset_uuid,
+                dataset_version=dataset_version,
+            )
+        )
+
+    def update_asset_annotation_approval(
+            self,
+            asset_uuid: str,
+            auto_annotate: AutoAnnotate | None = None,
+            source: str | None = None,
+            user_review: UserReview | None = None,
+            approved_threshold: float | None = None,
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None,
+    ):
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.update_asset_annotation_approval(
+                asset_uuid=asset_uuid,
+                auto_annotate=auto_annotate,
+                source=source,
+                user_review=user_review,
+                approved_threshold=approved_threshold,
+                dataset_uuid=dataset_uuid,
+                dataset_version=dataset_version,
+            )
+        )
 
     """ Model methods """
 

@@ -3,13 +3,19 @@ import asyncio
 import logging
 import os
 from typing import Any, Callable
+from uuid import uuid4
 
 import aiohttp
 
 from eyepop import EyePopSdk
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_jobs import DataJob
-from eyepop.data.data_types import Asset, Dataset, DatasetCreate
+from eyepop.data.data_types import Asset, Dataset, DatasetCreate, AutoAnnotate, DatasetAutoAnnotate, \
+    DatasetAutoAnnotateCreate, AutoAnnotateStatus, Prediction, PredictedClass, UserReview
+
+logging.getLogger('eyepop').setLevel(logging.DEBUG)
+logging.getLogger('eyepop.requests').setLevel(logging.DEBUG)
+
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +62,59 @@ async def import_assets(endpoint: DataEndpoint, dataset: Dataset, assets_paths: 
     log.debug("imported %d assets to %s", len(assets), dataset.uuid)
     return assets
 
+async def auto_annotate_with_test_classes(
+        endpoint: DataEndpoint,
+        dataset: Dataset,
+        auto_annotate: AutoAnnotate,
+        source: str
+) -> int:
+    assets = await endpoint.list_assets(dataset_uuid=dataset.uuid)
+    for asset in assets:
+        await endpoint.add_asset_annotation(
+            asset_uuid=asset.uuid,
+            auto_annotate=auto_annotate,
+            source=source,
+            predictions=(Prediction(
+                source_width=1.0,
+                source_height=1.0,
+                classes=[PredictedClass(
+                    classLabel="test_class"
+                )]
+            ),),
+        )
+    return len(assets)
+
+async def approve_auto_annotate(
+        endpoint: DataEndpoint,
+        dataset: Dataset,
+        auto_annotate: AutoAnnotate,
+        source: str
+) -> int:
+    assets = await endpoint.list_assets(dataset_uuid=dataset.uuid)
+    for asset in assets:
+        await endpoint.update_asset_annotation_approval(
+            asset_uuid=asset.uuid,
+            auto_annotate=auto_annotate,
+            source=source,
+            user_review=UserReview.approved,
+        )
+    return len(assets)
+
+async def get_auto_annotate(
+        endpoint: DataEndpoint,
+        dataset: Dataset,
+        auto_annotate: AutoAnnotate,
+        source: str
+) -> DatasetAutoAnnotate:
+    pass
+
+async def get_auto_annotate(
+        endpoint: DataEndpoint,
+        dataset: Dataset,
+        auto_annotate: AutoAnnotate,
+        source: str
+) -> DatasetAutoAnnotate:
+    pass
 
 parser = argparse.ArgumentParser(
                     prog='import dataset',
@@ -76,6 +135,32 @@ async def main():
                 dataset = await endpoint.get_dataset(main_args.dataset_uuid)
                 log.debug("using existing dataset: %s", dataset.uuid)
             await import_assets(endpoint, dataset, main_args.assets_path)
+
+            source = f"ep_evaluate:{uuid4().hex}"
+
+            await endpoint.create_dataset_auto_annotate(
+                auto_annotate_create=DatasetAutoAnnotateCreate(
+                    auto_annotate="ep_evaluate",
+                    source=source,
+                    status=AutoAnnotateStatus.in_progress,
+                ),
+                dataset_uuid=dataset.uuid,
+            )
+            log.debug("auto annotate created for dataset: %s", dataset.uuid)
+            num_assets = await auto_annotate_with_test_classes(
+                endpoint=endpoint,
+                dataset=dataset,
+                auto_annotate="ep_evaluate",
+                source=source,
+            )
+            log.debug("auto annotated %d assets in dataset: %s", num_assets, dataset.uuid)
+            num_assets = await approve_auto_annotate(
+                endpoint=endpoint,
+                dataset=dataset,
+                auto_annotate="ep_evaluate",
+                source=source,
+            )
+            log.debug("approved %d asset annotations in dataset: %s", num_assets, dataset.uuid)
         finally:
             if main_args.dataset_uuid is None and main_args.remove:
                 log.debug("removing dataset: %s", dataset.uuid)

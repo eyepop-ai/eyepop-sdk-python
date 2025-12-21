@@ -148,6 +148,43 @@ class DatasetUpdate(DatasetCreate):
     model_config = ConfigDict(extra='forbid')
 
 
+class AutoAnnotateStatus(enum.StrEnum):
+    error = enum.auto()
+    requested = enum.auto()
+    in_progress = enum.auto()
+    completed = enum.auto()
+
+
+class DatasetAutoAnnotateCreate(BaseModel):
+    auto_annotate: AutoAnnotate
+    auto_annotate_params: dict[str, Any] | None = None
+    source: str
+    source_model_uuid: str | None = None
+    status: AutoAnnotateStatus | None = None
+    metrics: dict[str, Any] | None = None
+    model_config = ConfigDict(extra='forbid')
+
+
+class DatasetAutoAnnotateUpdate(BaseModel):
+    status: AutoAnnotateStatus | None = None
+    metrics: dict[str, Any] | None = None
+    model_config = ConfigDict(extra='forbid')
+
+
+class DatasetAutoAnnotate(BaseModel):
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    dataset_uuid: str
+    dataset_version: int
+    source_model_uuid: str | None = None
+    auto_annotate: AutoAnnotate | None = None
+    auto_annotate_params: dict[str, Any] | None = None
+    status: AutoAnnotateStatus | None = None
+    status_message: str | None = None
+    source: str | None = None
+    metrics: dict[str, Any] | None = None
+
+
 class Point2d(BaseModel):
     x: float
     y: float
@@ -690,8 +727,7 @@ class DownloadResponse(BaseModel):
 
 
 class InferRuntimeConfig(BaseModel):
-    """
-    Runtime configuration for ad-hoc inference [EXPERIMENTAL].
+    """Runtime configuration for ad-hoc inference [EXPERIMENTAL].
 
     Common generation parameters are typed explicitly. Additional HuggingFace
     kwargs are accepted via extra="allow" and accessible via model_extra.

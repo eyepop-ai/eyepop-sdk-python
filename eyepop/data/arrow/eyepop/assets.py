@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import cast
 
 import pyarrow as pa
@@ -19,21 +20,21 @@ def table_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASSET_SCHE
 
 
 def record_batch_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASSET_SCHEMA) -> pa.RecordBatch:
-    uuids: list[any] = [None] * len(assets)
-    external_ids = uuids.copy()
-    created_ats = uuids.copy()
-    updated_ats = uuids.copy()
-    asset_urls = uuids.copy()
-    original_image_widths = uuids.copy()
-    original_image_height = uuids.copy()
-    partitions = uuids.copy()
-    review_priorities = uuids.copy()
-    model_relevance = uuids.copy()
-    annotationss = uuids.copy()
+    uuids: list[str | None] = [None] * len(assets)
+    external_ids: list[str | None] = [None] * len(assets)
+    created_ats: list[datetime | None] = [None] * len(assets)
+    updated_ats: list[datetime | None] = [None] * len(assets)
+    asset_urls: list[str | None] = [None] * len(assets)
+    original_image_widths: list[int | None] = [None] * len(assets)
+    original_image_height: list[int | None] = [None] * len(assets)
+    partitions: list[str | None] = [None] * len(assets)
+    review_priorities: list[float | None] = [None] * len(assets)
+    model_relevance: list[float | None] = [None] * len(assets)
+    annotationss: list[pa.Table | None] = [None] * len(assets)
     # since 1.6
-    mime_types = uuids.copy() if "mime_type" in schema.names else None
-    original_durations = uuids.copy() if "original_duration" in schema.names else None
-    original_framess = uuids.copy() if "original_frames" in schema.names else None
+    mime_types: list[str | None] | None= [None] * len(assets) if "mime_type" in schema.names else None
+    original_durations: list[float | None] | None = [None] * len(assets) if "original_duration" in schema.names else None
+    original_framess: list[int | None] | None = [None] * len(assets) if "original_frames" in schema.names else None
 
     for i, e in enumerate(assets):
         uuids[i] = e.uuid
@@ -46,15 +47,12 @@ def record_batch_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASS
         partitions[i] = e.partition
         review_priorities[i] = e.review_priority
         model_relevance[i] = e.model_relevance
-        if e.annotations is None:
-            annotationss[i] = None
+        annotation_fields = cast(pa.StructType, cast(pa.ListType, schema.field("annotations").type).value_type).fields
+        annotations_schema = pa.schema(annotation_fields)
+        if len(e.annotations) > 0:
+            annotationss[i] = table_from_eyepop_annotations(e.annotations, schema=annotations_schema).to_struct_array()
         else:
-            annotation_fields = cast(pa.StructType, cast(pa.ListType, schema.field("annotations").type).value_type).fields
-            annotations_schema = pa.schema(annotation_fields)
-            if len(e.annotations) > 0:
-                annotationss[i] = table_from_eyepop_annotations(e.annotations, schema=annotations_schema).to_struct_array()
-            else:
-                annotationss[i] = pa.chunked_array([], type=pa.struct(annotation_fields))
+            annotationss[i] = pa.chunked_array([], type=pa.struct(annotation_fields))
         # sinc 1.6
         if mime_types is not None:
             mime_types[i] = e.mime_type
@@ -94,7 +92,7 @@ def eyepop_assets_from_table(
         account_uuid: str | None = None,
 ) -> list[Asset]:
     table = convert(table, schema)
-    assets = [None] * table.num_rows
+    assets: list[Asset | None] = [None] * table.num_rows
     i = 0
     for batch in table.to_reader():
         uuids = batch.column(0).to_pylist()
@@ -121,7 +119,7 @@ def eyepop_assets_from_table(
                 model_relevance = round(model_relevance, CONFIDENCE_N_DIGITS)
             assets[i] = Asset(
                 uuid=uuids[j],
-                mime_type=mime_types[i] if "mime_type" in schema.names else UNKNOWN_MIME_TYPE,
+                mime_type=mime_types[i] if mime_types is not None else UNKNOWN_MIME_TYPE,
                 external_id=external_ids[j],
                 created_at=created_ats[j],
                 updated_at=updated_ats[j],
@@ -137,4 +135,5 @@ def eyepop_assets_from_table(
                 account_uuid=account_uuid,
             )
             i += 1
-    return assets
+    return cast(list[Asset], assets)
+
