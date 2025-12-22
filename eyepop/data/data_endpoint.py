@@ -537,10 +537,39 @@ class DataEndpoint(Endpoint):
         await self._task_start(job.execute())
         return job
 
-    async def list_assets(self, dataset_uuid: str, dataset_version: int | None = None,
-                          include_annotations: bool = False) -> list[Asset]:
-        version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
-        get_url = f'{await self.data_base_url()}/assets?dataset_uuid={dataset_uuid}&include_annotations={"true" if include_annotations else "false"}{version_query}'
+    async def list_assets(
+            self,
+            dataset_uuid: str,
+            dataset_version: int | None = None,
+            include_annotations: bool = False,
+            inclusion_mode: AssetInclusionMode = AssetInclusionMode.annotated_only,
+            annotation_inclusion_mode: AnnotationInclusionMode | None = None,
+            include_partitions: list[str] | None = None,
+            include_auto_annotates: list[AutoAnnotate] | None = None,
+            include_sources: list[str] | None = None,
+    ) -> list[Asset]:
+        include_partitions_query = ""
+        if include_partitions is not None:
+            for include_partition in include_partitions:
+                include_partitions_query += f"include_partition={quote_plus(include_partition)}&"
+        include_auto_annotates_query = ""
+        if include_auto_annotates is not None:
+            for include_auto_annotate in include_auto_annotates:
+                include_auto_annotates_query += f"include_auto_annotate={include_auto_annotate}&"
+        include_sources_query = ""
+        if include_sources is not None:
+            for include_source in include_sources:
+                include_sources_query += f"include_source={quote_plus(include_source)}&"
+        get_url = "".join([
+            f'{await self.data_base_url()}/assets?dataset_uuid={dataset_uuid}&',
+            f'dataset_version={dataset_version}&' if dataset_version is not None else '',
+            f'include_annotations={"true" if include_annotations else "false"}&' if include_annotations is not None else '',
+            f'inclusion_mode={str(inclusion_mode)}&' if inclusion_mode is not None else '',
+            f'annotation_inclusion_mode={str(annotation_inclusion_mode)}&' if annotation_inclusion_mode is not None else '',
+            f'{include_partitions_query}',
+            f'{include_auto_annotates_query}',
+            f'{include_sources_query}',
+        ])
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(list[Asset], await resp.json()) # type: ignore [no-any-return]
 
@@ -839,7 +868,7 @@ class DataEndpoint(Endpoint):
         include_partitions_query = ""
         if include_partitions is not None:
             for include_partition in include_partitions:
-                include_partitions_query += f"include_partition={include_partition}&"
+                include_partitions_query += f"include_partition={quote_plus(include_partition)}&"
         include_auto_annotates_query = ""
         if include_auto_annotates is not None:
             for include_auto_annotate in include_auto_annotates:
@@ -847,7 +876,7 @@ class DataEndpoint(Endpoint):
         include_sources_query = ""
         if include_sources is not None:
             for include_source in include_sources:
-                include_sources_query += f"include_source={include_source}&"
+                include_sources_query += f"include_source={quote_plus(include_source)}&"
         get_url = (f'{await self.data_base_url()}/exports/assets?'
                    f'{dataset_uuid_query}'
                    f'{dataset_version_query}'
