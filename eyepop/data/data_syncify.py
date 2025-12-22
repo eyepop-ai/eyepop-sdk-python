@@ -298,14 +298,29 @@ class SyncDataEndpoint(SyncEndpoint):
         )
         return SyncDataJob(job, self.event_loop)
 
-    def list_assets(self, dataset_uuid: str, dataset_version: Optional[int] = None,
-                    include_annotations: bool = False) -> List[Asset]:
+    def list_assets(
+            self,
+            dataset_uuid: str,
+            dataset_version: Optional[int] = None,
+            include_annotations: bool = False,
+            inclusion_mode: AssetInclusionMode = AssetInclusionMode.annotated_only,
+            annotation_inclusion_mode: AnnotationInclusionMode | None = None,
+            include_partitions: list[str] | None = None,
+            include_auto_annotates: list[AutoAnnotate] | None = None,
+            include_sources: list[str] | None = None,
+    ) -> List[Asset]:
         return run_coro_thread_save( # type: ignore [no-any-return]
             self.event_loop,
             self.endpoint.list_assets(
                 dataset_uuid=dataset_uuid,
                 dataset_version=dataset_version,
-                include_annotations=include_annotations)
+                include_annotations=include_annotations,
+                inclusion_mode=inclusion_mode,
+                annotation_inclusion_mode=annotation_inclusion_mode,
+                include_partitions=include_partitions,
+                include_auto_annotates=include_auto_annotates,
+                include_sources=include_sources,
+            )
         )
 
     def get_asset(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
