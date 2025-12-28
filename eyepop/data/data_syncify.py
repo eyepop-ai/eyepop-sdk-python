@@ -5,7 +5,7 @@ from typing import BinaryIO, Callable, List, Optional
 import aiohttp
 
 from eyepop.data.data_endpoint import DataEndpoint
-from eyepop.data.data_jobs import DataJob, InferJob
+from eyepop.data.data_jobs import DataJob, InferJob, InferRunInfo
 from eyepop.data.data_types import (
     AnnotationInclusionMode,
     ArtifactType,
@@ -63,6 +63,10 @@ class SyncInferJob:
     def __init__(self, job: InferJob, event_loop):
         self.job = job
         self.event_loop = event_loop
+
+    @property
+    def run_info(self) -> InferRunInfo | None:
+        return self.job.run_info
 
     def predict(self) -> dict[str, typing.Any]:
         result = run_coro_thread_save(self.event_loop, self.job.predict())

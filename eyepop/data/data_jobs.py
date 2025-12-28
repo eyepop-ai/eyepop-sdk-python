@@ -133,7 +133,7 @@ class _VlmInferRequestAccepted(BaseModel):
         description="Inference request Id, can be used to pull for updates"
     )
 
-class _VlmRunInfo(BaseModel):
+class InferRunInfo(BaseModel):
     """
     Runtime information about the inference execution.
 
@@ -153,6 +153,9 @@ class _VlmRunInfo(BaseModel):
         default=None, description="Visual tokens from all frames"
     )
     text_tokens: int | None = Field(default=None, description="Text tokens from prompt")
+    output_tokens: int | None = Field(
+        default=None, description="Number of tokens generated in the model output"
+    )
     aspect_ratio: float | None = Field(
         default=None, description="Aspect ratio of the processed media (width/height)"
     )
@@ -167,7 +170,7 @@ class _InferResponse(BaseModel):
     predictions: Sequence[Prediction] | None = Field(
         default=None, description="Structured predictions (eyepop format)"
     )
-    run_info: _VlmRunInfo | None = Field(
+    run_info: InferRunInfo | None = Field(
         default=None, description="Runtime information about the inference execution"
     )
 
@@ -189,6 +192,11 @@ class InferJob(Job):
 
         self._post_body = infer_request.model_dump(exclude_none=True)
         self._post_body['url'] = asset_url
+        self._run_info = None
+
+    @property
+    def run_info(self) -> InferRunInfo | None:
+        return self._run_info
 
     async def predict(self) -> dict[str, Any]:
         return await self.pop_result()
@@ -207,19 +215,20 @@ class InferJob(Job):
             if request_id is None:
                 request_coro = session.request_with_retry(
                     method="POST",
-                    url="/api/v1/infer",
+                    url="/api/v1/infer?timeout=20",
                     data=post_body,
                 )
             else:
                 request_coro = session.request_with_retry(
                     method="POST",
-                    url=f"/api/v1/requests/{request_id}",
+                    url=f"/api/v1/requests/{request_id}?timeout=20",
                 )
             async with await request_coro as resp:
                 if resp.status == 202:
                     request_id = _VlmInferRequestAccepted.model_validate(await resp.json()).request_id
                 elif resp.status == 200:
                     result = _InferResponse.model_validate(await resp.json())
+                    self._run_info = result.run_info = result.run_info
                     if result.predictions is not None:
                         for prediction in result.predictions:
                             await queue.put(prediction.model_dump(exclude_none=True))
