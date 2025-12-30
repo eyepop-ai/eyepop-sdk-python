@@ -12,7 +12,7 @@ from websockets.asyncio.client import ClientConnection
 
 from eyepop.client_session import ClientSession
 from eyepop.data.arrow.schema import MIME_TYPE_APACHE_ARROW_FILE_VERSIONED
-from eyepop.data.data_jobs import DataJob, InferJob, _ImportFromJob, _UploadStreamJob
+from eyepop.data.data_jobs import DataJob, InferJob, _ImportFromJob, _UploadStreamJob, EvaluateJob
 from eyepop.data.data_types import (
     AnnotationInclusionMode,
     ArgoWorkflowPhase,
@@ -50,12 +50,10 @@ from eyepop.data.data_types import (
     Prediction,
     QcAiHubExportParams,
     TranscodeMode,
-    UserReview,
+    UserReview, EvaluateRequest, APPLICATION_JSON,
 )
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings
-
-APPLICATION_JSON = "application/json"
 
 WS_INITIAL_RECONNECT_DELAY = 1.0
 WS_MAX_RECONNECT_DELAY = 60.0
@@ -476,6 +474,24 @@ class DataEndpoint(Endpoint):
         get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/auto_annotates?{version_query}{auto_annotate_query}{source_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return TypeAdapter(list[DatasetAutoAnnotate]).validate_python(await resp.json()) # type: ignore [no-any-return]
+
+    """ [EXPERIMENTAL] """
+
+    async def evaluate_dataset(
+            self,
+            evaluate_request: EvaluateRequest,
+            worker_release: str | None = None,
+    ) -> EvaluateJob:
+        session = DataClientSession(self, await self.vlm_base_url())
+
+        job = EvaluateJob(
+            evaluate_request=evaluate_request,
+            worker_release=worker_release,
+            session=session,
+            callback=self.metrics_collector,
+        )
+        await self._task_start(job.execute())
+        return job
 
     """" Asset methods """
 

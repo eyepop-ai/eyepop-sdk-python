@@ -5,7 +5,7 @@ from typing import BinaryIO, Callable, List, Optional
 import aiohttp
 
 from eyepop.data.data_endpoint import DataEndpoint
-from eyepop.data.data_jobs import DataJob, InferJob, InferRunInfo
+from eyepop.data.data_jobs import DataJob, InferJob, EvaluateJob
 from eyepop.data.data_types import (
     AnnotationInclusionMode,
     ArtifactType,
@@ -39,7 +39,7 @@ from eyepop.data.data_types import (
     Prediction,
     QcAiHubExportParams,
     TranscodeMode,
-    UserReview,
+    UserReview, EvaluateResponse, InferRunInfo,
 )
 from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 
@@ -71,6 +71,19 @@ class SyncInferJob:
     def predict(self) -> dict[str, typing.Any]:
         result = run_coro_thread_save(self.event_loop, self.job.predict())
         return result # type: ignore [no-any-return]
+
+    def cancel(self):
+        run_coro_thread_save(self.event_loop, self.job.cancel())
+
+
+class SyncEvaluateJob:
+    def __init__(self, job: EvaluateJob, event_loop):
+        self.job = job
+        self.event_loop = event_loop
+
+    @property
+    async def response(self) -> EvaluateResponse | None:
+        return await self.job.response
 
     def cancel(self):
         run_coro_thread_save(self.event_loop, self.job.cancel())

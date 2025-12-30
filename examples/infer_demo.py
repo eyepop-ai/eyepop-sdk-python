@@ -7,7 +7,7 @@ import os
 from eyepop import EyePopSdk
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_jobs import InferJob
-from eyepop.data.data_types import InferRequest, TranscodeMode, Asset, AssetInclusionMode
+from eyepop.data.data_types import InferRequest, TranscodeMode, Asset, AssetInclusionMode, EvaluateRequest
 
 script_dir = os.path.dirname(__file__)
 
@@ -53,10 +53,6 @@ async def infer(
         log.error(f"Unsupported mime type: {asset.mime_type}")
         return None
 
-async def process_result(asset: Asset, job: InferJob):
-    while result := await job.predict():
-        print(f"result for {asset.uuid}:", json.dumps(result, indent=2))
-
 async def main(args):
     if args.asset_uuid is None and args.dataset_uuid is None:
         print("Need either --asset-uuid or --dataset-uuid")
@@ -72,7 +68,6 @@ async def main(args):
     )
 
     async with EyePopSdk.dataEndpoint(is_async=True, job_queue_length=4) as endpoint:
-        jobs = []
         if args.asset_uuid is not None:
             asset = await endpoint.get_asset(args.asset_uuid)
             job = await infer(
@@ -83,23 +78,16 @@ async def main(args):
                 endpoint=endpoint
             )
             if job is not None:
-                jobs.append(process_result(asset, job))
+                while result := await job.predict():
+                    print(f"result for {asset.uuid}:", json.dumps(result, indent=2))
         else:
-            assets = await endpoint.list_assets(
+            evaluate_request = EvaluateRequest(
                 dataset_uuid=args.dataset_uuid,
-                inclusion_mode=AssetInclusionMode.all_assets
+                infer=infer_request,
             )
-            print(f"num assets: {len(assets)}")
-            for asset in assets:
-                job = await infer(
-                    asset=asset,
-                    infer_request=infer_request,
-                    start_timestamp=args.start_timestamp,
-                    end_timestamp=args.end_timestamp,
-                    endpoint=endpoint
-                )
-                if job is not None:
-                    jobs.append(process_result(asset, job))
-        await asyncio.gather(*jobs)
+            job = await endpoint.evaluate_dataset(
+                evaluate_request=evaluate_request,
+            )
+            print(f"result for {args.dataset_uuid}:", (await job.response).model_dump_json(indent=2))
 
 asyncio.run(main(main_args))
