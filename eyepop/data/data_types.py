@@ -791,3 +791,91 @@ class InferRequest(BaseModel):
         description="Optional instructions to transform the raw VLM text output"
     )
 
+class EvaluateRequest(BaseModel):
+    infer: InferRequest = Field(description="VLM Inference configuration")
+    dataset_uuid: str = Field(description="The Uuid dataset to evaluate.")
+    video_chunk_length_ns: int | None = Field(
+        default=None,
+        description="Video chunk length in nano seconds",
+        examples=[2000000000],
+    )
+    video_chunk_overlap: float | None = Field(
+        default=None,
+        lt=1.0,
+        description="Video chunk overlap ratio, possibly negative to allow gaps,"
+        " e.g. -1.0 to have gaps of the same length as the chunk",
+        examples=[0.1],
+    )
+
+
+class EvaluationStatus(enum.StrEnum):
+    """Status of the evaluation request."""
+    success = "success"
+    failed = "failed"
+
+
+class EvaluateRunInfo(BaseModel):
+    """Runtime information for a competed evaluation request."""
+    num_images: int = Field(description="Number of images")
+    num_ground_truth_images: int = Field(
+        description="Number of images with ground truth"
+    )
+    num_videos: int = Field(description="Number of videos")
+    num_ground_truth_videos: int = Field(
+        description="Number of videos with ground truth"
+    )
+    total_tokens: int = Field(description="Total input tokens (visual + text)")
+    visual_tokens: int = Field(description="Visual tokens from all frames")
+    text_tokens: int = Field(description="Text tokens from prompt")
+    output_tokens: int = Field(
+        description="Number of tokens generated in the model output"
+    )
+
+
+class EvaluateResponse(BaseModel):
+    """Client-facing API response model for evaluate requests."""
+    dataset_uuid: str = Field(description="The Uuid for the evaluated dataset.")
+    dataset_version: int = Field(
+        description="The version number of the evaluated dataset."
+    )
+    status: EvaluationStatus = Field(description="The final status of the evaluation.")
+    status_message: str | None = Field(
+        default=None, description="Optional human readable status message."
+    )
+    metrics: dict[str, Any] | None = Field(
+        default=None, description="Evaluation metrics"
+    )
+    run_info: EvaluateRunInfo = Field(
+        description="Runtime information, e.g. number of processed assets and used resources"
+    )
+
+
+class InferRunInfo(BaseModel):
+    """
+    Runtime information about the inference execution.
+
+    Contains details about processing settings, token usage, and media characteristics.
+    """
+
+    fps: float | None = Field(
+        default=None, description="Frames per second used for video processing"
+    )
+    image_size: int | None = Field(
+        default=None, description="Maximum dimension used for image/frame resizing"
+    )
+    total_tokens: int | None = Field(
+        default=None, description="Total input tokens (visual + text)"
+    )
+    visual_tokens: int | None = Field(
+        default=None, description="Visual tokens from all frames"
+    )
+    text_tokens: int | None = Field(default=None, description="Text tokens from prompt")
+    output_tokens: int | None = Field(
+        default=None, description="Number of tokens generated in the model output"
+    )
+    aspect_ratio: float | None = Field(
+        default=None, description="Aspect ratio of the processed media (width/height)"
+    )
+
+
+APPLICATION_JSON = "application/json"
