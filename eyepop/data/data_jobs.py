@@ -8,7 +8,8 @@ import aiohttp
 from pydantic import BaseModel, Field
 
 from eyepop.client_session import ClientSession
-from eyepop.data.data_types import Asset, AssetImport, InferRequest, Prediction
+from eyepop.data.data_types import Asset, AssetImport, InferRequest, Prediction, EvaluateRequest, EvaluateResponse, \
+    InferRunInfo, APPLICATION_JSON
 from eyepop.jobs import Job, JobStateCallback
 
 
@@ -133,33 +134,6 @@ class _VlmInferRequestAccepted(BaseModel):
         description="Inference request Id, can be used to pull for updates"
     )
 
-class InferRunInfo(BaseModel):
-    """
-    Runtime information about the inference execution.
-
-    Contains details about processing settings, token usage, and media characteristics.
-    """
-
-    fps: float | None = Field(
-        default=None, description="Frames per second used for video processing"
-    )
-    image_size: int | None = Field(
-        default=None, description="Maximum dimension used for image/frame resizing"
-    )
-    total_tokens: int | None = Field(
-        default=None, description="Total input tokens (visual + text)"
-    )
-    visual_tokens: int | None = Field(
-        default=None, description="Visual tokens from all frames"
-    )
-    text_tokens: int | None = Field(default=None, description="Text tokens from prompt")
-    output_tokens: int | None = Field(
-        default=None, description="Number of tokens generated in the model output"
-    )
-    aspect_ratio: float | None = Field(
-        default=None, description="Aspect ratio of the processed media (width/height)"
-    )
-
 
 class _InferResponse(BaseModel):
     """Client-facing API response model matching WorkerResponse structure."""
@@ -190,8 +164,6 @@ class InferJob(Job):
         self._asset_url = asset_url
         self._infer_request = infer_request
 
-        self._post_body = infer_request.model_dump(exclude_none=True)
-        self._post_body['url'] = asset_url
         self._run_info = None
 
     @property
@@ -202,7 +174,7 @@ class InferJob(Job):
         return await self.pop_result()
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
-        post_body_part = self._infer_request.model_dump()
+        post_body_part = self._infer_request.model_dump(exclude_none=True)
         post_body_part["url"] = self._asset_url
 
         post_body = aiohttp.FormData()
@@ -232,7 +204,59 @@ class InferJob(Job):
                     if result.predictions is not None:
                         for prediction in result.predictions:
                             await queue.put(prediction.model_dump(exclude_none=True))
-                    return
+                    break
+                else:
+                    raise ValueError(f"Unexpected status code: {resp.status}")
+
+
+class EvaluateJob(Job):
+    timeout: aiohttp.ClientTimeout | None
+    def __init__(
+            self,
+            evaluate_request: EvaluateRequest,
+            worker_release: str | None,
+            session: ClientSession,
+            on_ready: Callable[[DataJob], None] | None = None,
+            callback: JobStateCallback | None = None,
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
+    ):
+        super().__init__(session, on_ready, callback)
+        self.timeout = timeout
+        self._evaluate_request = evaluate_request
+        self._worker_release = worker_release
+        self._result = None
+
+    @property
+    async def response(self) -> EvaluateResponse | None:
+        if not self._result:
+            self._result = await self.pop_result()
+        return self._result
+
+    async def _do_execute_job(self, queue: Queue, session: ClientSession):
+        worker_release_query = f'worker_release={self._worker_release}&' if self._worker_release is not None else ''
+        total_timeout = self.timeout.total if self.timeout and self.timeout.total is not None is not None else 10.0 * 60.0
+        start_time = time.time()
+        request_id = None
+        while time.time() - start_time < total_timeout:
+            if request_id is None:
+                request_coro = session.request_with_retry(
+                    method="POST",
+                    url=f"/api/v1/evaluations?timeout=20&{worker_release_query}",
+                    content_type=APPLICATION_JSON,
+                    data=self._evaluate_request.model_dump_json(exclude_none=True),
+                )
+            else:
+                request_coro = session.request_with_retry(
+                    method="GET",
+                    url=f"/api/v1/evaluations/{request_id}?timeout=20",
+                )
+            async with await request_coro as resp:
+                if resp.status == 202:
+                    request_id = _VlmInferRequestAccepted.model_validate(await resp.json()).request_id
+                elif resp.status == 200:
+                    result = EvaluateResponse.model_validate(await resp.json())
+                    await queue.put(result)
+                    break
                 else:
                     raise ValueError(f"Unexpected status code: {resp.status}")
 
