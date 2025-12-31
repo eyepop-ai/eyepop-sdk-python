@@ -312,13 +312,9 @@ class AssetAnnotation(BaseModel):
     user_review: UserReview = UserReview.unknown
     approved_threshold: float | None = None
     auto_annotate: AutoAnnotate | None = None
-    auto_annotate_params: AutoAnnotateParams | None = None
     source: str | None = None
     predictions: Sequence[Prediction] | None = None
-    # depredated, use predictions instead of annotation
-    annotation: Prediction | None = None
     uncertainty_score: float | None = None
-    source_model_uuid: str | None = None
 
 
 AssetAnnotationResponse = AssetAnnotation
