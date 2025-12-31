@@ -847,8 +847,7 @@ class EvaluateResponse(BaseModel):
 
 
 class InferRunInfo(BaseModel):
-    """
-    Runtime information about the inference execution.
+    """Runtime information about the inference execution.
 
     Contains details about processing settings, token usage, and media characteristics.
     """
