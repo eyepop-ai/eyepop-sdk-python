@@ -51,67 +51,68 @@ def table_from_eyepop_annotations(annotations: list[AssetAnnotationResponse], sc
         types.append(e.type)
         sources.append(e.source)
         user_reviews.append(e.user_review)
-        if e.annotation.objects is None:
+        prediction = e.predictions[0] if e.predictions else None
+        if not prediction or prediction.objects is None:
             objects.append(None)
-        elif len(e.annotation.objects) == 0:
+        elif len(prediction.objects) == 0:
             objects.append([])
         else:
             objects.append(table_from_eyepop_predicted_objects(
-                e.annotation.objects,
-                e.annotation.source_width,
-                e.annotation.source_height,
+                prediction.objects,
+                prediction.source_width,
+                prediction.source_height,
                 e.user_review,
                 schema=pa.schema(schema.field(3).type.value_type), # schema for "objects" field
             ).to_struct_array())
-        if e.annotation.classes is None:
+        if not prediction or prediction.classes is None:
             classes.append(None)
-        elif len(e.annotation.classes) == 0:
+        elif len(prediction.classes) == 0:
             classes.append([])
         else:
             classes.append(table_from_eyepop_predicted_classes(
-                e.annotation.classes,
+                prediction.classes,
                 e.user_review,
                 schema=pa.schema(schema.field(4).type.value_type),  # schema for "classes" field
             ).to_struct_array())
         if source_model_uuids is not None:
-            source_model_uuids.append(e.source_model_uuid)
+            source_model_uuids.append(None)
         if key_points is not None:
-            if e.annotation.keyPoints is None:
+            if not prediction or prediction.keyPoints is None:
                 key_points.append(None)
-            elif len(e.annotation.keyPoints) == 0:
+            elif len(prediction.keyPoints) == 0:
                 key_points.append([])
             else:
                 key_points.append(table_from_eyepop_predicted_key_pointss(
-                    e.annotation.keyPoints,
-                    e.annotation.source_width,
-                    e.annotation.source_height,
+                    prediction.keyPoints,
+                    prediction.source_width,
+                    prediction.source_height,
                     schema=pa.schema(schema.field(6).type.value_type),  # schema for "keyPoints" field
                 ).to_struct_array())
         if texts is not None:
-            if e.annotation.texts is None:
+            if not prediction or prediction.texts is None:
                 texts.append(None)
-            elif len(e.annotation.texts) == 0:
+            elif len(prediction.texts) == 0:
                 texts.append([])
             else:
-                texts.append(table_from_eyepop_predicted_texts(e.annotation.texts).to_struct_array())
+                texts.append(table_from_eyepop_predicted_texts(prediction.texts).to_struct_array())
         if embeddings is not None:
-            if e.annotation.embeddings is None:
+            if not prediction or prediction.embeddings is None:
                 embeddings.append(None)
-            elif len(e.annotation.embeddings) == 0:
+            elif len(prediction.embeddings) == 0:
                 embeddings.append([])
             else:
                 embeddings.append(table_from_eyepop_predicted_embeddings(
-                    e.annotation.embeddings,
+                    prediction.embeddings,
                     schema=pa.schema(schema.field(8).type.value_type),  # schema for "embeddings" field
                 ).to_struct_array())
         if timestamps is not None:
-            timestamps.append(e.annotation.timestamp)
+            timestamps.append(prediction.timestamp if prediction else None)
         if durations is not None:
-            durations.append(e.annotation.duration)
+            durations.append(prediction.duration if prediction else None)
         if offsets is not None:
-            offsets.append(e.annotation.offset)
+            offsets.append(prediction.offset if prediction else None)
         if offset_durations is not None:
-            offset_durations.append(e.annotation.offset_duration)
+            offset_durations.append(prediction.offset_duration if prediction else None)
         if predictionss is not None:
             if e.predictions is not None and len(e.predictions) > 0:
                 predictions = table_from_eyepop_predictions(

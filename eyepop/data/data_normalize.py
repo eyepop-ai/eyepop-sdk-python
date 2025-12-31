@@ -17,8 +17,8 @@ def normalize_eyepop_annotations(
         annotations: list[AssetAnnotationResponse]
 ):
     for annotation in annotations:
-        if annotation.annotation is not None:
-            normalize_eyepop_prediction(annotation.annotation)
+        if annotation.predictions:
+            normalize_eyepop_prediction(annotation.predictions[0])
 
 
 def normalize_eyepop_prediction(
