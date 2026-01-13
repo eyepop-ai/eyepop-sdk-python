@@ -873,4 +873,76 @@ class InferRunInfo(BaseModel):
     )
 
 
+class VlmAbilityStatus(enum.StrEnum):
+    draft = "draft"
+    published = "published"
+
+
+class AbilityAliasEntry(BaseModel):
+    alias: str
+    tag: str
+
+
+class VlmAbilityCreate(BaseModel):
+    name: str
+    description: str
+    worker_release: str
+    text_prompt: str
+    transform_into: TransformInto
+    config: InferRuntimeConfig
+    is_public: bool
+
+
+class VlmAbilityUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    worker_release: str | None = None
+    text_prompt: str | None = None
+    transform_into: TransformInto | None = None
+    config: InferRuntimeConfig | None = None
+    is_public: bool | None = None
+
+
+class VlmAbilityResponse(BaseModel):
+    uuid: str
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    account_uuid: str
+    status: VlmAbilityStatus
+    is_public: bool
+    name: str
+    description: str
+    vlm_ability_group_uuid: str | None
+    worker_release: str
+    text_prompt: str
+    transform_into: TransformInto
+    config: InferRuntimeConfig
+    alias_entries: list[AbilityAliasEntry] | None
+
+
+class VlmAbilityGroupCreate(BaseModel):
+    name: str
+    description: str
+    default_alias_name: str | None = None
+    default_dataset_uuid: str | None = None
+
+
+class VlmAbilityGroupUpdate(BaseModel):
+    name: str
+    description: str
+    default_alias_name: str | None = None
+    default_dataset_uuid: str | None = None
+
+
+class VlmAbilityGroupResponse(BaseModel):
+    uuid: str
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    account_uuid: str
+    name: str
+    description: str
+    default_alias_name: str | None = None
+    default_dataset_uuid: str | None = None
+
+
 APPLICATION_JSON = "application/json"

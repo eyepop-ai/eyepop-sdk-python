@@ -50,7 +50,8 @@ from eyepop.data.data_types import (
     Prediction,
     QcAiHubExportParams,
     TranscodeMode,
-    UserReview, EvaluateRequest, APPLICATION_JSON,
+    UserReview, EvaluateRequest, APPLICATION_JSON, VlmAbilityGroupResponse, VlmAbilityGroupCreate,
+    VlmAbilityGroupUpdate, VlmAbilityResponse, VlmAbilityCreate, VlmAbilityUpdate,
 )
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings
@@ -1085,3 +1086,122 @@ class DataEndpoint(Endpoint):
         await self._task_start(job.execute())
         return job
 
+    """ Vlm Ability Management Api """
+
+    async def list_vlm_ability_groups(
+            self,
+            account_uuid: str | None = None,
+    ) -> list[VlmAbilityGroupResponse]:
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Listing Vlm Ability Groups requires an account uuid")
+        get_url = f'{await self.data_base_url()}/vlm_ability_groups?account_uuid={account_uuid}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(list[VlmAbilityGroupResponse], await resp.json()) # type: ignore [no-any-return]
+
+    async def create_vlm_ability_group(self, create: VlmAbilityGroupCreate, account_uuid: str | None = None) -> VlmAbilityGroupResponse:
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Creating Vlm Ability Groups requires an account uuid")
+        post_url = f'{await self.data_base_url()}/vlm_ability_groups?account_uuid={account_uuid}'
+        async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
+                                                 data=create.model_dump_json(exclude_none=True)) as resp:
+            return parse_obj_as(VlmAbilityGroupResponse, await resp.json()) # type: ignore [no-any-return]
+
+    async def get_vlm_ability_group(self, vlm_ability_group_uuid: str) -> VlmAbilityGroupResponse:
+        get_url = f'{await self.data_base_url()}/vlm_ability_groups/{vlm_ability_group_uuid}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(VlmAbilityGroupResponse, await resp.json()) # type: ignore [no-any-return]
+
+    async def update_vlm_ability_group(self, vlm_ability_group_uuid: str, update: VlmAbilityGroupUpdate) -> VlmAbilityGroupResponse:
+        patch_url = f'{await self.data_base_url()}/vlm_ability_groups/{vlm_ability_group_uuid}'
+        async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
+                                                 data=update.model_dump_json(exclude_none=True)) as resp:
+            return parse_obj_as(VlmAbilityGroupResponse, await resp.json()) # type: ignore [no-any-return]
+
+    async def delete_vlm_ability_group(self, vlm_ability_group_uuid: str) -> None:
+        delete_url = f'{await self.data_base_url()}/vlm_ability_groups/{vlm_ability_group_uuid}'
+        async with await self.request_with_retry("DELETE", delete_url):
+            return
+
+    async def list_vlm_abilities(
+            self,
+            account_uuid: str | None = None,
+            vlm_ability_group_uuid: str | None = None,
+    ) -> list[VlmAbilityResponse]:
+        if vlm_ability_group_uuid is None:
+            if account_uuid is None:
+                account_uuid = self.account_uuid
+            if account_uuid is None:
+                raise ValueError("Listing Vlm Abilities requires an account uuid")
+            get_url = f'{await self.data_base_url()}/vlm_abilities?account_uuid={account_uuid}'
+        else:
+            get_url = f'{await self.data_base_url()}/vlm_abilities?vlm_ability_group_uuid={vlm_ability_group_uuid}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(list[VlmAbilityResponse], await resp.json()) # type: ignore [no-any-return]
+
+    async def create_vlm_abilities(
+            self,
+            create: VlmAbilityCreate,
+            account_uuid: str | None = None,
+            vlm_ability_group_uuid: str | None = None,
+    ) -> VlmAbilityResponse:
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Creating Vlm Abilities requires an account uuid")
+        group_query = f'&vlm_ability_group_uuid={vlm_ability_group_uuid}' if vlm_ability_group_uuid else ''
+        post_url = f'{await self.data_base_url()}/vlm_abilities?account_uuid={account_uuid}{group_query}'
+        async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
+                                                 data=create.model_dump_json(exclude_none=True)) as resp:
+            return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
+
+    async def get_vlm_ability(self, vlm_ability_uuid: str) -> VlmAbilityResponse:
+        get_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(VlmGroupResponse, await resp.json()) # type: ignore [no-any-return]
+
+    async def update_vlm_ability(self, vlm_ability_uuid: str, update: VlmAbilityUpdate) -> VlmAbilityResponse:
+        patch_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}'
+        async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
+                                                 data=update.model_dump_json(exclude_none=True)) as resp:
+            return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
+
+    async def delete_vlm_ability(self, vlm_ability_uuid: str) -> None:
+        delete_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}'
+        async with await self.request_with_retry("DELETE", delete_url):
+            return
+
+    async def publish_vlm_ability(
+            self,
+            vlm_ability_uuid: str,
+            alias_name: str | None = None,
+            tag_name: str | None = None,
+    ) -> VlmAbilityResponse:
+        alias_name_query = f'alias_name={alias_name}&' if alias_name else ''
+        tag_name_query = f'tag_name={tag_name}&' if tag_name else ''
+        post_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/publish?{alias_name_query}{tag_name_query}'
+        async with await self.request_with_retry("POST", post_url) as resp:
+            return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
+
+    async def add_vlm_ability_alias(
+            self,
+            vlm_ability_uuid: str,
+            alias_name: str,
+            tag_name: str | None
+    ) -> VlmAbilityResponse:
+        post_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/alias/{alias_name}/tag/{tag_name if tag_name else ""}'
+        async with await self.request_with_retry("POST", post_url) as resp:
+            return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
+
+    async def remove_vlm_ability_alias(
+            self,
+            vlm_ability_uuid: str,
+            alias_name: str,
+            tag_name: str,
+    ) -> VlmAbilityResponse:
+        delete_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/alias/{alias_name}/tag/{tag_name}'
+        async with await self.request_with_retry("DELETE", delete_url) as resp:
+            return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
