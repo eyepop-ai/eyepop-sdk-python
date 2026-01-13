@@ -313,6 +313,7 @@ parser.add_argument('-o', '--output', required=False, help="print results to std
 parser.add_argument('-ds', '--dataset-uuid', required=False, type=str, help="Ingest all assets into a dataset uuid", default=None)
 parser.add_argument('-tk', '--top-k', required=False, type=int, help="For --model-uuid and -model-alias apply this top-k filter", default=None)
 parser.add_argument('-ct', '--confidence-threshold', required=False, type=float, help="For --model-uuid and -model-alias apply this confidence threshold filter", default=None)
+parser.add_argument('--fps', required=False, type=str, help="For --model-uuid and -model-alias apply this target fps - e.g. 15/1", default=None)
 
 # Optional tracking for simple pops my model uuid oder model alias
 parser.add_argument('--tracking', required=False, help="Track objects in videos", default=False, action="store_true")
@@ -341,7 +342,8 @@ elif main_args.model_uuid:
     pop = Pop(components=[
         InferenceComponent(
             id=i+1,
-            abilityUuid=uuid
+            abilityUuid=uuid,
+            targetFps=main_args.fps,
         ) for i, uuid in enumerate(main_args.model_uuid)
     ])
     if main_args.top_k is not None:
@@ -355,8 +357,9 @@ elif main_args.model_alias:
     pop = Pop(components=[
         InferenceComponent(
             id=i+1,
-            ability=alias
-        ) for i, alias in enumerate(main_args.model_alias)
+            ability=alias,
+            targetFps = main_args.fps,
+    ) for i, alias in enumerate(main_args.model_alias)
     ])
     if main_args.top_k is not None:
         for c in pop.components:
