@@ -787,9 +787,32 @@ class InferRequest(BaseModel):
         description="Optional instructions to transform the raw VLM text output"
     )
 
+
+class EvaluateFilter(BaseModel):
+    partitions: list[str] | None = Field(
+        default=None,
+        description="Only evaluate assets in these partitions, ignore others",
+    )
+    ground_truth_classes: list[str] | None = Field(
+        default=None,
+        description="Only evaluate assets with one of those classes in the ground truth, ignore others",
+    )
+
+
 class EvaluateRequest(BaseModel):
-    infer: InferRequest = Field(description="VLM Inference configuration")
+    ability_uuid: str | None = Field(
+        default=None,
+        description="The uuid of the ability holding the infer config; mutually exclusive to infer",
+    )
+    infer: InferRequest | None = Field(
+        default=None,
+        description="VLM inference config; mutually exclusive to ability_uuid",
+    )
     dataset_uuid: str = Field(description="The Uuid dataset to evaluate.")
+    filter: EvaluateFilter | None = Field(
+        default=None,
+        description="Only evaluate assets that matches this filter",
+    )
     video_chunk_length_ns: int | None = Field(
         default=None,
         description="Video chunk length in nano seconds",
@@ -837,6 +860,9 @@ class EvaluateResponse(BaseModel):
     status: EvaluationStatus = Field(description="The final status of the evaluation.")
     status_message: str | None = Field(
         default=None, description="Optional human readable status message."
+    )
+    source: str = Field(
+        description="Source identifier for the persisted  auto annotation."
     )
     metrics: dict[str, Any] | None = Field(
         default=None, description="Evaluation metrics"
