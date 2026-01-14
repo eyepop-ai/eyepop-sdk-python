@@ -40,7 +40,7 @@ from eyepop.data.data_types import (
     QcAiHubExportParams,
     TranscodeMode,
     UserReview, EvaluateResponse, InferRunInfo, VlmAbilityGroupResponse, VlmAbilityGroupCreate, VlmAbilityGroupUpdate,
-    VlmAbilityResponse, VlmAbilityCreate, VlmAbilityUpdate,
+    VlmAbilityResponse, VlmAbilityCreate, VlmAbilityUpdate, EvaluateRequest,
 )
 from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 
@@ -733,6 +733,20 @@ class SyncDataEndpoint(SyncEndpoint):
             )
         )
         return SyncInferJob(job, self.event_loop)
+
+    async def evaluate_dataset(
+            self,
+            evaluate_request: EvaluateRequest,
+            worker_release: str | None = None,
+    ) -> SyncEvaluateJob:
+        job = run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.evaluate_dataset(
+                evaluate_request=evaluate_request,
+                worker_release=worker_release
+            )
+        )
+        return SyncEvaluateJob(job, self.event_loop)
 
     """ Vlm Ability Management Api """
     def list_vlm_ability_groups(
