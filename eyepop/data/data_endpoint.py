@@ -1161,7 +1161,7 @@ class DataEndpoint(Endpoint):
     async def get_vlm_ability(self, vlm_ability_uuid: str) -> VlmAbilityResponse:
         get_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return parse_obj_as(VlmGroupResponse, await resp.json()) # type: ignore [no-any-return]
+            return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
 
     async def update_vlm_ability(self, vlm_ability_uuid: str, update: VlmAbilityUpdate) -> VlmAbilityResponse:
         patch_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}'
