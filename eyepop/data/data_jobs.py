@@ -27,7 +27,10 @@ class DataJob(Job):
         self.timeout = timeout
 
     async def result(self) -> Asset:
-        return await self.pop_result()
+        result = await self.pop_result()
+        if isinstance(result, BaseException):
+            raise result
+        return result
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
         raise NotImplementedError("can't execute abstract jobs")
@@ -171,7 +174,10 @@ class InferJob(Job):
         return self._run_info
 
     async def predict(self) -> dict[str, Any]:
-        return await self.pop_result()
+        result = await self.pop_result()
+        if isinstance(result, BaseException):
+            raise result
+        return result
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
         post_body_part = self._infer_request.model_dump(exclude_none=True)
@@ -180,10 +186,11 @@ class InferJob(Job):
         post_body = aiohttp.FormData()
         post_body.add_field('infer_request', json.dumps(post_body_part), content_type="application/json")
 
-        total_timeout = self.timeout.total if self.timeout and self.timeout.total is not None is not None else 10.0 * 60.0
+        total_timeout = self.timeout.total if self.timeout else None
         start_time = time.time()
         request_id = None
-        while time.time() - start_time < total_timeout:
+        result = None
+        while total_timeout is None or time.time() - start_time < total_timeout:
             if request_id is None:
                 request_coro = session.request_with_retry(
                     method="POST",
@@ -207,7 +214,8 @@ class InferJob(Job):
                     break
                 else:
                     raise ValueError(f"Unexpected status code: {resp.status}")
-
+        if result is None:
+            raise TimeoutError(f"infer request timed out after {time.time() - start_time} seconds")
 
 class EvaluateJob(Job):
     timeout: aiohttp.ClientTimeout | None
@@ -230,14 +238,16 @@ class EvaluateJob(Job):
     async def response(self) -> EvaluateResponse | None:
         if not self._result:
             self._result = await self.pop_result()
+        if isinstance(self._result, BaseException):
+            raise self._result
         return self._result
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
         worker_release_query = f'worker_release={self._worker_release}&' if self._worker_release is not None else ''
-        total_timeout = self.timeout.total if self.timeout and self.timeout.total is not None is not None else 10.0 * 60.0
         start_time = time.time()
         request_id = None
-        while time.time() - start_time < total_timeout:
+        total_timeout = self.timeout.total if self.timeout else None
+        while total_timeout is None or time.time() - start_time < total_timeout:
             if request_id is None:
                 request_coro = session.request_with_retry(
                     method="POST",
@@ -259,4 +269,6 @@ class EvaluateJob(Job):
                     break
                 else:
                     raise ValueError(f"Unexpected status code: {resp.status}")
+        if result is None:
+            raise TimeoutError(f"evaluate request timed out after {time.time() - start_time} seconds")
 
