@@ -30,16 +30,9 @@ AutoAnnotate = str
 
 
 class ModelType(enum.StrEnum):
-    epdet_b1 = enum.auto()
     epdet_b1_1 = enum.auto()
-    yolov7 = enum.auto()
-    yolov7_tiny = enum.auto()
-    yolov7_e6e = enum.auto()
-    yolov7_w6 = enum.auto()
-    yolov7_x = enum.auto()
-    coolr_demo = enum.auto()
     imported = enum.auto()
-    eyepop_sst = enum.auto()
+    vlm_ability = enum.auto()
 
 
 class ModelStatus(enum.StrEnum):

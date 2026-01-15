@@ -774,13 +774,13 @@ class SyncDataEndpoint(SyncEndpoint):
     ) -> list[VlmAbilityResponse]:
         return run_coro_thread_save(self.event_loop, self.endpoint.list_vlm_abilities(account_uuid, vlm_ability_group_uuid))
 
-    async def create_vlm_abilities(
+    async def create_vlm_ability(
             self,
             create: VlmAbilityCreate,
             account_uuid: str | None = None,
             vlm_ability_group_uuid: str | None = None,
     ) -> VlmAbilityResponse:
-        return run_coro_thread_save(self.event_loop, self.endpoint.create_vlm_abilities(create, account_uuid, vlm_ability_group_uuid))
+        return run_coro_thread_save(self.event_loop, self.endpoint.create_vlm_ability(create, account_uuid, vlm_ability_group_uuid))
 
     async def get_vlm_ability(self, vlm_ability_uuid: str) -> VlmAbilityResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_vlm_ability(vlm_ability_uuid))

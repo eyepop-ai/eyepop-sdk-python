@@ -1142,7 +1142,7 @@ class DataEndpoint(Endpoint):
         async with await self.request_with_retry("GET", get_url) as resp:
             return parse_obj_as(list[VlmAbilityResponse], await resp.json()) # type: ignore [no-any-return]
 
-    async def create_vlm_abilities(
+    async def create_vlm_ability(
             self,
             create: VlmAbilityCreate,
             account_uuid: str | None = None,
