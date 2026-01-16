@@ -931,12 +931,12 @@ class VlmAbilityResponse(BaseModel):
     is_public: bool
     name: str
     description: str
-    vlm_ability_group_uuid: str | None
+    vlm_ability_group_uuid: str | None = None
     worker_release: str
     text_prompt: str
     transform_into: TransformInto
     config: InferRuntimeConfig
-    alias_entries: list[AbilityAliasEntry] | None
+    alias_entries: list[AbilityAliasEntry] | None = None
 
 
 class VlmAbilityGroupCreate(BaseModel):
