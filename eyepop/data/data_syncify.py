@@ -755,26 +755,26 @@ class SyncDataEndpoint(SyncEndpoint):
     ) -> list[VlmAbilityGroupResponse]:
         return run_coro_thread_save(self.event_loop, self.endpoint.list_vlm_ability_groups(account_uuid))
 
-    async def create_vlm_ability_group(self, create: VlmAbilityGroupCreate, account_uuid: str | None = None) -> VlmAbilityGroupResponse:
+    def create_vlm_ability_group(self, create: VlmAbilityGroupCreate, account_uuid: str | None = None) -> VlmAbilityGroupResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.create_vlm_ability_group(create, account_uuid))
 
-    async def get_vlm_ability_group(self, vlm_ability_group_uuid: str) -> VlmAbilityGroupResponse:
+    def get_vlm_ability_group(self, vlm_ability_group_uuid: str) -> VlmAbilityGroupResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_vlm_ability_group(vlm_ability_group_uuid))
 
-    async def update_vlm_ability_group(self, vlm_ability_group_uuid: str, update: VlmAbilityGroupUpdate) -> VlmAbilityGroupResponse:
+    def update_vlm_ability_group(self, vlm_ability_group_uuid: str, update: VlmAbilityGroupUpdate) -> VlmAbilityGroupResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.update_vlm_ability_group(vlm_ability_group_uuid, update))
 
-    async def delete_vlm_ability_group(self, vlm_ability_group_uuid: str):
+    def delete_vlm_ability_group(self, vlm_ability_group_uuid: str):
         run_coro_thread_save(self.event_loop, self.endpoint.delete_vlm_ability_group(vlm_ability_group_uuid))
 
-    async def list_vlm_abilities(
+    def list_vlm_abilities(
             self,
             account_uuid: str | None = None,
             vlm_ability_group_uuid: str | None = None,
     ) -> list[VlmAbilityResponse]:
         return run_coro_thread_save(self.event_loop, self.endpoint.list_vlm_abilities(account_uuid, vlm_ability_group_uuid))
 
-    async def create_vlm_ability(
+    def create_vlm_ability(
             self,
             create: VlmAbilityCreate,
             account_uuid: str | None = None,
@@ -782,16 +782,16 @@ class SyncDataEndpoint(SyncEndpoint):
     ) -> VlmAbilityResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.create_vlm_ability(create, account_uuid, vlm_ability_group_uuid))
 
-    async def get_vlm_ability(self, vlm_ability_uuid: str) -> VlmAbilityResponse:
+    def get_vlm_ability(self, vlm_ability_uuid: str) -> VlmAbilityResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_vlm_ability(vlm_ability_uuid))
 
-    async def update_vlm_ability(self, vlm_ability_uuid: str, update: VlmAbilityUpdate) -> VlmAbilityResponse:
+    def update_vlm_ability(self, vlm_ability_uuid: str, update: VlmAbilityUpdate) -> VlmAbilityResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.update_vlm_ability(vlm_ability_uuid, update))
 
-    async def delete_vlm_ability(self, vlm_ability_uuid: str):
+    def delete_vlm_ability(self, vlm_ability_uuid: str):
         run_coro_thread_save(self.event_loop, self.endpoint.delete_vlm_ability(vlm_ability_uuid))
 
-    async def publish_vlm_ability(
+    def publish_vlm_ability(
             self,
             vlm_ability_uuid: str,
             alias_name: str | None = None,
@@ -799,7 +799,7 @@ class SyncDataEndpoint(SyncEndpoint):
     ) -> VlmAbilityResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.publish_vlm_ability(vlm_ability_uuid, alias_name, tag_name))
 
-    async def add_vlm_ability_alias(
+    def add_vlm_ability_alias(
             self,
             vlm_ability_uuid: str,
             alias_name: str,
@@ -807,7 +807,7 @@ class SyncDataEndpoint(SyncEndpoint):
     ) -> VlmAbilityResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.add_vlm_ability_alias(vlm_ability_uuid, alias_name, tag_name))
 
-    async def remove_vlm_ability_alias(
+    def remove_vlm_ability_alias(
             self,
             vlm_ability_uuid: str,
             alias_name: str,
