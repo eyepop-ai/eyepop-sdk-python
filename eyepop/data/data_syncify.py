@@ -262,7 +262,7 @@ class SyncDataEndpoint(SyncEndpoint):
             sync_transform: bool | None = None,
             no_transform: bool | None = None,
             on_ready: Callable[[DataJob], None] | None = None,
-            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ) -> DataJob | SyncDataJob:
         if on_ready is not None:
             raise TypeError("'on_ready' callback not supported for sync endpoints. "
@@ -294,7 +294,7 @@ class SyncDataEndpoint(SyncEndpoint):
             sync_transform: bool | None = None,
             no_transform: bool | None = None,
             on_ready: Callable[[DataJob], None] | None = None,
-            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ) -> DataJob | SyncDataJob:
         if on_ready is not None:
             raise TypeError("'on_ready' callback not supported for sync endpoints. "
