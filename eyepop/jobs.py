@@ -98,7 +98,6 @@ class Job:
 
         try:
             await self._do_execute_job(queue, session)
-            await queue.put(None)
         except Exception as e:
             if self._queue is None:
                 # we got canceled
@@ -107,6 +106,7 @@ class Job:
                 self._callback.failed(self)
                 await queue.put(e)
         finally:
+            await queue.put(None)
             if self._response is not None:
                 response = self._response.close()
                 if response is not None:

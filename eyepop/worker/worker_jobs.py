@@ -41,7 +41,7 @@ class WorkerJob(Job):
         result = await self.pop_result()
         if result is not None:
             event = result.get('event', None)
-            if event is not None:
+            if event is not None and isinstance(event, dict):
                 event_type = event.get('type', None)
                 if event_type == 'error':
                     source_id = event.get('source_id', None)
@@ -112,60 +112,54 @@ class _UploadJob(WorkerJob):
 
 
     async def _do_execute_job(self, queue: Queue, session: WorkerClientSession):
-        got_result = False
-        try:
-            if self.needs_full_duplex:
-                self._response = await session.pipeline_post(
-                    'prepareSource?timeout=600s',
-                    accept='application/jsonl',
-                    timeout=aiohttp.ClientTimeout(total=None, sock_read=610)
-                )
-                # Read first event to get the prepared source id and then use
-                # two HTTP connections to simulate ful duplex HTTP.
-                source_id = None
-                line = await self._response.content.readline()
-                if line:
-                    json_response = json.loads(line)
-                    event = json_response.get('event', None)
-                    if event is not None:
-                        if event.get('type', None) == 'prepared':
-                            source_id = event.get('source_id', None)
-                if source_id is None:
-                    raise ValueError("did not get a prepared sourceId to simulate full duplex")
-                video_mode_query = f'&videoMode={self.video_mode.value}' if self.video_mode else ''
-                version_query = f'&version={self._version}' if self._version else ''
-                upload_url = f'source?mode=queue&processing=async&sourceId={source_id}{video_mode_query}{version_query}'
-                if self._component_params is None:
-                    upload_coro = session.pipeline_post(upload_url,
-                                                        accept='application/jsonl',
-                                                        open_data=self.open_stream,
-                                                        content_type=self.mime_type,
-                                                        timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
-                else:
-                    upload_coro = session.pipeline_post(upload_url,
-                                                        accept='application/jsonl',
-                                                        open_data=self.open_mp_writer,
-                                                        timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
-                read_coro = self._do_read_response(queue)
-                _, got_result = await asyncio.gather(upload_coro, read_coro)
+        if self.needs_full_duplex:
+            self._response = await session.pipeline_post(
+                'prepareSource?timeout=600s',
+                accept='application/jsonl',
+                timeout=aiohttp.ClientTimeout(total=None, sock_read=600)
+            )
+            # Read first event to get the prepared source id and then use
+            # two HTTP connections to simulate ful duplex HTTP.
+            source_id = None
+            line = await self._response.content.readline()
+            if line:
+                json_response = json.loads(line)
+                event = json_response.get('event', None)
+                if event is not None:
+                    if event.get('type', None) == 'prepared':
+                        source_id = event.get('source_id', None)
+            if source_id is None:
+                raise ValueError("did not get a prepared sourceId to simulate full duplex")
+            video_mode_query = f'&videoMode={self.video_mode.value}' if self.video_mode else ''
+            version_query = f'&version={self._version}' if self._version else ''
+            upload_url = f'source?mode=queue&processing=async&sourceId={source_id}{video_mode_query}{version_query}'
+            if self._component_params is None:
+                upload_coro = session.pipeline_post(upload_url,
+                                                    accept='application/jsonl',
+                                                    open_data=self.open_stream,
+                                                    content_type=self.mime_type,
+                                                    timeout=aiohttp.ClientTimeout(total=None, sock_read=600))
             else:
-                upload_url = 'source?mode=queue&processing=sync'
-                if self._component_params is None:
-                    self._response = await session.pipeline_post(upload_url,
-                                                                 accept='application/jsonl',
-                                                                 open_data=self.open_stream,
-                                                                 content_type=self.mime_type,
-                                                                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
-                else:
-                    self._response = await session.pipeline_post(upload_url,
-                                                                 accept='application/jsonl',
-                                                                 open_data=self.open_mp_writer,
-                                                                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
-                got_result = await self._do_read_response(queue)
-        finally:
-            if not got_result:
-                pass
-                # await queue.put(None)
+                upload_coro = session.pipeline_post(upload_url,
+                                                    accept='application/jsonl',
+                                                    open_data=self.open_mp_writer,
+                                                    timeout=aiohttp.ClientTimeout(total=None, sock_read=600))
+            read_coro = self._do_read_response(queue)
+            _, got_result = await asyncio.gather(upload_coro, read_coro)
+        else:
+            upload_url = 'source?mode=queue&processing=sync'
+            if self._component_params is None:
+                self._response = await session.pipeline_post(upload_url,
+                                                             accept='application/jsonl',
+                                                             open_data=self.open_stream,
+                                                             content_type=self.mime_type,
+                                                             timeout=aiohttp.ClientTimeout(total=None, sock_read=600))
+            else:
+                self._response = await session.pipeline_post(upload_url,
+                                                             accept='application/jsonl',
+                                                             open_data=self.open_mp_writer,
+                                                             timeout=aiohttp.ClientTimeout(total=None, sock_read=600))
+            await self._do_read_response(queue)
 
 def _guess_mime_type_from_location(location: str):
     mime_types = mimetypes.guess_type(location)
@@ -258,20 +252,15 @@ class _LoadFromJob(WorkerJob):
         if self._component_params is not None:
             self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
 
-        self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
+        self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=600)
 
     async def _do_execute_job(self, queue: Queue, session: WorkerClientSession):
-        try:
-            got_result = False
-            self._response = await session.pipeline_patch(self.target_url,
-                                                          accept='application/jsonl',
-                                                          data=json.dumps(self.body),
-                                                          content_type='application/json',
-                                                          timeout=self.timeouts)
-            got_result = await self._do_read_response(queue)
-        finally:
-            if not got_result:
-                await queue.put(None)
+        self._response = await session.pipeline_patch(self.target_url,
+                                                      accept='application/jsonl',
+                                                      data=json.dumps(self.body),
+                                                      content_type='application/json',
+                                                      timeout=self.timeouts)
+        await self._do_read_response(queue)
 
 
 class _LoadFromAssetUuidJob(WorkerJob):
@@ -301,18 +290,13 @@ class _LoadFromAssetUuidJob(WorkerJob):
         if self._component_params is not None:
             self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
 
-        self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=60)
+        self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=600)
 
     async def _do_execute_job(self, queue: Queue, session: WorkerClientSession):
-        try:
-            got_result = False
-            self._response = await session.pipeline_patch(self.target_url,
-                                                          accept='application/jsonl',
-                                                          data=json.dumps(self.body),
-                                                          content_type='application/json',
-                                                          timeout=self.timeouts)
-            got_result = await self._do_read_response(queue)
-        finally:
-            if not got_result:
-                await queue.put(None)
+        self._response = await session.pipeline_patch(self.target_url,
+                                                      accept='application/jsonl',
+                                                      data=json.dumps(self.body),
+                                                      content_type='application/json',
+                                                      timeout=self.timeouts)
+        await self._do_read_response(queue)
 
