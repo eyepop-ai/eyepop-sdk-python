@@ -53,7 +53,7 @@ class TestEndpointLoadBalance(BaseEndpointTest):
                     'Authorization': f'Bearer {self.test_access_token}'
                 },
                 data=json.dumps({'sourceType': 'URL', 'url': self.test_url, 'version': DEFAULT_PREDICTION_VERSION}),
-                timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
+                timeout=aiohttp.ClientTimeout(total=None, sock_read=600))
 
     @aioresponses()
     def test_sync_load_two(self, mock: aioresponses):
@@ -107,7 +107,7 @@ class TestEndpointLoadBalance(BaseEndpointTest):
                     'Authorization': f'Bearer {self.test_access_token}'
                 },
                 data=json.dumps({'sourceType': 'URL', 'url': self.test_url, 'version': DEFAULT_PREDICTION_VERSION}),
-                timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
+                timeout=aiohttp.ClientTimeout(total=None, sock_read=600))
 
             mock.assert_called_with(
                 f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-1/source?mode=queue&processing=sync',
@@ -118,7 +118,7 @@ class TestEndpointLoadBalance(BaseEndpointTest):
                     'Authorization': f'Bearer {self.test_access_token}'
                 },
                 data=json.dumps({'sourceType': 'URL', 'url': self.test_url, 'version': DEFAULT_PREDICTION_VERSION}),
-                timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
+                timeout=aiohttp.ClientTimeout(total=None, sock_read=600))
 
     def _prepare_mock(self, mock, num_endpoints):
         self.setup_base_mock(mock, status='active_prod', num_endpoints=num_endpoints)

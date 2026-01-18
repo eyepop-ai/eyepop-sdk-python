@@ -53,7 +53,7 @@ class TestEndpointRetry(BaseEndpointTest):
                     'Authorization': f'Bearer {self.test_access_token}'
                 },
                 data=json.dumps({'sourceType': 'URL', 'url': self.test_url}),
-                timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
+                timeout=aiohttp.ClientTimeout(total=None, sock_read=600))
 
     @aioresponses()
     def test_sync_load_auth_retry(self, mock: aioresponses):
@@ -96,7 +96,7 @@ class TestEndpointRetry(BaseEndpointTest):
                     'Authorization': f'Bearer {self.test_access_token}'
                 },
                 data=json.dumps({'sourceType': 'URL', 'url': self.test_url, 'version': DEFAULT_PREDICTION_VERSION}),
-                timeout=aiohttp.ClientTimeout(total=None, sock_read=60))
+                timeout=aiohttp.ClientTimeout(total=None, sock_read=600))
 
 
     def _prepare_mock(self, mock):
