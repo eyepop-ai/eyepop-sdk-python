@@ -506,7 +506,7 @@ class DataEndpoint(Endpoint):
             sync_transform: bool | None = None,
             no_transform: bool | None = None,
             on_ready: Callable[[DataJob], None] | None = None,
-            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ) -> DataJob:
         session = DataClientSession(self, await self.data_base_url())
         job = _UploadStreamJob(
@@ -535,7 +535,7 @@ class DataEndpoint(Endpoint):
             sync_transform: bool | None = None,
             no_transform: bool | None = None,
             on_ready: Callable[[DataJob], None] | None = None,
-            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ) -> DataJob:
         session = DataClientSession(self, await self.data_base_url())
         job = _ImportFromJob(
@@ -757,7 +757,7 @@ class DataEndpoint(Endpoint):
                                     stream: BinaryIO, mime_type: str = 'application/octet-stream') -> None:
         put_url = f'{await self.data_base_url()}/models/{model_uuid}/exports/eyepop/formats/{model_format}/artifacts/{artifact_name}'
         async with await self.request_with_retry("PUT", put_url, data=stream, content_type=mime_type,
-                                                 timeout=aiohttp.ClientTimeout(total=None, sock_read=60)):
+                                                 timeout=aiohttp.ClientTimeout(total=None, sock_read=600)):
             return
 
     async def create_model_from_dataset(self, dataset_uuid: str, dataset_version: int | None, model: ModelCreate, start_training: bool = True) -> Model:

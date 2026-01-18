@@ -21,7 +21,7 @@ class DataJob(Job):
             self, session: ClientSession,
             on_ready: Callable[["DataJob"], None] | None,
             callback: JobStateCallback | None = None,
-            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
         super().__init__(session, on_ready, callback)
         self.timeout = timeout
@@ -49,7 +49,7 @@ class _UploadStreamJob(DataJob):
             session: ClientSession,
             on_ready: Callable[[DataJob], None] | None = None,
             callback: JobStateCallback | None = None,
-            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
         super().__init__(session, on_ready, callback, timeout)
         self.stream = stream
@@ -95,7 +95,7 @@ class _ImportFromJob(DataJob):
             session: ClientSession,
             on_ready: Callable[[DataJob], None] | None = None,
             callback: JobStateCallback | None = None,
-            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
         super().__init__(session, on_ready, callback, timeout)
         self.asset_import = asset_import
@@ -160,7 +160,7 @@ class InferJob(Job):
             session: ClientSession,
             on_ready: Callable[[DataJob], None] | None = None,
             callback: JobStateCallback | None = None,
-            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
         super().__init__(session, on_ready, callback)
         self.timeout = timeout
@@ -226,7 +226,7 @@ class EvaluateJob(Job):
             session: ClientSession,
             on_ready: Callable[[DataJob], None] | None = None,
             callback: JobStateCallback | None = None,
-            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=60)
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
         super().__init__(session, on_ready, callback)
         self.timeout = timeout
