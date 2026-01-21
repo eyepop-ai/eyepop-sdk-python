@@ -12,8 +12,10 @@ from websockets.asyncio.client import ClientConnection
 
 from eyepop.client_session import ClientSession
 from eyepop.data.arrow.schema import MIME_TYPE_APACHE_ARROW_FILE_VERSIONED
-from eyepop.data.data_jobs import DataJob, InferJob, _ImportFromJob, _UploadStreamJob, EvaluateJob
+from eyepop.data.data_jobs import DataJob, EvaluateJob, InferJob, _ImportFromJob, _UploadStreamJob
 from eyepop.data.data_types import (
+    APPLICATION_JSON,
+    AliasResolution,
     AnnotationInclusionMode,
     ArgoWorkflowPhase,
     ArtifactType,
@@ -33,6 +35,7 @@ from eyepop.data.data_types import (
     DatasetCreate,
     DatasetUpdate,
     DownloadResponse,
+    EvaluateRequest,
     EventHandler,
     ExportedUrlResponse,
     InferRequest,
@@ -50,8 +53,13 @@ from eyepop.data.data_types import (
     Prediction,
     QcAiHubExportParams,
     TranscodeMode,
-    UserReview, EvaluateRequest, APPLICATION_JSON, VlmAbilityGroupResponse, VlmAbilityGroupCreate,
-    VlmAbilityGroupUpdate, VlmAbilityResponse, VlmAbilityCreate, VlmAbilityUpdate, AliasResolution,
+    UserReview,
+    VlmAbilityCreate,
+    VlmAbilityGroupCreate,
+    VlmAbilityGroupResponse,
+    VlmAbilityGroupUpdate,
+    VlmAbilityResponse,
+    VlmAbilityUpdate,
 )
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings

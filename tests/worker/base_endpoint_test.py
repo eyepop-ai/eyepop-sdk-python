@@ -1,10 +1,8 @@
 import json
 import os
 import unittest
-from asyncio import timeout
 
-import aiohttp
-from aioresponses import aioresponses, CallbackResult
+from aioresponses import CallbackResult, aioresponses
 
 from eyepop.worker.worker_types import Pop
 
@@ -16,7 +14,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
     test_eyepop_secret_key = 'test secret key'
     test_expired_access_token = '... expired ...'
     test_access_token = '... an access token ...'
-    test_worker_url = f'http://example-worker.test'
+    test_worker_url = 'http://example-worker.test'
     test_pipeline_id = 'test_pipeline_id'
 
     env_var = ['EYEPOP_SECRET_KEY', 'EYEPOP_POP_ID', 'EYEPOP_URL']

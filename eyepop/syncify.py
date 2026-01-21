@@ -5,6 +5,10 @@ import threading
 import types
 import typing
 from asyncio import StreamReader
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from eyepop.endpoint import Endpoint
 
 log = logging.getLogger(__name__)
 

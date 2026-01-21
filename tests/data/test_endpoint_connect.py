@@ -1,7 +1,8 @@
 import json
 import unittest
+
 from aiohttp import ClientResponseError
-from aioresponses import aioresponses, CallbackResult
+from aioresponses import CallbackResult, aioresponses
 
 from eyepop import EyePopSdk
 from tests.data.base_endpoint_test import BaseEndpointTest
@@ -10,7 +11,7 @@ from tests.data.base_endpoint_test import BaseEndpointTest
 class TestEndpointConnect(BaseEndpointTest):
 
     def test_missing_secret(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(KeyError):
             EyePopSdk.dataEndpoint()
 
     @aioresponses()

@@ -3,12 +3,13 @@ import time
 from importlib import resources
 
 import pytest
-from aioresponses import aioresponses, CallbackResult
+from aioresponses import CallbackResult, aioresponses
 
+import tests
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import Pop
 from tests.worker.base_endpoint_test import BaseEndpointTest
-import tests
+
 
 class TestEndpointUpload(BaseEndpointTest):
     test_source_id = 'test_source_id'

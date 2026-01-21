@@ -2,10 +2,12 @@ import json
 from importlib import resources
 
 import pytest
-from eyepop.data.data_types import Prediction
 
 from eyepop.data.data_top_k import filter_prediction_top_k
+from eyepop.data.data_types import Prediction
+
 from . import files
+
 
 class TestFilterPrediction:
     @pytest.mark.parametrize("file_name, has_classes, has_objects, n, k", [

@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, Optional, Type, Awaitable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional, Type
 
 import aiohttp
 

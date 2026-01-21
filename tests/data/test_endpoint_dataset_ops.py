@@ -1,18 +1,18 @@
+import datetime
 import json
 import unittest
-import datetime
 
 from aioresponses import aioresponses
 
 from eyepop import EyePopSdk
-from eyepop.data.data_types import DatasetCreate, Dataset, DatasetUpdate
+from eyepop.data.data_types import Dataset, DatasetCreate, DatasetUpdate
 from tests.data.base_endpoint_test import BaseEndpointTest
 
 
 class TestEndpointConnect(BaseEndpointTest):
 
     def test_missing_secret(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(KeyError):
             EyePopSdk.dataEndpoint()
 
     @aioresponses()

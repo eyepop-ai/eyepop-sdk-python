@@ -14,7 +14,6 @@ def convert(source_table: pa.Table, target_schema: pa.Schema) -> pa.Table:
             if pa.types.is_list(source_field.type):
                 if not pa.types.is_list(target_field.type):
                     raise ValueError(f"field {name} is list type in source schema but not in target schema")
-                target_column_schema = pa.schema(target_field.type.value_type)
                 target_column = pa.chunked_array([source_column.to_pylist()], target_field.type)
             else:
                 target_column = source_column.cast(target_field.type)

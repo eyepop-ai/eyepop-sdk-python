@@ -1,9 +1,10 @@
 import json
+
 import pytest
-from aioresponses import aioresponses, CallbackResult
+from aioresponses import CallbackResult, aioresponses
 
 from eyepop import EyePopSdk
-from eyepop.worker.worker_types import Pop, InferenceComponent
+from eyepop.worker.worker_types import InferenceComponent, Pop
 from tests.worker.base_endpoint_test import BaseEndpointTest
 
 
