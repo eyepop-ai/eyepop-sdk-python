@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      EYEPOP_URL: ${{ github.event.inputs.environment == 'production' && 'https://compute.eyepop.ai' || 'https://compute.staging.eyepop.ai' }}
+      EYEPOP_URL: https://compute.staging.eyepop.xyz
     steps:
     - uses: actions/checkout@v4
 
