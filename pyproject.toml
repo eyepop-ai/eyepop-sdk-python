@@ -76,10 +76,15 @@ all = ["eyepop[test,doc,example,dev]"]
 [tool.pytest.ini_options]
 addopts = [
     "--import-mode=importlib",
+    "--ignore=tests/integration",
 ]
 testpaths = [
     "tests",
 ]
+markers = [
+    "integration: marks tests as integration tests (require API keys)",
+]
+asyncio_mode = "auto"
 [tool.coverage.run]
 source = ["eyepop"]
 
