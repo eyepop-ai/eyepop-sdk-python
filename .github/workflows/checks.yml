@@ -18,10 +18,48 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: eyepop-ai/eyepop-actions/python-lint@main
+      # Inlined from eyepop-ai/eyepop-actions/python-lint (private repo)
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          install-dependencies: pip install -e .[dev]
+
+      - name: Install linting tools
+        run: pip install -q ruff basedpyright
+
+      - name: Install project dependencies
+        run: pip install -e .[dev]
+
+      - name: Gather changed files
+        id: changed-files
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            git fetch origin ${{ github.base_ref }}
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD -- '*.py')
+          else
+            git fetch origin main
+            CHANGED_FILES=$(git diff --name-only origin/main HEAD -- '*.py')
+          fi
+          echo "Changed files: $CHANGED_FILES"
+          printf 'changed_files<<EOF\n%s\nEOF\n' "$CHANGED_FILES" >> "$GITHUB_OUTPUT"
+
+      - name: Lint (changed files only)
+        run: |
+          CHANGED_FILES="${{ steps.changed-files.outputs.changed_files }}"
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "$CHANGED_FILES" | xargs ruff check
+          else
+            echo "No Python files changed."
+          fi
+
+      - name: Typecheck (changed files only)
+        run: |
+          CHANGED_FILES="${{ steps.changed-files.outputs.changed_files }}"
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "$CHANGED_FILES" | xargs basedpyright
+          else
+            echo "No Python files changed."
+          fi
 
   test:
     runs-on: ubuntu-latest
