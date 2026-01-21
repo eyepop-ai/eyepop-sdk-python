@@ -18,7 +18,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: eyepop-ai/eyepop-actions/python-lint@main
+      - uses: actions/checkout@v4
+        with:
+          repository: eyepop-ai/eyepop-actions
+          ref: main
+          token: ${{ secrets.GH_TOKEN }}
+          path: .github/eyepop-actions
+
+      - uses: ./.github/eyepop-actions/python-lint
         with:
           python-version: "3.12"
           install-dependencies: uv sync --locked --all-extras --dev
