@@ -5,9 +5,9 @@ import pytest
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import InferenceComponent, Pop
 
-PUBLIC_TEST_IMAGE_URL = "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Cat_November_2010-1a.jpg/800px-Cat_November_2010-1a.jpg"
+PUBLIC_TEST_IMAGE_URL = "https://raw.githubusercontent.com/eyepop-ai/eyepop-sdk-python/main/tests/test.jpg"
 TEST_POP = Pop(components=[
-    InferenceComponent(model="eyepop.person:latest", categoryName="person")
+    InferenceComponent(ability="eyepop.person:latest")
 ])
 
 
