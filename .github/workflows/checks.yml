@@ -18,14 +18,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/checkout@v4
-        with:
-          repository: eyepop-ai/eyepop-actions
-          ref: main
-          token: ${{ secrets.GH_TOKEN }}
-          path: .github/eyepop-actions
-
-      - uses: ./.github/eyepop-actions/python-lint
+      - uses: eyepop-ai/eyepop-actions/python-lint@main
         with:
           python-version: "3.12"
           install-dependencies: uv sync --locked --all-extras --dev
@@ -35,11 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v6
 
-      - name: Install dependencies
-        run: uv sync --locked --all-extras --dev
+      - run: uv sync --locked --all-extras --dev
 
-      - name: Unit tests
-        run: uv run pytest
+      - run: uv run pytest
