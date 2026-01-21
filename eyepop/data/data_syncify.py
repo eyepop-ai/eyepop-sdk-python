@@ -40,7 +40,7 @@ from eyepop.data.data_types import (
     QcAiHubExportParams,
     TranscodeMode,
     UserReview, EvaluateResponse, InferRunInfo, VlmAbilityGroupResponse, VlmAbilityGroupCreate, VlmAbilityGroupUpdate,
-    VlmAbilityResponse, VlmAbilityCreate, VlmAbilityUpdate, EvaluateRequest,
+    VlmAbilityResponse, VlmAbilityCreate, VlmAbilityUpdate, EvaluateRequest, AliasResolution,
 )
 from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 
@@ -83,8 +83,8 @@ class SyncEvaluateJob:
         self.event_loop = event_loop
 
     @property
-    async def response(self) -> EvaluateResponse | None:
-        return await self.job.response
+    def response(self) -> EvaluateResponse | None:
+        return run_coro_thread_save(self.event_loop, self.job.response)
 
     def cancel(self):
         run_coro_thread_save(self.event_loop, self.job.cancel())
@@ -640,6 +640,9 @@ class SyncDataEndpoint(SyncEndpoint):
         sync_io = self._async_reader_to_sync_binary_io(async_stream_reader)
         return sync_io
 
+    def resolve_aliases(self, aliases: list[str]) -> list[AliasResolution]:
+        return run_coro_thread_save( self.event_loop,self.endpoint.resolve_aliases(aliases))
+
     def model_training_event(
             self,
             model_training_event: ModelTrainingEvent,
@@ -734,7 +737,7 @@ class SyncDataEndpoint(SyncEndpoint):
         )
         return SyncInferJob(job, self.event_loop)
 
-    async def evaluate_dataset(
+    def evaluate_dataset(
             self,
             evaluate_request: EvaluateRequest,
             worker_release: str | None = None,
