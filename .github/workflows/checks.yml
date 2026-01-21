@@ -28,7 +28,7 @@ jobs:
       - uses: ./.github/eyepop-actions/python-lint
         with:
           python-version: "3.12"
-          install-dependencies: pip install -e .[dev]
+          install-dependencies: uv sync --locked --all-extras --dev
 
   test:
     runs-on: ubuntu-latest
