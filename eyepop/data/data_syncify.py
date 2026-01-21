@@ -83,8 +83,8 @@ class SyncEvaluateJob:
         self.event_loop = event_loop
 
     @property
-    async def response(self) -> EvaluateResponse | None:
-        return await self.job.response
+    def response(self) -> EvaluateResponse | None:
+        return run_coro_thread_save(self.event_loop, self.job.response)
 
     def cancel(self):
         run_coro_thread_save(self.event_loop, self.job.cancel())
@@ -734,7 +734,7 @@ class SyncDataEndpoint(SyncEndpoint):
         )
         return SyncInferJob(job, self.event_loop)
 
-    async def evaluate_dataset(
+    def evaluate_dataset(
             self,
             evaluate_request: EvaluateRequest,
             worker_release: str | None = None,
