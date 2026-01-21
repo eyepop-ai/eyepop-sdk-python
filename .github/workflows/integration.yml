@@ -14,7 +14,7 @@ on:
   schedule:
     - cron: '0 6 * * *'
   push:
-    branches: [main, feat/integration-test-ci]
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      EYEPOP_URL: https://compute.staging.eyepop.xyz
+      EYEPOP_URL: ${{ inputs.environment == 'production' && 'https://compute.eyepop.ai' || 'https://compute.staging.eyepop.xyz' }}
     steps:
     - uses: actions/checkout@v4
 
