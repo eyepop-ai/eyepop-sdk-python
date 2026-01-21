@@ -38,4 +38,10 @@ jobs:
     - name: Run integration tests
       env:
         EYEPOP_API_KEY: ${{ secrets.EYEPOP_API_KEY }}
-      run: uv run pytest tests/integration/ -v -s --tb=short --timeout=300
+        GITHUB_STEP_SUMMARY: ${{ github.step_summary }}
+      run: |
+        uv run pytest tests/integration/ -v -s --tb=short --timeout=300 2>&1 | tee test_output.txt
+        echo "## Integration Test Results" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cat test_output.txt >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
