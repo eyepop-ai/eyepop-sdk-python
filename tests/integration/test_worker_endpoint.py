@@ -26,6 +26,12 @@ def test_transient_pop_load_from_url():
         job = endpoint.load_from(PUBLIC_TEST_IMAGE_URL)
         result = job.predict()
 
+        print(f"\n=== Inference Result (sync) ===")
+        print(f"Source: {result.get('source_width')}x{result.get('source_height')}")
+        print(f"Objects detected: {len(result.get('objects', []))}")
+        for obj in result.get("objects", []):
+            print(f"  - {obj.get('classLabel')} (confidence: {obj.get('confidence', 0):.2f})")
+
         assert result is not None
         assert "source_width" in result
         assert "source_height" in result
@@ -41,6 +47,12 @@ async def test_transient_pop_load_from_url_async():
 
         job = await endpoint.load_from(PUBLIC_TEST_IMAGE_URL)
         result = await job.predict()
+
+        print(f"\n=== Inference Result (async) ===")
+        print(f"Source: {result.get('source_width')}x{result.get('source_height')}")
+        print(f"Objects detected: {len(result.get('objects', []))}")
+        for obj in result.get("objects", []):
+            print(f"  - {obj.get('classLabel')} (confidence: {obj.get('confidence', 0):.2f})")
 
         assert result is not None
         assert "source_width" in result

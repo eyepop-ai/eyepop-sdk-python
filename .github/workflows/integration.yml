@@ -38,4 +38,4 @@ jobs:
     - name: Run integration tests
       env:
         EYEPOP_API_KEY: ${{ secrets.EYEPOP_API_KEY }}
-      run: uv run pytest tests/integration/ -v --tb=short --timeout=300
+      run: uv run pytest tests/integration/ -v -s --tb=short --timeout=300
