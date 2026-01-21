@@ -10,6 +10,8 @@ TEST_POP = Pop(components=[
     InferenceComponent(ability="eyepop.person:latest")
 ])
 
+EYEPOP_URL = "https://staging.api.eyepop.ai"
+
 
 def requires_api_key():
     return pytest.mark.skipif(
@@ -47,3 +49,22 @@ async def test_transient_pop_load_from_url_async():
         assert "source_height" in result
         assert result["source_width"] > 0
         assert result["source_height"] > 0
+
+
+@requires_api_key()
+def test_data_endpoint_list_datasets():
+    with EyePopSdk.dataEndpoint(eyepop_url=EYEPOP_URL) as endpoint:
+        datasets = endpoint.list_datasets()
+
+        assert datasets is not None
+        assert isinstance(datasets, list)
+
+
+@requires_api_key()
+@pytest.mark.asyncio
+async def test_data_endpoint_list_datasets_async():
+    async with EyePopSdk.dataEndpoint(eyepop_url=EYEPOP_URL, is_async=True) as endpoint:
+        datasets = await endpoint.list_datasets()
+
+        assert datasets is not None
+        assert isinstance(datasets, list)
