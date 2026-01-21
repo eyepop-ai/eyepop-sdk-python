@@ -14,7 +14,7 @@ on:
   schedule:
     - cron: '0 6 * * *'
   push:
-    branches: [main, feat/integration-test-ci]
+    branches: [main, feat/integration-test-ci, feature/use-shared-python-lint]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
