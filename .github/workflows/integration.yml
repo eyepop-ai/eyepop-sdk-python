@@ -2,6 +2,15 @@ name: Integration Tests
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test against'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
   schedule:
     - cron: '0 6 * * *'
   push:
@@ -15,6 +24,8 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      EYEPOP_URL: ${{ github.event.inputs.environment == 'production' && 'https://compute.eyepop.ai' || 'https://compute.staging.eyepop.ai' }}
     steps:
     - uses: actions/checkout@v4
 
