@@ -40,7 +40,7 @@ from eyepop.data.data_types import (
     QcAiHubExportParams,
     TranscodeMode,
     UserReview, EvaluateResponse, InferRunInfo, VlmAbilityGroupResponse, VlmAbilityGroupCreate, VlmAbilityGroupUpdate,
-    VlmAbilityResponse, VlmAbilityCreate, VlmAbilityUpdate, EvaluateRequest,
+    VlmAbilityResponse, VlmAbilityCreate, VlmAbilityUpdate, EvaluateRequest, AliasResolution,
 )
 from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 
@@ -639,6 +639,9 @@ class SyncDataEndpoint(SyncEndpoint):
         )
         sync_io = self._async_reader_to_sync_binary_io(async_stream_reader)
         return sync_io
+
+    def resolve_aliases(self, aliases: list[str]) -> list[AliasResolution]:
+        return run_coro_thread_save( self.event_loop,self.endpoint.resolve_aliases(aliases))
 
     def model_training_event(
             self,

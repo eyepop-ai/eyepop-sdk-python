@@ -51,7 +51,7 @@ from eyepop.data.data_types import (
     QcAiHubExportParams,
     TranscodeMode,
     UserReview, EvaluateRequest, APPLICATION_JSON, VlmAbilityGroupResponse, VlmAbilityGroupCreate,
-    VlmAbilityGroupUpdate, VlmAbilityResponse, VlmAbilityCreate, VlmAbilityUpdate,
+    VlmAbilityGroupUpdate, VlmAbilityResponse, VlmAbilityCreate, VlmAbilityUpdate, AliasResolution,
 )
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings
@@ -357,7 +357,7 @@ class DataEndpoint(Endpoint):
         modifiable_version_only_query = f'&modifiable_version_only={modifiable_version_only}' if modifiable_version_only is not None else ''
         get_url = f'{await self.data_base_url()}/datasets?account_uuid={account_uuid}&include_hero_asset={include_hero_asset}{modifiable_version_only_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return TypeAdapter(list[Dataset]).validate_python(await resp.json()) # type: ignore [no-any-return]
+            return TypeAdapter(list[Dataset]).validate_python(await resp.json())   # type: ignore [no-any-return]
 
     async def create_dataset(self, dataset: DatasetCreate, account_uuid: str | None = None) -> Dataset:
         if account_uuid is None:
@@ -959,6 +959,13 @@ class DataEndpoint(Endpoint):
         async with await self.request_with_retry("GET", get_url) as resp:
             return TypeAdapter(list[ExportedUrlResponse]).validate_python(await resp.json()) # type: ignore [no-any-return]
 
+    async def resolve_aliases(self, aliases: list[str]) -> list[AliasResolution]:
+        alias_query = ""
+        for alias in aliases:
+            alias_query += f"alias={alias}&"
+        get_url = f'{await self.data_base_url()}/exports/aliases?{alias_query}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return TypeAdapter(list[AliasResolution]).validate_python(await resp.json()) # type: ignore [no-any-return]
 
     async def export_model_artifacts(self, model_uuids: list[str], model_formats: list[ModelExportFormat], device_name: str | None, artifact_type: ArtifactType | None) -> StreamReader:
         model_uuid_query = ""
