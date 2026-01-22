@@ -13,8 +13,6 @@ on:
           - production
   schedule:
     - cron: '0 6 * * *'
-  push:
-    branches: [main, feature/use-shared-python-lint, feature/add-prediction-metadata-fields]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
