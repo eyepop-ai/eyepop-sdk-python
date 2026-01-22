@@ -96,6 +96,15 @@ class Prediction(BaseModel):
         description="Offset length of the chunk used for this prediction. It has the same format as offset.",
     )
 
+    source_id: str | None = Field(
+        default=None,
+        description="Identifier for the source media (asset UUID, URL, or filename)",
+    )
+    seconds: float | None = Field(
+        default=None,
+        description="Temporal offset in seconds (convenience field, equivalent to timestamp / 1e9)",
+    )
+
     objects: List[PredictedObject] | None = None
     classes: List[PredictedClass] | None = None
     texts: List[PredictedText] | None = None
