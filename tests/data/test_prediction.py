@@ -1,6 +1,6 @@
 import unittest
 
-from eyepop.data.data_types import Prediction, PredictedClass
+from eyepop.data.data_types import PredictedClass, Prediction
 
 
 class TestPredictionMetadata(unittest.TestCase):
