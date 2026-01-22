@@ -4,10 +4,10 @@ from eyepop.data.data_types import Prediction, PredictedClass
 
 
 class TestPredictionMetadata(unittest.TestCase):
-    """Test new metadata fields: source_id and seconds"""
+    """Test new metadata fields: source_id and seconds."""
 
     def test_prediction_with_new_fields(self):
-        """Test Prediction model with source_id and seconds"""
+        """Test Prediction model with source_id and seconds."""
         pred = Prediction(
             source_width=1920.0,
             source_height=1080.0,
@@ -22,7 +22,7 @@ class TestPredictionMetadata(unittest.TestCase):
         assert pred.timestamp == 1000000000
 
     def test_prediction_without_new_fields(self):
-        """Test backward compatibility - new fields are optional"""
+        """Test backward compatibility - new fields are optional."""
         pred = Prediction(
             source_width=1920.0,
             source_height=1080.0
@@ -32,7 +32,7 @@ class TestPredictionMetadata(unittest.TestCase):
         assert pred.seconds is None
 
     def test_prediction_serialization(self):
-        """Test JSON serialization with new fields"""
+        """Test JSON serialization with new fields."""
         pred = Prediction(
             source_width=612.0,
             source_height=408.0,
@@ -48,7 +48,7 @@ class TestPredictionMetadata(unittest.TestCase):
         assert json_data["timestamp"] == 0
 
     def test_prediction_with_url_as_source_id(self):
-        """Test source_id with URL"""
+        """Test source_id with URL."""
         pred = Prediction(
             source_width=1024.0,
             source_height=768.0,
@@ -59,7 +59,7 @@ class TestPredictionMetadata(unittest.TestCase):
         assert pred.source_id == "https://example.com/image.jpg"
 
     def test_prediction_video_frame_seconds(self):
-        """Test seconds field for video frames"""
+        """Test seconds field for video frames."""
         # Frame 0 at time 0
         pred0 = Prediction(
             source_width=1920.0,
