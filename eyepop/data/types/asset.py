@@ -1,5 +1,3 @@
-"""Asset types for the EyePop Data API."""
-
 from datetime import datetime
 from typing import List, Sequence
 

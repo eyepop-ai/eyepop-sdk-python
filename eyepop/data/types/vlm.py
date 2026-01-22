@@ -1,5 +1,3 @@
-"""VLM (Vision Language Model) types for the EyePop Data API."""
-
 from datetime import datetime
 from typing import Any, Sequence
 
