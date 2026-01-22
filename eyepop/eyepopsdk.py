@@ -32,12 +32,6 @@ class EyePopSdk:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
             is_local_mode = local_mode_env.lower() in ("true", "yes")
 
-        if eyepop_url is None:
-            if is_local_mode:
-                eyepop_url = 'http://127.0.0.1:8080'
-            else:
-                eyepop_url = os.getenv("EYEPOP_URL", "https://api.eyepop.ai")
-
         if pop_id is None:
             pop_id = os.getenv("EYEPOP_POP_ID", "transient")
 
@@ -51,6 +45,17 @@ class EyePopSdk:
                     "At least one authentication method required: "
                     "EYEPOP_SECRET_KEY or EYEPOP_API_KEY or access_token"
                 )
+
+        if eyepop_url is None:
+            if is_local_mode:
+                eyepop_url = 'http://127.0.0.1:8080'
+            else:
+                eyepop_url = os.getenv("EYEPOP_URL")
+                if eyepop_url is None:
+                    if api_key:
+                        eyepop_url = "https://compute.eyepop.ai"
+                    else:
+                        eyepop_url = "https://api.eyepop.ai"
 
         is_transient_pop = pop_id == "transient"
 
@@ -115,7 +120,10 @@ class EyePopSdk:
         if eyepop_url is None:
             eyepop_url = os.getenv("EYEPOP_URL")
             if eyepop_url is None:
-                eyepop_url = "https://api.eyepop.ai"
+                if api_key:
+                    eyepop_url = "https://compute.eyepop.ai"
+                else:
+                    eyepop_url = "https://api.eyepop.ai"
 
         if account_id is None:
             account_id = os.getenv("EYEPOP_ACCOUNT_ID")
