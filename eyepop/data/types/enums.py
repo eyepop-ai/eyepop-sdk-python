@@ -1,5 +1,3 @@
-"""Enumeration types for the EyePop Data API."""
-
 import enum
 
 

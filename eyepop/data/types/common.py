@@ -1,5 +1,3 @@
-"""Common/shared types for the EyePop Data API."""
-
 from typing import List
 
 from pydantic import BaseModel

@@ -1,5 +1,3 @@
-"""Event types for the EyePop Data API."""
-
 from typing import Awaitable, Callable
 
 from pydantic import BaseModel

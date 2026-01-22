@@ -1,5 +1,3 @@
-"""Dataset types for the EyePop Data API."""
-
 from datetime import datetime
 from typing import Any, List
 
