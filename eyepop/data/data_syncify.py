@@ -53,8 +53,7 @@ class SyncDataJob:
         self.event_loop = event_loop
 
     def result(self) -> Asset:
-        result = run_coro_thread_save(self.event_loop, self.job.result())
-        return result # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.job.result())
 
     def cancel(self):
         run_coro_thread_save(self.event_loop, self.job.cancel())
@@ -70,8 +69,7 @@ class SyncInferJob:
         return self.job.run_info
 
     def predict(self) -> dict[str, typing.Any]:
-        result = run_coro_thread_save(self.event_loop, self.job.predict())
-        return result # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.job.predict())
 
     def cancel(self):
         run_coro_thread_save(self.event_loop, self.job.cancel())
@@ -99,6 +97,7 @@ async def null_event_handler(_: ChangeEvent):
     pass
 
 class SyncDataEndpoint(SyncEndpoint):
+    endpoint: DataEndpoint
     event_handlers: dict[SyncEventHandler, EventHandler]
 
     def __init__(self, endpoint: DataEndpoint):
@@ -155,7 +154,7 @@ class SyncDataEndpoint(SyncEndpoint):
             modifiable_version_only: bool | None = None,
             account_uuid: str | None = None
     ) -> List[Dataset]:
-        return run_coro_thread_save(self.event_loop, self.endpoint.list_datasets(  # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.list_datasets(
             include_hero_asset=include_hero_asset,
             modifiable_version_only=modifiable_version_only,
             account_uuid=account_uuid,
@@ -165,32 +164,32 @@ class SyncDataEndpoint(SyncEndpoint):
             self, dataset: DatasetCreate,
             account_uuid: str | None = None
     ) -> Dataset:
-        return run_coro_thread_save(self.event_loop, self.endpoint.create_dataset(  # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.create_dataset(
             dataset=dataset,
             account_uuid=account_uuid
         ))
 
     def get_dataset(self, dataset_uuid: str, dataset_version: int | None = None, include_stats: bool = False, modifiable_version_only: bool | None = None) -> Dataset:
-        return run_coro_thread_save(self.event_loop, self.endpoint.get_dataset(dataset_uuid, dataset_version, include_stats, modifiable_version_only)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_dataset(dataset_uuid, dataset_version, include_stats, modifiable_version_only))
 
     def update_dataset(self, dataset_uuid: str, dataset: DatasetUpdate, start_auto_annotate: bool = True) -> Dataset:
-        return run_coro_thread_save(self.event_loop, self.endpoint.update_dataset(dataset_uuid, dataset, start_auto_annotate)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.update_dataset(dataset_uuid, dataset, start_auto_annotate))
 
     def delete_dataset(self, dataset_uuid: str) -> None:
-        return run_coro_thread_save(self.event_loop, self.endpoint.delete_dataset(dataset_uuid)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.delete_dataset(dataset_uuid))
 
     def analyze_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None) -> None:
-        return run_coro_thread_save(self.event_loop, self.endpoint.analyze_dataset_version(dataset_uuid, dataset_version)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.analyze_dataset_version(dataset_uuid, dataset_version))
 
     def auto_annotate_dataset_version(self, dataset_uuid: str, dataset_version: int | None = None, max_assets: int | None = None) -> None:
-        return run_coro_thread_save(self.event_loop, self.endpoint.auto_annotate_dataset_version(dataset_uuid, dataset_version, max_assets)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.auto_annotate_dataset_version(dataset_uuid, dataset_version, max_assets))
 
     def freeze_dataset_version(self, dataset_uuid: str, dataset_version: Optional[int] = None) -> Dataset:
-        return run_coro_thread_save(self.event_loop, # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop,
                                     self.endpoint.freeze_dataset_version(dataset_uuid, dataset_version))
 
     def delete_dataset_version(self, dataset_uuid: str, dataset_version: int) -> Dataset:
-        return run_coro_thread_save(self.event_loop, # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop,
                                     self.endpoint.delete_dataset_version(dataset_uuid, dataset_version))
 
     def delete_annotations(self, dataset_uuid: str, dataset_version: int,
@@ -241,7 +240,7 @@ class SyncDataEndpoint(SyncEndpoint):
             auto_annotate: AutoAnnotate | None = None,
             source: str | None = None,
     ) -> typing.Sequence[DatasetAutoAnnotate]:
-        return run_coro_thread_save( # type: ignore [no-any-return]
+        return run_coro_thread_save(
             self.event_loop,
             self.endpoint.list_dataset_auto_annotates(
                 dataset_uuid=dataset_uuid,
@@ -327,7 +326,7 @@ class SyncDataEndpoint(SyncEndpoint):
             include_auto_annotates: list[AutoAnnotate] | None = None,
             include_sources: list[str] | None = None,
     ) -> List[Asset]:
-        return run_coro_thread_save( # type: ignore [no-any-return]
+        return run_coro_thread_save(
             self.event_loop,
             self.endpoint.list_assets(
                 dataset_uuid=dataset_uuid,
@@ -343,7 +342,7 @@ class SyncDataEndpoint(SyncEndpoint):
 
     def get_asset(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
                   dataset_version: Optional[int] = None, include_annotations: bool = False) -> Asset:
-        return run_coro_thread_save( # type: ignore [no-any-return]
+        return run_coro_thread_save(
             self.event_loop,
             self.endpoint.get_asset(
                 asset_uuid=asset_uuid,
@@ -375,7 +374,7 @@ class SyncDataEndpoint(SyncEndpoint):
 
     def update_asset_ground_truth(self, asset_uuid: str, dataset_uuid: Optional[str] = None,
                                   dataset_version: Optional[int] = None,
-                                  ground_truth: Optional[Prediction] = None):
+                                  ground_truth: typing.Sequence[Prediction] | None = None):
         run_coro_thread_save(
             self.event_loop,
             self.endpoint.update_asset_ground_truth(
@@ -486,52 +485,52 @@ class SyncDataEndpoint(SyncEndpoint):
     """ Model methods """
 
     def list_models(self, account_uuid: str | None = None) -> List[Model]:
-        return run_coro_thread_save(self.event_loop, self.endpoint.list_models(account_uuid=account_uuid)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.list_models(account_uuid=account_uuid))
 
     def create_model(self, model: ModelCreate, account_uuid: str | None = None) -> Model:
-        return run_coro_thread_save(self.event_loop, self.endpoint.create_model(model=model, account_uuid=account_uuid)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.create_model(model=model, account_uuid=account_uuid))
 
     def upload_model_artifact(self, model_uuid: str, model_format: ModelExportFormat, artifact_name: str,
                                     stream: BinaryIO, mime_type: str = 'application/octet-stream'):
         run_coro_thread_save(self.event_loop, self.endpoint.upload_model_artifact(model_uuid, model_format, artifact_name, stream, mime_type))
 
     def create_model_from_dataset(self, dataset_uuid: str, dataset_version: int, model: ModelCreate, start_training: bool = True) -> Model:
-        return run_coro_thread_save(self.event_loop, self.endpoint.create_model_from_dataset(dataset_uuid, dataset_version, model, start_training)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.create_model_from_dataset(dataset_uuid, dataset_version, model, start_training))
 
     def get_model(self, model_uuid: str) -> Model:
-        return run_coro_thread_save(self.event_loop, self.endpoint.get_model(model_uuid)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_model(model_uuid))
 
     def get_model_progress(self, model_uuid: str) -> ModelTrainingProgress:
-        return run_coro_thread_save(self.event_loop, self.endpoint.get_model_progress(model_uuid)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_model_progress(model_uuid))
 
     def update_model(self, model_uuid: str, model: ModelUpdate) -> Model:
-        return run_coro_thread_save(self.event_loop, self.endpoint.update_model(model_uuid, model)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.update_model(model_uuid, model))
 
     def delete_model(self, model_uuid: str):
         run_coro_thread_save(self.event_loop, self.endpoint.delete_model(model_uuid))
 
     def train_model(self, model_uuid: str) -> Model:
-        return run_coro_thread_save(self.event_loop, self.endpoint.train_model(model_uuid)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.train_model(model_uuid))
 
     def publish_model(self, model_uuid: str) -> Model:
-        return run_coro_thread_save(self.event_loop, self.endpoint.publish_model(model_uuid)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.publish_model(model_uuid))
 
     """ Model aliases methods """
 
     def list_model_aliases(self, account_uuid: str | None = None) -> list[ModelAlias]:
-        return run_coro_thread_save(self.event_loop, self.endpoint.list_model_aliases(account_uuid=account_uuid)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.list_model_aliases(account_uuid=account_uuid))
 
     def create_model_alias(self, model_alias: ModelAliasCreate, dry_run: bool = False, account_uuid: str | None = None) -> ModelAlias:
-        return run_coro_thread_save(self.event_loop, self.endpoint.create_model_alias(model_alias, dry_run=dry_run, account_uuid=account_uuid)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.create_model_alias(model_alias, dry_run=dry_run, account_uuid=account_uuid))
 
     def get_model_alias(self, name: str) -> ModelAlias:
-        return run_coro_thread_save(self.event_loop, self.endpoint.get_model_alias(name)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_model_alias(name))
 
     def delete_model_alias(self, name: str):
         run_coro_thread_save(self.event_loop, self.endpoint.delete_model_alias(name))
 
     def update_model_alias(self, name: str, model_alias: ModelAliasUpdate) -> ModelAlias:
-        return run_coro_thread_save(self.event_loop, self.endpoint.update_model_alias(name, model_alias)) # type: ignore [no-any-return]
+        return run_coro_thread_save(self.event_loop, self.endpoint.update_model_alias(name, model_alias))
 
     def set_model_alias_tag(self, name: str, tag: str, model_uuid: str):
         run_coro_thread_save(self.event_loop, self.endpoint.set_model_alias_tag(name, tag, model_uuid))
@@ -599,7 +598,7 @@ class SyncDataEndpoint(SyncEndpoint):
             self,
             model_uuids: list[str]
     ) -> list[ModelTrainingAuditRecord]:
-        return run_coro_thread_save( # type: ignore [no-any-return]
+        return run_coro_thread_save(
             self.event_loop,
             self.endpoint.model_training_audits(
                 model_uuids=model_uuids
@@ -612,7 +611,7 @@ class SyncDataEndpoint(SyncEndpoint):
             model_formats: list[ModelExportFormat],
             device_name: str | None
     ) -> list[ExportedUrlResponse]:
-        return run_coro_thread_save( # type: ignore [no-any-return]
+        return run_coro_thread_save(
             self.event_loop,
             self.endpoint.export_model_urls(
                 model_uuids=model_uuids,
