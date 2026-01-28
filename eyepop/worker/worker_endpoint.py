@@ -374,7 +374,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                            timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
         return await self._pipeline_request_with_retry('GET', url_path_and_query, accept=accept, timeout=timeout)
 
-    async def pipeline_post(self, url_path_and_query: str, accept: str | None = None, open_data: Callable = None,
+    async def pipeline_post(self, url_path_and_query: str, accept: str | None = None, open_data: Callable[..., Any] | None = None,
                             content_type: str | None = None,
                             timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
         return await self._pipeline_request_with_retry('POST', url_path_and_query, accept=accept, open_data=open_data,
@@ -397,7 +397,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         return await self._pipeline_request_with_retry('DELETE', url_path_and_query, timeout=timeout)
 
     async def _pipeline_request_with_retry(self, method: str, url_path_and_query: str, accept: str | None = None,
-                                           open_data: Callable = None, content_type: str | None = None,
+                                           open_data: Callable[..., Any] | None = None, content_type: str | None = None,
                                            timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
         if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time < time.time() - settings.force_refresh_config_secs:
             self.worker_config = None
