@@ -125,20 +125,3 @@ module = [
     "webui.*",
 ]
 ignore_missing_imports = true
-
-[tool.pyright]
-include = ["eyepop"]
-exclude = [
-    "**/node_modules",
-    "**/__pycache__",
-    "**/venv",
-    "**/.venv",
-    "examples",
-    "tests"
-]
-pythonVersion = "3.12"
-typeCheckingMode = "basic"
-reportMissingImports = false
-reportMissingTypeStubs = false
-reportIncompatibleVariableOverride = false
-reportAttributeAccessIssue = false

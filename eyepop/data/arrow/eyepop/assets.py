@@ -59,7 +59,7 @@ def record_batch_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASS
             annotationss[i] = table_from_eyepop_annotations(e.annotations, schema=annotations_schema).to_struct_array()
         else:
             annotationss[i] = pa.chunked_array([], type=pa.struct(annotation_fields))
-        # sinc 1.6
+        # since 1.6
         if mime_types is not None:
             mime_types[i] = e.mime_type
         if original_durations is not None:
@@ -79,7 +79,7 @@ def record_batch_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASS
         pa.array(model_relevance),
         annotationss,
     ]
-    # sinc 1.6
+    # since 1.6
     if mime_types is not None:
         columns.append(pa.array(mime_types).dictionary_encode())
     if original_durations is not None:

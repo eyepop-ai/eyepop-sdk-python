@@ -61,7 +61,7 @@ class BaseComponent(BaseModel):
 
 
 class ForwardComponent(BaseComponent):
-    type: Literal[PopComponentType.FORWARD] = PopComponentType.FORWARD  # pyright: ignore[reportIncompatibleVariableOverride]
+    type: Literal[PopComponentType.FORWARD] = PopComponentType.FORWARD
     model_config = ConfigDict(extra='forbid')
 
 
@@ -78,7 +78,7 @@ class InferenceType(enum.StrEnum):
 
 
 class InferenceComponent(BaseComponent):
-    type: Literal[PopComponentType.INFERENCE] = PopComponentType.INFERENCE  # pyright: ignore[reportIncompatibleVariableOverride]
+    type: Literal[PopComponentType.INFERENCE] = PopComponentType.INFERENCE
     inferenceTypes: List[InferenceType] | None = None
     hidden: bool | None = None
     modelUuid: Annotated[str | None, Field(default=None, deprecated='modelUuid is deprecated, use abilityUuid instead'), ]
@@ -101,7 +101,7 @@ class MotionModel(enum.StrEnum):
 
 
 class TrackingComponent(BaseComponent):
-    type: Literal[PopComponentType.TRACKING] = PopComponentType.TRACKING  # pyright: ignore[reportIncompatibleVariableOverride]
+    type: Literal[PopComponentType.TRACKING] = PopComponentType.TRACKING
     reidModelUuid: str | None = None
     reidModel: str | None = None
     maxAgeSeconds: float | None = None
@@ -141,14 +141,14 @@ class ContourType(enum.StrEnum):
 
 
 class ContourFinderComponent(BaseComponent):
-    type: Literal[PopComponentType.CONTOUR_FINDER] = PopComponentType.CONTOUR_FINDER  # pyright: ignore[reportIncompatibleVariableOverride]
+    type: Literal[PopComponentType.CONTOUR_FINDER] = PopComponentType.CONTOUR_FINDER
     contourType: ContourType
     areaThreshold: float | None = None
     model_config = ConfigDict(extra='forbid')
 
 
 class ComponentFinderComponent(BaseComponent):
-    type: Literal[PopComponentType.COMPONENT_FINDER] = PopComponentType.COMPONENT_FINDER  # pyright: ignore[reportIncompatibleVariableOverride]
+    type: Literal[PopComponentType.COMPONENT_FINDER] = PopComponentType.COMPONENT_FINDER
     dilate: float | None = None
     erode: float | None = None
     keepSource: bool | None = None
