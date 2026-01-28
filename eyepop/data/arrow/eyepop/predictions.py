@@ -27,7 +27,7 @@ from eyepop.data.data_types import (
 )
 
 
-def _round_float_like(float_like: any, digits: int, factor: float = 1.0) -> float | None:
+def _round_float_like(float_like: Any, digits: int, factor: float = 1.0) -> float | None:
     if float_like is None or np.isnan(float_like):
         return None
     elif type(float_like) is float:
@@ -237,7 +237,7 @@ def eyepop_predicted_objects_from_table(
     return predicted_objects
 
 
-def eyepop_predicted_objects_from_pylist(py_list: list[dict[str, any]],
+def eyepop_predicted_objects_from_pylist(py_list: list[dict[str, Any]],
                                          source_height: float,
                                          source_width: float) -> list[PredictedObject]:
     predicted_objects: list[PredictedObject | None] = [None] * len(py_list)
@@ -331,7 +331,7 @@ def table_from_eyepop_predicted_texts(predicted_texts: list[PredictedText], sche
         pa.array(categories).dictionary_encode(),
     ], schema=schema)
 
-def eyepop_predicted_texts_from_pylist(py_list: list[dict[str, any]]) -> list[PredictedText]:
+def eyepop_predicted_texts_from_pylist(py_list: list[dict[str, Any]]) -> list[PredictedText]:
     predicted_texts: list[PredictedText | None] = [None] * len(py_list)
     for i, predicted_text in enumerate(py_list):
         predicted_texts[i] = PredictedText(
@@ -381,7 +381,7 @@ def eyepop_predicted_key_pointss_from_table(
     return predicted_key_pointss
 
 
-def eyepop_predicted_key_pointss_from_pylist(py_list: list[dict[str, any]],
+def eyepop_predicted_key_pointss_from_pylist(py_list: list[dict[str, Any]],
                                              source_height: float,
                                              source_width: float) -> list[PredictedKeyPoints]:
     predicted_key_pointss: list[PredictedKeyPoints | None] = [None] * len(py_list)
@@ -436,7 +436,7 @@ def eyepop_predicted_key_points_from_table(
     return predicted_key_points
 
 
-def eyepop_predicted_key_points_from_pylist(py_list: list[dict[str, any]],
+def eyepop_predicted_key_points_from_pylist(py_list: list[dict[str, Any]],
                                             source_height: float,
                                             source_width: float) -> list[PredictedKeyPoint]:
     predicted_key_points: list[PredictedKeyPoint | None] = [None] * len(py_list)
@@ -477,7 +477,7 @@ def table_from_eyepop_predicted_embeddings(predicted_embeddings: list[PredictedE
 
     return pa.Table.from_arrays(columns, schema=schema)
 
-def eyepop_predicted_embeddings_from_pylist(py_list: list[dict[str, any]]) -> list[PredictedEmbedding]:
+def eyepop_predicted_embeddings_from_pylist(py_list: list[dict[str, Any]]) -> list[PredictedEmbedding]:
     predicted_embeddings: list[PredictedEmbedding | None] = [None] * len(py_list)
     for i, predicted_embedding in enumerate(py_list):
         predicted_embeddings[i] = PredictedEmbedding(
