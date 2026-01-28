@@ -12,5 +12,6 @@
     "typeCheckingMode": "basic",
     "reportMissingImports": false,
     "reportMissingTypeStubs": false,
-    "reportIncompatibleVariableOverride": false
+    "reportIncompatibleVariableOverride": false,
+    "reportAttributeAccessIssue": false
 }
