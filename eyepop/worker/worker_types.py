@@ -54,7 +54,7 @@ class PopForward(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 class BaseComponent(BaseModel):
-    type: PopComponentType = PopComponentType.BASE
+    """Base class for shared component fields. Subclasses must define their own `type` field."""
     id: int | None = None
     forward: PopForward | None = None
     model_config = ConfigDict(extra='forbid')
