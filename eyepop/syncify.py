@@ -5,7 +5,7 @@ import threading
 import types
 import typing
 from asyncio import StreamReader
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Coroutine, TypeVar
 
 if TYPE_CHECKING:
     from eyepop.endpoint import Endpoint
@@ -62,10 +62,13 @@ class SyncEndpoint:
         return sync_io
 
 
-def run_coro_thread_save(event_loop, coro):
+T = TypeVar('T')
+
+
+def run_coro_thread_save(event_loop: asyncio.AbstractEventLoop, coro: Coroutine[Any, Any, T]) -> T:
     try:
         result = asyncio.run_coroutine_threadsafe(coro, event_loop).result()
-        coro = None
+        coro = None  # type: ignore[assignment]
         return result
     finally:
         if coro is not None:
