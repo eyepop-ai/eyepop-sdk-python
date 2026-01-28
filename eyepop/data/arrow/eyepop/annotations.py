@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Any, cast
 
 import pyarrow as pa
 
@@ -19,22 +19,24 @@ from eyepop.data.arrow.eyepop.predictions import (
 from eyepop.data.arrow.schema import ANNOTATION_SCHEMA
 from eyepop.data.arrow.schema_version_conversion import convert
 from eyepop.data.data_types import AssetAnnotationResponse, Prediction
+from eyepop.data.types.prediction import PredictedClass
 
 
 def table_from_eyepop_annotations(annotations: list[AssetAnnotationResponse], schema: pa.Schema = ANNOTATION_SCHEMA) -> pa.Table:
-    types = []
-    sources = []
-    user_reviews = []
-    objects = []
-    classes = []
-    source_model_uuids = [] if "source_model_uuid" in schema.names else None
-    key_points = [] if "keyPoints" in schema.names else None
-    texts = [] if "texts" in schema.names else None
-    embeddings = [] if "embeddings" in schema.names else None
-    timestamps = [] if "timestamp" in schema.names else None
-    durations = [] if "duration" in schema.names else None
-    offsets = [] if "offset" in schema.names else None
-    offset_durations = [] if "offset_duration" in schema.names else None
+    types: list[Any] = []
+    sources: list[Any] = []
+    user_reviews: list[Any] = []
+    objects: list[Any] = []
+    classes: list[Any] = []
+    source_model_uuids: list[Any] | None = [] if "source_model_uuid" in schema.names else None
+    key_points: list[Any] | None = [] if "keyPoints" in schema.names else None
+    texts: list[Any] | None = [] if "texts" in schema.names else None
+    embeddings: list[Any] | None = [] if "embeddings" in schema.names else None
+    timestamps: list[Any] | None = [] if "timestamp" in schema.names else None
+    durations: list[Any] | None = [] if "duration" in schema.names else None
+    offsets: list[Any] | None = [] if "offset" in schema.names else None
+    offset_durations: list[Any] | None = [] if "offset_duration" in schema.names else None
+    predictionss: list[Any] | None
     if "predictions" in schema.names:
         predictionss = []
         prediction_fields = cast(
@@ -199,6 +201,7 @@ def eyepop_annotations_from_table(table: pa.Table) -> list[AssetAnnotationRespon
             else:
                 child_objects = eyepop_predicted_objects_from_pylist(objects[j], 1.0, 1.0)
 
+            child_classes: list[PredictedClass] | None
             if classes[j] is None:
                 child_classes = None
             elif len(classes[j]) == 0:
@@ -246,14 +249,12 @@ def eyepop_annotations_from_table(table: pa.Table) -> list[AssetAnnotationRespon
                 user_review=user_reviews[j],
                 source=sources[j],
                 predictions=(prediction,),
-                annotation=prediction,
-                source_model_uuid=source_model_uuid[j],
             ))
             i += 1
     return annotations
 
 
-def eyepop_annotations_from_pylist(py_list: list[dict]) -> list[AssetAnnotationResponse]:
+def eyepop_annotations_from_pylist(py_list: list[dict[str, Any] | None]) -> list[AssetAnnotationResponse]:
     annotations = []
     for o in py_list:
         if o is None:
@@ -297,6 +298,7 @@ def eyepop_annotations_from_pylist(py_list: list[dict]) -> list[AssetAnnotationR
             embeddings=child_embeddings
         )
         predictions = o.get("predictions", None)
+        eyepop_predictions: tuple[Prediction, ...] | list[Prediction]
         if predictions is None:
             # backward compatible < 1.7
             eyepop_predictions = (prediction,)
@@ -307,7 +309,5 @@ def eyepop_annotations_from_pylist(py_list: list[dict]) -> list[AssetAnnotationR
             user_review=o['user_review'],
             source=o['source'],
             predictions=eyepop_predictions,
-            annotation=prediction,
-            source_model_uuid = o.get('source_model_uuid', None)
         ))
     return annotations

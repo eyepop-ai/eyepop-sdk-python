@@ -130,7 +130,7 @@ def eyepop_assets_from_table(
                 partition=partitions[j],
                 review_priority=review_priority,
                 model_relevance=model_relevance,
-                annotations=eyepop_annotations_from_pylist(annotationss[j]) if annotationss[j] is not None else None,
+                annotations=eyepop_annotations_from_pylist(annotationss[j]) or [] if annotationss[j] is not None else [],
                 dataset_uuid=dataset_uuid,
                 account_uuid=account_uuid,
             )

@@ -1,11 +1,11 @@
 import asyncio
 import json
-from asyncio import StreamReader
-from typing import Any, AsyncIterable, BinaryIO, Callable, Sequence
+from typing import Any, AsyncIterable, BinaryIO, Callable, Coroutine, Sequence
 from urllib.parse import quote_plus, urljoin
 
 import aiohttp
 import websockets
+from aiohttp import ClientResponse
 from pydantic import TypeAdapter
 from pydantic.tools import parse_obj_as
 from websockets.asyncio.client import ClientConnection
@@ -67,7 +67,7 @@ class DataClientSession(ClientSession):
 
     async def request_with_retry(self, method: str, url: str, accept: str | None = None, data: Any = None,
                                  content_type: str | None = None,
-                                 timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.client._RequestContextManager:
+                                 timeout: aiohttp.ClientTimeout | None = None) -> ClientResponse:
         url = urljoin(self.base_url, url)
         return await self.delegee.request_with_retry(method, url, accept, data, content_type, timeout)
 
@@ -357,7 +357,7 @@ class DataEndpoint(Endpoint):
         modifiable_version_only_query = f'&modifiable_version_only={modifiable_version_only}' if modifiable_version_only is not None else ''
         get_url = f'{await self.data_base_url()}/datasets?account_uuid={account_uuid}&include_hero_asset={include_hero_asset}{modifiable_version_only_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return TypeAdapter(list[Dataset]).validate_python(await resp.json())   # type: ignore [no-any-return]
+            return TypeAdapter(list[Dataset]).validate_python(await resp.json())
 
     async def create_dataset(self, dataset: DatasetCreate, account_uuid: str | None = None) -> Dataset:
         if account_uuid is None:
@@ -367,7 +367,7 @@ class DataEndpoint(Endpoint):
         post_url = f'{await self.data_base_url()}/datasets?account_uuid={account_uuid}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=dataset.model_dump_json(exclude_unset=True)) as resp:
-            return TypeAdapter(Dataset).validate_python(await resp.json()) # type: ignore [no-any-return]
+            return TypeAdapter(Dataset).validate_python(await resp.json())
 
     async def get_dataset(
             self,
@@ -380,14 +380,14 @@ class DataEndpoint(Endpoint):
         modifiable_version_only_query = f'&modifiable_version_only={modifiable_version_only}' if modifiable_version_only is not None else ''
         get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?include_stats={include_stats}{version_query}{modifiable_version_only_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return TypeAdapter(Dataset).validate_python(await resp.json()) # type: ignore [no-any-return]
+            return TypeAdapter(Dataset).validate_python(await resp.json())
 
     async def update_dataset(self, dataset_uuid: str, dataset: DatasetUpdate, start_auto_annotate: bool = True) -> Dataset:
         patch_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}?start_auto_annotate={start_auto_annotate}'
         log_requests.debug('update_dataset: %s', dataset.model_dump_json())
         async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
                                                  data=dataset.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
-            return TypeAdapter(Dataset).validate_python(await resp.json()) # type: ignore [no-any-return]
+            return TypeAdapter(Dataset).validate_python(await resp.json())
 
     async def delete_dataset(self, dataset_uuid: str) -> None:
         delete_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}'
@@ -474,7 +474,7 @@ class DataEndpoint(Endpoint):
         source_query = f'source={quote_plus(source)}&' if source is not None else ''
         get_url = f'{await self.data_base_url()}/datasets/{dataset_uuid}/auto_annotates?{version_query}{auto_annotate_query}{source_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return TypeAdapter(list[DatasetAutoAnnotate]).validate_python(await resp.json()) # type: ignore [no-any-return]
+            return TypeAdapter(list[DatasetAutoAnnotate]).validate_python(await resp.json())
 
     """ [EXPERIMENTAL] """
 
@@ -505,7 +505,7 @@ class DataEndpoint(Endpoint):
             external_id: str | None = None,
             sync_transform: bool | None = None,
             no_transform: bool | None = None,
-            on_ready: Callable[[DataJob], None] | None = None,
+            on_ready: Callable[[DataJob], Coroutine[Any, Any, None]] | None = None,
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ) -> DataJob:
         session = DataClientSession(self, await self.data_base_url())
@@ -534,7 +534,7 @@ class DataEndpoint(Endpoint):
             partition: str | None = None,
             sync_transform: bool | None = None,
             no_transform: bool | None = None,
-            on_ready: Callable[[DataJob], None] | None = None,
+            on_ready: Callable[[DataJob], Coroutine[Any, Any, None]] | None = None,
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ) -> DataJob:
         session = DataClientSession(self, await self.data_base_url())
@@ -619,13 +619,14 @@ class DataEndpoint(Endpoint):
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         patch_url = f'{await self.data_base_url()}/assets/{asset_uuid}/ground_truth?{dataset_query}{version_query}'
+        data = (
+            TypeAdapter(list[Prediction]).dump_json(list(ground_truth), exclude_unset=True, exclude_none=True)
+            if ground_truth is not None
+            else None
+        )
         async with await self.request_with_retry("PATCH", patch_url,
                                                  content_type=APPLICATION_JSON if ground_truth else None,
-                                                 data=TypeAdapter(Sequence[Prediction]).dump_json(
-                                                     ground_truth,
-                                                     exclude_unset=True,
-                                                     exclude_none=True,
-                                                 ) if ground_truth else None):
+                                                 data=data):
             return
 
     async def delete_asset_ground_truth(self, asset_uuid: str, dataset_uuid: str | None = None,
@@ -657,7 +658,7 @@ class DataEndpoint(Endpoint):
             start_timestamp: int | None = None,
             end_timestamp: int | None = None,
             url_type: AssetUrlType | None = None,
-    ) -> StreamReader | DownloadResponse:
+    ) -> aiohttp.StreamReader | DownloadResponse:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
         start_timestamp_query = f'&start_timestamp={start_timestamp}' if start_timestamp is not None else ''
@@ -674,7 +675,7 @@ class DataEndpoint(Endpoint):
         if 'application/json' in resp.headers.get('Content-Type', ''):
             return parse_obj_as(DownloadResponse, await resp.json()) # type: ignore [no-any-return]
         else:
-            return resp.content # type: ignore [no-any-return]
+            return resp.content
 
     async def add_asset_annotation(
             self,
@@ -699,8 +700,8 @@ class DataEndpoint(Endpoint):
 
         async with await self.request_with_retry("POST", post_url,
                                                  content_type=APPLICATION_JSON,
-                                                 data=TypeAdapter(Sequence[Prediction]).dump_json(
-                                                     predictions,
+                                                 data=TypeAdapter(list[Prediction]).dump_json(
+                                                     list(predictions),
                                                      exclude_unset=True,
                                                      exclude_none=True,
                                                  )):
@@ -872,7 +873,7 @@ class DataEndpoint(Endpoint):
             include_partitions: list[str] | None = None,
             include_auto_annotates: list[AutoAnnotate] | None = None,
             include_sources: list[str] | None = None,
-    ) -> StreamReader:
+    ) -> aiohttp.StreamReader:
         asset_url_type_query = f'asset_url_type={asset_url_type}&' if asset_url_type is not None else ''
         dataset_uuid_query = f'dataset_uuid={dataset_uuid}&' if dataset_uuid is not None else ''
         dataset_version_query = f'dataset_version={dataset_version}&' if dataset_version is not None else ''
@@ -915,7 +916,7 @@ class DataEndpoint(Endpoint):
             accept=MIME_TYPE_APACHE_ARROW_FILE_VERSIONED,
             timeout=aiohttp.ClientTimeout(total=None, sock_read=600)
         )
-        return resp.content # type: ignore [no-any-return]
+        return resp.content
 
     async def import_assets(
             self,
@@ -944,7 +945,7 @@ class DataEndpoint(Endpoint):
             model_uuid_query += f"model_uuid={model_uuid}&"
         get_url = f'{await self.data_base_url()}/exports/model_training_audits?{model_uuid_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return TypeAdapter(list[ModelTrainingAuditRecord]).validate_python(await resp.json()) # type: ignore [no-any-return]
+            return TypeAdapter(list[ModelTrainingAuditRecord]).validate_python(await resp.json())
 
 
     async def export_model_urls(self, model_uuids: list[str], model_formats: list[ModelExportFormat], device_name: str | None) -> list[ExportedUrlResponse]:
@@ -957,7 +958,7 @@ class DataEndpoint(Endpoint):
         device_name_query = f"device_name={quote_plus(device_name)}&" if device_name is not None else ""
         get_url = f'{await self.data_base_url()}/exports/model_urls?{model_uuid_query}{model_format_query}{device_name_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return TypeAdapter(list[ExportedUrlResponse]).validate_python(await resp.json()) # type: ignore [no-any-return]
+            return TypeAdapter(list[ExportedUrlResponse]).validate_python(await resp.json())
 
     async def resolve_aliases(self, aliases: list[str]) -> list[AliasResolution]:
         alias_query = ""
@@ -965,9 +966,9 @@ class DataEndpoint(Endpoint):
             alias_query += f"alias={alias}&"
         get_url = f'{await self.data_base_url()}/exports/aliases?{alias_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
-            return TypeAdapter(list[AliasResolution]).validate_python(await resp.json()) # type: ignore [no-any-return]
+            return TypeAdapter(list[AliasResolution]).validate_python(await resp.json())
 
-    async def export_model_artifacts(self, model_uuids: list[str], model_formats: list[ModelExportFormat], device_name: str | None, artifact_type: ArtifactType | None) -> StreamReader:
+    async def export_model_artifacts(self, model_uuids: list[str], model_formats: list[ModelExportFormat], device_name: str | None, artifact_type: ArtifactType | None) -> aiohttp.StreamReader:
         model_uuid_query = ""
         for model_uuid in model_uuids:
             model_uuid_query += f"model_uuid={model_uuid}&"
@@ -979,7 +980,7 @@ class DataEndpoint(Endpoint):
 
         get_url = f'{await self.data_base_url()}/exports/model_artifacts?{model_uuid_query}{model_format_query}{device_name_query}{type_query}'
         resp = await self.request_with_retry("GET", get_url)
-        return resp.content  # type: ignore [no-any-return]
+        return resp.content
 
 
     async def model_training_event(self, model_training_event: ModelTrainingEvent, model_uuid: str) -> None:
