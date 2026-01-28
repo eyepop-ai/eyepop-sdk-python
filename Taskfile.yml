@@ -21,7 +21,7 @@ tasks:
 
   typecheck:
     cmds:
-      - uvx mypy eyepop || true
+      - uv run mypy eyepop || true
 
   lint:
     desc: "Run ruff on changed files (vs main branch)"

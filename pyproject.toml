@@ -71,6 +71,7 @@ dev = [
     "ruff>=0.6.0,<1.0.0",
     "types-aiofiles",
     "types-Pillow",
+    "pandas-stubs",
 ]
 all = ["eyepop[test,doc,example,dev]"]
 
@@ -116,10 +117,11 @@ pretty = true
 
 [[tool.mypy.overrides]]
 module = [
+    "flatbuffers.*",
     "matplotlib.*",
     "PIL.*",
-    "webui.*",
     "pybars.*",
-    "flatbuffers.*",
+    "pyarrow.*",
+    "webui.*",
 ]
 ignore_missing_imports = true
