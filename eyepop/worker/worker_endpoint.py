@@ -296,7 +296,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             video_mode: VideoMode | None = None,
             params: list[ComponentParams] | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
-    ) -> WorkerJob | SyncWorkerJob:
+    ) -> WorkerJob:
         job = _UploadFileJob(
             location=location,
             video_mode=video_mode,
@@ -314,7 +314,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             video_mode: VideoMode | None = None,
             params: list[ComponentParams] | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
-    ) -> WorkerJob | SyncWorkerJob:
+    ) -> WorkerJob:
         job = _UploadStreamJob(
             stream=stream,
             mime_type=mime_type,
@@ -332,7 +332,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             location: str,
             params: list[ComponentParams] | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
-    ) -> WorkerJob | SyncWorkerJob:
+    ) -> WorkerJob:
         job = _LoadFromJob(
             location=location,
             component_params=params,
@@ -348,7 +348,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             asset_uuid: str,
             params: list[ComponentParams] | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
-    ) -> WorkerJob | SyncWorkerJob:
+    ) -> WorkerJob:
         job = _LoadFromAssetUuidJob(
             asset_uuid=asset_uuid,
             component_params=params,
