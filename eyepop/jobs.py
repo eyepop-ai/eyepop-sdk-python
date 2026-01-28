@@ -1,7 +1,7 @@
 import asyncio
 from asyncio import Queue
 from enum import Enum
-from typing import Any, Callable
+from typing import Any, Callable, Coroutine
 
 from eyepop.client_session import ClientSession
 
@@ -47,12 +47,12 @@ class Job:
 
     def __init__(self,
                  session: ClientSession,
-                 on_ready: Callable[["Job"], None] | None,
+                 on_ready: Callable[["Job"], Coroutine[Any, Any, None]] | None,
                  callback: JobStateCallback | None = None):
         self.on_ready = on_ready
         self._session = session
-        self._response = None
-        self._queue = asyncio.Queue(maxsize=128)
+        self._response: Any = None
+        self._queue: Queue[Any] | None = asyncio.Queue(maxsize=128)
         if callback is not None:
             self._callback = callback
         else:
@@ -63,35 +63,37 @@ class Job:
         """Destructor."""
         self._callback.finalized(self)
 
-    async def push_result(self, result) -> None:
-        await self._queue.put(result)
+    async def push_result(self, result: Any) -> None:
+        if self._queue is not None:
+            await self._queue.put(result)
 
     async def pop_result(self) -> Any:
         queue = self._queue
         if queue is None:
             return None
-        else:
-            result = await queue.get()
-            if result is None:
-                self._queue = None
-                self._callback.drained(self)
-            elif isinstance(result, Exception):
-                self._queue = None
-                self._callback.drained(self)
-                raise result
-            return result
+        result = await queue.get()
+        if result is None:
+            self._queue = None
+            self._callback.drained(self)
+        elif isinstance(result, Exception):
+            self._queue = None
+            self._callback.drained(self)
+            raise result
+        return result
 
-    async def cancel(self):
+    async def cancel(self) -> None:
         queue = self._queue
         if queue is None:
-            return None
+            return
         self._queue = None
         if self._response is not None:
             self._response.close()
         await queue.put(None)
 
-    async def execute(self):
+    async def execute(self) -> None:
         queue = self._queue
+        if queue is None:
+            return
         session = self._session
 
         self._callback.started(self)

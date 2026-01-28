@@ -1,7 +1,7 @@
 import json
 import time
 from asyncio import Queue
-from typing import Any, BinaryIO, Callable, Sequence
+from typing import Any, BinaryIO, Callable, Coroutine, Sequence, cast
 from urllib.parse import quote_plus
 
 import aiohttp
@@ -19,18 +19,18 @@ class DataJob(Job):
 
     def __init__(
             self, session: ClientSession,
-            on_ready: Callable[["DataJob"], None] | None,
+            on_ready: Callable[["DataJob"], Coroutine[Any, Any, None]] | None,
             callback: JobStateCallback | None = None,
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, on_ready, callback)  # type: ignore[arg-type]
         self.timeout = timeout
 
     async def result(self) -> Asset:
-        result = await self.pop_result()
-        if isinstance(result, BaseException):
-            raise result
-        return result
+        pop_result = await self.pop_result()
+        if isinstance(pop_result, BaseException):
+            raise pop_result
+        return cast(Asset, pop_result)
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
         raise NotImplementedError("can't execute abstract jobs")
@@ -47,7 +47,7 @@ class _UploadStreamJob(DataJob):
             sync_transform: bool | None,
             no_transform: bool | None,
             session: ClientSession,
-            on_ready: Callable[[DataJob], None] | None = None,
+            on_ready: Callable[[DataJob], Coroutine[Any, Any, None]] | None = None,
             callback: JobStateCallback | None = None,
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
@@ -93,7 +93,7 @@ class _ImportFromJob(DataJob):
             sync_transform: bool | None,
             no_transform: bool | None,
             session: ClientSession,
-            on_ready: Callable[[DataJob], None] | None = None,
+            on_ready: Callable[[DataJob], Coroutine[Any, Any, None]] | None = None,
             callback: JobStateCallback | None = None,
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
@@ -158,26 +158,26 @@ class InferJob(Job):
             asset_url: str,
             infer_request: InferRequest,
             session: ClientSession,
-            on_ready: Callable[[DataJob], None] | None = None,
+            on_ready: Callable[[DataJob], Coroutine[Any, Any, None]] | None = None,
             callback: JobStateCallback | None = None,
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, on_ready, callback)  # type: ignore[arg-type]
         self.timeout = timeout
         self._asset_url = asset_url
         self._infer_request = infer_request
 
-        self._run_info = None
+        self._run_info: InferRunInfo | None = None
 
     @property
     def run_info(self) -> InferRunInfo | None:
         return self._run_info
 
     async def predict(self) -> dict[str, Any]:
-        result = await self.pop_result()
-        if isinstance(result, BaseException):
-            raise result
-        return result
+        pop_result = await self.pop_result()
+        if isinstance(pop_result, BaseException):
+            raise pop_result
+        return cast(dict[str, Any], pop_result)
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
         post_body_part = self._infer_request.model_dump(exclude_none=True)
@@ -198,7 +198,8 @@ class InferJob(Job):
                     data=post_body,
                 )
             else:
-                request_coro = session.request_with_retry(
+                # After first iteration, request_id may be set
+                request_coro = session.request_with_retry(  # type: ignore[unreachable]
                     method="POST",
                     url=f"/api/v1/requests/{request_id}?timeout=20",
                 )
@@ -206,11 +207,12 @@ class InferJob(Job):
                 if resp.status == 202:
                     request_id = _VlmInferRequestAccepted.model_validate(await resp.json()).request_id
                 elif resp.status == 200:
-                    result = _InferResponse.model_validate(await resp.json())
-                    self._run_info = result.run_info = result.run_info
-                    if result.predictions is not None:
-                        for prediction in result.predictions:
+                    infer_result = _InferResponse.model_validate(await resp.json())
+                    self._run_info = infer_result.run_info
+                    if infer_result.predictions is not None:
+                        for prediction in infer_result.predictions:
                             await queue.put(prediction.model_dump(exclude_none=True))
+                    result = infer_result
                     break
                 else:
                     raise ValueError(f"Unexpected status code: {resp.status}")
@@ -224,11 +226,11 @@ class EvaluateJob(Job):
             evaluate_request: EvaluateRequest,
             worker_release: str | None,
             session: ClientSession,
-            on_ready: Callable[[DataJob], None] | None = None,
+            on_ready: Callable[[DataJob], Coroutine[Any, Any, None]] | None = None,
             callback: JobStateCallback | None = None,
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, on_ready, callback)  # type: ignore[arg-type]
         self.timeout = timeout
         self._evaluate_request = evaluate_request
         self._worker_release = worker_release
@@ -246,6 +248,7 @@ class EvaluateJob(Job):
         worker_release_query = f'worker_release={self._worker_release}&' if self._worker_release is not None else ''
         start_time = time.time()
         request_id = None
+        result: EvaluateResponse | None = None
         total_timeout = self.timeout.total if self.timeout else None
         while total_timeout is None or time.time() - start_time < total_timeout:
             if request_id is None:
@@ -256,7 +259,8 @@ class EvaluateJob(Job):
                     data=self._evaluate_request.model_dump_json(exclude_none=True),
                 )
             else:
-                request_coro = session.request_with_retry(
+                # After first iteration, request_id may be set
+                request_coro = session.request_with_retry(  # type: ignore[unreachable]
                     method="GET",
                     url=f"/api/v1/evaluations/{request_id}?timeout=20",
                 )
