@@ -180,7 +180,7 @@ def eyepop_annotations_from_table(table: pa.Table) -> list[AssetAnnotationRespon
         objects = batch.column(3).to_pylist()
         classes = batch.column(4).to_pylist()
         # since 1.0: source_model_uuid
-        source_model_uuid = batch.column(5).to_pylist()
+        _source_model_uuid = batch.column(5).to_pylist()
         # since 1.1: key_points
         key_points = batch.column(6).to_pylist()
         # since 1.2: texts
