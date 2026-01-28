@@ -178,7 +178,8 @@ class Endpoint(ClientSession):
         try:
             await self._reconnect()
         except Exception as e:
-            await self.client_session.close()
+            if self.client_session is not None:
+                await self.client_session.close()
             self.client_session = None
             raise e
 

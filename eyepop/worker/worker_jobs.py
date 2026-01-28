@@ -183,9 +183,10 @@ class _UploadFileJob(_UploadJob):
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
+        self.location = location
         super().__init__(
             mime_type=_guess_mime_type_from_location(location),
-            open_stream=self.open_stream,
+            open_stream=lambda: open(self.location, 'rb'),
             video_mode=video_mode,
             component_params=component_params,
             session=session,
@@ -193,10 +194,6 @@ class _UploadFileJob(_UploadJob):
             callback=callback,
             version=version
         )
-        self.location = location
-
-    def open_stream(self):
-        return open(self.location, 'rb')
 
 
 class _UploadStreamJob(_UploadJob):
@@ -211,9 +208,10 @@ class _UploadStreamJob(_UploadJob):
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
+        self.stream = stream
         super().__init__(
             mime_type=mime_type,
-            open_stream=self.open_stream,
+            open_stream=lambda: self.stream,
             video_mode=video_mode,
             component_params=component_params,
             session=session,
@@ -221,10 +219,6 @@ class _UploadStreamJob(_UploadJob):
             callback=callback,
             version=version
         )
-        self.stream = stream
-
-    def open_stream(self):
-        return self.stream
 
 
 class _LoadFromJob(WorkerJob):

@@ -11,5 +11,6 @@
     "pythonVersion": "3.12",
     "typeCheckingMode": "basic",
     "reportMissingImports": false,
-    "reportMissingTypeStubs": false
+    "reportMissingTypeStubs": false,
+    "reportIncompatibleVariableOverride": false
 }

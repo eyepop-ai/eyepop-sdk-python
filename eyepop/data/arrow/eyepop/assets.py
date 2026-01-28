@@ -32,9 +32,15 @@ def record_batch_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASS
     model_relevance: list[float | None] = [None] * len(assets)
     annotationss: list[pa.Table | None] = [None] * len(assets)
     # since 1.6
-    mime_types: list[str | None] | None= [None] * len(assets) if "mime_type" in schema.names else None
-    original_durations: list[float | None] | None = [None] * len(assets) if "original_duration" in schema.names else None
-    original_framess: list[int | None] | None = [None] * len(assets) if "original_frames" in schema.names else None
+    mime_types: list[str | None] | None = (
+        cast(list[str | None], [None] * len(assets)) if "mime_type" in schema.names else None
+    )
+    original_durations: list[float | None] | None = (
+        cast(list[float | None], [None] * len(assets)) if "original_duration" in schema.names else None
+    )
+    original_framess: list[int | None] | None = (
+        cast(list[int | None], [None] * len(assets)) if "original_frames" in schema.names else None
+    )
 
     for i, e in enumerate(assets):
         uuids[i] = e.uuid
