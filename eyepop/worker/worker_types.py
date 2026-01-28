@@ -54,7 +54,7 @@ class PopForward(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 class BaseComponent(BaseModel):
-    type: Literal[PopComponentType.BASE] = PopComponentType.BASE
+    type: PopComponentType = PopComponentType.BASE
     id: int | None = None
     forward: PopForward | None = None
     model_config = ConfigDict(extra='forbid')
