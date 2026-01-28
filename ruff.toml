@@ -8,7 +8,7 @@ include = [
     "eyepop/compute/*", 
 ]
 
-exclude = ["*"]
+# exclude = ["*"]
 
 [lint]
 select = ["E4", "E7", "E9", "F", "B", "D", "I001"]
