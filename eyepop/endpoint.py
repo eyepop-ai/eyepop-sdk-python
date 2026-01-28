@@ -2,8 +2,7 @@ import asyncio
 import logging
 import time
 from types import TracebackType
-from collections.abc import Callable as CallableABC
-from typing import TYPE_CHECKING, Any, Callable, Optional, Type, Awaitable
+from typing import Any, Awaitable, Callable, Optional, Type
 
 import aiohttp
 
@@ -17,9 +16,6 @@ log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
 log_metrics = logging.getLogger('eyepop.metrics')
 
-
-if TYPE_CHECKING:
-    from aiohttp import _RequestContextManager
 
 async def response_check_with_error_body(response: aiohttp.ClientResponse) -> None:
     if not response.ok:
