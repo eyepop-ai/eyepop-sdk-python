@@ -1,11 +1,11 @@
 import logging
 import time
 from io import StringIO
-from typing import Any, BinaryIO, Callable
+from typing import Any, BinaryIO, Callable, Coroutine
 from urllib.parse import urljoin
 
 import aiohttp
-from aiohttp.client import _RequestContextManager
+from aiohttp import ClientResponse
 
 from eyepop.compute.api import fetch_session_endpoint
 from eyepop.endpoint import Endpoint
@@ -48,6 +48,13 @@ def should_use_compute_api(pop_id: str, api_key: str | None) -> bool:
 
 class WorkerEndpoint(Endpoint, WorkerClientSession):
     """Endpoint to an EyePop.ai worker."""
+
+    worker_config: dict[str, Any] | None
+    last_fetch_config_success_time: float | None
+    last_fetch_config_error: Exception | None
+    last_fetch_config_error_time: float | None
+    load_balancer: EndpointLoadBalancer
+    pop: Pop | None
 
     def __init__(
             self,
@@ -120,7 +127,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             return
 
         if self.last_fetch_config_error_time is not None and self.last_fetch_config_error_time > time.time() - settings.min_config_reconnect_secs:
-            raise self.last_fetch_config_error
+            if self.last_fetch_config_error is not None:
+                raise self.last_fetch_config_error
 
         if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time > time.time() - settings.min_config_reconnect_secs:
             raise aiohttp.ClientConnectionError()
@@ -128,6 +136,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.compute_ctx:
             if not self.compute_ctx.session_endpoint:
                 log_requests.debug("Fetching compute API session")
+                if self.client_session is None:
+                    raise RuntimeError("client_session is None")
                 self.compute_ctx = await fetch_session_endpoint(self.compute_ctx, self.client_session)
                 self.eyepop_url = self.compute_ctx.session_endpoint
                 log_requests.debug(f"Compute session ready: {self.compute_ctx.session_endpoint}")
@@ -150,6 +160,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             authorization_header = await self._authorization_header()
             if authorization_header is not None:
                 headers['Authorization'] = authorization_header
+            if self.client_session is None:
+                raise RuntimeError("client_session is None")
             try:
                 async with self.client_session.get(config_url, headers=headers) as response:
                     self.worker_config = await response.json()
@@ -168,6 +180,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                     authorization_header = await self._authorization_header()
                     if authorization_header is not None:
                         headers['Authorization'] = authorization_header
+                    assert self.client_session is not None
                     async with self.client_session.get(config_url, headers=headers) as retried_response:
                         self.worker_config = await retried_response.json()
             except aiohttp.ClientConnectionError as e:
@@ -175,6 +188,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.last_fetch_config_error_time = time.time()
                 raise e
 
+        assert self.worker_config is not None
         self.is_dev_mode = self.pop_id == 'transient' or self.worker_config.get('status') != 'active_prod'
 
         if self.compute_ctx:
@@ -200,8 +214,11 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             authorization_header = await self._authorization_header()
             if authorization_header is not None:
                 headers['Authorization'] = authorization_header
+            if self.client_session is None:
+                raise RuntimeError("client_session is None")
             async with self.client_session.post(start_pipeline_url, headers=headers, json=body) as response:
                 response_json = await response.json()
+            assert self.worker_config is not None
             self.worker_config['pipeline_id'] = response_json['id']
 
             if self.compute_ctx:
@@ -226,12 +243,14 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
         if self.is_dev_mode and self.stop_jobs:
             stop_jobs_url = f'{await self.dev_mode_pipeline_base_url()}/source?mode=preempt&processing=sync'
-            body = {'sourceType': 'NONE'}
+            stop_body: dict[str, Any] = {'sourceType': 'NONE'}
             headers = {}
             authorization_header = await self._authorization_header()
             if authorization_header is not None:
                 headers['Authorization'] = authorization_header
-            async with self.client_session.patch(stop_jobs_url, headers=headers, json=body) as response:
+            if self.client_session is None:
+                raise RuntimeError("client_session is None")
+            async with self.client_session.patch(stop_jobs_url, headers=headers, json=stop_body) as response:
                 pass
 
         if self.is_dev_mode and self.pop is None:
@@ -240,6 +259,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             authorization_header = await self._authorization_header()
             if authorization_header is not None:
                 headers['Authorization'] = authorization_header
+            if self.client_session is None:
+                raise RuntimeError("client_session is None")
             async with self.client_session.get(get_url, headers=headers) as response:
                 response_json = await response.json()
                 pop_as_dict = response_json.get('pop')
@@ -249,9 +270,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                     self.pop = Pop(**pop_as_dict)
             log.debug('current pop is %s', self.pop)
 
+        assert self.worker_config is not None
         if self.is_dev_mode:
             if 'session_endpoint' in self.worker_config:
-                base_url = self.worker_config['session_endpoint'].rstrip("/")
+                base_url = str(self.worker_config['session_endpoint']).rstrip("/")
             else:
                 base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
             endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
@@ -262,8 +284,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             log.info(f"Initialized load balancer with endpoints: {self.worker_config['endpoints']}")
 
 
-    async def session(self) -> dict:
+    async def session(self) -> dict[str, Any]:
         session = await super().session()
+        if session is None:
+            session = {}
         session['popId'] = self.pop_id
         if self.worker_config:
             if 'session_endpoint' in self.worker_config:
@@ -284,18 +308,21 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.pop = pop
         return response
 
-    async def dev_mode_pipeline_base_url(self):
+    async def dev_mode_pipeline_base_url(self) -> str:
         if self.is_dev_mode:
+            if self.worker_config is None:
+                await self._reconnect()
+            assert self.worker_config is not None
             return f'{await self.dev_mode_base_url()}/pipelines/{self.worker_config["pipeline_id"]}'
         else:
-            pass
+            raise PopConfigurationException(self.pop_id, 'dev_mode_pipeline_base_url not supported in production mode')
 
     async def upload(
             self,
             location: str,
             video_mode: VideoMode | None = None,
             params: list[ComponentParams] | None = None,
-            on_ready: Callable[[WorkerJob], None] | None = None
+            on_ready: Callable[[WorkerJob], Coroutine[Any, Any, None]] | None = None
     ) -> WorkerJob:
         job = _UploadFileJob(
             location=location,
@@ -313,7 +340,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             mime_type: str,
             video_mode: VideoMode | None = None,
             params: list[ComponentParams] | None = None,
-            on_ready: Callable[[WorkerJob], None] | None = None
+            on_ready: Callable[[WorkerJob], Coroutine[Any, Any, None]] | None = None
     ) -> WorkerJob:
         job = _UploadStreamJob(
             stream=stream,
@@ -331,7 +358,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self,
             location: str,
             params: list[ComponentParams] | None = None,
-            on_ready: Callable[[WorkerJob], None] | None = None
+            on_ready: Callable[[WorkerJob], Coroutine[Any, Any, None]] | None = None
     ) -> WorkerJob:
         job = _LoadFromJob(
             location=location,
@@ -347,7 +374,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self,
             asset_uuid: str,
             params: list[ComponentParams] | None = None,
-            on_ready: Callable[[WorkerJob], None] | None = None
+            on_ready: Callable[[WorkerJob], Coroutine[Any, Any, None]] | None = None
     ) -> WorkerJob:
         job = _LoadFromAssetUuidJob(
             asset_uuid=asset_uuid,
@@ -362,8 +389,9 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
     async def dev_mode_base_url(self) -> str:
         if self.worker_config is None:
             await self._reconnect()
+        assert self.worker_config is not None
         if 'session_endpoint' in self.worker_config:
-            return self.worker_config['session_endpoint'].rstrip("/")
+            return str(self.worker_config['session_endpoint']).rstrip("/")
         return urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
 
     #
@@ -371,19 +399,19 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
     #
 
     async def pipeline_get(self, url_path_and_query: str, accept: str | None = None,
-                           timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+                           timeout: aiohttp.ClientTimeout | None = None) -> ClientResponse:
         return await self._pipeline_request_with_retry('GET', url_path_and_query, accept=accept, timeout=timeout)
 
     async def pipeline_post(self, url_path_and_query: str, accept: str | None = None, open_data: Callable[..., Any] | None = None,
                             content_type: str | None = None,
-                            timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+                            timeout: aiohttp.ClientTimeout | None = None) -> ClientResponse:
         return await self._pipeline_request_with_retry('POST', url_path_and_query, accept=accept, open_data=open_data,
                                                        content_type=content_type, timeout=timeout)
 
     async def pipeline_patch(self, url_path_and_query: str, accept: str | None = None, data: Any = None,
                              content_type: str | None = None,
-                             timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
-        def open_data():
+                             timeout: aiohttp.ClientTimeout | None = None) -> ClientResponse:
+        def open_data() -> StringIO | Any:
             if isinstance(data, str):
                 return StringIO(data)
             else:
@@ -393,14 +421,15 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                                                        content_type=content_type, timeout=timeout)
 
     async def pipeline_delete(self, url_path_and_query: str,
-                              timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+                              timeout: aiohttp.ClientTimeout | None = None) -> ClientResponse:
         return await self._pipeline_request_with_retry('DELETE', url_path_and_query, timeout=timeout)
 
     async def _pipeline_request_with_retry(self, method: str, url_path_and_query: str, accept: str | None = None,
                                            open_data: Callable[..., Any] | None = None, content_type: str | None = None,
-                                           timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
-        if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time < time.time() - settings.force_refresh_config_secs:
-            self.worker_config = None
+                                           timeout: aiohttp.ClientTimeout | None = None) -> ClientResponse:
+        if self.last_fetch_config_success_time is not None:
+            if self.last_fetch_config_success_time < time.time() - settings.force_refresh_config_secs:
+                self.worker_config = None
 
         failed_attempts = 0
         retried_re_config = False
@@ -433,6 +462,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             if content_type is not None:
                 headers['Content-Type'] = content_type
             try:
+                if self.client_session is None:
+                    raise RuntimeError("client_session is None")
                 if open_data is not None:
                     with open_data() as data:
                         if isinstance(data, StringIO):
@@ -469,6 +500,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
     async def _worker_request_with_retry(self, method: str, url_path_and_query: str, accept: str | None = None,
                                          data: Any = None, content_type: str | None = None,
-                                         timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+                                         timeout: aiohttp.ClientTimeout | None = None) -> ClientResponse:
         url = f'{await self.dev_mode_base_url()}/{url_path_and_query}'
         return await self.request_with_retry(method, url, accept, data, content_type, timeout)

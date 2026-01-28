@@ -1,9 +1,9 @@
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 import aiohttp
 
 
-class WorkerClientSession:
+class WorkerClientSession(Protocol):
     async def pipeline_get(
             self, url_path_and_query: str,
             accept: str | None = None,
