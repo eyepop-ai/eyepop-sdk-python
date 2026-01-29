@@ -32,9 +32,15 @@ def record_batch_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASS
     model_relevance: list[float | None] = [None] * len(assets)
     annotationss: list[pa.Table | None] = [None] * len(assets)
     # since 1.6
-    mime_types: list[str | None] | None= [None] * len(assets) if "mime_type" in schema.names else None
-    original_durations: list[float | None] | None = [None] * len(assets) if "original_duration" in schema.names else None
-    original_framess: list[int | None] | None = [None] * len(assets) if "original_frames" in schema.names else None
+    mime_types: list[str | None] | None = (
+        cast(list[str | None], [None] * len(assets)) if "mime_type" in schema.names else None
+    )
+    original_durations: list[float | None] | None = (
+        cast(list[float | None], [None] * len(assets)) if "original_duration" in schema.names else None
+    )
+    original_framess: list[int | None] | None = (
+        cast(list[int | None], [None] * len(assets)) if "original_frames" in schema.names else None
+    )
 
     for i, e in enumerate(assets):
         uuids[i] = e.uuid
@@ -53,7 +59,7 @@ def record_batch_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASS
             annotationss[i] = table_from_eyepop_annotations(e.annotations, schema=annotations_schema).to_struct_array()
         else:
             annotationss[i] = pa.chunked_array([], type=pa.struct(annotation_fields))
-        # sinc 1.6
+        # since 1.6
         if mime_types is not None:
             mime_types[i] = e.mime_type
         if original_durations is not None:
@@ -73,7 +79,7 @@ def record_batch_from_eyepop_assets(assets: list[Asset], schema: pa.Schema = ASS
         pa.array(model_relevance),
         annotationss,
     ]
-    # sinc 1.6
+    # since 1.6
     if mime_types is not None:
         columns.append(pa.array(mime_types).dictionary_encode())
     if original_durations is not None:
@@ -130,7 +136,7 @@ def eyepop_assets_from_table(
                 partition=partitions[j],
                 review_priority=review_priority,
                 model_relevance=model_relevance,
-                annotations=eyepop_annotations_from_pylist(annotationss[j]) if annotationss[j] is not None else None,
+                annotations=eyepop_annotations_from_pylist(annotationss[j]) or [] if annotationss[j] is not None else [],
                 dataset_uuid=dataset_uuid,
                 account_uuid=account_uuid,
             )

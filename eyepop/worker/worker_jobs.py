@@ -3,7 +3,7 @@ import json
 import logging
 import mimetypes
 from asyncio import Queue
-from typing import Any, BinaryIO, Callable
+from typing import Any, BinaryIO, Callable, Coroutine, cast
 
 import aiohttp
 from pydantic import TypeAdapter
@@ -29,25 +29,25 @@ class WorkerJob(Job):
             self,
             session: WorkerClientSession,
             component_params: list[ComponentParams] | None,
-            on_ready: Callable[["WorkerJob"], None] | None,
+            on_ready: Callable[["WorkerJob"], Coroutine[Any, Any, None]] | None,
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, on_ready, callback)  # type: ignore[arg-type]
         self._component_params = component_params
         self._version = version
 
-    async def predict(self) -> dict:
-        result = await self.pop_result()
-        if result is not None:
-            event = result.get('event', None)
+    async def predict(self) -> dict[str, Any]:
+        pop_result = await self.pop_result()
+        if pop_result is not None:
+            event = pop_result.get('event', None)
             if event is not None and isinstance(event, dict):
                 event_type = event.get('type', None)
                 if event_type == 'error':
                     source_id = event.get('source_id', None)
                     message = event.get('message', None)
                     raise ValueError(f"Error in source {source_id}: {message}")
-        return result
+        return cast(dict[str, Any], pop_result)
 
     async def _do_read_response(self, queue: Queue) -> bool:
         got_results = False
@@ -83,7 +83,7 @@ class _UploadJob(WorkerJob):
             video_mode: VideoMode | None,
             component_params: list[ComponentParams] | None,
             session: WorkerClientSession,
-            on_ready: Callable[[WorkerJob], None] | None = None,
+            on_ready: Callable[[WorkerJob], Coroutine[Any, Any, None]] | None = None,
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
@@ -111,7 +111,9 @@ class _UploadJob(WorkerJob):
         return mp_writer
 
 
-    async def _do_execute_job(self, queue: Queue, session: WorkerClientSession):
+    async def _do_execute_job(  # type: ignore[override]
+            self, queue: Queue, session: WorkerClientSession
+    ) -> None:
         if self.needs_full_duplex:
             self._response = await session.pipeline_post(
                 'prepareSource?timeout=600s',
@@ -177,13 +179,14 @@ class _UploadFileJob(_UploadJob):
             video_mode: VideoMode | None,
             component_params: list[ComponentParams] | None,
             session: WorkerClientSession,
-            on_ready: Callable[[WorkerJob], None] | None = None,
+            on_ready: Callable[[WorkerJob], Coroutine[Any, Any, None]] | None = None,
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
+        self.location = location
         super().__init__(
             mime_type=_guess_mime_type_from_location(location),
-            open_stream=self.open_stream,
+            open_stream=lambda: open(self.location, 'rb'),
             video_mode=video_mode,
             component_params=component_params,
             session=session,
@@ -191,10 +194,6 @@ class _UploadFileJob(_UploadJob):
             callback=callback,
             version=version
         )
-        self.location = location
-
-    def open_stream(self):
-        return open(self.location, 'rb')
 
 
 class _UploadStreamJob(_UploadJob):
@@ -205,13 +204,14 @@ class _UploadStreamJob(_UploadJob):
             video_mode: VideoMode | None,
             component_params: list[ComponentParams] | None,
             session: WorkerClientSession,
-            on_ready: Callable[[WorkerJob], None] | None = None,
+            on_ready: Callable[[WorkerJob], Coroutine[Any, Any, None]] | None = None,
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
+        self.stream = stream
         super().__init__(
             mime_type=mime_type,
-            open_stream=self.open_stream,
+            open_stream=lambda: self.stream,
             video_mode=video_mode,
             component_params=component_params,
             session=session,
@@ -219,10 +219,6 @@ class _UploadStreamJob(_UploadJob):
             callback=callback,
             version=version
         )
-        self.stream = stream
-
-    def open_stream(self):
-        return self.stream
 
 
 class _LoadFromJob(WorkerJob):
@@ -231,7 +227,7 @@ class _LoadFromJob(WorkerJob):
             location: str,
             component_params: list[ComponentParams] | None,
             session: WorkerClientSession,
-            on_ready: Callable[[WorkerJob], None] | None = None,
+            on_ready: Callable[[WorkerJob], Coroutine[Any, Any, None]] | None = None,
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
@@ -254,7 +250,9 @@ class _LoadFromJob(WorkerJob):
 
         self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=600)
 
-    async def _do_execute_job(self, queue: Queue, session: WorkerClientSession):
+    async def _do_execute_job(  # type: ignore[override]
+            self, queue: Queue, session: WorkerClientSession
+    ) -> None:
         self._response = await session.pipeline_patch(self.target_url,
                                                       accept='application/jsonl',
                                                       data=json.dumps(self.body),
@@ -269,7 +267,7 @@ class _LoadFromAssetUuidJob(WorkerJob):
             asset_uuid: str,
             component_params: list[ComponentParams] | None,
             session: WorkerClientSession,
-            on_ready: Callable[[WorkerJob], None] | None = None,
+            on_ready: Callable[[WorkerJob], Coroutine[Any, Any, None]] | None = None,
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
@@ -292,7 +290,9 @@ class _LoadFromAssetUuidJob(WorkerJob):
 
         self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=600)
 
-    async def _do_execute_job(self, queue: Queue, session: WorkerClientSession):
+    async def _do_execute_job(  # type: ignore[override]
+            self, queue: Queue, session: WorkerClientSession
+    ) -> None:
         self._response = await session.pipeline_patch(self.target_url,
                                                       accept='application/jsonl',
                                                       data=json.dumps(self.body),

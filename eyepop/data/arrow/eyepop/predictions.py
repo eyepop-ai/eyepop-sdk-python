@@ -1,9 +1,9 @@
-from typing import Any, Sequence
+from typing import Any, Sequence, cast
 
 import numpy
 import numpy as np
 import pyarrow as pa
-from pyarrow import Schema
+from pyarrow import Schema, StructArray
 
 from eyepop.data.arrow.schema import (
     CLASS_SCHEMA,
@@ -27,13 +27,13 @@ from eyepop.data.data_types import (
 )
 
 
-def _round_float_like(float_like: any, digits: int, factor: float = 1.0) -> float | None:
+def _round_float_like(float_like: Any, digits: int, factor: float = 1.0) -> float | None:
     if float_like is None or np.isnan(float_like):
         return None
     elif type(float_like) is float:
         return round(float_like*factor, digits)
     else:
-        return round(float_like.astype(float)*factor, digits)
+        return float(round(float_like.astype(float)*factor, digits))
 
 
 """ Predictions since 1.7 """
@@ -42,15 +42,15 @@ def table_from_eyepop_predictions(
         user_review: UserReview | None = None,
         schema: Schema = PREDICTION_SCHEMA
 ) -> pa.Table:
-    objects = []
-    classes = []
-    key_points = []
-    texts = []
-    embeddings = []
-    timestamps = []
-    durations = []
-    offsets = []
-    offset_durations = []
+    objects: list[StructArray | list[Any] | None] = []
+    classes: list[StructArray | list[Any] | None] = []
+    key_points: list[StructArray | list[Any] | None] = []
+    texts: list[StructArray | list[Any] | None] = []
+    embeddings: list[StructArray | list[Any] | None] = []
+    timestamps: list[int | None] = []
+    durations: list[int | None] = []
+    offsets: list[int | None] = []
+    offset_durations: list[int | None] = []
     for prediction in predictions:
         if prediction.objects is None:
             objects.append(None)
@@ -120,11 +120,9 @@ def table_from_eyepop_predictions(
         columns, schema=schema
     )
 
-def eyepop_predictions_from_pylist(py_list: list[dict]) -> list[Prediction]:
-    predictions = []
+def eyepop_predictions_from_pylist(py_list: list[dict[str, Any]]) -> list[Prediction]:
+    predictions: list[Prediction] = []
     for o in py_list:
-        if o is None:
-            continue
         objects = o.get('objects', None)
         if objects is None:
             child_objects = None
@@ -179,9 +177,9 @@ def table_from_eyepop_predicted_objects(predicted_objects: list[PredictedObject]
     ws = []
     hs = []
     user_reviews = []
-    key_pointss = [] if "keyPoints" in schema.names else None
-    categories = [] if "category" in schema.names else None
-    texts = [] if "texts" in schema.names else None
+    key_pointss: list[list[dict[str, Any]] | None] | None = [] if "keyPoints" in schema.names else None
+    categories: list[str | None] | None = [] if "category" in schema.names else None
+    texts: list[list[dict[str, Any]] | None] | None = [] if "texts" in schema.names else None
     if predicted_objects is not None:
         for o in predicted_objects:
             classes.append(o.classLabel)
@@ -237,11 +235,11 @@ def eyepop_predicted_objects_from_table(
     return predicted_objects
 
 
-def eyepop_predicted_objects_from_pylist(py_list: list[dict[str, any]],
+def eyepop_predicted_objects_from_pylist(py_list: list[dict[str, Any]],
                                          source_height: float,
                                          source_width: float) -> list[PredictedObject]:
-    predicted_objects: list[PredictedObject | None] = [None] * len(py_list)
-    for i, o in enumerate(py_list):
+    predicted_objects: list[PredictedObject] = []
+    for o in py_list:
         confidence = _round_float_like(o.get("confidence", None), CONFIDENCE_N_DIGITS)
         key_pointss_as_pylist = o.get("keyPoints", None)
         if key_pointss_as_pylist is not None:
@@ -253,17 +251,17 @@ def eyepop_predicted_objects_from_pylist(py_list: list[dict[str, any]],
             child_texts = None
         else:
             child_texts = eyepop_predicted_texts_from_pylist(texts_as_pylist)
-        predicted_objects[i] = PredictedObject(
+        predicted_objects.append(PredictedObject(
             classLabel=o["classLabel"],
             confidence=confidence,
-            x=_round_float_like(o["x"], COORDINATE_N_DIGITS, 1/source_width),
-            y=_round_float_like(o["y"], COORDINATE_N_DIGITS, 1/source_height),
-            width=_round_float_like(o["width"], COORDINATE_N_DIGITS, 1/source_width),
-            height=_round_float_like(o["height"], COORDINATE_N_DIGITS, 1/source_height),
+            x=cast(float, _round_float_like(o["x"], COORDINATE_N_DIGITS, 1/source_width)),
+            y=cast(float, _round_float_like(o["y"], COORDINATE_N_DIGITS, 1/source_height)),
+            width=cast(float, _round_float_like(o["width"], COORDINATE_N_DIGITS, 1/source_width)),
+            height=cast(float, _round_float_like(o["height"], COORDINATE_N_DIGITS, 1/source_height)),
             keyPoints=key_pointss,
             category=o.get("category", None),
             texts=child_texts,
-        )
+        ))
     return predicted_objects
 
 
@@ -279,7 +277,7 @@ def table_from_eyepop_predicted_classes(predicted_classes: list[PredictedClass],
 
     for o in predicted_classes:
         classes.append(o.classLabel)
-        confidences.append(round(o.confidence, CONFIDENCE_N_DIGITS))
+        confidences.append(round(o.confidence, CONFIDENCE_N_DIGITS) if o.confidence is not None else None)
         user_reviews.append(user_review)
         categories.append(o.category)
 
@@ -303,10 +301,10 @@ def eyepop_predicted_classes_from_table(table: pa.Table) -> list[PredictedClass]
     return predicted_classes
 
 
-def eyepop_predicted_classes_from_pylist(py_list: list[dict[str, Any]]) -> list[PredictedClass] | None:
+def eyepop_predicted_classes_from_pylist(py_list: list[dict[str, Any]] | None) -> list[PredictedClass] | None:
     if py_list is None:
         return None
-    predicted_classes = []
+    predicted_classes: list[PredictedClass] = []
     for o in py_list:
         predicted_classes.append(PredictedClass(
             classLabel=o["classLabel"],
@@ -331,14 +329,14 @@ def table_from_eyepop_predicted_texts(predicted_texts: list[PredictedText], sche
         pa.array(categories).dictionary_encode(),
     ], schema=schema)
 
-def eyepop_predicted_texts_from_pylist(py_list: list[dict[str, any]]) -> list[PredictedText]:
-    predicted_texts: list[PredictedText | None] = [None] * len(py_list)
-    for i, predicted_text in enumerate(py_list):
-        predicted_texts[i] = PredictedText(
+def eyepop_predicted_texts_from_pylist(py_list: list[dict[str, Any]]) -> list[PredictedText]:
+    predicted_texts: list[PredictedText] = []
+    for predicted_text in py_list:
+        predicted_texts.append(PredictedText(
             text=predicted_text["text"],
             confidence=_round_float_like(predicted_text.get("confidence", None), CONFIDENCE_N_DIGITS),
             category=predicted_text.get("category", None),
-        )
+        ))
     return predicted_texts
 
 
@@ -353,13 +351,10 @@ def table_from_eyepop_predicted_key_pointss(predicted_key_pointss: list[Predicte
     categories = []
     for kps in predicted_key_pointss:
         types.append(kps.type)
-        if kps.points is not None:
-            key_points.append(table_from_eyepop_predicted_key_points(
-                kps.points, source_width, source_height,
-                schema=pa.schema(schema.field(1).type.value_type),  # schema for "points" field
-            ).to_pylist())
-        else:
-            key_points.append(None)
+        key_points.append(table_from_eyepop_predicted_key_points(
+            kps.points, source_width, source_height,
+            schema=pa.schema(schema.field(1).type.value_type),  # schema for "points" field
+        ).to_pylist())
         categories.append(kps.category)
 
     columns = [
@@ -381,16 +376,16 @@ def eyepop_predicted_key_pointss_from_table(
     return predicted_key_pointss
 
 
-def eyepop_predicted_key_pointss_from_pylist(py_list: list[dict[str, any]],
+def eyepop_predicted_key_pointss_from_pylist(py_list: list[dict[str, Any]],
                                              source_height: float,
                                              source_width: float) -> list[PredictedKeyPoints]:
-    predicted_key_pointss: list[PredictedKeyPoints | None] = [None] * len(py_list)
-    for i, kps in enumerate(py_list):
-        predicted_key_pointss[i] = PredictedKeyPoints(
+    predicted_key_pointss: list[PredictedKeyPoints] = []
+    for kps in py_list:
+        predicted_key_pointss.append(PredictedKeyPoints(
             type=kps.get("type", None),
-            points=eyepop_predicted_key_points_from_pylist(kps["points"], source_height, source_width) if kps["points"] is not None else None,
+            points=eyepop_predicted_key_points_from_pylist(kps["points"], source_height, source_width) if kps["points"] is not None else [],
             category=kps.get("category", None),
-        )
+        ))
     return predicted_key_pointss
 
 """ Key Points """
@@ -436,21 +431,21 @@ def eyepop_predicted_key_points_from_table(
     return predicted_key_points
 
 
-def eyepop_predicted_key_points_from_pylist(py_list: list[dict[str, any]],
+def eyepop_predicted_key_points_from_pylist(py_list: list[dict[str, Any]],
                                             source_height: float,
                                             source_width: float) -> list[PredictedKeyPoint]:
-    predicted_key_points: list[PredictedKeyPoint | None] = [None] * len(py_list)
-    for i, kp in enumerate(py_list):
+    predicted_key_points: list[PredictedKeyPoint] = []
+    for kp in py_list:
         confidence = _round_float_like(kp.get("confidence", None), CONFIDENCE_N_DIGITS)
-        predicted_key_points[i] = PredictedKeyPoint(
+        predicted_key_points.append(PredictedKeyPoint(
             classLabel=kp.get("classLabel", None),
             confidence=confidence,
-            x=_round_float_like(kp["x"], COORDINATE_N_DIGITS, 1/source_width),
-            y=_round_float_like(kp["y"], COORDINATE_N_DIGITS, 1/source_height),
+            x=cast(float, _round_float_like(kp["x"], COORDINATE_N_DIGITS, 1/source_width)),
+            y=cast(float, _round_float_like(kp["y"], COORDINATE_N_DIGITS, 1/source_height)),
             z=_round_float_like(kp["z"], COORDINATE_N_DIGITS, 1/max(source_width, source_height)) if kp.get("z", None) is not None else None,
             visible=kp.get("visible", None),
             category=kp.get("category", None),
-        )
+        ))
     return predicted_key_points
 
 """ Embeddings """
@@ -477,13 +472,13 @@ def table_from_eyepop_predicted_embeddings(predicted_embeddings: list[PredictedE
 
     return pa.Table.from_arrays(columns, schema=schema)
 
-def eyepop_predicted_embeddings_from_pylist(py_list: list[dict[str, any]]) -> list[PredictedEmbedding]:
-    predicted_embeddings: list[PredictedEmbedding | None] = [None] * len(py_list)
-    for i, predicted_embedding in enumerate(py_list):
-        predicted_embeddings[i] = PredictedEmbedding(
+def eyepop_predicted_embeddings_from_pylist(py_list: list[dict[str, Any]]) -> list[PredictedEmbedding]:
+    predicted_embeddings: list[PredictedEmbedding] = []
+    for predicted_embedding in py_list:
+        predicted_embeddings.append(PredictedEmbedding(
             embedding=predicted_embedding["embedding"],
             category=predicted_embedding.get("category", None),
             x=_round_float_like(predicted_embedding.get("x", None), COORDINATE_N_DIGITS),
             y=_round_float_like(predicted_embedding.get("y", None), COORDINATE_N_DIGITS),
-        )
+        ))
     return predicted_embeddings

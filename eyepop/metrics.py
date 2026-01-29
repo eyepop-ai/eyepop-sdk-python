@@ -1,6 +1,5 @@
 import logging
 import time
-from enum import Enum
 
 from eyepop.jobs import JobState
 from eyepop.worker.worker_jobs import JobStateCallback, WorkerJob
@@ -34,7 +33,7 @@ class MetricCollector(JobStateCallback):
 
     def update_count_by_state(self, state: JobState):
         count = 0
-        for job, job_state in self.jobs_to_state.items():
+        for _job, job_state in self.jobs_to_state.items():
             if state == job_state:
                 count += 1
         if count > self.max_number_of_jobs_by_state[state]:
@@ -92,13 +91,3 @@ class MetricCollector(JobStateCallback):
         del self.jobs_to_state[job]
 
 
-class JobState(Enum):
-    CREATED = 1
-    STARTED = 2
-    IN_PROGRESS = 3
-    FINISHED = 4
-    FAILED = 5
-    DRAINED = 6
-
-    def __repr__(self):
-        return self._name_
