@@ -827,3 +827,13 @@ class SyncDataEndpoint(SyncEndpoint):
     ) -> VlmAbilityResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.remove_vlm_ability_alias(vlm_ability_uuid, alias_name, tag_name))
 
+    def list_vlm_ability_evaluations(self, vlm_ability_uuid: str) -> list[DatasetAutoAnnotate]:
+        return run_coro_thread_save(self.event_loop, self.endpoint.list_vlm_ability_evaluations(vlm_ability_uuid))
+
+    def get_vlm_ability_evaluation(self, vlm_ability_uuid: str, source: str) -> DatasetAutoAnnotate:
+        return run_coro_thread_save(self.event_loop, self.endpoint.get_vlm_ability_evaluation(vlm_ability_uuid, source))
+
+    def start_vlm_ability_evaluation(self, vlm_ability_uuid: str, evaluate_request: EvaluateRequest) -> DatasetAutoAnnotate:
+        return run_coro_thread_save(self.event_loop, self.endpoint.start_vlm_ability_evaluation(vlm_ability_uuid, evaluate_request))
+
+
