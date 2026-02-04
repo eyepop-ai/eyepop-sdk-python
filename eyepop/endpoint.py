@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, Optional, Type, Awaitable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional, Type
 
 import aiohttp
 
@@ -111,13 +111,16 @@ class Endpoint(ClientSession):
         self.retry_handlers[status_code] = handler
 
     def __enter__(self) -> None:
+        """Not implemented, use async with instead."""
         raise TypeError("Use async with instead")
 
     def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
                  exc_tb: Optional[TracebackType], ) -> None:
+        """Not implemented, use async with instead."""
         pass  # pragma: no cover
 
     async def __aenter__(self) -> "Endpoint":
+        """Connect."""
         try:
             await self.connect()
         except aiohttp.ClientError as e:
@@ -128,6 +131,7 @@ class Endpoint(ClientSession):
 
     async def __aexit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType], ) -> None:
+        """Disconnect."""
         await self.disconnect()
 
     async def _authorization_header(self) -> str | None:

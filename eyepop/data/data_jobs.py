@@ -8,8 +8,16 @@ import aiohttp
 from pydantic import BaseModel, Field
 
 from eyepop.client_session import ClientSession
-from eyepop.data.data_types import Asset, AssetImport, InferRequest, Prediction, EvaluateRequest, EvaluateResponse, \
-    InferRunInfo, APPLICATION_JSON
+from eyepop.data.data_types import (
+    APPLICATION_JSON,
+    Asset,
+    AssetImport,
+    EvaluateRequest,
+    EvaluateResponse,
+    InferRequest,
+    InferRunInfo,
+    Prediction,
+)
 from eyepop.jobs import Job, JobStateCallback
 
 

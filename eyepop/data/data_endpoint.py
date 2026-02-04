@@ -12,8 +12,10 @@ from websockets.asyncio.client import ClientConnection
 
 from eyepop.client_session import ClientSession
 from eyepop.data.arrow.schema import MIME_TYPE_APACHE_ARROW_FILE_VERSIONED
-from eyepop.data.data_jobs import DataJob, InferJob, _ImportFromJob, _UploadStreamJob, EvaluateJob
+from eyepop.data.data_jobs import DataJob, EvaluateJob, InferJob, _ImportFromJob, _UploadStreamJob
 from eyepop.data.data_types import (
+    APPLICATION_JSON,
+    AliasResolution,
     AnnotationInclusionMode,
     ArgoWorkflowPhase,
     ArtifactType,
@@ -33,6 +35,7 @@ from eyepop.data.data_types import (
     DatasetCreate,
     DatasetUpdate,
     DownloadResponse,
+    EvaluateRequest,
     EventHandler,
     ExportedUrlResponse,
     InferRequest,
@@ -50,8 +53,13 @@ from eyepop.data.data_types import (
     Prediction,
     QcAiHubExportParams,
     TranscodeMode,
-    UserReview, EvaluateRequest, APPLICATION_JSON, VlmAbilityGroupResponse, VlmAbilityGroupCreate,
-    VlmAbilityGroupUpdate, VlmAbilityResponse, VlmAbilityCreate, VlmAbilityUpdate, AliasResolution,
+    UserReview,
+    VlmAbilityCreate,
+    VlmAbilityGroupCreate,
+    VlmAbilityGroupResponse,
+    VlmAbilityGroupUpdate,
+    VlmAbilityResponse,
+    VlmAbilityUpdate,
 )
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings
@@ -1212,3 +1220,24 @@ class DataEndpoint(Endpoint):
         delete_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/alias/{alias_name}/tag/{tag_name}'
         async with await self.request_with_retry("DELETE", delete_url) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
+
+    async def list_vlm_ability_evaluations(self, vlm_ability_uuid: str) -> list[DatasetAutoAnnotate]:
+        get_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/evaluations'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(list[DatasetAutoAnnotate], await resp.json()) # type: ignore [no-any-return]
+
+    async def get_vlm_ability_evaluation(self, vlm_ability_uuid: str, source: str) -> DatasetAutoAnnotate:
+        get_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/evaluations/{source}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(DatasetAutoAnnotate, await resp.json()) # type: ignore [no-any-return]
+
+    async def start_vlm_ability_evaluation(self, vlm_ability_uuid: str, evaluate_request: EvaluateRequest) -> DatasetAutoAnnotate:
+        post_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/evaluations'
+        async with await self.request_with_retry(
+                method="POST",
+                url=post_url,
+                content_type=APPLICATION_JSON,
+                data=evaluate_request.model_dump_json(exclude_none=True)
+        ) as resp:
+            return parse_obj_as(DatasetAutoAnnotate, await resp.json()) # type: ignore [no-any-return]
+

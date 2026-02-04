@@ -1,0 +1,5 @@
+ERROR: usage: pytest [options] [file_or_dir] [file_or_dir] [...]
+pytest: error: unrecognized arguments: --timeout=300
+  inifile: /home/torsten/dev/projects/eyepop-ai/eyepop-sdk-python/pyproject.toml
+  rootdir: /home/torsten/dev/projects/eyepop-ai/eyepop-sdk-python
+

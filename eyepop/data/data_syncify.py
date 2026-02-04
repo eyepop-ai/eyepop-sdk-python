@@ -5,8 +5,9 @@ from typing import BinaryIO, Callable, List, Optional
 import aiohttp
 
 from eyepop.data.data_endpoint import DataEndpoint
-from eyepop.data.data_jobs import DataJob, InferJob, EvaluateJob
+from eyepop.data.data_jobs import DataJob, EvaluateJob, InferJob
 from eyepop.data.data_types import (
+    AliasResolution,
     AnnotationInclusionMode,
     ArtifactType,
     Asset,
@@ -23,9 +24,12 @@ from eyepop.data.data_types import (
     DatasetCreate,
     DatasetUpdate,
     DownloadResponse,
+    EvaluateRequest,
+    EvaluateResponse,
     EventHandler,
     ExportedUrlResponse,
     InferRequest,
+    InferRunInfo,
     Model,
     ModelAlias,
     ModelAliasCreate,
@@ -39,8 +43,13 @@ from eyepop.data.data_types import (
     Prediction,
     QcAiHubExportParams,
     TranscodeMode,
-    UserReview, EvaluateResponse, InferRunInfo, VlmAbilityGroupResponse, VlmAbilityGroupCreate, VlmAbilityGroupUpdate,
-    VlmAbilityResponse, VlmAbilityCreate, VlmAbilityUpdate, EvaluateRequest, AliasResolution,
+    UserReview,
+    VlmAbilityCreate,
+    VlmAbilityGroupCreate,
+    VlmAbilityGroupResponse,
+    VlmAbilityGroupUpdate,
+    VlmAbilityResponse,
+    VlmAbilityUpdate,
 )
 from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 
