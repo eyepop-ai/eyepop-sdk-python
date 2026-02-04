@@ -200,7 +200,7 @@ def FullForward(
     )
 
 
-class ComponentParams(BaseComponent):
+class ComponentParams(BaseModel):
     componentId: int
     values: dict[str, Any]
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='forbid')

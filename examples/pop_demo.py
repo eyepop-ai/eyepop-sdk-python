@@ -13,6 +13,7 @@ from typing import Any
 from dotenv import load_dotenv
 from PIL import Image
 from pybars import Compiler
+from pydantic import TypeAdapter
 from webui import webui
 
 from eyepop import EyePopSdk, Job
@@ -307,6 +308,7 @@ parser.add_argument('-ms2', '--model-uuid-sam2', required=False, type=str, help=
 parser.add_argument('-po', '--points', required=False, type=list_of_points, help="List of POIs as coordinates like (x1, y1), (x2, y2) in the original image coordinate system")
 parser.add_argument('-bo', '--boxes', required=False, type=list_of_boxes, help="List of POIs as boxes like (left1, top1, right1, bottom1), (left1, top1, right1, bottom1) in the original image coordinate system")
 parser.add_argument('-sp', '--single-prompt', required=False, type=str, help="Single prompt to pass as parameter")
+parser.add_argument('-sl', '--single-label', required=False, type=str, help="Single label to use as result for single prompt to pass as parameter")
 parser.add_argument('-pr', '--prompt', required=False, type=str, help="Prompt to pass as parameter", action="append")
 parser.add_argument('-v', '--visualize', required=False, help="show rendered output", default=False, action="store_true")
 parser.add_argument('-o', '--output', required=False, help="print results to stdout", default=False, action="store_true")
@@ -359,7 +361,7 @@ elif main_args.model_alias:
             id=i+1,
             ability=alias,
             targetFps = main_args.fps,
-    ) for i, alias in enumerate(main_args.model_alias)
+        ) for i, alias in enumerate(main_args.model_alias)
     ])
     if main_args.top_k is not None:
         for c in pop.components:
@@ -437,7 +439,8 @@ elif main_args.prompt is not None and len(main_args.prompt) > 0:
 elif main_args.single_prompt is not None:
     params = [
         ComponentParams(componentId=1, values={
-            "prompt": main_args.single_prompt
+            "prompt": main_args.single_prompt,
+            "label": main_args.single_label if main_args.single_label else main_args.single_prompt
         })
     ]
 
@@ -446,7 +449,10 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
     visualize_path = None
     example_image_src = None
     if args.dump:
-        print(pop.model_dump_json(indent=2))
+        print("Pop:", pop.model_dump_json(indent=2))
+        if params:
+            print("Params:", TypeAdapter(list[ComponentParams]).dump_json(params, indent=2).decode("utf-8"))
+
     async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True) as endpoint:
         await endpoint.set_pop(pop)
         if args.local_path:
