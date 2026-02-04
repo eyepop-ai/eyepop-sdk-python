@@ -14,6 +14,7 @@ class AssetAnnotation(BaseModel):
     approved_threshold: float | None = None
     auto_annotate: AutoAnnotate | None = None
     source: str | None = None
+    source_ability_uuid: str | None = None
     predictions: Sequence[Prediction] | None = None
     uncertainty_score: float | None = None
 

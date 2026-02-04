@@ -5,12 +5,16 @@ import threading
 import types
 import typing
 from asyncio import StreamReader
+from typing import TYPE_CHECKING
 
 log = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from eyepop import Endpoint
 
 class SyncEndpoint:
     def __init__(self, endpoint: "Endpoint"):
+        """Constructor."""
         self._on_ready = None
         self.endpoint = endpoint
         self.event_loop = asyncio.new_event_loop()
@@ -18,9 +22,11 @@ class SyncEndpoint:
         self.thread.start()
 
     def __del__(self):
+        """Destructor."""
         self.event_loop.close()
 
     def __enter__(self) -> "SyncEndpoint":
+        """Connect the endpoint."""
         self.connect()
         return self
 
@@ -30,6 +36,7 @@ class SyncEndpoint:
             exc_val: typing.Optional[BaseException],
             exc_tb: typing.Optional[types.TracebackType],
     ) -> None:
+        """Disconnect the endpoint."""
         self.disconnect()
 
     def connect(self):

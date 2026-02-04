@@ -10,8 +10,17 @@ import aiohttp
 from eyepop import EyePopSdk
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_jobs import DataJob
-from eyepop.data.data_types import Asset, Dataset, DatasetCreate, AutoAnnotate, DatasetAutoAnnotate, \
-    DatasetAutoAnnotateCreate, AutoAnnotateStatus, Prediction, PredictedClass, UserReview
+from eyepop.data.data_types import (
+    Asset,
+    AutoAnnotate,
+    AutoAnnotateStatus,
+    Dataset,
+    DatasetAutoAnnotateCreate,
+    DatasetCreate,
+    PredictedClass,
+    Prediction,
+    UserReview,
+)
 
 logging.getLogger('eyepop').setLevel(logging.DEBUG)
 logging.getLogger('eyepop.requests').setLevel(logging.DEBUG)
@@ -99,22 +108,6 @@ async def approve_auto_annotate(
             user_review=UserReview.approved,
         )
     return len(assets)
-
-async def get_auto_annotate(
-        endpoint: DataEndpoint,
-        dataset: Dataset,
-        auto_annotate: AutoAnnotate,
-        source: str
-) -> DatasetAutoAnnotate:
-    pass
-
-async def get_auto_annotate(
-        endpoint: DataEndpoint,
-        dataset: Dataset,
-        auto_annotate: AutoAnnotate,
-        source: str
-) -> DatasetAutoAnnotate:
-    pass
 
 parser = argparse.ArgumentParser(
                     prog='import dataset',

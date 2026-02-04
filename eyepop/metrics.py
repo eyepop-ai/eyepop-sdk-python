@@ -34,7 +34,7 @@ class MetricCollector(JobStateCallback):
 
     def update_count_by_state(self, state: JobState):
         count = 0
-        for job, job_state in self.jobs_to_state.items():
+        for _, job_state in self.jobs_to_state.items():
             if state == job_state:
                 count += 1
         if count > self.max_number_of_jobs_by_state[state]:
@@ -101,4 +101,5 @@ class JobState(Enum):
     DRAINED = 6
 
     def __repr__(self):
+        """To string."""
         return self._name_
