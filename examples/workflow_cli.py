@@ -1,5 +1,6 @@
 import json
 import os
+from typing import cast
 
 import click
 
@@ -7,14 +8,16 @@ from eyepop import EyePopSdk
 from eyepop.data.data_types import ArgoWorkflowPhase, CreateWorkflowBody
 
 
-@click.group(name="workflow", help="Manage and inspect workflows. Use these commands to start, list, and get workflow details. Set EYEPOP_API_KEY to your API key")
-def workflow():
+@click.group(name="workflow", help="Manage and inspect workflows. Set EYEPOP_API_KEY to your API key")
+def _workflow() -> None:
     pass
 
-@workflow.command()  # type: ignore[reportFunctionMemberAccess]
+workflow = cast(click.Group, _workflow)
+
+@workflow.command()
 @click.option('--template-name', required=True, help='Workflow template name')
 @click.option('--body', required=False, help='Request body as a JSON string')
-def start_workflow(template_name, body):
+def start_workflow(template_name: str, body: str | None) -> None:
     """Start a new workflow."""
     params = CreateWorkflowBody(**json.loads(body)) if body else None
     with EyePopSdk.dataEndpoint(
@@ -28,11 +31,11 @@ def start_workflow(template_name, body):
         )
         click.echo(result)
 
-@workflow.command()  # type: ignore[reportFunctionMemberAccess]
+@workflow.command()
 @click.option('--dataset-uuid', multiple=True, help='Filter by dataset UUID')
 @click.option('--model-uuid', multiple=True, help='Filter by model UUID')
 @click.option('--phase', multiple=True, type=click.Choice([p.value for p in ArgoWorkflowPhase]), help='Workflow phase')
-def list_workflows(dataset_uuid, model_uuid, phase):
+def list_workflows(dataset_uuid: tuple[str, ...], model_uuid: tuple[str, ...], phase: tuple[str, ...]) -> None:
     """List workflows."""
     with EyePopSdk.dataEndpoint(
         account_id=os.getenv("EYEPOP_ACCOUNT_ID"),
@@ -47,9 +50,9 @@ def list_workflows(dataset_uuid, model_uuid, phase):
         for wf in result:
             click.echo(wf)
 
-@workflow.command()  # type: ignore[reportFunctionMemberAccess]
+@workflow.command()
 @click.argument('workflow_id')
-def get_workflow(workflow_id):
+def get_workflow(workflow_id: str) -> None:
     """Get workflow details by ID."""
     with EyePopSdk.dataEndpoint(
         account_id=os.getenv("EYEPOP_ACCOUNT_ID"),
