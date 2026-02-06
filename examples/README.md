@@ -7,11 +7,11 @@ python3 -m venv .venv
 pip install -r requirements.txt
 ```
 ## Set Up Environment Variables
-### How to get secret key
-Check existence after login at dashboard.eyepop.ai. If forget/not there, recreate/create the api key and store in secure place.
+### How to get an API key
+Sign in to [dashboard.eyepop.ai](https://dashboard.eyepop.ai) and create or find your API key under your profile settings.
 ### Export them
 ```shell
-export EYEPOP_SECRET_KEY=... # your secret key
+export EYEPOP_API_KEY=... # your API key
 ```
 ## Run an example script
 ```shell

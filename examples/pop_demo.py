@@ -39,7 +39,7 @@ log = logging.getLogger('eyepop.example')
 pop_examples = {
     "vehicles": Pop(components=[
         InferenceComponent(
-            model='eyepop.vehicle:latest',
+            ability='eyepop.vehicle:latest',
             categoryName="vehicles",
             confidenceThreshold=0.8,
             forward=CropForward(
@@ -49,11 +49,11 @@ pop_examples = {
                     agnostic=True,
                     classHysteresis=True,
                 ), InferenceComponent(
-                    model='eyepop.vehicle.licence-plate:latest',
+                    ability='eyepop.vehicle.licence-plate:latest',
                     topK=1,
                     forward=CropForward(
                         targets=[InferenceComponent(
-                            model='eyepop.text.recognize.landscape:latest',
+                            ability='eyepop.text.recognize.landscape:latest',
                             categoryName="licence-plate"
                         )]
                     )
@@ -64,19 +64,19 @@ pop_examples = {
 
     "person": Pop(components=[
         InferenceComponent(
-            model='eyepop.person:latest',
+            ability='eyepop.person:latest',
             categoryName="person"
         )
     ]),
 
     "2d-body-points": Pop(components=[
         InferenceComponent(
-            model='eyepop.person:latest',
+            ability='eyepop.person:latest',
             categoryName="person",
             forward=CropForward(
                 maxItems=128,
                 targets=[InferenceComponent(
-                    model='eyepop.person.2d-body-points:latest',
+                    ability='eyepop.person.2d-body-points:latest',
                     categoryName="2d-body-points",
                     confidenceThreshold=0.25
                 )]
@@ -85,18 +85,18 @@ pop_examples = {
 
     "faces": Pop(components=[
         InferenceComponent(
-            model='eyepop.person:latest',
+            ability='eyepop.person:latest',
             categoryName="person",
             forward=CropForward(
                 maxItems=128,
                 targets=[InferenceComponent(
-                    model='eyepop.person.face.short-range:latest',
+                    ability='eyepop.person.face.short-range:latest',
                     categoryName="2d-face-points",
                     forward=CropForward(
                         boxPadding=1.5,
                         orientationTargetAngle=-90.0,
                         targets=[InferenceComponent(
-                            model='eyepop.person.face-mesh:latest',
+                            ability='eyepop.person.face-mesh:latest',
                             categoryName="3d-face-mesh"
                         )]
                     )
@@ -107,18 +107,18 @@ pop_examples = {
 
     "hands": Pop(components=[
         InferenceComponent(
-            model='eyepop.person:latest',
+            ability='eyepop.person:latest',
             categoryName="person",
             forward=CropForward(
                 maxItems=128,
                 boxPadding=0.25,
                 targets=[InferenceComponent(
-                    model='eyepop.person.palm:latest',
+                    ability='eyepop.person.palm:latest',
                     forward=CropForward(
                         includeClasses=["hand circumference"],
                         orientationTargetAngle=-90.0,
                         targets=[InferenceComponent(
-                            model='eyepop.person.3d-hand-points:latest',
+                            ability='eyepop.person.3d-hand-points:latest',
                             categoryName="3d-hand-points"
                         )]
                     )
@@ -129,18 +129,18 @@ pop_examples = {
 
     "3d-body-points": Pop(components=[
         InferenceComponent(
-            model='eyepop.person:latest',
+            ability='eyepop.person:latest',
             categoryName="person",
             forward=CropForward(
                 boxPadding=0.5,
                 targets=[InferenceComponent(
-                    model='eyepop.person.pose:latest',
+                    ability='eyepop.person.pose:latest',
                     hidden=True,
                     forward=CropForward(
                         boxPadding=0.5,
                         orientationTargetAngle=-90.0,
                         targets=[InferenceComponent(
-                            model='eyepop.person.3d-body-points.heavy:latest',
+                            ability='eyepop.person.3d-body-points.heavy:latest',
                             categoryName="3d-body-points",
                             confidenceThreshold=0.25
                         )]
@@ -152,13 +152,13 @@ pop_examples = {
 
     "text": Pop(components=[
         InferenceComponent(
-            model='eyepop.text:latest',
+            ability='eyepop.text:latest',
             categoryName="text",
             confidenceThreshold=0.7,
             forward=CropForward(
                 maxItems=128,
                 targets=[InferenceComponent(
-                    model='eyepop.text.recognize.landscape:latest',
+                    ability='eyepop.text.recognize.landscape:latest',
                     confidenceThreshold=0.1
                 )]
             )
@@ -167,7 +167,7 @@ pop_examples = {
 
     "sam1": Pop(components=[
         InferenceComponent(
-            model='eyepop.sam.small:latest',
+            ability='eyepop.sam.small:latest',
             id=1,
             forward=FullForward(
                 targets=[ContourFinderComponent(
@@ -180,12 +180,12 @@ pop_examples = {
 
     "sam2": Pop(components=[
         InferenceComponent(
-            model="eyepop.sam2.encoder.tiny:latest",
+            ability="eyepop.sam2.encoder.tiny:latest",
             id=1,
             hidden=True,
             forward=FullForward(
                 targets=[InferenceComponent(
-                    model='eyepop.sam2.decoder:latest',
+                    ability='eyepop.sam2.decoder:latest',
                     forward=FullForward(
                         targets=[ContourFinderComponent(
                             contourType=ContourType.POLYGON,
@@ -217,7 +217,7 @@ pop_examples = {
             },
             forward=CropForward(
                 targets=[InferenceComponent(
-                    model='eyepop.image-contents:latest',
+                    ability='eyepop.image-contents:latest',
                     params={
                         "prompts": [{"prompt": "hair color blond"},{"prompt": "hair color brown"}]
                     }
@@ -234,7 +234,7 @@ pop_examples = {
             },
             forward=CropForward(
                 targets=[InferenceComponent(
-                    model='eyepop.image-contents-t4:latest',
+                    ability='eyepop.image-contents-t4:latest',
                     params={
                         "prompts": [{"prompt": "shirt color?"}]
                     }
@@ -373,10 +373,10 @@ elif main_args.model_alias:
 elif main_args.model_uuid_sam1:
     pop = Pop(components=[
         InferenceComponent(
-            modelUuid=main_args.model_uuid_sam1,
+            abilityUuid=main_args.model_uuid_sam1,
             forward=CropForward(
                 targets=[InferenceComponent(
-                    model='eyepop.sam.small:latest',
+                    ability='eyepop.sam.small:latest',
                     forward=FullForward(
                         targets=[ContourFinderComponent(
                             contourType=ContourType.POLYGON,
@@ -390,14 +390,14 @@ elif main_args.model_uuid_sam1:
 elif main_args.model_uuid_sam2:
     pop = Pop(components=[
         InferenceComponent(
-            model="eyepop.sam2.encoder.tiny:latest",
+            ability="eyepop.sam2.encoder.tiny:latest",
             hidden=True,
             forward=FullForward(
                 targets=[InferenceComponent(
-                    modelUuid=main_args.model_uuid_sam2,
+                    abilityUuid=main_args.model_uuid_sam2,
                     forward=CropForward(
                         targets=[InferenceComponent(
-                            model='eyepop.sam2.decoder:latest',
+                            ability='eyepop.sam2.decoder:latest',
                             forward=FullForward(
                                 targets=[ContourFinderComponent(
                                     contourType=ContourType.POLYGON,

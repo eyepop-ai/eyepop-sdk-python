@@ -16,7 +16,7 @@ async def async_load_from_rtmp(url: str):
             print(result)
 
     async with EyePopSdk.workerEndpoint(is_async=True) as endpoint:
-        await endpoint.load_from(url, on_ready)
+        await endpoint.load_from(url, on_ready=on_ready)
 
 
 t1 = time.time()
