@@ -32,6 +32,14 @@ class ComputeContext(BaseModel):
         description="The interval for the session",
         default_factory=lambda: settings.session_interval
     )
+    pipeline_image: str = Field(
+        description="Custom Docker image for the worker pipeline",
+        default_factory=lambda: os.getenv("EYEPOP_PIPELINE_IMAGE", "")
+    )
+    pipeline_version: str = Field(
+        description="Custom Docker image tag for the worker pipeline",
+        default_factory=lambda: os.getenv("EYEPOP_PIPELINE_VERSION", "")
+    )
 
 
 class PipelineStatus(str, Enum):

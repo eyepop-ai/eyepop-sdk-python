@@ -61,6 +61,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             job_queue_length: int,
             request_tracer_max_buffer: int,
             dataset_uuid: str | None = None,
+            pipeline_image: str | None = None,
+            pipeline_version: str | None = None,
     ):
         super().__init__(
             secret_key=secret_key,
@@ -74,6 +76,12 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.auto_start = auto_start
         self.stop_jobs = stop_jobs
         self.dataset_uuid = dataset_uuid
+
+        if self.compute_ctx:
+            if pipeline_image:
+                self.compute_ctx.pipeline_image = pipeline_image
+            if pipeline_version:
+                self.compute_ctx.pipeline_version = pipeline_version
 
         self.is_dev_mode = True
 
