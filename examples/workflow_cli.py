@@ -7,7 +7,7 @@ from eyepop import EyePopSdk
 from eyepop.data.data_types import ArgoWorkflowPhase, CreateWorkflowBody
 
 
-@click.group(name="workflow", help="Manage and inspect workflows. Use these commands to start, list, and get workflow details. Set EYEPOP_SECRET_KEY to your secret key")
+@click.group(name="workflow", help="Manage and inspect workflows. Use these commands to start, list, and get workflow details. Set EYEPOP_API_KEY to your API key")
 def workflow():
     pass
 
@@ -19,7 +19,7 @@ def start_workflow(template_name, body):
     params = CreateWorkflowBody(**json.loads(body)) if body else None
     with EyePopSdk.dataEndpoint(
         account_id=os.getenv("EYEPOP_ACCOUNT_ID"),
-        secret_key=os.getenv("EYEPOP_SECRET_KEY"),
+        api_key=os.getenv("EYEPOP_API_KEY"),
         is_async=False
     ) as data_endpoint:
         result = data_endpoint.start_workflow(
@@ -36,7 +36,7 @@ def list_workflows(dataset_uuid, model_uuid, phase):
     """List workflows."""
     with EyePopSdk.dataEndpoint(
         account_id=os.getenv("EYEPOP_ACCOUNT_ID"),
-        secret_key=os.getenv("EYEPOP_SECRET_KEY"),
+        api_key=os.getenv("EYEPOP_API_KEY"),
         is_async=False
     ) as data_endpoint:
         result = data_endpoint.list_workflows(
@@ -53,7 +53,7 @@ def get_workflow(workflow_id):
     """Get workflow details by ID."""
     with EyePopSdk.dataEndpoint(
         account_id=os.getenv("EYEPOP_ACCOUNT_ID"),
-        secret_key=os.getenv("EYEPOP_SECRET_KEY"),
+        api_key=os.getenv("EYEPOP_API_KEY"),
         is_async=False
     ) as data_endpoint:
         result = data_endpoint.get_workflow(workflow_id)

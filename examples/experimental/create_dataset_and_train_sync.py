@@ -70,7 +70,7 @@ def auto_annotate_dataset(endpoint: SyncDataEndpoint, dataset_uuid: str, auto_an
         auto_annotates=[auto_annotate],
         auto_annotate_params=auto_annotate_params
     ), False)
-    with WaitForSync(endpoint=endpoint, dataset_uuid=dataset_uuid, criteria=analysis_done_criteria):
+    with WaitForSync(endpoint=endpoint, dataset_uuid=dataset_uuid, criteria=auto_annotate_done_criteria):
         log.info("before auto annotates start for dataset %s", dataset_uuid)
         endpoint.auto_annotate_dataset_version(dataset_uuid, None)
         log.info("auto annotates started for dataset %s", dataset_uuid)
