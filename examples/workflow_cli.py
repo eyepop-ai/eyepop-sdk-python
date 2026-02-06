@@ -11,7 +11,7 @@ from eyepop.data.data_types import ArgoWorkflowPhase, CreateWorkflowBody
 def workflow():
     pass
 
-@workflow.command()
+@workflow.command()  # type: ignore[reportFunctionMemberAccess]
 @click.option('--template-name', required=True, help='Workflow template name')
 @click.option('--body', required=False, help='Request body as a JSON string')
 def start_workflow(template_name, body):
@@ -28,7 +28,7 @@ def start_workflow(template_name, body):
         )
         click.echo(result)
 
-@workflow.command()
+@workflow.command()  # type: ignore[reportFunctionMemberAccess]
 @click.option('--dataset-uuid', multiple=True, help='Filter by dataset UUID')
 @click.option('--model-uuid', multiple=True, help='Filter by model UUID')
 @click.option('--phase', multiple=True, type=click.Choice([p.value for p in ArgoWorkflowPhase]), help='Workflow phase')
@@ -47,7 +47,7 @@ def list_workflows(dataset_uuid, model_uuid, phase):
         for wf in result:
             click.echo(wf)
 
-@workflow.command()
+@workflow.command()  # type: ignore[reportFunctionMemberAccess]
 @click.argument('workflow_id')
 def get_workflow(workflow_id):
     """Get workflow details by ID."""
