@@ -244,7 +244,7 @@ pop_examples = {
     ]),
 }
 
-def list_of_points(arg: str) -> list[dict[str, any]]:
+def list_of_points(arg: str) -> list[dict[str, Any]]:
     points = []
     points_as_tuples = ast.literal_eval(f'[{arg}]')
     for tuple in points_as_tuples:
@@ -255,7 +255,7 @@ def list_of_points(arg: str) -> list[dict[str, any]]:
     return points
 
 
-def list_of_boxes(arg: str) -> list[dict[str, any]]:
+def list_of_boxes(arg: str) -> list[dict[str, Any]]:
     boxes = []
     boxes_as_tuples = ast.literal_eval(f'[{arg}]')
     for tuple in boxes_as_tuples:
