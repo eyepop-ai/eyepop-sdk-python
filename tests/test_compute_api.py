@@ -233,3 +233,56 @@ async def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
     called_context = mock_fetch_new.call_args[0][0]
     assert called_context.compute_url == "https://custom.compute.com"
     assert called_context.api_key == "custom-key"
+
+
+@pytest.mark.asyncio
+async def test_creates_session_with_pipeline_image(aioresponses):
+    """Test that pipeline_image and pipeline_version are sent in the POST body."""
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        pipeline_image="us-west1-docker.pkg.dev/eyepop-staging/worker/runtime",
+        pipeline_version="dev-gpu",
+    )
+
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[],
+        status=200,
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=MOCK_SESSION_RESPONSE,
+        status=200,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(ctx, session)
+
+    assert result.session_endpoint == "https://pipeline.example.com"
+    assert result.m2m_access_token == "jwt-token-123"
+
+
+@pytest.mark.asyncio
+async def test_creates_session_without_pipeline_image(aioresponses):
+    """Test that no body is sent when pipeline_image is not set."""
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+    )
+
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[],
+        status=200,
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=MOCK_SESSION_RESPONSE,
+        status=200,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(ctx, session)
+
+    assert result.session_endpoint == "https://pipeline.example.com"

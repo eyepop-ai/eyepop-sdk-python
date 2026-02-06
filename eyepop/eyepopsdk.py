@@ -26,7 +26,9 @@ class EyePopSdk:
             is_async: bool = False,
             is_local_mode: bool | None = None,
             request_tracer_max_buffer: int = 1204,
-            dataset_uuid: str | None = None
+            dataset_uuid: str | None = None,
+            pipeline_image: str | None = None,
+            pipeline_version: str | None = None,
     ) -> WorkerEndpoint | SyncWorkerEndpoint:
         if is_local_mode is None:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
@@ -85,6 +87,8 @@ class EyePopSdk:
             job_queue_length=job_queue_length,
             request_tracer_max_buffer=request_tracer_max_buffer,
             dataset_uuid=dataset_uuid,
+            pipeline_image=pipeline_image,
+            pipeline_version=pipeline_version,
         )
 
         if not is_async:
