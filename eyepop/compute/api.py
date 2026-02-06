@@ -87,7 +87,18 @@ async def fetch_new_compute_session(
     if need_new_session:
         try:
             log.debug(f"Creating new session via POST to: {sessions_url}")
-            async with client_session.post(sessions_url, headers=headers) as post_response:
+            body = {}
+            if compute_ctx.pipeline_image:
+                body["pipeline_image"] = compute_ctx.pipeline_image
+            if compute_ctx.pipeline_version:
+                body["pipeline_version"] = compute_ctx.pipeline_version
+
+            post_kwargs = {"headers": headers}
+            if body:
+                post_kwargs["json"] = body
+                log.debug(f"POST /v1/sessions body: {body}")
+
+            async with client_session.post(sessions_url, **post_kwargs) as post_response:
                 post_response.raise_for_status()
                 res = await post_response.json()
                 log.debug(f"POST /v1/sessions response: {post_response.status}")
