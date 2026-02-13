@@ -90,6 +90,8 @@ class InferenceComponent(BaseComponent):
     topK: int | None = None
     topKClasses: int | None = None
     targetFps: str | None = None
+    videoChunkLengthSeconds: float | None = None
+    videoChunkOverlap: float | None = None
     params: dict[str, Any] | None = None
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 

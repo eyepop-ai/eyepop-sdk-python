@@ -316,6 +316,8 @@ parser.add_argument('-ds', '--dataset-uuid', required=False, type=str, help="Ing
 parser.add_argument('-tk', '--top-k', required=False, type=int, help="For --model-uuid and -model-alias apply this top-k filter", default=None)
 parser.add_argument('-ct', '--confidence-threshold', required=False, type=float, help="For --model-uuid and -model-alias apply this confidence threshold filter", default=None)
 parser.add_argument('--fps', required=False, type=str, help="For --model-uuid and -model-alias apply this target fps - e.g. 15/1", default=None)
+parser.add_argument('-vl', '--video-chunk-length-seconds', required=False, type=float, help="For --model-uuid and -model-alias apply this video chunk length", default=None)
+parser.add_argument('-vo', '--video-chunk-overlap', required=False, type=float, help="For --model-uuid and -model-alias apply this video chunk overlap", default=None)
 
 # Optional tracking for simple pops my model uuid oder model alias
 parser.add_argument('--tracking', required=False, help="Track objects in videos", default=False, action="store_true")
@@ -351,9 +353,19 @@ elif main_args.model_uuid:
     if main_args.top_k is not None:
         for c in pop.components:
             c.topK = main_args.top_k
+
     if main_args.confidence_threshold is not None:
         for c in pop.components:
             c.confidenceThreshold = main_args.confidence_threshold
+
+    if main_args.video_chunk_length_seconds is not None:
+        for c in pop.components:
+            c.videoChunkLengthSeconds = main_args.video_chunk_length_seconds
+
+    if main_args.video_chunk_overlap is not None:
+        for c in pop.components:
+            c.videoChunkOverlap = main_args.video_chunk_overlap
+
     add_optional_tracking_to_component(pop.components[0], main_args)
 elif main_args.model_alias:
     pop = Pop(components=[
@@ -363,12 +375,23 @@ elif main_args.model_alias:
             targetFps = main_args.fps,
         ) for i, alias in enumerate(main_args.model_alias)
     ])
+
     if main_args.top_k is not None:
         for c in pop.components:
             c.topK = main_args.top_k
+
     if main_args.confidence_threshold is not None:
         for c in pop.components:
             c.confidenceThreshold = main_args.confidence_threshold
+
+    if main_args.video_chunk_length_seconds is not None:
+        for c in pop.components:
+            c.videoChunkLengthSeconds = main_args.video_chunk_length_seconds
+
+    if main_args.video_chunk_overlap is not None:
+        for c in pop.components:
+            c.videoChunkOverlap = main_args.video_chunk_overlap
+
     add_optional_tracking_to_component(pop.components[0], main_args)
 elif main_args.model_uuid_sam1:
     pop = Pop(components=[
