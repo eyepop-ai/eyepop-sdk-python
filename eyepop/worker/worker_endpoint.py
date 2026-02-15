@@ -61,6 +61,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             job_queue_length: int,
             request_tracer_max_buffer: int,
             dataset_uuid: str | None = None,
+            pipeline_image: str | None = None,
+            pipeline_version: str | None = None,
     ):
         super().__init__(
             secret_key=secret_key,
@@ -74,6 +76,12 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.auto_start = auto_start
         self.stop_jobs = stop_jobs
         self.dataset_uuid = dataset_uuid
+
+        if self.compute_ctx:
+            if pipeline_image:
+                self.compute_ctx.pipeline_image = pipeline_image
+            if pipeline_version:
+                self.compute_ctx.pipeline_version = pipeline_version
 
         self.is_dev_mode = True
 
@@ -120,7 +128,9 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             return
 
         if self.last_fetch_config_error_time is not None and self.last_fetch_config_error_time > time.time() - settings.min_config_reconnect_secs:
-            raise self.last_fetch_config_error
+            if self.last_fetch_config_error is not None:
+                raise self.last_fetch_config_error
+            raise aiohttp.ClientConnectionError()
 
         if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time > time.time() - settings.min_config_reconnect_secs:
             raise aiohttp.ClientConnectionError()
@@ -286,7 +296,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
     async def dev_mode_pipeline_base_url(self):
         if self.is_dev_mode:
-            return f'{await self.dev_mode_base_url()}/pipelines/{self.worker_config["pipeline_id"]}'
+            base_url = await self.dev_mode_base_url()
+            if self.worker_config is None:
+                raise PopNotStartedException(pop_id=self.pop_id)
+            return f'{base_url}/pipelines/{self.worker_config["pipeline_id"]}'
         else:
             pass
 
@@ -362,6 +375,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
     async def dev_mode_base_url(self) -> str:
         if self.worker_config is None:
             await self._reconnect()
+        if self.worker_config is None:
+            raise PopNotStartedException(pop_id=self.pop_id)
         if 'session_endpoint' in self.worker_config:
             return self.worker_config['session_endpoint'].rstrip("/")
         return urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
@@ -374,7 +389,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                            timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
         return await self._pipeline_request_with_retry('GET', url_path_and_query, accept=accept, timeout=timeout)
 
-    async def pipeline_post(self, url_path_and_query: str, accept: str | None = None, open_data: Callable = None,
+    async def pipeline_post(self, url_path_and_query: str, accept: str | None = None, open_data: Callable | None = None,
                             content_type: str | None = None,
                             timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
         return await self._pipeline_request_with_retry('POST', url_path_and_query, accept=accept, open_data=open_data,
@@ -397,7 +412,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         return await self._pipeline_request_with_retry('DELETE', url_path_and_query, timeout=timeout)
 
     async def _pipeline_request_with_retry(self, method: str, url_path_and_query: str, accept: str | None = None,
-                                           open_data: Callable = None, content_type: str | None = None,
+                                           open_data: Callable | None = None, content_type: str | None = None,
                                            timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
         if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time < time.time() - settings.force_refresh_config_secs:
             self.worker_config = None

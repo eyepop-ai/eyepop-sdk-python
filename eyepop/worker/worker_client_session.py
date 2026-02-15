@@ -14,7 +14,7 @@ class WorkerClientSession:
     async def pipeline_post(
             self, url_path_and_query: str,
             accept: str | None = None,
-            open_data: Callable = None,
+            open_data: Callable | None = None,
             content_type: str | None = None,
             timeout: aiohttp.ClientTimeout | None = None
     ) -> aiohttp.client._RequestContextManager:
