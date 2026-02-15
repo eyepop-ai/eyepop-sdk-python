@@ -43,7 +43,6 @@ async def fetch_new_compute_session(
 ) -> ComputeContext:
     headers = {
         "Authorization": f"Bearer {compute_ctx.api_key}",
-        "Content-Type": "application/json",
         "Accept": "application/json",
     }
 
