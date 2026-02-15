@@ -254,6 +254,7 @@ class EvaluateJob(Job):
         worker_release_query = f'worker_release={self._worker_release}&' if self._worker_release is not None else ''
         start_time = time.time()
         request_id = None
+        result = None
         total_timeout = self.timeout.total if self.timeout else None
         while total_timeout is None or time.time() - start_time < total_timeout:
             if request_id is None:
