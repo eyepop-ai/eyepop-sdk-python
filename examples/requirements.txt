@@ -1,4 +1,4 @@
-eyepop~=3.9
+eyepop~=3.11
 click~=8.1
 matplotlib~=3.9
 Pillow~=10.4

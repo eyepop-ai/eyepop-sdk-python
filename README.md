@@ -18,6 +18,8 @@ The SDK reads the following environment variables by default:
 | `EYEPOP_API_KEY` | Yes | API key from your [EyePop dashboard](https://dashboard.eyepop.ai) account. |
 | `EYEPOP_POP_ID` | No | Pop Id from your dashboard. Defaults to `"transient"` if not set. |
 | `EYEPOP_ACCOUNT_ID` | For Data API | Account UUID, required when using `EyePopSdk.dataEndpoint()`. |
+| `EYEPOP_PIPELINE_IMAGE` | No | Custom worker Docker image (e.g. a private registry image). |
+| `EYEPOP_PIPELINE_VERSION` | No | Custom worker image version/tag. |
 
 We recommend using [python-dotenv](https://pypi.org/project/python-dotenv/) to load credentials from a `.env` file so they are not stored in source control.
 
@@ -195,7 +197,7 @@ Composable Pops let you build multi-stage inference pipelines by chaining models
 
 | Component | Purpose |
 |---|---|
-| `InferenceComponent` | Run an ML model (object detection, classification, segmentation, etc.) |
+| `InferenceComponent` | Run an ML model (object detection, classification, segmentation, etc.). Supports `videoChunkLengthSeconds` and `videoChunkOverlap` for chunked video processing. |
 | `TrackingComponent` | Track detected objects across video frames |
 | `ContourFinderComponent` | Extract contours/polygons from segmentation masks |
 | `ComponentFinderComponent` | Extract connected components from masks |
@@ -370,6 +372,16 @@ By default, connecting cancels all currently running or queued jobs on the worke
 ```python
 EyePopSdk.workerEndpoint(stop_jobs=False)
 ```
+
+### Custom worker images
+To use a custom worker Docker image (e.g. from a private registry):
+```python
+EyePopSdk.workerEndpoint(
+    pipeline_image='my-registry/my-worker:latest',
+    pipeline_version='1.0.0',
+)
+```
+Or set via environment variables `EYEPOP_PIPELINE_IMAGE` and `EYEPOP_PIPELINE_VERSION`.
 
 ### Local mode
 For local development against a worker running on `127.0.0.1:8080`:

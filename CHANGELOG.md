@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `pipeline_image` and `pipeline_version` parameters on `workerEndpoint()` for custom worker Docker images (also configurable via `EYEPOP_PIPELINE_IMAGE` and `EYEPOP_PIPELINE_VERSION` environment variables)
+- `videoChunkLengthSeconds` and `videoChunkOverlap` fields on `InferenceComponent` for chunked video processing
+
+### Fixed
+- InferJob polling now uses GET instead of POST for checking job status
+- Removed unnecessary `Content-Type: application/json` header from compute API session creation (aiohttp sets it automatically)
+- Fixed `EvaluateJob` potentially unbound `result` variable
+- Improved null-safety guards and type annotations in worker endpoint
+
 ### Changed
 - Split `data_types.py` (968 lines) into domain-specific modules under `eyepop/data/types/`:
   - `enums.py` - All enumeration types and constants
