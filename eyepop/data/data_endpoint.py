@@ -1221,3 +1221,24 @@ class DataEndpoint(Endpoint):
         delete_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/alias/{alias_name}/tag/{tag_name}'
         async with await self.request_with_retry("DELETE", delete_url) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
+
+    async def list_vlm_ability_evaluations(self, vlm_ability_uuid: str) -> list[DatasetAutoAnnotate]:
+        get_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/evaluations'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(list[DatasetAutoAnnotate], await resp.json()) # type: ignore [no-any-return]
+
+    async def get_vlm_ability_evaluation(self, vlm_ability_uuid: str, source: str) -> DatasetAutoAnnotate:
+        get_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/evaluations/{source}'
+        async with await self.request_with_retry("GET", get_url) as resp:
+            return parse_obj_as(DatasetAutoAnnotate, await resp.json()) # type: ignore [no-any-return]
+
+    async def start_vlm_ability_evaluation(self, vlm_ability_uuid: str, evaluate_request: EvaluateRequest) -> DatasetAutoAnnotate:
+        post_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/evaluations'
+        async with await self.request_with_retry(
+                method="POST",
+                url=post_url,
+                content_type=APPLICATION_JSON,
+                data=evaluate_request.model_dump_json(exclude_none=True)
+        ) as resp:
+            return parse_obj_as(DatasetAutoAnnotate, await resp.json()) # type: ignore [no-any-return]
+

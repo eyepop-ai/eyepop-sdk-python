@@ -13,6 +13,7 @@ from typing import Any
 from dotenv import load_dotenv
 from PIL import Image
 from pybars import Compiler
+from pydantic import TypeAdapter
 from webui import webui
 
 from eyepop import EyePopSdk, Job
@@ -38,7 +39,7 @@ log = logging.getLogger('eyepop.example')
 pop_examples = {
     "vehicles": Pop(components=[
         InferenceComponent(
-            model='eyepop.vehicle:latest',
+            ability='eyepop.vehicle:latest',
             categoryName="vehicles",
             confidenceThreshold=0.8,
             forward=CropForward(
@@ -48,11 +49,11 @@ pop_examples = {
                     agnostic=True,
                     classHysteresis=True,
                 ), InferenceComponent(
-                    model='eyepop.vehicle.licence-plate:latest',
+                    ability='eyepop.vehicle.licence-plate:latest',
                     topK=1,
                     forward=CropForward(
                         targets=[InferenceComponent(
-                            model='eyepop.text.recognize.landscape:latest',
+                            ability='eyepop.text.recognize.landscape:latest',
                             categoryName="licence-plate"
                         )]
                     )
@@ -63,19 +64,19 @@ pop_examples = {
 
     "person": Pop(components=[
         InferenceComponent(
-            model='eyepop.person:latest',
+            ability='eyepop.person:latest',
             categoryName="person"
         )
     ]),
 
     "2d-body-points": Pop(components=[
         InferenceComponent(
-            model='eyepop.person:latest',
+            ability='eyepop.person:latest',
             categoryName="person",
             forward=CropForward(
                 maxItems=128,
                 targets=[InferenceComponent(
-                    model='eyepop.person.2d-body-points:latest',
+                    ability='eyepop.person.2d-body-points:latest',
                     categoryName="2d-body-points",
                     confidenceThreshold=0.25
                 )]
@@ -84,18 +85,18 @@ pop_examples = {
 
     "faces": Pop(components=[
         InferenceComponent(
-            model='eyepop.person:latest',
+            ability='eyepop.person:latest',
             categoryName="person",
             forward=CropForward(
                 maxItems=128,
                 targets=[InferenceComponent(
-                    model='eyepop.person.face.short-range:latest',
+                    ability='eyepop.person.face.short-range:latest',
                     categoryName="2d-face-points",
                     forward=CropForward(
                         boxPadding=1.5,
                         orientationTargetAngle=-90.0,
                         targets=[InferenceComponent(
-                            model='eyepop.person.face-mesh:latest',
+                            ability='eyepop.person.face-mesh:latest',
                             categoryName="3d-face-mesh"
                         )]
                     )
@@ -106,18 +107,18 @@ pop_examples = {
 
     "hands": Pop(components=[
         InferenceComponent(
-            model='eyepop.person:latest',
+            ability='eyepop.person:latest',
             categoryName="person",
             forward=CropForward(
                 maxItems=128,
                 boxPadding=0.25,
                 targets=[InferenceComponent(
-                    model='eyepop.person.palm:latest',
+                    ability='eyepop.person.palm:latest',
                     forward=CropForward(
                         includeClasses=["hand circumference"],
                         orientationTargetAngle=-90.0,
                         targets=[InferenceComponent(
-                            model='eyepop.person.3d-hand-points:latest',
+                            ability='eyepop.person.3d-hand-points:latest',
                             categoryName="3d-hand-points"
                         )]
                     )
@@ -128,18 +129,18 @@ pop_examples = {
 
     "3d-body-points": Pop(components=[
         InferenceComponent(
-            model='eyepop.person:latest',
+            ability='eyepop.person:latest',
             categoryName="person",
             forward=CropForward(
                 boxPadding=0.5,
                 targets=[InferenceComponent(
-                    model='eyepop.person.pose:latest',
+                    ability='eyepop.person.pose:latest',
                     hidden=True,
                     forward=CropForward(
                         boxPadding=0.5,
                         orientationTargetAngle=-90.0,
                         targets=[InferenceComponent(
-                            model='eyepop.person.3d-body-points.heavy:latest',
+                            ability='eyepop.person.3d-body-points.heavy:latest',
                             categoryName="3d-body-points",
                             confidenceThreshold=0.25
                         )]
@@ -151,13 +152,13 @@ pop_examples = {
 
     "text": Pop(components=[
         InferenceComponent(
-            model='eyepop.text:latest',
+            ability='eyepop.text:latest',
             categoryName="text",
             confidenceThreshold=0.7,
             forward=CropForward(
                 maxItems=128,
                 targets=[InferenceComponent(
-                    model='eyepop.text.recognize.landscape:latest',
+                    ability='eyepop.text.recognize.landscape:latest',
                     confidenceThreshold=0.1
                 )]
             )
@@ -166,7 +167,7 @@ pop_examples = {
 
     "sam1": Pop(components=[
         InferenceComponent(
-            model='eyepop.sam.small:latest',
+            ability='eyepop.sam.small:latest',
             id=1,
             forward=FullForward(
                 targets=[ContourFinderComponent(
@@ -179,12 +180,12 @@ pop_examples = {
 
     "sam2": Pop(components=[
         InferenceComponent(
-            model="eyepop.sam2.encoder.tiny:latest",
+            ability="eyepop.sam2.encoder.tiny:latest",
             id=1,
             hidden=True,
             forward=FullForward(
                 targets=[InferenceComponent(
-                    model='eyepop.sam2.decoder:latest',
+                    ability='eyepop.sam2.decoder:latest',
                     forward=FullForward(
                         targets=[ContourFinderComponent(
                             contourType=ContourType.POLYGON,
@@ -216,7 +217,7 @@ pop_examples = {
             },
             forward=CropForward(
                 targets=[InferenceComponent(
-                    model='eyepop.image-contents:latest',
+                    ability='eyepop.image-contents:latest',
                     params={
                         "prompts": [{"prompt": "hair color blond"},{"prompt": "hair color brown"}]
                     }
@@ -233,7 +234,7 @@ pop_examples = {
             },
             forward=CropForward(
                 targets=[InferenceComponent(
-                    model='eyepop.image-contents-t4:latest',
+                    ability='eyepop.image-contents-t4:latest',
                     params={
                         "prompts": [{"prompt": "shirt color?"}]
                     }
@@ -243,7 +244,7 @@ pop_examples = {
     ]),
 }
 
-def list_of_points(arg: str) -> list[dict[str, any]]:
+def list_of_points(arg: str) -> list[dict[str, Any]]:
     points = []
     points_as_tuples = ast.literal_eval(f'[{arg}]')
     for tuple in points_as_tuples:
@@ -254,7 +255,7 @@ def list_of_points(arg: str) -> list[dict[str, any]]:
     return points
 
 
-def list_of_boxes(arg: str) -> list[dict[str, any]]:
+def list_of_boxes(arg: str) -> list[dict[str, Any]]:
     boxes = []
     boxes_as_tuples = ast.literal_eval(f'[{arg}]')
     for tuple in boxes_as_tuples:
@@ -307,6 +308,7 @@ parser.add_argument('-ms2', '--model-uuid-sam2', required=False, type=str, help=
 parser.add_argument('-po', '--points', required=False, type=list_of_points, help="List of POIs as coordinates like (x1, y1), (x2, y2) in the original image coordinate system")
 parser.add_argument('-bo', '--boxes', required=False, type=list_of_boxes, help="List of POIs as boxes like (left1, top1, right1, bottom1), (left1, top1, right1, bottom1) in the original image coordinate system")
 parser.add_argument('-sp', '--single-prompt', required=False, type=str, help="Single prompt to pass as parameter")
+parser.add_argument('-sl', '--single-label', required=False, type=str, help="Single label to use as result for single prompt to pass as parameter")
 parser.add_argument('-pr', '--prompt', required=False, type=str, help="Prompt to pass as parameter", action="append")
 parser.add_argument('-v', '--visualize', required=False, help="show rendered output", default=False, action="store_true")
 parser.add_argument('-o', '--output', required=False, help="print results to stdout", default=False, action="store_true")
@@ -314,6 +316,8 @@ parser.add_argument('-ds', '--dataset-uuid', required=False, type=str, help="Ing
 parser.add_argument('-tk', '--top-k', required=False, type=int, help="For --model-uuid and -model-alias apply this top-k filter", default=None)
 parser.add_argument('-ct', '--confidence-threshold', required=False, type=float, help="For --model-uuid and -model-alias apply this confidence threshold filter", default=None)
 parser.add_argument('--fps', required=False, type=str, help="For --model-uuid and -model-alias apply this target fps - e.g. 15/1", default=None)
+parser.add_argument('-vl', '--video-chunk-length-seconds', required=False, type=float, help="For --model-uuid and -model-alias apply this video chunk length", default=None)
+parser.add_argument('-vo', '--video-chunk-overlap', required=False, type=float, help="For --model-uuid and -model-alias apply this video chunk overlap", default=None)
 
 # Optional tracking for simple pops my model uuid oder model alias
 parser.add_argument('--tracking', required=False, help="Track objects in videos", default=False, action="store_true")
@@ -349,9 +353,19 @@ elif main_args.model_uuid:
     if main_args.top_k is not None:
         for c in pop.components:
             c.topK = main_args.top_k
+
     if main_args.confidence_threshold is not None:
         for c in pop.components:
             c.confidenceThreshold = main_args.confidence_threshold
+
+    if main_args.video_chunk_length_seconds is not None:
+        for c in pop.components:
+            c.videoChunkLengthSeconds = main_args.video_chunk_length_seconds
+
+    if main_args.video_chunk_overlap is not None:
+        for c in pop.components:
+            c.videoChunkOverlap = main_args.video_chunk_overlap
+
     add_optional_tracking_to_component(pop.components[0], main_args)
 elif main_args.model_alias:
     pop = Pop(components=[
@@ -359,22 +373,33 @@ elif main_args.model_alias:
             id=i+1,
             ability=alias,
             targetFps = main_args.fps,
-    ) for i, alias in enumerate(main_args.model_alias)
+        ) for i, alias in enumerate(main_args.model_alias)
     ])
+
     if main_args.top_k is not None:
         for c in pop.components:
             c.topK = main_args.top_k
+
     if main_args.confidence_threshold is not None:
         for c in pop.components:
             c.confidenceThreshold = main_args.confidence_threshold
+
+    if main_args.video_chunk_length_seconds is not None:
+        for c in pop.components:
+            c.videoChunkLengthSeconds = main_args.video_chunk_length_seconds
+
+    if main_args.video_chunk_overlap is not None:
+        for c in pop.components:
+            c.videoChunkOverlap = main_args.video_chunk_overlap
+
     add_optional_tracking_to_component(pop.components[0], main_args)
 elif main_args.model_uuid_sam1:
     pop = Pop(components=[
         InferenceComponent(
-            modelUuid=main_args.model_uuid_sam1,
+            abilityUuid=main_args.model_uuid_sam1,
             forward=CropForward(
                 targets=[InferenceComponent(
-                    model='eyepop.sam.small:latest',
+                    ability='eyepop.sam.small:latest',
                     forward=FullForward(
                         targets=[ContourFinderComponent(
                             contourType=ContourType.POLYGON,
@@ -388,14 +413,14 @@ elif main_args.model_uuid_sam1:
 elif main_args.model_uuid_sam2:
     pop = Pop(components=[
         InferenceComponent(
-            model="eyepop.sam2.encoder.tiny:latest",
+            ability="eyepop.sam2.encoder.tiny:latest",
             hidden=True,
             forward=FullForward(
                 targets=[InferenceComponent(
-                    modelUuid=main_args.model_uuid_sam2,
+                    abilityUuid=main_args.model_uuid_sam2,
                     forward=CropForward(
                         targets=[InferenceComponent(
-                            model='eyepop.sam2.decoder:latest',
+                            ability='eyepop.sam2.decoder:latest',
                             forward=FullForward(
                                 targets=[ContourFinderComponent(
                                     contourType=ContourType.POLYGON,
@@ -437,7 +462,8 @@ elif main_args.prompt is not None and len(main_args.prompt) > 0:
 elif main_args.single_prompt is not None:
     params = [
         ComponentParams(componentId=1, values={
-            "prompt": main_args.single_prompt
+            "prompt": main_args.single_prompt,
+            "label": main_args.single_label if main_args.single_label else main_args.single_prompt
         })
     ]
 
@@ -446,7 +472,10 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
     visualize_path = None
     example_image_src = None
     if args.dump:
-        print(pop.model_dump_json(indent=2))
+        print("Pop:", pop.model_dump_json(indent=2))
+        if params:
+            print("Params:", TypeAdapter(list[ComponentParams]).dump_json(params, indent=2).decode("utf-8"))
+
     async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True) as endpoint:
         await endpoint.set_pop(pop)
         if args.local_path:

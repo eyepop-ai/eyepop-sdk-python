@@ -97,6 +97,10 @@ class EvaluateRequest(BaseModel):
         default=None,
         description="VLM inference config; mutually exclusive to ability_uuid",
     )
+    source: str | None = Field(
+        default=None,
+        description="Optional source identifier to be used for the auto annotations",
+    )
     dataset_uuid: str = Field(description="The Uuid dataset to evaluate.")
     filter: EvaluateFilter | None = Field(
         default=None,

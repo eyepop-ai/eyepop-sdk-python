@@ -108,6 +108,7 @@ class DatasetAutoAnnotate(BaseModel):
     updated_at: datetime | None = None
     dataset_uuid: str
     dataset_version: int
+    source_ability_uuid: str | None = None
     source_model_uuid: str | None = None
     auto_annotate: AutoAnnotate | None = None
     auto_annotate_params: dict[str, Any] | None = None

@@ -7,7 +7,12 @@ import os
 from eyepop import EyePopSdk
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_jobs import InferJob
-from eyepop.data.data_types import InferRequest, TranscodeMode, Asset, AssetInclusionMode, EvaluateRequest
+from eyepop.data.data_types import (
+    Asset,
+    EvaluateRequest,
+    InferRequest,
+    TranscodeMode,
+)
 
 script_dir = os.path.dirname(__file__)
 

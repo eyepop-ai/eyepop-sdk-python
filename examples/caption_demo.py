@@ -42,7 +42,7 @@ if main_args.question is not None:
         targets=[InferenceComponent(
             id=2,
             categoryName='answers',
-            model='eyepop.question-answer.preview:latest',
+            ability='eyepop.question-answer.preview:latest',
             params={
                 "prompt": main_args.question
             }

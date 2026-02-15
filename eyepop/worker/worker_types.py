@@ -90,6 +90,8 @@ class InferenceComponent(BaseComponent):
     topK: int | None = None
     topKClasses: int | None = None
     targetFps: str | None = None
+    videoChunkLengthSeconds: float | None = None
+    videoChunkOverlap: float | None = None
     params: dict[str, Any] | None = None
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
@@ -200,7 +202,7 @@ def FullForward(
     )
 
 
-class ComponentParams(BaseComponent):
+class ComponentParams(BaseModel):
     componentId: int
     values: dict[str, Any]
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='forbid')

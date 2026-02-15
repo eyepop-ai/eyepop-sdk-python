@@ -67,6 +67,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             job_queue_length: int,
             request_tracer_max_buffer: int,
             dataset_uuid: str | None = None,
+            pipeline_image: str | None = None,
+            pipeline_version: str | None = None,
     ):
         super().__init__(
             secret_key=secret_key,
@@ -80,6 +82,12 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.auto_start = auto_start
         self.stop_jobs = stop_jobs
         self.dataset_uuid = dataset_uuid
+
+        if self.compute_ctx:
+            if pipeline_image:
+                self.compute_ctx.pipeline_image = pipeline_image
+            if pipeline_version:
+                self.compute_ctx.pipeline_version = pipeline_version
 
         self.is_dev_mode = True
 
@@ -128,6 +136,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.last_fetch_config_error_time is not None and self.last_fetch_config_error_time > time.time() - settings.min_config_reconnect_secs:
             if self.last_fetch_config_error is not None:
                 raise self.last_fetch_config_error
+            raise aiohttp.ClientConnectionError()
 
         if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time > time.time() - settings.min_config_reconnect_secs:
             raise aiohttp.ClientConnectionError()
@@ -309,10 +318,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
     async def dev_mode_pipeline_base_url(self) -> str:
         if self.is_dev_mode:
+            base_url = await self.dev_mode_base_url()
             if self.worker_config is None:
-                await self._reconnect()
-            assert self.worker_config is not None
-            return f'{await self.dev_mode_base_url()}/pipelines/{self.worker_config["pipeline_id"]}'
+                raise PopNotStartedException(pop_id=self.pop_id)
+            return f'{base_url}/pipelines/{self.worker_config["pipeline_id"]}'
         else:
             raise PopConfigurationException(self.pop_id, 'dev_mode_pipeline_base_url not supported in production mode')
 
@@ -388,7 +397,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
     async def dev_mode_base_url(self) -> str:
         if self.worker_config is None:
             await self._reconnect()
-        assert self.worker_config is not None
+        if self.worker_config is None:
+            raise PopNotStartedException(pop_id=self.pop_id)
         if 'session_endpoint' in self.worker_config:
             return str(self.worker_config['session_endpoint']).rstrip("/")
         return urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
