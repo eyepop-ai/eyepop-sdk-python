@@ -207,8 +207,8 @@ class InferJob(Job):
                 )
             else:
                 request_coro = session.request_with_retry(
-                    method="POST",
-                    url=f"/api/v1/requests/{request_id}?timeout=20",
+                    method="GET",
+                    url=f"/api/v1/infer/{request_id}?timeout=20",
                 )
             async with await request_coro as resp:
                 if resp.status == 202:
