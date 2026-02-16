@@ -112,8 +112,9 @@ async def fetch_new_compute_session(
             ) from e
 
     if isinstance(res, list):
-        if len(res) > 0:
+        if len(res) > 1:
             log.warning(f"Session response gave multiple {len(res)} items, using first one")
+        if len(res) > 0:
             res = res[0]
         else:
             res = None
@@ -166,7 +167,7 @@ async def refresh_compute_token(
     headers = {"Authorization": f"Bearer {compute_ctx.api_key}", "Accept": "application/json"}
 
     refresh_url = f"{compute_ctx.compute_url}/v1/auth/authenticate"
-    log.info(f"Refreshing token at: {refresh_url}")
+    log.debug(f"Refreshing token at: {refresh_url}")
 
     try:
         async with client_session.post(refresh_url, headers=headers) as response:
