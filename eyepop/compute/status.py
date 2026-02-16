@@ -52,7 +52,7 @@ async def wait_for_session(
                 log.debug(f"Health check response status: {response.status}")
 
                 if response.status == 200:
-                    log.info("Session is ready (status 200)")
+                    log.debug("Session is ready (status 200)")
                     return True
 
                 if response.status != 200:
@@ -65,7 +65,7 @@ async def wait_for_session(
                 status = session_response.session_status
 
                 if status == PipelineStatus.RUNNING:
-                    log.info("Session is running")
+                    log.debug("Session is running")
                     return True
                 elif status == PipelineStatus.PENDING:
                     last_message = f"Session status: {status.value}"

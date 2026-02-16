@@ -216,7 +216,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
             if self.compute_ctx:
                 self.compute_ctx.pipeline_uuid = response_json['id']
-                logging.info(f"Created pipeline with ID: {response_json['id']}")
+                log.debug(f"Created pipeline with ID: {response_json['id']}")
 
             if self.is_dev_mode:
                 if 'session_endpoint' in self.worker_config:
@@ -266,10 +266,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
             endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
             self.load_balancer = EndpointLoadBalancer([endpoint])
-            log.info(f"Initialized load balancer with endpoint: {endpoint}")
+            log.debug(f"Initialized load balancer with endpoint: {endpoint}")
         else:
             self.load_balancer = EndpointLoadBalancer(self.worker_config['endpoints'])
-            log.info(f"Initialized load balancer with endpoints: {self.worker_config['endpoints']}")
+            log.debug(f"Initialized load balancer with endpoints: {self.worker_config['endpoints']}")
 
 
     async def session(self) -> dict:
