@@ -39,9 +39,27 @@ jobs:
     - name: Install dependencies
       run: uv sync --all-extras
 
+    - name: Determine version
+      id: version
+      run: |
+        if [ -n "${{ github.event.inputs.version }}" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+        else
+          # Derive base version from latest git tag, append PR number + run number for uniqueness
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          BASE_VERSION=${LATEST_TAG#v}
+          # Bump patch for dev version (e.g., 3.11.0 -> 3.11.1)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+          NEXT_PATCH=$((PATCH + 1))
+          PR_NUM=${{ github.event.pull_request.number || '0' }}
+          DEV_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}.dev${PR_NUM}${GITHUB_RUN_NUMBER}"
+          echo "version=${DEV_VERSION}" >> "$GITHUB_OUTPUT"
+        fi
+        echo "Using version: $(cat "$GITHUB_OUTPUT" | grep version | cut -d= -f2)"
+
     - name: Build package
       env:
-        SETUPTOOLS_SCM_PRETEND_VERSION: ${{ github.event.inputs.version }}
+        SETUPTOOLS_SCM_PRETEND_VERSION: ${{ steps.version.outputs.version }}
       run: uvx --from build pyproject-build --installer uv
 
     - name: Display version
