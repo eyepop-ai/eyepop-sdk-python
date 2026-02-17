@@ -207,8 +207,8 @@ class InferJob(Job):
                 )
             else:
                 request_coro = session.request_with_retry(
-                    method="POST",
-                    url=f"/api/v1/requests/{request_id}?timeout=20",
+                    method="GET",
+                    url=f"/api/v1/infer/{request_id}?timeout=20",
                 )
             async with await request_coro as resp:
                 if resp.status == 202:
@@ -254,6 +254,7 @@ class EvaluateJob(Job):
         worker_release_query = f'worker_release={self._worker_release}&' if self._worker_release is not None else ''
         start_time = time.time()
         request_id = None
+        result = None
         total_timeout = self.timeout.total if self.timeout else None
         while total_timeout is None or time.time() - start_time < total_timeout:
             if request_id is None:
