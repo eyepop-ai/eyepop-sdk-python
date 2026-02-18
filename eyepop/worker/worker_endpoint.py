@@ -199,7 +199,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 "source": {
                     "sourceType": "NONE"
                 },
-                "idleTimeoutSeconds": 60,
+                "idleTimeoutSeconds": 300,
                 "logging": ["out_meta"],
                 "videoOutput": "no_output",
             }
