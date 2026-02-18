@@ -2,7 +2,7 @@ import json
 import os
 import unittest
 
-from aioresponses import aioresponses, CallbackResult
+from aioresponses import CallbackResult, aioresponses
 
 from eyepop.worker.worker_types import Pop
 
