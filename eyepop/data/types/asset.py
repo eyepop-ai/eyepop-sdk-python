@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Sequence
+from typing import Literal, Sequence
 
 from pydantic import BaseModel, ConfigDict
 
@@ -22,6 +22,24 @@ class AssetAnnotation(BaseModel):
 AssetAnnotationResponse = AssetAnnotation
 
 
+class RectangleArea(BaseModel):
+    x: float
+    y: float
+    width: float
+    height: float
+
+
+class TimeSpan(BaseModel):
+    start_timestamp: int | None = None
+    end_timestamp: int | None = None
+
+
+class Roi(BaseModel):
+    name: str | Literal["default"]
+    area: RectangleArea | None = None
+    time_span: TimeSpan | None = None
+
+
 class Asset(BaseModel):
     uuid: str
     created_at: datetime | None = None
@@ -39,11 +57,8 @@ class Asset(BaseModel):
     partition: str | None = None
     review_priority: float | None = None
     model_relevance: float | None = None
-    annotations: List[AssetAnnotation] = []
-
-    ###
-    # Denormalized attributes, for convenient serialization/storage detached of a dataset context
-    # ###
+    annotations: list[AssetAnnotation] = []
+    rois: list[Roi] = []
     dataset_uuid: str | None = None
     account_uuid: str | None = None
 

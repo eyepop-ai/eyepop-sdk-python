@@ -51,6 +51,7 @@ from eyepop.data.data_types import (
     VlmAbilityResponse,
     VlmAbilityUpdate,
 )
+from eyepop.data.types import Roi
 from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 
 SyncEventHandler = Callable[[ChangeEvent], None]
@@ -487,6 +488,40 @@ class SyncDataEndpoint(SyncEndpoint):
                 source=source,
                 user_review=user_review,
                 approved_threshold=approved_threshold,
+                dataset_uuid=dataset_uuid,
+                dataset_version=dataset_version,
+            )
+        )
+
+    def add_asset_roi(
+            self,
+            asset_uuid: str,
+            roi: Roi,
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None,
+    ):
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.add_asset_roi(
+                asset_uuid=asset_uuid,
+                roi=roi,
+                dataset_uuid=dataset_uuid,
+                dataset_version=dataset_version,
+            )
+        )
+
+    def delete_asset_roi(
+            self,
+            asset_uuid: str,
+            name: str,
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None
+    ) -> None:
+        run_coro_thread_save(
+            self.event_loop,
+            self.endpoint.delete_asset_roi(
+                asset_uuid=asset_uuid,
+                name=name,
                 dataset_uuid=dataset_uuid,
                 dataset_version=dataset_version,
             )

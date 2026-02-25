@@ -52,6 +52,7 @@ from eyepop.data.data_types import (
     ModelUpdate,
     Prediction,
     QcAiHubExportParams,
+    Roi,
     TranscodeMode,
     UserReview,
     VlmAbilityCreate,
@@ -735,6 +736,40 @@ class DataEndpoint(Endpoint):
         ])
 
         async with await self.request_with_retry("PATCH", patch_url):
+            return
+
+    async def add_asset_roi(
+            self,
+            asset_uuid: str,
+            roi: Roi,
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None,
+    ):
+        post_url = "".join([
+            f'{await self.data_base_url()}/assets/{asset_uuid}/rois?',
+            f'dataset_uuid={dataset_uuid}&' if dataset_uuid is not None else '',
+            f'dataset_version={dataset_version}&' if dataset_version is not None else '',
+        ])
+
+        async with await self.request_with_retry("POST", post_url,
+                                                 content_type=APPLICATION_JSON,
+                                                 data=roi.model_dump_json(
+                                                     exclude_unset=True,
+                                                     exclude_none=True,
+                                                 )):
+            return
+
+    async def delete_asset_roi(
+            self,
+            asset_uuid: str,
+            name: str,
+            dataset_uuid: str | None = None,
+            dataset_version: int | None = None
+    ) -> None:
+        dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
+        version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
+        delete_url = f'{await self.data_base_url()}/assets/{asset_uuid}/rois/{quote_plus(name)}?{dataset_query}{version_query}'
+        async with await self.request_with_retry("DELETE", delete_url):
             return
 
     """ Model methods """
