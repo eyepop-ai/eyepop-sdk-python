@@ -68,6 +68,9 @@ from eyepop.data.types.asset import (
     AssetAnnotationResponse,
     AssetImport,
     AssetResponse,
+    RectangleArea,
+    Roi,
+    TimeSpan,
 )
 
 from eyepop.data.types.model import (
@@ -186,6 +189,9 @@ __all__ = [
     "AssetImport",
     "AssetResponse",
     "AliasResolution",
+    "RectangleArea",
+    "TimeSpan",
+    "Roi",
     "ExportedAliasResponse",
     "ExportedUrlResponse",
     "Model",
