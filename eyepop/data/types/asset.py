@@ -1,8 +1,10 @@
 from datetime import datetime
-from typing import Literal, Sequence
+from enum import StrEnum
+from typing import Annotated, Literal, Sequence
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+from eyepop.data.types import Point2d
 from eyepop.data.types.dataset import AutoAnnotateParams
 from eyepop.data.types.enums import AnnotationType, AssetStatus, AutoAnnotate, UserReview
 from eyepop.data.types.prediction import Prediction
@@ -22,11 +24,22 @@ class AssetAnnotation(BaseModel):
 AssetAnnotationResponse = AssetAnnotation
 
 
+class AreaType(StrEnum):
+    RECTANGLE = "rectangle"
+    CONTOUR = "contour"
+
+
 class RectangleArea(BaseModel):
+    type: Literal[AreaType.RECTANGLE] = AreaType.RECTANGLE
     x: float
     y: float
     width: float
     height: float
+
+
+class ContourArea(BaseModel):
+    type: Literal[AreaType.CONTOUR] = AreaType.CONTOUR
+    points: list[Point2d]
 
 
 class TimeSpan(BaseModel):
@@ -34,9 +47,12 @@ class TimeSpan(BaseModel):
     end_timestamp: int | None = None
 
 
+Area = Annotated[RectangleArea | ContourArea, Field(discriminator="type")]
+
+
 class Roi(BaseModel):
-    name: str | Literal["default"]
-    area: RectangleArea | None = None
+    name: str
+    area: Area | None = None
     time_span: TimeSpan | None = None
 
 
