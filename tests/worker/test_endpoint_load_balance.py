@@ -1,7 +1,8 @@
 import json
 import time
+
 import aiohttp
-from aioresponses import aioresponses, CallbackResult
+from aioresponses import CallbackResult, aioresponses
 
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import DEFAULT_PREDICTION_VERSION, Pop

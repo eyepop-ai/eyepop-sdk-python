@@ -3,7 +3,7 @@ import unittest
 import uuid
 
 from aiohttp import ClientResponseError
-from aioresponses import aioresponses, CallbackResult
+from aioresponses import CallbackResult, aioresponses
 
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import Pop
@@ -13,7 +13,7 @@ from tests.worker.base_endpoint_test import BaseEndpointTest
 class TestEndpointConnect(BaseEndpointTest):
 
     def test_missing_secret(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(KeyError):
             EyePopSdk.workerEndpoint()
 
     @aioresponses()
