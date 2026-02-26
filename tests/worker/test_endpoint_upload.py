@@ -3,12 +3,13 @@ import time
 from importlib import resources
 
 import pytest
-from aioresponses import aioresponses, CallbackResult
+from aioresponses import CallbackResult, aioresponses
 
+import tests
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import Pop
 from tests.worker.base_endpoint_test import BaseEndpointTest
-import tests
+
 
 class TestEndpointUpload(BaseEndpointTest):
     test_source_id = 'test_source_id'
@@ -51,7 +52,7 @@ class TestEndpointUpload(BaseEndpointTest):
                                               {'source_id': self.test_source_id, 'seconds': 0,
                                                'system_timestamp': test_timestamp}))
 
-            mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
+            mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync&version=2',
                        callback=upload)
 
             job = endpoint.upload(self.test_file)
@@ -101,7 +102,7 @@ class TestEndpointUpload(BaseEndpointTest):
                                               {'source_id': self.test_source_id, 'seconds': 0,
                                                'system_timestamp': test_timestamp}))
 
-            mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
+            mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync&version=2',
                        callback=upload)
 
             job = await endpoint.upload(self.test_file)

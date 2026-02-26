@@ -112,6 +112,8 @@ class _UploadJob(WorkerJob):
 
 
     async def _do_execute_job(self, queue: Queue, session: WorkerClientSession):
+        video_mode_query = f'&videoMode={self.video_mode.value}' if self.video_mode else ''
+        version_query = f'&version={self._version}' if self._version else ''
         if self.needs_full_duplex:
             self._response = await session.pipeline_post(
                 'prepareSource?timeout=600s',
@@ -130,8 +132,6 @@ class _UploadJob(WorkerJob):
                         source_id = event.get('source_id', None)
             if source_id is None:
                 raise ValueError("did not get a prepared sourceId to simulate full duplex")
-            video_mode_query = f'&videoMode={self.video_mode.value}' if self.video_mode else ''
-            version_query = f'&version={self._version}' if self._version else ''
             upload_url = f'source?mode=queue&processing=async&sourceId={source_id}{video_mode_query}{version_query}'
             if self._component_params is None:
                 upload_coro = session.pipeline_post(upload_url,
@@ -147,7 +147,7 @@ class _UploadJob(WorkerJob):
             read_coro = self._do_read_response(queue)
             _, got_result = await asyncio.gather(upload_coro, read_coro)
         else:
-            upload_url = 'source?mode=queue&processing=sync'
+            upload_url = f'source?mode=queue&processing=sync{video_mode_query}{version_query}'
             if self._component_params is None:
                 self._response = await session.pipeline_post(upload_url,
                                                              accept='application/jsonl',
@@ -183,7 +183,7 @@ class _UploadFileJob(_UploadJob):
     ):
         super().__init__(
             mime_type=_guess_mime_type_from_location(location),
-            open_stream=self.open_stream,
+            open_stream=self._open_file_stream,
             video_mode=video_mode,
             component_params=component_params,
             session=session,
@@ -193,7 +193,7 @@ class _UploadFileJob(_UploadJob):
         )
         self.location = location
 
-    def open_stream(self):
+    def _open_file_stream(self):
         return open(self.location, 'rb')
 
 
@@ -211,7 +211,7 @@ class _UploadStreamJob(_UploadJob):
     ):
         super().__init__(
             mime_type=mime_type,
-            open_stream=self.open_stream,
+            open_stream=self._get_opened_stream,
             video_mode=video_mode,
             component_params=component_params,
             session=session,
@@ -221,7 +221,7 @@ class _UploadStreamJob(_UploadJob):
         )
         self.stream = stream
 
-    def open_stream(self):
+    def _get_opened_stream(self):
         return self.stream
 
 
