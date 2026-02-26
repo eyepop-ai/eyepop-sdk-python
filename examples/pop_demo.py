@@ -514,7 +514,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:
-                    log.info(json.dumps(result, indent=2))
+                    print(json.dumps(result, indent=2))
             if args.visualize:
                 example_image_src = args.url
         elif args.asset_uuid:
