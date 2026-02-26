@@ -1,11 +1,12 @@
 import json
 import time
+
 import aiohttp
 import pytest
-from aioresponses import aioresponses, CallbackResult
+from aioresponses import CallbackResult, aioresponses
 
 from eyepop import EyePopSdk
-from eyepop.worker.worker_types import Pop, PredictionVersion, DEFAULT_PREDICTION_VERSION
+from eyepop.worker.worker_types import DEFAULT_PREDICTION_VERSION, Pop
 from tests.worker.base_endpoint_test import BaseEndpointTest
 
 
