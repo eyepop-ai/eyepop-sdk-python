@@ -162,3 +162,14 @@ cython_debug/
 
 # setuptools-scm generated version file
 eyepop/_version.py
+
+# Claude Code
+CLAUDE.local.md
+!.claude/
+.claude/*
+!.claude/settings.json
+!.claude/CLAUDE.md
+!.claude/rules/
+!.claude/agents/
+!.claude/skills/
+!CLAUDE.md
