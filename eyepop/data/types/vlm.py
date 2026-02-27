@@ -3,6 +3,7 @@ from typing import Any, Sequence
 
 from pydantic import BaseModel, Field
 
+from eyepop.data.types.asset import Roi
 from eyepop.data.types.enums import EvaluationStatus, VlmAbilityStatus
 
 
@@ -36,6 +37,10 @@ class InferRuntimeConfig(BaseModel):
     context_length: int | None = Field(
         default=None,
         description="Maximum visual tokens to target for auto-calculation",
+    )
+    rois: Sequence[Roi] | None = Field(
+        default=None,
+        description="Regions of interest for cropping",
     )
 
 
