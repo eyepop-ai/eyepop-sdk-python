@@ -2,8 +2,10 @@ from typing import Any, Callable
 
 import aiohttp
 
+from eyepop.client_session import ClientSession
 
-class WorkerClientSession:
+
+class WorkerClientSession(ClientSession):
     async def pipeline_get(
             self, url_path_and_query: str,
             accept: str | None = None,

@@ -206,3 +206,13 @@ class ComponentParams(BaseModel):
     componentId: int
     values: dict[str, Any]
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
+
+
+class MotionDetectConfig(BaseModel):
+    motionDetect: bool = Field(description="Whether or not to pause processing based on motion detection", default=True)
+    motionSensitivity: float | None = Field(description="Sensitivity of motion detection as percentage of pixels that must not change to not detect a motion in that cell, default is 0.5 ", default=None)
+    motionThreshold: float | None = Field(description="Threshold percentage of cells that must change for a motion event to trigger, default is 0.01", default=None)
+    motionGap: int | None = Field(description="Gap of no detected motion in seconds before motion-stopped event is trigger, default is 5", default=None)
+    motionGridX: int | None = Field(description="Grid x size of motion detection grid, default is 10", default=None)
+    motionGridY: int | None = Field(description="Grid y size of motion detection grid, default is 10", default=None)
+

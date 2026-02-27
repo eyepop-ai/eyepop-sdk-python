@@ -3,7 +3,8 @@ import json
 import logging
 import mimetypes
 from asyncio import Queue
-from typing import Any, BinaryIO, Callable
+from typing import Any, BinaryIO, Callable, cast
+from urllib.parse import urlencode
 
 import aiohttp
 from pydantic import TypeAdapter
@@ -14,7 +15,7 @@ from eyepop.worker.worker_types import (
     DEFAULT_PREDICTION_VERSION,
     ComponentParams,
     PredictionVersion,
-    VideoMode,
+    VideoMode, MotionDetectConfig,
 )
 
 log_requests = logging.getLogger('eyepop.requests')
@@ -23,31 +24,37 @@ log_requests = logging.getLogger('eyepop.requests')
 class WorkerJob(Job):
     """Abstract Job submitted to an EyePop.ai WorkerEndpoint."""
     _component_params: list[ComponentParams] | None
+    _motion_detect: MotionDetectConfig | None
     _version: PredictionVersion
 
     def __init__(
             self,
             session: WorkerClientSession,
             component_params: list[ComponentParams] | None,
+            motion_detect: MotionDetectConfig | None,
             on_ready: Callable[["WorkerJob"], None] | None,
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
         super().__init__(session, on_ready, callback)
         self._component_params = component_params
+        self._motion_detect = motion_detect
         self._version = version
 
-    async def predict(self) -> dict:
-        result = await self.pop_result()
-        if result is not None:
-            event = result.get('event', None)
-            if event is not None and isinstance(event, dict):
-                event_type = event.get('type', None)
-                if event_type == 'error':
-                    source_id = event.get('source_id', None)
-                    message = event.get('message', None)
-                    raise ValueError(f"Error in source {source_id}: {message}")
-        return result
+    async def predict(self) -> dict[str, Any] | None:
+        while True:
+            result = await self.pop_result()
+            if result is None:
+                return None
+            else:
+                event = result.get('event', None)
+                if event is not None:
+                    if event == 'error':
+                        source_id = result.get('source_id', None)
+                        message = result.get('message', None)
+                        raise ValueError(f"Error in source {source_id}: {message}")
+                else:
+                    return result
 
     async def _do_read_response(self, queue: Queue) -> bool:
         got_results = False
@@ -64,7 +71,7 @@ class WorkerJob(Job):
                     if not got_results:
                         got_results = True
                     prediction = json.loads(line)
-                    await self.push_result(prediction)
+                    await self.push_message(prediction)
             finally:
                 response.close()
         return got_results
@@ -82,6 +89,7 @@ class _UploadJob(WorkerJob):
             open_stream: Callable[[], Any],
             video_mode: VideoMode | None,
             component_params: list[ComponentParams] | None,
+            motion_detect: MotionDetectConfig | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -90,6 +98,7 @@ class _UploadJob(WorkerJob):
         super().__init__(
             session=session,
             component_params=component_params,
+            motion_detect=motion_detect,
             on_ready=on_ready,
             callback=callback,
             version=version
@@ -112,8 +121,17 @@ class _UploadJob(WorkerJob):
 
 
     async def _do_execute_job(self, queue: Queue, session: WorkerClientSession):
-        video_mode_query = f'&videoMode={self.video_mode.value}' if self.video_mode else ''
-        version_query = f'&version={self._version}' if self._version else ''
+        query_params: dict[str, Any] = {
+            "events": True,
+            "mode": "queue",
+        }
+        if self.video_mode is not None:
+            query_params['videoMode'] = self.video_mode.value
+        if self._version is not None:
+            query_params['version'] = self._version
+        if self._motion_detect is not None:
+            query_params.update(self._motion_detect.model_dump(exclude_none=True))
+
         if self.needs_full_duplex:
             self._response = await session.pipeline_post(
                 'prepareSource?timeout=600s',
@@ -132,7 +150,9 @@ class _UploadJob(WorkerJob):
                         source_id = event.get('source_id', None)
             if source_id is None:
                 raise ValueError("did not get a prepared sourceId to simulate full duplex")
-            upload_url = f'source?mode=queue&processing=async&sourceId={source_id}{video_mode_query}{version_query}'
+            query_params['processing'] = 'async'
+            query_params['sourceId'] = source_id
+            upload_url = f'source?{urlencode(query_params)}'
             if self._component_params is None:
                 upload_coro = session.pipeline_post(upload_url,
                                                     accept='application/jsonl',
@@ -147,7 +167,8 @@ class _UploadJob(WorkerJob):
             read_coro = self._do_read_response(queue)
             _, got_result = await asyncio.gather(upload_coro, read_coro)
         else:
-            upload_url = f'source?mode=queue&processing=sync{video_mode_query}{version_query}'
+            query_params['processing'] = 'sync'
+            upload_url = f'source?{urlencode(query_params)}'
             if self._component_params is None:
                 self._response = await session.pipeline_post(upload_url,
                                                              accept='application/jsonl',
@@ -176,6 +197,7 @@ class _UploadFileJob(_UploadJob):
             location: str,
             video_mode: VideoMode | None,
             component_params: list[ComponentParams] | None,
+            motion_detect: MotionDetectConfig | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -186,6 +208,7 @@ class _UploadFileJob(_UploadJob):
             open_stream=self._open_file_stream,
             video_mode=video_mode,
             component_params=component_params,
+            motion_detect=motion_detect,
             session=session,
             on_ready=on_ready,
             callback=callback,
@@ -204,6 +227,7 @@ class _UploadStreamJob(_UploadJob):
             mime_type: str,
             video_mode: VideoMode | None,
             component_params: list[ComponentParams] | None,
+            motion_detect: MotionDetectConfig | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -214,6 +238,7 @@ class _UploadStreamJob(_UploadJob):
             open_stream=self._get_opened_stream,
             video_mode=video_mode,
             component_params=component_params,
+            motion_detect=motion_detect,
             session=session,
             on_ready=on_ready,
             callback=callback,
@@ -230,6 +255,7 @@ class _LoadFromJob(WorkerJob):
             self,
             location: str,
             component_params: list[ComponentParams] | None,
+            motion_detect: MotionDetectConfig | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -238,17 +264,20 @@ class _LoadFromJob(WorkerJob):
         super().__init__(
             session=session,
             component_params=component_params,
+            motion_detect=motion_detect,
             on_ready=on_ready,
             callback=callback,
             version=version
         )
         self.location = location
-        self.target_url = 'source?mode=queue&processing=sync'
+        self.target_url = 'source?events=true&mode=queue&processing=sync'
         self.body = {
             "sourceType": "URL",
             "url": self.location,
             "version": self._version,
         }
+        if self._motion_detect is not None:
+            self.body.update(self._motion_detect.model_dump(exclude_none=True))
         if self._component_params is not None:
             self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
 
@@ -268,6 +297,7 @@ class _LoadFromAssetUuidJob(WorkerJob):
             self,
             asset_uuid: str,
             component_params: list[ComponentParams] | None,
+            motion_detect: MotionDetectConfig | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -276,17 +306,20 @@ class _LoadFromAssetUuidJob(WorkerJob):
         super().__init__(
             session=session,
             component_params=component_params,
+            motion_detect=motion_detect,
             on_ready=on_ready,
             callback=callback,
             version=version
         )
         self.asset_uuid = asset_uuid
-        self.target_url = 'source?mode=queue&processing=sync'
-        self.body = {
+        self.target_url = 'source?events=true&mode=queue&processing=sync'
+        self.body: dict[str, Any] = {
             "sourceType": "ASSET_UUID",
             "assetUuid": self.asset_uuid,
             "version": self._version
         }
+        if self._motion_detect is not None:
+            self.body.update(self._motion_detect.model_dump())
         if self._component_params is not None:
             self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
 
