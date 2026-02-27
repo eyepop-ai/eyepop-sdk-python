@@ -3,7 +3,7 @@ import json
 import logging
 import mimetypes
 from asyncio import Queue
-from typing import Any, BinaryIO, Callable
+from typing import Any, BinaryIO, Callable, cast
 
 import aiohttp
 from pydantic import TypeAdapter
@@ -38,15 +38,18 @@ class WorkerJob(Job):
         self._version = version
 
     async def predict(self) -> dict:
-        result = await self.pop_result()
-        if result is not None:
-            event = result.get('event', None)
-            if event is not None and isinstance(event, dict):
-                event_type = event.get('type', None)
-                if event_type == 'error':
-                    source_id = event.get('source_id', None)
-                    message = event.get('message', None)
-                    raise ValueError(f"Error in source {source_id}: {message}")
+        result = None
+        while result is None:
+            result = await self.pop_result()
+            if result is not None:
+                event = result.get('event', None)
+                if event is not None:
+                    if event == 'error':
+                        source_id = result.get('source_id', None)
+                        message = result.get('message', None)
+                        raise ValueError(f"Error in source {source_id}: {message}")
+                    print(result)
+                    result = None
         return result
 
     async def _do_read_response(self, queue: Queue) -> bool:
@@ -132,7 +135,7 @@ class _UploadJob(WorkerJob):
                         source_id = event.get('source_id', None)
             if source_id is None:
                 raise ValueError("did not get a prepared sourceId to simulate full duplex")
-            upload_url = f'source?mode=queue&processing=async&sourceId={source_id}{video_mode_query}{version_query}'
+            upload_url = f'source?events=true&mode=queue&processing=async&sourceId={source_id}{video_mode_query}{version_query}'
             if self._component_params is None:
                 upload_coro = session.pipeline_post(upload_url,
                                                     accept='application/jsonl',
@@ -147,7 +150,7 @@ class _UploadJob(WorkerJob):
             read_coro = self._do_read_response(queue)
             _, got_result = await asyncio.gather(upload_coro, read_coro)
         else:
-            upload_url = f'source?mode=queue&processing=sync{video_mode_query}{version_query}'
+            upload_url = f'source?events=true&mode=queue&processing=sync{video_mode_query}{version_query}'
             if self._component_params is None:
                 self._response = await session.pipeline_post(upload_url,
                                                              accept='application/jsonl',
@@ -243,7 +246,7 @@ class _LoadFromJob(WorkerJob):
             version=version
         )
         self.location = location
-        self.target_url = 'source?mode=queue&processing=sync'
+        self.target_url = 'source?events=true&mode=queue&processing=sync'
         self.body = {
             "sourceType": "URL",
             "url": self.location,
@@ -281,7 +284,7 @@ class _LoadFromAssetUuidJob(WorkerJob):
             version=version
         )
         self.asset_uuid = asset_uuid
-        self.target_url = 'source?mode=queue&processing=sync'
+        self.target_url = 'source?events=true&mode=queue&processing=sync'
         self.body = {
             "sourceType": "ASSET_UUID",
             "assetUuid": self.asset_uuid,
