@@ -58,7 +58,7 @@ async def test_creates_session_when_none_exists(mock_compute_config, aioresponse
         status=200
     )
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
         payload=MOCK_SESSION_RESPONSE,
         status=200
     )
@@ -77,7 +77,7 @@ async def test_creates_session_when_get_returns_404(mock_compute_config, aioresp
         status=404
     )
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
         payload=MOCK_SESSION_RESPONSE,
         status=200
     )
@@ -166,7 +166,7 @@ async def test_raises_exception_when_post_fails(mock_compute_config, aioresponse
         status=200
     )
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
         exception=Exception("Failed to create session")
     )
 
@@ -251,7 +251,7 @@ async def test_creates_session_with_pipeline_image(aioresponses):
         status=200,
     )
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
         payload=MOCK_SESSION_RESPONSE,
         status=200,
     )
@@ -277,7 +277,7 @@ async def test_creates_session_without_pipeline_image(aioresponses):
         status=200,
     )
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
         payload=MOCK_SESSION_RESPONSE,
         status=200,
     )

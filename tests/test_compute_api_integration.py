@@ -78,7 +78,7 @@ async def test_creates_session_when_none_exists(aioresponses, clean_environment)
         status=200
     )
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
         payload=MOCK_SESSION_RESPONSE,
         status=200
     )
@@ -102,7 +102,7 @@ async def test_creates_session_when_get_returns_404(aioresponses, clean_environm
         status=404
     )
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
         payload=MOCK_SESSION_RESPONSE,
         status=200
     )
