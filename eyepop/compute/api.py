@@ -97,7 +97,7 @@ async def fetch_new_compute_session(
                 post_kwargs["json"] = body
                 log.debug(f"POST /v1/sessions body: {body}")
 
-            async with client_session.post(sessions_url, **post_kwargs) as post_response:
+            async with client_session.post(f'{sessions_url}?wait=true', **post_kwargs) as post_response:
                 post_response.raise_for_status()
                 res = await post_response.json()
                 log.debug(f"POST /v1/sessions response: {post_response.status}")
