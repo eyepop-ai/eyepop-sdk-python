@@ -168,6 +168,7 @@ class EvaluationStatus(enum.StrEnum):
 
 
 class VlmAbilityStatus(enum.StrEnum):
+    in_progress = "in_progress"
     draft = "draft"
     published = "published"
 
