@@ -1158,7 +1158,7 @@ class DataEndpoint(Endpoint):
             raise ValueError("Creating Vlm Ability Groups requires an account uuid")
         post_url = f'{await self.data_base_url()}/vlm_ability_groups?account_uuid={account_uuid}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
-                                                 data=create.model_dump_json(exclude_none=True)) as resp:
+                                                 data=create.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
             return parse_obj_as(VlmAbilityGroupResponse, await resp.json()) # type: ignore [no-any-return]
 
     async def get_vlm_ability_group(self, vlm_ability_group_uuid: str) -> VlmAbilityGroupResponse:
@@ -1169,7 +1169,7 @@ class DataEndpoint(Endpoint):
     async def update_vlm_ability_group(self, vlm_ability_group_uuid: str, update: VlmAbilityGroupUpdate) -> VlmAbilityGroupResponse:
         patch_url = f'{await self.data_base_url()}/vlm_ability_groups/{vlm_ability_group_uuid}'
         async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
-                                                 data=update.model_dump_json(exclude_none=True)) as resp:
+                                                 data=update.model_dump_json(exclude_unset=True)) as resp:
             return parse_obj_as(VlmAbilityGroupResponse, await resp.json()) # type: ignore [no-any-return]
 
     async def delete_vlm_ability_group(self, vlm_ability_group_uuid: str) -> None:
@@ -1206,7 +1206,7 @@ class DataEndpoint(Endpoint):
         group_query = f'&vlm_ability_group_uuid={vlm_ability_group_uuid}' if vlm_ability_group_uuid else ''
         post_url = f'{await self.data_base_url()}/vlm_abilities?account_uuid={account_uuid}{group_query}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
-                                                 data=create.model_dump_json(exclude_none=True)) as resp:
+                                                 data=create.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
 
     async def refine_vlm_ability(
@@ -1216,7 +1216,7 @@ class DataEndpoint(Endpoint):
     ) -> VlmAbilityResponse:
         post_url = f'{await self.data_base_url()}/vlm_abilities{vlm_ability_uuid}/refine'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
-                                                 data=auto_prompt.model_dump_json(exclude_none=True)) as resp:
+                                                 data=auto_prompt.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
 
 
@@ -1228,7 +1228,7 @@ class DataEndpoint(Endpoint):
     async def update_vlm_ability(self, vlm_ability_uuid: str, update: VlmAbilityUpdate) -> VlmAbilityResponse:
         patch_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}'
         async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
-                                                 data=update.model_dump_json(exclude_none=True)) as resp:
+                                                 data=update.model_dump_json(exclude_unset=True)) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
 
     async def delete_vlm_ability(self, vlm_ability_uuid: str) -> None:
