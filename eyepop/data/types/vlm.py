@@ -93,15 +93,7 @@ class EvaluateFilter(BaseModel):
     )
 
 
-class EvaluateRequest(BaseModel):
-    ability_uuid: str | None = Field(
-        default=None,
-        description="The uuid of the ability holding the infer config; mutually exclusive to infer",
-    )
-    infer: InferRequest | None = Field(
-        default=None,
-        description="VLM inference config; mutually exclusive to ability_uuid",
-    )
+class EvaluateConfig(BaseModel):
     source: str | None = Field(
         default=None,
         description="Optional source identifier to be used for the auto annotations",
@@ -122,6 +114,17 @@ class EvaluateRequest(BaseModel):
         description="Video chunk overlap ratio, possibly negative to allow gaps,"
         " e.g. -1.0 to have gaps of the same length as the chunk",
         examples=[0.1],
+    )
+
+
+class EvaluateRequest(EvaluateConfig):
+    ability_uuid: str | None = Field(
+        default=None,
+        description="The uuid of the ability holding the infer config; mutually exclusive to infer",
+    )
+    infer: InferRequest | None = Field(
+        default=None,
+        description="VLM inference config; mutually exclusive to ability_uuid",
     )
 
 
@@ -193,6 +196,25 @@ class InferRunInfo(BaseModel):
     )
 
 
+class AutoPromptConfig(BaseModel):
+    num_samples: int = Field(
+        default=5,
+        description="For initial auto prompt creation this is the umber of chunks to sample per class. "
+                    "For auto prompt refine this is the number of failure samples to use per mismatch type (FP/FN).",
+    )
+    task_description: str | None = Field(
+        default=None,
+        description="Optional task description to append to the LLM prompt for customizing prompt creation",
+    )
+    infer: InferRuntimeConfig = Field(
+        description="InferConfig for VLM inference. The transform_into.classes field "
+        "specifies the possible labels for classification.",
+    )
+    evaluate: EvaluateConfig = Field(
+        description="EvaluateConfig for VLM evaluation.",
+    )
+
+
 class AbilityAliasEntry(BaseModel):
     alias: str
     tag: str
@@ -236,10 +258,23 @@ class VlmAbilityResponse(BaseModel):
 
 
 class VlmAbilityGroupCreate(BaseModel):
-    name: str
-    description: str
-    default_alias_name: str | None = None
-    default_dataset_uuid: str | None = None
+    name: str = Field(
+        description="Human readable name of the ability group",
+    )
+    description: str = Field(
+        description="Human readable description of the ability group",
+    )
+    auto_prompt: AutoPromptConfig | None = Field(
+        description="Optionally create an ability in this group via auto prompt agent. "
+                    "The created ability will stay in 'in_progress' state until the agent completes.",
+        default=None,
+    )
+    default_alias_name: str | None = Field(
+        description="Optionally use this name as default alias name for all abilities in this group",
+    )
+    default_dataset_uuid: str | None = Field(
+        description="Optionally use this dataset UUID as evaluation target for all abilities in this group",
+    )
 
 
 class VlmAbilityGroupUpdate(BaseModel):

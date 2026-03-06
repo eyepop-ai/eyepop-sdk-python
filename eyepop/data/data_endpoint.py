@@ -62,6 +62,7 @@ from eyepop.data.data_types import (
     VlmAbilityResponse,
     VlmAbilityUpdate,
 )
+from eyepop.data.types.vlm import AutoPromptConfig
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings
 
@@ -1207,6 +1208,17 @@ class DataEndpoint(Endpoint):
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=create.model_dump_json(exclude_none=True)) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
+
+    async def refine_vlm_ability(
+            self,
+            vlm_ability_uuid: str,
+            auto_prompt: AutoPromptConfig,
+    ) -> VlmAbilityResponse:
+        post_url = f'{await self.data_base_url()}/vlm_abilities{vlm_ability_uuid}/refine'
+        async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
+                                                 data=auto_prompt.model_dump_json(exclude_none=True)) as resp:
+            return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
+
 
     async def get_vlm_ability(self, vlm_ability_uuid: str) -> VlmAbilityResponse:
         get_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}'
