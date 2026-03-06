@@ -63,8 +63,8 @@ class Job:
         """Destructor."""
         self._callback.finalized(self)
 
-    async def push_result(self, result) -> None:
-        await self._queue.put(result)
+    async def push_message(self, message: dict[str, Any]):
+        await self._queue.put(message)
 
     async def pop_result(self) -> Any:
         queue = self._queue

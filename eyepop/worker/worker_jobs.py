@@ -41,20 +41,20 @@ class WorkerJob(Job):
         self._motion_detect = motion_detect
         self._version = version
 
-    async def predict(self) -> dict:
-        result = None
-        while result is None:
+    async def predict(self) -> dict[str, Any] | None:
+        while True:
             result = await self.pop_result()
-            if result is not None:
+            if result is None:
+                return None
+            else:
                 event = result.get('event', None)
                 if event is not None:
                     if event == 'error':
                         source_id = result.get('source_id', None)
                         message = result.get('message', None)
                         raise ValueError(f"Error in source {source_id}: {message}")
-                    print(result)
-                    result = None
-        return result
+                else:
+                    return result
 
     async def _do_read_response(self, queue: Queue) -> bool:
         got_results = False
@@ -71,7 +71,7 @@ class WorkerJob(Job):
                     if not got_results:
                         got_results = True
                     prediction = json.loads(line)
-                    await self.push_result(prediction)
+                    await self.push_message(prediction)
             finally:
                 response.close()
         return got_results
@@ -124,7 +124,6 @@ class _UploadJob(WorkerJob):
         query_params: dict[str, Any] = {
             "events": True,
             "mode": "queue",
-            "processing": "async"
         }
         if self.video_mode is not None:
             query_params['videoMode'] = self.video_mode.value
@@ -151,6 +150,7 @@ class _UploadJob(WorkerJob):
                         source_id = event.get('source_id', None)
             if source_id is None:
                 raise ValueError("did not get a prepared sourceId to simulate full duplex")
+            query_params['processing'] = 'async'
             query_params['sourceId'] = source_id
             upload_url = f'source?{urlencode(query_params)}'
             if self._component_params is None:
@@ -167,6 +167,7 @@ class _UploadJob(WorkerJob):
             read_coro = self._do_read_response(queue)
             _, got_result = await asyncio.gather(upload_coro, read_coro)
         else:
+            query_params['processing'] = 'sync'
             upload_url = f'source?{urlencode(query_params)}'
             if self._component_params is None:
                 self._response = await session.pipeline_post(upload_url,

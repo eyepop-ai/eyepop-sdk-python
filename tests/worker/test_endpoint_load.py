@@ -42,7 +42,7 @@ class TestEndpointLoadFrom(BaseEndpointTest):
                 else:
                     return CallbackResult(status=401, reason='test auth token expired')
 
-            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
+            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?events=true&mode=queue&processing=sync',
                        callback=loadFrom)
 
             job = endpoint.load_from(self.test_url)
@@ -54,7 +54,7 @@ class TestEndpointLoadFrom(BaseEndpointTest):
             self.assertIsNone(job.predict())
 
             mock.assert_called_with(
-                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
+                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?events=true&mode=queue&processing=sync',
                 method='PATCH',
                 headers={
                     'Accept': 'application/jsonl',
@@ -94,7 +94,7 @@ class TestEndpointLoadFrom(BaseEndpointTest):
                 else:
                     return CallbackResult(status=401, reason='test auth token expired')
 
-            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
+            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?events=true&mode=queue&processing=sync',
                        callback=loadFrom)
 
             job = await endpoint.load_from(self.test_url)
@@ -106,7 +106,7 @@ class TestEndpointLoadFrom(BaseEndpointTest):
             self.assertIsNone(await job.predict())
 
             mock.assert_called_with(
-                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
+                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?events=true&mode=queue&processing=sync',
                 method='PATCH',
                 headers={
                     'Accept': 'application/jsonl',

@@ -31,7 +31,6 @@ log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
 log_metrics = logging.getLogger('eyepop.metrics')
 
-
 def should_use_compute_api(pop_id: str, api_key: str | None) -> bool:
     """Determine if we should use Compute API based on pop_id and api_key."""
     if not api_key:
