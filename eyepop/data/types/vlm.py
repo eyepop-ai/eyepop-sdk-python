@@ -103,18 +103,6 @@ class EvaluateConfig(BaseModel):
         default=None,
         description="Only evaluate assets that matches this filter",
     )
-    video_chunk_length_ns: int | None = Field(
-        default=None,
-        description="Video chunk length in nano seconds",
-        examples=[2000000000],
-    )
-    video_chunk_overlap: float | None = Field(
-        default=None,
-        lt=1.0,
-        description="Video chunk overlap ratio, possibly negative to allow gaps,"
-        " e.g. -1.0 to have gaps of the same length as the chunk",
-        examples=[0.1],
-    )
 
 
 class EvaluateRequest(EvaluateConfig):
@@ -221,40 +209,153 @@ class AbilityAliasEntry(BaseModel):
 
 
 class VlmAbilityCreate(BaseModel):
-    name: str
-    description: str
-    worker_release: str
-    text_prompt: str
-    transform_into: TransformInto
-    config: InferRuntimeConfig
-    is_public: bool
+    name: str = Field(
+        description="The human readable name of the ability."
+    )
+    description: str = Field(
+        default="",
+        description="Human readable optional description of the ability."
+    )
+    worker_release: str = Field(
+        description="The identifier of the worker release used to execute this ability."
+    )
+    text_prompt: str = Field(
+        description="The full text prompt used for the ability."
+    )
+    transform_into: TransformInto = Field(
+        default_factory=TransformInto,
+        description="Optional transform instruction of the text result into structured response, e.g. classes.",
+    )
+    config: InferRuntimeConfig = Field(
+        default_factory=InferRuntimeConfig,
+        description="Optional inference configuration for VLM inference of this ability.",
+    )
+    is_public: bool = Field(
+        default=False,
+        description="Whether or not the ability is publicly accessible.",
+    )
+    video_chunk_length_ns: int | None = Field(
+        default=None,
+        description="Video chunk length in nano seconds",
+        examples=[2000000000],
+    )
+    video_chunk_overlap: float | None = Field(
+        default=None,
+        lt=0.5,
+        description="Video chunk overlap ratio, possibly negative to allow gaps,"
+        " e.g. -1.0 to have gaps of the same length as the chunk",
+        examples=[0.1],
+    )
 
 
 class VlmAbilityUpdate(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    worker_release: str | None = None
-    text_prompt: str | None = None
-    transform_into: TransformInto | None = None
-    config: InferRuntimeConfig | None = None
-    is_public: bool | None = None
+    name: str | None = Field(
+        default=None,
+        description="The human readable name of the ability."
+    )
+    description: str | None = Field(
+        default=None,
+        description="Human readable optional description of the ability."
+    )
+    worker_release: str | None = Field(
+        default=None,
+        description="The identifier of the worker release used to execute this ability."
+    )
+    text_prompt: str | None = Field(
+        default=None,
+        description="The full text prompt used for the ability."
+    )
+    transform_into: TransformInto | None = Field(
+        default=None,
+        description="Optional transform instruction of the text result into structured response, e.g. classes.",
+    )
+    config: InferRuntimeConfig | None = Field(
+        default=None,
+        description="Optional inference configuration for VLM inference of this ability.",
+    )
+    is_public: bool | None = Field(
+        default=None,
+        description="Whether or not the ability is publicly accessible.",
+    )
+    video_chunk_length_ns: int | None = Field(
+        default=None,
+        description="Video chunk length in nano seconds",
+        examples=[2000000000],
+    )
+    video_chunk_overlap: float | None = Field(
+        default=None,
+        lt=1.0,
+        description="Video chunk overlap ratio, possibly negative to allow gaps,"
+        " e.g. -1.0 to have gaps of the same length as the chunk",
+        examples=[0.1],
+    )
 
 
 class VlmAbilityResponse(BaseModel):
-    uuid: str
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    account_uuid: str
-    status: VlmAbilityStatus
-    is_public: bool
-    name: str
-    description: str
-    vlm_ability_group_uuid: str | None = None
-    worker_release: str
-    text_prompt: str
-    transform_into: TransformInto
-    config: InferRuntimeConfig
-    alias_entries: list[AbilityAliasEntry] | None = None
+    uuid: str = Field(
+        description="The uuid of the ability."
+    )
+    created_at: datetime | None = Field(
+        default=None,
+        description="The datetime when the ability was created."
+    )
+    updated_at: datetime | None = Field(
+        default=None,
+        description="The datetime when the ability was last updated."
+    )
+    account_uuid: str = Field(
+        description="The uuid of the account associated with the ability."
+    )
+    status: VlmAbilityStatus = Field(
+        description="The status of the ability."
+    )
+    vlm_ability_group_uuid: str | None = Field(
+        default=None,
+        description="The uuid of the VLM ability group associated with the ability."
+    )
+    name: str = Field(
+        description="The human readable name of the ability."
+    )
+    description: str = Field(
+        default="",
+        description="Human readable optional description of the ability."
+    )
+    worker_release: str | None = Field(
+        default=None,
+        description="The identifier of the worker release used to execute this ability."
+    )
+    text_prompt: str | None = Field(
+        default=None,
+        description="The full text prompt used for the ability."
+    )
+    transform_into: TransformInto | None = Field(
+        default=None,
+        description="Optional transform instruction of the text result into structured response, e.g. classes.",
+    )
+    config: InferRuntimeConfig | None = Field(
+        default=None,
+        description="Optional inference configuration for VLM inference of this ability.",
+    )
+    is_public: bool = Field(
+        default=False,
+        description="Whether or not the ability is publicly accessible.",
+    )
+    video_chunk_length_ns: int | None = Field(
+        default=None,
+        description="Video chunk length in nano seconds",
+        examples=[2000000000],
+    )
+    video_chunk_overlap: float | None = Field(
+        default=None,
+        lt=1.0,
+        description="Video chunk overlap ratio, possibly negative to allow gaps,"
+        " e.g. -1.0 to have gaps of the same length as the chunk",
+        examples=[0.1],
+    )
+    alias_entries: list[AbilityAliasEntry] = Field(
+        default=[],
+        description="The list of alias entries assigned to this ability."
+    )
 
 
 class VlmAbilityGroupCreate(BaseModel):
@@ -262,7 +363,8 @@ class VlmAbilityGroupCreate(BaseModel):
         description="Human readable name of the ability group",
     )
     description: str = Field(
-        description="Human readable description of the ability group",
+        default="",
+        description="Optional human readable description of the ability group",
     )
     auto_prompt: AutoPromptConfig | None = Field(
         description="Optionally create an ability in this group via auto prompt agent. "
@@ -270,26 +372,61 @@ class VlmAbilityGroupCreate(BaseModel):
         default=None,
     )
     default_alias_name: str | None = Field(
+        default=None,
         description="Optionally use this name as default alias name for all abilities in this group",
     )
     default_dataset_uuid: str | None = Field(
+        default=None,
         description="Optionally use this dataset UUID as evaluation target for all abilities in this group",
     )
 
 
 class VlmAbilityGroupUpdate(BaseModel):
-    name: str
-    description: str
-    default_alias_name: str | None = None
-    default_dataset_uuid: str | None = None
+    name: str | None = Field(
+        default=None,
+        description="Human readable name of the ability group",
+    )
+    description: str | None = Field(
+        default=None,
+        description="Optional human readable description of the ability group",
+    )
+    default_alias_name: str | None = Field(
+        default=None,
+        description="Optionally use this name as default alias name for all abilities in this group",
+    )
+    default_dataset_uuid: str | None = Field(
+        default=None,
+        description="Optionally use this dataset UUID as evaluation target for all abilities in this group",
+    )
 
 
 class VlmAbilityGroupResponse(BaseModel):
-    uuid: str
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    account_uuid: str
-    name: str
-    description: str
-    default_alias_name: str | None = None
-    default_dataset_uuid: str | None = None
+    uuid: str = Field(
+        description="The uuid of the ability group."
+    )
+    created_at: datetime | None = Field(
+        default=None,
+        description="The datetime when the ability group was created.",
+    )
+    updated_at: datetime | None = Field(
+        default=None,
+        description="The datetime when the ability group was last updated.",
+    )
+    account_uuid: str = Field(
+        description="The uuid of the account associated with the ability group."
+    )
+    name: str = Field(
+        description="Human readable name of the ability group."
+    )
+    description: str = Field(
+        default="",
+        description="Optional human readable description of the ability group",
+    )
+    default_alias_name: str | None = Field(
+        default=None,
+        description="Name as default alias name for all abilities in this group",
+    )
+    default_dataset_uuid: str | None = Field(
+        default=None,
+        description="Dataset UUID as default evaluation target for all abilities in this group",
+    )
