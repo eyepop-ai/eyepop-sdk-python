@@ -215,3 +215,4 @@ class MotionDetectConfig(BaseModel):
     motionGap: int | None = Field(description="Gap of no detected motion in seconds before motion-stopped event is trigger, default is 5", default=None)
     motionGridX: int | None = Field(description="Grid x size of motion detection grid, default is 10", default=None)
     motionGridY: int | None = Field(description="Grid y size of motion detection grid, default is 10", default=None)
+
