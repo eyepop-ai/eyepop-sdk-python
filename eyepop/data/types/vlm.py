@@ -322,15 +322,16 @@ class VlmAbilityResponse(BaseModel):
     worker_release: str = Field(
         description="The identifier of the worker release used to execute this ability."
     )
-    text_prompt: str = Field(
+    text_prompt: str | None = Field(
+        default=None,
         description="The full text prompt used for the ability."
     )
-    transform_into: TransformInto = Field(
-        default_factory=TransformInto,
+    transform_into: TransformInto | None = Field(
+        default=None,
         description="Optional transform instruction of the text result into structured response, e.g. classes.",
     )
-    config: InferRuntimeConfig = Field(
-        default_factory=InferRuntimeConfig,
+    config: InferRuntimeConfig | None = Field(
+        default=None,
         description="Optional inference configuration for VLM inference of this ability.",
     )
     is_public: bool = Field(
