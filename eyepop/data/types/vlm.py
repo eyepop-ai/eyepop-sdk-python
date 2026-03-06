@@ -360,7 +360,8 @@ class VlmAbilityGroupCreate(BaseModel):
         description="Human readable name of the ability group",
     )
     description: str = Field(
-        description="Human readable description of the ability group",
+        default="",
+        description="Optional human readable description of the ability group",
     )
     auto_prompt: AutoPromptConfig | None = Field(
         description="Optionally create an ability in this group via auto prompt agent. "
@@ -368,26 +369,61 @@ class VlmAbilityGroupCreate(BaseModel):
         default=None,
     )
     default_alias_name: str | None = Field(
+        default=None,
         description="Optionally use this name as default alias name for all abilities in this group",
     )
     default_dataset_uuid: str | None = Field(
+        default=None,
         description="Optionally use this dataset UUID as evaluation target for all abilities in this group",
     )
 
 
 class VlmAbilityGroupUpdate(BaseModel):
-    name: str
-    description: str
-    default_alias_name: str | None = None
-    default_dataset_uuid: str | None = None
+    name: str | None = Field(
+        default=None,
+        description="Human readable name of the ability group",
+    )
+    description: str | None = Field(
+        default=None,
+        description="Optional human readable description of the ability group",
+    )
+    default_alias_name: str | None = Field(
+        default=None,
+        description="Optionally use this name as default alias name for all abilities in this group",
+    )
+    default_dataset_uuid: str | None = Field(
+        default=None,
+        description="Optionally use this dataset UUID as evaluation target for all abilities in this group",
+    )
 
 
 class VlmAbilityGroupResponse(BaseModel):
-    uuid: str
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    account_uuid: str
-    name: str
-    description: str
-    default_alias_name: str | None = None
-    default_dataset_uuid: str | None = None
+    uuid: str = Field(
+        description="The uuid of the ability group."
+    )
+    created_at: datetime | None = Field(
+        default=None,
+        description="The datetime when the ability group was created.",
+    )
+    updated_at: datetime | None = Field(
+        default=None,
+        description="The datetime when the ability group was last updated.",
+    )
+    account_uuid: str = Field(
+        description="The uuid of the account associated with the ability group."
+    )
+    name: str = Field(
+        description="Human readable name of the ability group."
+    )
+    description: str = Field(
+        default="",
+        description="Optional human readable description of the ability group",
+    )
+    default_alias_name: str | None = Field(
+        default=None,
+        description="Name as default alias name for all abilities in this group",
+    )
+    default_dataset_uuid: str | None = Field(
+        default=None,
+        description="Dataset UUID as default evaluation target for all abilities in this group",
+    )
