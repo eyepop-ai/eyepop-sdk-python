@@ -103,6 +103,18 @@ class EvaluateConfig(BaseModel):
         default=None,
         description="Only evaluate assets that matches this filter",
     )
+    video_chunk_length_ns: int | None = Field(
+        default=None,
+        description="Video chunk length in nano seconds",
+        examples=[2000000000],
+    )
+    video_chunk_overlap: float | None = Field(
+        default=None,
+        lt=0.5,
+        description="Video chunk overlap ratio, possibly negative to allow gaps,"
+        " e.g. -1.0 to have gaps of the same length as the chunk",
+        examples=[0.1],
+    )
 
 
 class EvaluateRequest(EvaluateConfig):
@@ -194,7 +206,7 @@ class AutoPromptConfig(BaseModel):
         default=None,
         description="Optional task description to append to the LLM prompt for customizing prompt creation",
     )
-    infer: InferRuntimeConfig = Field(
+    infer: InferRequest = Field(
         description="InferConfig for VLM inference. The transform_into.classes field "
         "specifies the possible labels for classification.",
     )
@@ -355,6 +367,10 @@ class VlmAbilityResponse(BaseModel):
     alias_entries: list[AbilityAliasEntry] = Field(
         default=[],
         description="The list of alias entries assigned to this ability."
+    )
+    auto_prompt: AutoPromptConfig | None = Field(
+        description="Optionally, the auto promp config this ability was created or refined  with.",
+        default=None,
     )
 
 
