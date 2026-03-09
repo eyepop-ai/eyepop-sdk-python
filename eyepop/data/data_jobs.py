@@ -230,7 +230,6 @@ class EvaluateJob(Job):
     def __init__(
             self,
             evaluate_request: EvaluateRequest,
-            worker_release: str | None,
             session: ClientSession,
             on_ready: Callable[[DataJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -239,7 +238,6 @@ class EvaluateJob(Job):
         super().__init__(session, on_ready, callback)
         self.timeout = timeout
         self._evaluate_request = evaluate_request
-        self._worker_release = worker_release
         self._result = None
 
     @property
@@ -251,7 +249,6 @@ class EvaluateJob(Job):
         return self._result
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
-        worker_release_query = f'worker_release={self._worker_release}&' if self._worker_release is not None else ''
         start_time = time.time()
         request_id = None
         result = None
@@ -260,7 +257,7 @@ class EvaluateJob(Job):
             if request_id is None:
                 request_coro = session.request_with_retry(
                     method="POST",
-                    url=f"/api/v1/evaluations?timeout=20&{worker_release_query}",
+                    url="/api/v1/evaluations?timeout=20",
                     content_type=APPLICATION_JSON,
                     data=self._evaluate_request.model_dump_json(exclude_none=True),
                 )
