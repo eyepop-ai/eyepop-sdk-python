@@ -491,13 +491,11 @@ class DataEndpoint(Endpoint):
     async def evaluate_dataset(
             self,
             evaluate_request: EvaluateRequest,
-            worker_release: str | None = None,
     ) -> EvaluateJob:
         session = DataClientSession(self, await self.vlm_base_url())
 
         job = EvaluateJob(
             evaluate_request=evaluate_request,
-            worker_release=worker_release,
             session=session,
             callback=self.metrics_collector,
         )
