@@ -23,7 +23,6 @@ parser = argparse.ArgumentParser(
                     prog='Vlm examples',
                     description='Demonstrates how to run a VLM infer request on image or video assets',
                     epilog='.')
-parser.add_argument('-m', '--model', required=True, type=str, help="run this model (named by worker release)", choices=('smol', 'qwen3-instruct'))
 parser.add_argument('-d', '--dataset-uuid', required=False, type=str, default=None, help="run the inference on an asset by its Uuid")
 parser.add_argument('-a', '--asset-uuid', required=False, type=str, default=None, help="run the inference on an asset by its Uuid")
 parser.add_argument('-p', '--prompt', type=str, required=True, help="use this prompt to generate the caption")
@@ -67,10 +66,7 @@ async def main(args):
         print("Only one of --asset-uuid or --dataset-uuid is supported")
         exit(1)
 
-    infer_request=InferRequest(
-        worker_release=args.model,
-        text_prompt=args.prompt,
-    )
+    infer_request = InferRequest(text_prompt=args.prompt)
 
     async with EyePopSdk.dataEndpoint(is_async=True, job_queue_length=4) as endpoint:
         if args.asset_uuid is not None:
