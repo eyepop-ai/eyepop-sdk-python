@@ -837,6 +837,15 @@ class SyncDataEndpoint(SyncEndpoint):
     ) -> VlmAbilityResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.refine_vlm_ability(vlm_ability_uuid, auto_prompt))
 
+    def clone_vlm_ability(
+            self,
+            vlm_ability_uuid: str,
+            account_uuid: str | None = None,
+            name: str | None = None,
+            default_alias_name: str | None = None,
+    ) -> VlmAbilityResponse:
+        return run_coro_thread_save(self.event_loop, self.endpoint.clone_vlm_ability(vlm_ability_uuid, account_uuid, name, default_alias_name))
+
     def get_vlm_ability(self, vlm_ability_uuid: str) -> VlmAbilityResponse:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_vlm_ability(vlm_ability_uuid))
 
