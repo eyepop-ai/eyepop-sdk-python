@@ -13,6 +13,10 @@ class Periodic:
         if not self.is_started:
             self.is_started = True
             self._task = asyncio.create_task(self._run())
+            # Yield so the task enters _run and hits its first await.
+            # Without this, stop() can cancel a task whose coroutine was
+            # never started, triggering "coroutine was never awaited".
+            await asyncio.sleep(0)
 
     async def stop(self):
         if self.is_started:

@@ -1,5 +1,4 @@
 import json
-import os
 import time
 from asyncio import Queue
 from typing import Any, BinaryIO, Callable, Sequence
@@ -197,8 +196,7 @@ class InferJob(Job):
         post_body = aiohttp.FormData()
         post_body.add_field('infer_request', json.dumps(post_body_part), content_type="application/json")
 
-        priority = os.environ.get("EYEPOP_PRIORITY") or self._priority
-        extra_headers = {"X-Priority": priority} if priority else None
+        extra_headers = {"X-Priority": self._priority} if self._priority else None
 
         total_timeout = self.timeout.total if self.timeout else None
         start_time = time.time()
@@ -257,7 +255,7 @@ class EvaluateJob(Job):
         return self._result
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
-        extra_headers = {"X-Priority": os.environ.get("EYEPOP_PRIORITY", "low")}
+        extra_headers = {"X-Priority": "low"}
         start_time = time.time()
         request_id = None
         result = None
