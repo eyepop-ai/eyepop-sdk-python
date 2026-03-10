@@ -1215,7 +1215,7 @@ class DataEndpoint(Endpoint):
             vlm_ability_uuid: str,
             auto_prompt: AutoPromptConfig,
     ) -> VlmAbilityResponse:
-        post_url = f'{await self.data_base_url()}/vlm_abilities{vlm_ability_uuid}/refine'
+        post_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/refine'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=auto_prompt.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
@@ -1239,7 +1239,7 @@ class DataEndpoint(Endpoint):
         if default_alias_name is not None:
             params['default_alias_name'] = default_alias_name
 
-        post_url = f'{await self.data_base_url()}/vlm_abilities{vlm_ability_uuid}/clone?{urlencode(params)}'
+        post_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/clone?{urlencode(params)}'
         async with await self.request_with_retry("POST", post_url) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
 
