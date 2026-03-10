@@ -55,9 +55,8 @@ class InferRequest(BaseModel):
     """Client-facing ad-hoc- inference request model [EXPERIMENTAL]."""
 
     worker_release: str = Field(
-        ...,
-        description="Worker release name for routing (e.g., qwen3-prod, smol)",
-        examples=["smol"],
+        default="qwen3-instruct",
+        description="Worker release name for routing",
     )
     text_prompt: str | None = Field(
         default=None,

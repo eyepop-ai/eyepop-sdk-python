@@ -322,7 +322,6 @@ Run a VLM model against a single asset:
 from eyepop.data.data_types import InferRequest, TranscodeMode
 
 infer_request = InferRequest(
-    worker_release='qwen3-instruct',
     text_prompt='Describe what you see in this image.',
 )
 
@@ -346,7 +345,6 @@ from eyepop.data.data_types import EvaluateRequest, InferRequest
 evaluate_request = EvaluateRequest(
     dataset_uuid='your-dataset-uuid',
     infer=InferRequest(
-        worker_release='qwen3-instruct',
         text_prompt='How many people are in this image?',
     ),
 )
