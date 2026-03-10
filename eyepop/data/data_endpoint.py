@@ -77,9 +77,10 @@ class DataClientSession(ClientSession):
 
     async def request_with_retry(self, method: str, url: str, accept: str | None = None, data: Any = None,
                                  content_type: str | None = None,
-                                 timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.client._RequestContextManager:
+                                 timeout: aiohttp.ClientTimeout | None = None,
+                                 extra_headers: dict[str, str] | None = None) -> aiohttp.client._RequestContextManager:
         url = urljoin(self.base_url, url)
-        return await self.delegee.request_with_retry(method, url, accept, data, content_type, timeout)
+        return await self.delegee.request_with_retry(method, url, accept, data, content_type, timeout, extra_headers)
 
 
 class DataEndpoint(Endpoint):
@@ -1112,6 +1113,7 @@ class DataEndpoint(Endpoint):
             transcode_mode: TranscodeMode | None = None,
             start_timestamp: int | None = None,
             end_timestamp: int | None = None,
+            priority: str | None = None,
     ) -> InferJob:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
@@ -1133,6 +1135,7 @@ class DataEndpoint(Endpoint):
             infer_request=infer_request,
             session=session,
             callback=self.metrics_collector,
+            priority=priority,
         )
         await self._task_start(job.execute())
         return job
