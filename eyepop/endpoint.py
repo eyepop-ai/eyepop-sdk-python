@@ -295,7 +295,8 @@ class Endpoint(ClientSession):
             accept: str | None = None,
             data: Any = None,
             content_type: str | None = None,
-            timeout: aiohttp.ClientTimeout | None = None
+            timeout: aiohttp.ClientTimeout | None = None,
+            extra_headers: dict[str, str] | None = None,
     ) -> "_RequestContextManager":
         failed_attempts = 0
         while True:
@@ -307,6 +308,8 @@ class Endpoint(ClientSession):
                 headers['Accept'] = accept
             if content_type is not None:
                 headers['Content-Type'] = content_type
+            if extra_headers is not None:
+                headers.update(extra_headers)
             try:
                 log_requests.debug('before %s %s', method, url)
                 if isinstance(data, Callable):
