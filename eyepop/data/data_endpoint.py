@@ -2,7 +2,7 @@ import asyncio
 import json
 from asyncio import StreamReader
 from typing import Any, AsyncIterable, BinaryIO, Callable, Sequence
-from urllib.parse import quote_plus, urljoin
+from urllib.parse import quote_plus, urlencode, urljoin
 
 import aiohttp
 import websockets
@@ -1219,6 +1219,28 @@ class DataEndpoint(Endpoint):
                                                  data=auto_prompt.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
 
+    async def clone_vlm_ability(
+            self,
+            vlm_ability_uuid: str,
+            account_uuid: str | None = None,
+            name: str | None = None,
+            default_alias_name: str | None = None,
+    ) -> VlmAbilityResponse:
+        if account_uuid is None:
+            account_uuid = self.account_uuid
+        if account_uuid is None:
+            raise ValueError("Creating Vlm Abilities requires an account uuid")
+        params = {
+            account_uuid: account_uuid,
+        }
+        if name is not None:
+            params['name'] = name
+        if default_alias_name is not None:
+            params['default_alias_name'] = default_alias_name
+
+        post_url = f'{await self.data_base_url()}/vlm_abilities{vlm_ability_uuid}/clone?{urlencode(params)}'
+        async with await self.request_with_retry("POST", post_url) as resp:
+            return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
 
     async def get_vlm_ability(self, vlm_ability_uuid: str) -> VlmAbilityResponse:
         get_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}'
