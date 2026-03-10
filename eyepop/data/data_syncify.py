@@ -787,13 +787,11 @@ class SyncDataEndpoint(SyncEndpoint):
     def evaluate_dataset(
             self,
             evaluate_request: EvaluateRequest,
-            worker_release: str | None = None,
     ) -> SyncEvaluateJob:
         job = run_coro_thread_save(
             self.event_loop,
             self.endpoint.evaluate_dataset(
                 evaluate_request=evaluate_request,
-                worker_release=worker_release
             )
         )
         return SyncEvaluateJob(job, self.event_loop)
