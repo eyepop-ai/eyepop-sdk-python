@@ -7,21 +7,25 @@ class Periodic:
         self.func = func
         self.time = time
         self.is_started = False
-        self._task = None
+        self._task: asyncio.Task | None = None
 
     async def start(self):
         if not self.is_started:
             self.is_started = True
-            # Start task to call func periodically:
-            self._task = asyncio.ensure_future(self._run())
+            self._task = asyncio.create_task(self._run())
+            # Yield so the task enters _run and hits its first await.
+            # Without this, stop() can cancel a task whose coroutine was
+            # never started, triggering "coroutine was never awaited".
+            await asyncio.sleep(0)
 
     async def stop(self):
         if self.is_started:
             self.is_started = False
-            # Stop task and await it stopped:
-            self._task.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._task
+            if self._task is not None and not self._task.done():
+                self._task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await self._task
+            self._task = None
 
     async def _run(self):
         while True:
