@@ -20,18 +20,35 @@ tasks:
       - uv run pytest
 
   typecheck:
+    desc: "Run basedpyright on all files (matches CI standard mode)"
     cmds:
-      - uvx mypy eyepop || true
+      - uvx basedpyright .
+
+  typecheck:changed:
+    desc: "Run basedpyright on changed files only (vs origin/main)"
+    cmds:
+      - >-
+        git diff --name-only --diff-filter=d origin/main HEAD -- '*.py'
+        | xargs -r uvx basedpyright
 
   lint:
-    desc: "Run ruff on changed files (vs main branch)"
+    desc: "Run ruff on changed files (vs origin/main)"
     cmds:
-      - git diff --name-only --diff-filter=AM main | grep '\.py$' | xargs -r uvx ruff check
+      - >-
+        git diff --name-only --diff-filter=d origin/main HEAD -- '*.py'
+        | xargs -r uvx ruff check
 
   lint:all:
-    desc: "Run ruff on all files matching ruff.toml patterns"
+    desc: "Run ruff on all files"
     cmds:
       - uvx ruff check .
+
+  check:
+    desc: "Run all quality checks (lint, typecheck, test) — matches CI"
+    cmds:
+      - task: lint
+      - task: typecheck:changed
+      - task: test
 
   inspect-wheel:
     cmds:

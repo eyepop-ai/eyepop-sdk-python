@@ -31,7 +31,7 @@ class DataJob(Job):
             callback: JobStateCallback | None = None,
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, on_ready, callback)  # type: ignore[arg-type]
         self.timeout = timeout
 
     async def result(self) -> Asset:
@@ -171,7 +171,7 @@ class InferJob(Job):
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600),
             priority: str | None = None,
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, on_ready, callback)  # type: ignore[arg-type]
         self.timeout = timeout
         self._asset_url = asset_url
         self._infer_request = infer_request
@@ -242,7 +242,7 @@ class EvaluateJob(Job):
             callback: JobStateCallback | None = None,
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, on_ready, callback)  # type: ignore[arg-type]
         self.timeout = timeout
         self._evaluate_request = evaluate_request
         self._worker_release = worker_release
