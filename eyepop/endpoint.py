@@ -29,7 +29,7 @@ async def response_check_with_error_body(response: aiohttp.ClientResponse):
             request_info=response.request_info, # type: ignore
             history=response.history, # type: ignore
             status=response.status,
-            message=message,
+            message=message or "",
             headers=response.headers,
         )
 
@@ -278,6 +278,7 @@ class Endpoint(ClientSession):
                 return False
             try:
                 from eyepop.compute.api import refresh_compute_token
+                assert self.client_session is not None
                 self.compute_ctx = await refresh_compute_token(self.compute_ctx, self.client_session)
                 log_requests.debug('retry handler: compute token refreshed successfully')
                 return True
