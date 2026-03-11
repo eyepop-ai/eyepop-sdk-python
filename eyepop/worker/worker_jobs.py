@@ -3,7 +3,7 @@ import json
 import logging
 import mimetypes
 from asyncio import Queue
-from typing import Any, BinaryIO, Callable, cast
+from typing import Any, BinaryIO, Callable
 from urllib.parse import urlencode
 
 import aiohttp
@@ -14,8 +14,9 @@ from eyepop.worker.worker_client_session import WorkerClientSession
 from eyepop.worker.worker_types import (
     DEFAULT_PREDICTION_VERSION,
     ComponentParams,
+    MotionDetectConfig,
     PredictionVersion,
-    VideoMode, MotionDetectConfig,
+    VideoMode,
 )
 
 log_requests = logging.getLogger('eyepop.requests')

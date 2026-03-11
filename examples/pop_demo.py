@@ -26,9 +26,10 @@ from eyepop.worker.worker_types import (
     ForwardComponent,
     FullForward,
     InferenceComponent,
+    MotionDetectConfig,
     MotionModel,
     Pop,
-    TrackingComponent, MotionDetectConfig,
+    TrackingComponent,
 )
 
 load_dotenv()

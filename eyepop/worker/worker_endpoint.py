@@ -25,7 +25,7 @@ from eyepop.worker.worker_jobs import (
     _UploadStreamJob,
 )
 from eyepop.worker.worker_syncify import SyncWorkerJob
-from eyepop.worker.worker_types import ComponentParams, Pop, VideoMode, MotionDetectConfig
+from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, Pop, VideoMode
 
 log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
