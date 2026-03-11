@@ -25,12 +25,11 @@ from eyepop.worker.worker_jobs import (
     _UploadStreamJob,
 )
 from eyepop.worker.worker_syncify import SyncWorkerJob
-from eyepop.worker.worker_types import ComponentParams, Pop, VideoMode
+from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, Pop, VideoMode
 
 log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
 log_metrics = logging.getLogger('eyepop.metrics')
-
 
 def should_use_compute_api(pop_id: str, api_key: str | None) -> bool:
     """Determine if we should use Compute API based on pop_id and api_key."""
@@ -308,12 +307,14 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             location: str,
             video_mode: VideoMode | None = None,
             params: list[ComponentParams] | None = None,
+            motion_detect: MotionDetectConfig | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _UploadFileJob(
             location=location,
             video_mode=video_mode,
             component_params=params,
+            motion_detect=motion_detect,
             session=self, on_ready=on_ready,
             callback=self.metrics_collector
         )
@@ -326,6 +327,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             mime_type: str,
             video_mode: VideoMode | None = None,
             params: list[ComponentParams] | None = None,
+            motion_detect: MotionDetectConfig | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _UploadStreamJob(
@@ -333,6 +335,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             mime_type=mime_type,
             video_mode=video_mode,
             component_params=params,
+            motion_detect=motion_detect,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector
@@ -344,11 +347,13 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self,
             location: str,
             params: list[ComponentParams] | None = None,
+            motion_detect: MotionDetectConfig | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _LoadFromJob(
             location=location,
             component_params=params,
+            motion_detect=motion_detect,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector
@@ -360,11 +365,13 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self,
             asset_uuid: str,
             params: list[ComponentParams] | None = None,
+            motion_detect: MotionDetectConfig | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _LoadFromAssetUuidJob(
             asset_uuid=asset_uuid,
             component_params=params,
+            motion_detect=motion_detect,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector
