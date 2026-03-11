@@ -60,10 +60,10 @@ def delete_nth(d: deque, n: int):
     d.rotate(n)
 
 
-def is_event_started_ended_before(event: SimpleNamespace, threshold: float) -> (bool, bool):
+def is_event_started_ended_before(event: SimpleNamespace, threshold: float) -> tuple[bool, bool]:
     if event.start > threshold:
         return False, False
-    last: float = None
+    last: float | None = None
     if hasattr(event, 'request_end'):
         last = event.request_end
     if hasattr(event, 'last_chunk_received') and (last is None or event.last_chunk_received > last):
@@ -86,7 +86,7 @@ method_to_fb_enum = {
 
 class RequestTracer():
     def __init__(self, max_events: int):
-        self.events = deque(maxlen=max_events)
+        self.events: deque[SimpleNamespace] = deque(maxlen=max_events)
 
     def get_trace_config(self) -> TraceConfig:
         trace_config = aiohttp.TraceConfig()
@@ -98,13 +98,14 @@ class RequestTracer():
         return trace_config
 
     async def send_and_reset(self, url: str, authorization_header: str | None, secs_to_mature: float | None):
+        matured_events: deque[SimpleNamespace]
         if secs_to_mature is None or secs_to_mature <= 0.0:
             matured_events = self.events
             self.events = deque(maxlen=self.events.maxlen)
         else:
             threshold = time.time() - secs_to_mature
             matured_events = deque()
-            immature_events = deque()
+            immature_events: deque[SimpleNamespace] = deque()
             while len(self.events) > 0:
                 event = self.events.pop()
                 started_before, ended_before = is_event_started_ended_before(event, threshold)
@@ -122,9 +123,9 @@ class RequestTracer():
         if len(matured_events) > 0:
             log.info('send_and_reset: %d (version: %s)', len(matured_events), __version__)
             builder = flatbuffers.Builder()
-            host_to_index = {}
-            hosts = []
-            path_to_index = {}
+            host_to_index: dict[str, int] = {}
+            hosts: list[int] = []
+            path_to_index: dict[str, int] = {}
             paths = []
             client_events = []
             for event in matured_events:

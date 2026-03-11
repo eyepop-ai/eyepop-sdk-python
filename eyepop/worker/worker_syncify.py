@@ -25,6 +25,8 @@ class SyncWorkerJob:
 
 
 class SyncWorkerEndpoint(SyncEndpoint):
+    endpoint: "WorkerEndpoint"
+
     def __init__(self, endpoint: "WorkerEndpoint"):
         super().__init__(endpoint)
 

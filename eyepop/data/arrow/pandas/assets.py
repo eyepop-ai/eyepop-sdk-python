@@ -45,4 +45,4 @@ def dataframe_from_table(table: pa.Table, schema: pa.Schema = ASSET_SCHEMA) -> p
         # Needed that to avoid exception when categorical column is completely None
         pa.dictionary(pa.int32(), pa.string()): pd.StringDtype(),
     }
-    return convert(table, schema).to_pandas(types_mapper=type_mapping.get)
+    return pd.DataFrame(convert(table, schema).to_pandas(types_mapper=type_mapping.get))

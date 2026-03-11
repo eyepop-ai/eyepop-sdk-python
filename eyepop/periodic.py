@@ -7,7 +7,7 @@ class Periodic:
         self.func = func
         self.time = time
         self.is_started = False
-        self._task = None
+        self._task: asyncio.Task | None = None
 
     async def start(self):
         if not self.is_started:
@@ -19,9 +19,10 @@ class Periodic:
         if self.is_started:
             self.is_started = False
             # Stop task and await it stopped:
-            self._task.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._task
+            if self._task is not None:
+                self._task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await self._task
 
     async def _run(self):
         while True:
