@@ -767,6 +767,7 @@ class SyncDataEndpoint(SyncEndpoint):
             transcode_mode: TranscodeMode | None = None,
             start_timestamp: int | None = None,
             end_timestamp: int | None = None,
+            priority: str | None = None,
     ) -> SyncInferJob:
         job = run_coro_thread_save(
             self.event_loop,
@@ -777,7 +778,8 @@ class SyncDataEndpoint(SyncEndpoint):
                 dataset_version=dataset_version,
                 transcode_mode=transcode_mode,
                 start_timestamp=start_timestamp,
-                end_timestamp=end_timestamp
+                end_timestamp=end_timestamp,
+                priority=priority,
             )
         )
         return SyncInferJob(job, self.event_loop)
@@ -785,13 +787,11 @@ class SyncDataEndpoint(SyncEndpoint):
     def evaluate_dataset(
             self,
             evaluate_request: EvaluateRequest,
-            worker_release: str | None = None,
     ) -> SyncEvaluateJob:
         job = run_coro_thread_save(
             self.event_loop,
             self.endpoint.evaluate_dataset(
                 evaluate_request=evaluate_request,
-                worker_release=worker_release
             )
         )
         return SyncEvaluateJob(job, self.event_loop)

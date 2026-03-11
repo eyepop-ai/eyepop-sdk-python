@@ -31,7 +31,7 @@ class DataJob(Job):
             callback: JobStateCallback | None = None,
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, on_ready, callback)  # type: ignore[arg-type]
         self.timeout = timeout
 
     async def result(self) -> Asset:
@@ -168,12 +168,14 @@ class InferJob(Job):
             session: ClientSession,
             on_ready: Callable[[DataJob], None] | None = None,
             callback: JobStateCallback | None = None,
-            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
+            timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600),
+            priority: str | None = None,
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, on_ready, callback)  # type: ignore[arg-type]
         self.timeout = timeout
         self._asset_url = asset_url
         self._infer_request = infer_request
+        self._priority = priority
 
         self._run_info = None
 
@@ -194,6 +196,8 @@ class InferJob(Job):
         post_body = aiohttp.FormData()
         post_body.add_field('infer_request', json.dumps(post_body_part), content_type="application/json")
 
+        extra_headers = {"X-Priority": self._priority} if self._priority else None
+
         total_timeout = self.timeout.total if self.timeout else None
         start_time = time.time()
         request_id = None
@@ -204,11 +208,13 @@ class InferJob(Job):
                     method="POST",
                     url="/api/v1/infer?timeout=20",
                     data=post_body,
+                    extra_headers=extra_headers,
                 )
             else:
                 request_coro = session.request_with_retry(
                     method="GET",
                     url=f"/api/v1/infer/{request_id}?timeout=20",
+                    extra_headers=extra_headers,
                 )
             async with await request_coro as resp:
                 if resp.status == 202:
@@ -230,16 +236,14 @@ class EvaluateJob(Job):
     def __init__(
             self,
             evaluate_request: EvaluateRequest,
-            worker_release: str | None,
             session: ClientSession,
             on_ready: Callable[[DataJob], None] | None = None,
             callback: JobStateCallback | None = None,
             timeout: aiohttp.ClientTimeout | None = aiohttp.ClientTimeout(total=None, sock_read=600)
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, on_ready, callback)  # type: ignore[arg-type]
         self.timeout = timeout
         self._evaluate_request = evaluate_request
-        self._worker_release = worker_release
         self._result = None
 
     @property
@@ -251,7 +255,7 @@ class EvaluateJob(Job):
         return self._result
 
     async def _do_execute_job(self, queue: Queue, session: ClientSession):
-        worker_release_query = f'worker_release={self._worker_release}&' if self._worker_release is not None else ''
+        extra_headers = {"X-Priority": "low"}
         start_time = time.time()
         request_id = None
         result = None
@@ -260,14 +264,16 @@ class EvaluateJob(Job):
             if request_id is None:
                 request_coro = session.request_with_retry(
                     method="POST",
-                    url=f"/api/v1/evaluations?timeout=20&{worker_release_query}",
+                    url="/api/v1/evaluations?timeout=20",
                     content_type=APPLICATION_JSON,
                     data=self._evaluate_request.model_dump_json(exclude_none=True),
+                    extra_headers=extra_headers,
                 )
             else:
                 request_coro = session.request_with_retry(
                     method="GET",
                     url=f"/api/v1/evaluations/{request_id}?timeout=20",
+                    extra_headers=extra_headers,
                 )
             async with await request_coro as resp:
                 if resp.status == 202:
