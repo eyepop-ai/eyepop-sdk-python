@@ -49,6 +49,6 @@ def stream_arrow_table(
         table: pa.Table,
         schema: pa.Schema | None = None,
         max_chunk_size: int = 1024,
-        callback: typing.Callable[[int], None] = None,
+        callback: typing.Callable[[int], None] | None = None,
 ) -> typing.AsyncIterable[bytes]:
     return RestartAbleArrowStream(table, schema, max_chunk_size, callback)

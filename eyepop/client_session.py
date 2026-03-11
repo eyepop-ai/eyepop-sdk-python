@@ -12,5 +12,5 @@ class ClientSession:
         data: Any = None,
         content_type: str | None = None,
         timeout: aiohttp.ClientTimeout | None = None,
-    ) -> aiohttp.client._RequestContextManager:
+    ) -> aiohttp.ClientResponse:
         raise NotImplementedError

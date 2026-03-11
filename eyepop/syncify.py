@@ -5,12 +5,12 @@ import threading
 import types
 import typing
 from asyncio import StreamReader
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Coroutine, TypeVar, cast
 
 log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from eyepop import Endpoint
+    from eyepop.endpoint import Endpoint
 
 class SyncEndpoint:
     def __init__(self, endpoint: "Endpoint"):
@@ -45,8 +45,8 @@ class SyncEndpoint:
     def disconnect(self, timeout: float | None = None):
         run_coro_thread_save(self.event_loop, self.endpoint.disconnect(timeout))
 
-    def session(self) -> dict:
-        return run_coro_thread_save(self.event_loop, self.endpoint.session())
+    def session(self) -> dict[str, str] | None:
+        return cast(dict[str, str] | None, run_coro_thread_save(self.event_loop, self.endpoint.session()))
 
     def _run_event_loop(self, event_loop):
         log.debug("_run_event_loop start")
@@ -65,10 +65,13 @@ class SyncEndpoint:
         return sync_io
 
 
-def run_coro_thread_save(event_loop, coro):
+T = TypeVar('T')
+
+
+def run_coro_thread_save(event_loop: asyncio.AbstractEventLoop, coro: Coroutine[Any, Any, T]) -> T:
     try:
         result = asyncio.run_coroutine_threadsafe(coro, event_loop).result()
-        coro = None
+        coro = None  # type: ignore[assignment]
         return result
     finally:
         if coro is not None:

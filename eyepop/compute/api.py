@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Any
 
 import aiohttp
 from pydantic import TypeAdapter
@@ -92,7 +93,7 @@ async def fetch_new_compute_session(
             if compute_ctx.pipeline_version:
                 body["pipeline_version"] = compute_ctx.pipeline_version
 
-            post_kwargs = {"headers": headers}
+            post_kwargs: dict[str, Any] = {"headers": headers}
             if body:
                 post_kwargs["json"] = body
                 log.debug(f"POST /v1/sessions body: {body}")

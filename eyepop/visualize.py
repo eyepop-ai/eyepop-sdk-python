@@ -8,7 +8,7 @@ class EyePopPlot:
     def __init__(self, axes: Axes):
         self.axes = axes
 
-    def prediction(self, prediction: dict):
+    def prediction(self, prediction: dict | None) -> None:
         if prediction is None:
             return
         objects = prediction.get('objects', None)
@@ -34,29 +34,25 @@ class EyePopPlot:
         h = obj['height']
 
         # Add Rectangle
-        rect = patches.Rectangle((obj['x'], obj['y']), obj['width'], obj['height'], linewidth=1,
+        background = patches.Rectangle((obj['x'], obj['y']), obj['width'], obj['height'], linewidth=1,
                                  edgecolor=opacity_color, facecolor=opacity_color)
-        self.axes.add_patch(rect)
+        self.axes.add_patch(background)
 
         # top left corner
         points = [(x, y + corner_size), (x, y), (x + corner_size, y)]
-        rect = patches.Polygon(points, linewidth=1, edgecolor=primary_color, facecolor='none', closed=False)
-        self.axes.add_patch(rect)
+        self.axes.add_patch(patches.Polygon(points, linewidth=1, edgecolor=primary_color, facecolor='none', closed=False))
 
         # bottom left corner
         points = [(x, y + h - corner_size), (x, y + h), (x + corner_size, y + h)]
-        rect = patches.Polygon(points, linewidth=1, edgecolor=primary_color, facecolor='none', closed=False)
-        self.axes.add_patch(rect)
+        self.axes.add_patch(patches.Polygon(points, linewidth=1, edgecolor=primary_color, facecolor='none', closed=False))
 
         # top right corner
         points = [(x + w - corner_size, y), (x + w, y), (x + w, y + corner_size)]
-        rect = patches.Polygon(points, linewidth=1, edgecolor=primary_color, facecolor='none', closed=False)
-        self.axes.add_patch(rect)
+        self.axes.add_patch(patches.Polygon(points, linewidth=1, edgecolor=primary_color, facecolor='none', closed=False))
 
         # bottom right corner
         points = [(x + w, y + h - corner_size), (x + w, y + h), (x + w - corner_size, y + h)]
-        rect = patches.Polygon(points, linewidth=1, edgecolor=primary_color, facecolor='none', closed=False)
-        self.axes.add_patch(rect)
+        self.axes.add_patch(patches.Polygon(points, linewidth=1, edgecolor=primary_color, facecolor='none', closed=False))
 
         padding = max(min_dim * .02, 5)
         corner_size = corner_size - padding
@@ -64,26 +60,22 @@ class EyePopPlot:
         # 2nd top left corner
         points = [(x + padding, y + padding + corner_size), (x + padding, y + padding),
                   (x + padding + corner_size, y + padding)]
-        rect = patches.Polygon(points, linewidth=1, edgecolor=secondary_color, facecolor='none', closed=False)
-        self.axes.add_patch(rect)
+        self.axes.add_patch(patches.Polygon(points, linewidth=1, edgecolor=secondary_color, facecolor='none', closed=False))
 
         # 2nd bottom left corner
         points = [(x + padding, y - padding + h - corner_size), (x + padding, y - padding + h),
                   (x + padding + corner_size, y - padding + h)]
-        rect = patches.Polygon(points, linewidth=1, edgecolor=secondary_color, facecolor='none', closed=False)
-        self.axes.add_patch(rect)
+        self.axes.add_patch(patches.Polygon(points, linewidth=1, edgecolor=secondary_color, facecolor='none', closed=False))
 
         # 2nd top right corner
         points = [(x - padding + w - corner_size, y + padding), (x - padding + w, y + padding),
                   (x - padding + w, y + padding + corner_size)]
-        rect = patches.Polygon(points, linewidth=1, edgecolor=secondary_color, facecolor='none', closed=False)
-        self.axes.add_patch(rect)
+        self.axes.add_patch(patches.Polygon(points, linewidth=1, edgecolor=secondary_color, facecolor='none', closed=False))
 
         # 2nd bottom right corner
         points = [(x - padding + w, y - padding + h - corner_size), (x - padding + w, y - padding + h),
                   (x - padding + w - corner_size, y - padding + h)]
-        rect = patches.Polygon(points, linewidth=1, edgecolor=secondary_color, facecolor='none', closed=False)
-        self.axes.add_patch(rect)
+        self.axes.add_patch(patches.Polygon(points, linewidth=1, edgecolor=secondary_color, facecolor='none', closed=False))
 
         text = plt.text(obj['x'] + 10 + padding, obj['y'] + 10 + padding, label, fontsize=10, color=text_color,
                         horizontalalignment='left', verticalalignment='top')
@@ -92,7 +84,7 @@ class EyePopPlot:
                                path_effects.Stroke(linewidth=1, foreground=(0, 0, 0, .7)), path_effects.Normal()])
 
     def _label(self, obj: dict) -> str:
-        label = obj['classLabel']
+        label: str = obj['classLabel']
         if label == 'person':
             if 'objects' in obj:
                 for f in obj['objects']:

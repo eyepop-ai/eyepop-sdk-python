@@ -1,6 +1,5 @@
 import logging
 import time
-from enum import Enum
 
 from eyepop.jobs import JobState
 from eyepop.worker.worker_jobs import JobStateCallback, WorkerJob
@@ -92,14 +91,3 @@ class MetricCollector(JobStateCallback):
         del self.jobs_to_state[job]
 
 
-class JobState(Enum):
-    CREATED = 1
-    STARTED = 2
-    IN_PROGRESS = 3
-    FINISHED = 4
-    FAILED = 5
-    DRAINED = 6
-
-    def __repr__(self):
-        """To string."""
-        return self._name_

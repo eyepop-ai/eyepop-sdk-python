@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional, Type
+from typing import Any, Awaitable, Callable, Optional, Type
 
 import aiohttp
 
@@ -17,17 +17,13 @@ log_requests = logging.getLogger('eyepop.requests')
 log_metrics = logging.getLogger('eyepop.metrics')
 
 
-if TYPE_CHECKING:
-    from aiohttp import _RequestContextManager
-
-async def response_check_with_error_body(response: aiohttp.ClientResponse):
+async def response_check_with_error_body(response: aiohttp.ClientResponse) -> None:
     if not response.ok:
-        message = await response.text()
-        if message is None or len(message) == 0:
-            message = response.reason
+        text_message = await response.text()
+        message: str = text_message if text_message else (response.reason or "Unknown error")
         raise aiohttp.ClientResponseError(
-            request_info=response.request_info, # type: ignore
-            history=response.history, # type: ignore
+            request_info=response.request_info,
+            history=response.history,
             status=response.status,
             message=message,
             headers=response.headers,
@@ -157,7 +153,7 @@ class Endpoint(ClientSession):
         if len(tasks) > 0:
             await asyncio.gather(*tasks)
 
-        if self.request_tracer and self.client_session:
+        if self.request_tracer and self.client_session and self.event_sender:
             await self.event_sender.stop()
             if self.compute_ctx is None:
                 await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events', await self._authorization_header(),
@@ -186,7 +182,8 @@ class Endpoint(ClientSession):
         try:
             await self._reconnect()
         except Exception as e:
-            await self.client_session.close()
+            if self.client_session is not None:
+                await self.client_session.close()
             self.client_session = None
             raise e
 
@@ -213,7 +210,7 @@ class Endpoint(ClientSession):
             return self.provided_access_token
         if self.compute_ctx is not None:
             if self.compute_ctx.m2m_access_token:
-                return self.compute_ctx.m2m_access_token
+                return str(self.compute_ctx.m2m_access_token)
             else:
                 log.debug("compute ctx m2m access token is None, fetching new token")
                 authenticate_url = f'{self.compute_ctx.compute_url}/v1/auth/authenticate'
@@ -222,25 +219,33 @@ class Endpoint(ClientSession):
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 }
+                if self.client_session is None:
+                    raise RuntimeError("client_session is None")
                 async with self.client_session.post(authenticate_url, headers=api_auth_header) as response:
                     response_json = await response.json()
                     self.compute_ctx.m2m_access_token = response_json['access_token']
                     log.debug(f"compute ctx m2m access token: {self.compute_ctx.m2m_access_token}")
-                    return self.compute_ctx.m2m_access_token
+                    return str(self.compute_ctx.m2m_access_token)
         if self.secret_key is None:
             return None
         now = time.time()
-        if self.token is None or self.expire_token_time < now:
+        if self.token is None or self.expire_token_time is None or self.expire_token_time < now:
             body = {'secret_key': self.secret_key}
             post_url = f'{self.eyepop_url}/authentication/token'
             log_requests.debug('before POST %s', post_url)
+            if self.client_session is None:
+                raise RuntimeError("client_session is None")
             async with self.client_session.post(post_url, json=body) as response:
                 self.token = await response.json()
+                if self.token is None:
+                    raise RuntimeError("token response is None")
                 self.expire_token_time = time.time() + self.token['expires_in'] - 60
             log_requests.debug('after POST %s expires_in=%d token_type=%s', post_url, self.token['expires_in'],
                                self.token['token_type'])
+        if self.token is None or self.expire_token_time is None:
+            raise RuntimeError("token or expire_token_time is None")
         log.debug('using access token, valid for at least %d seconds', self.expire_token_time - now)
-        return self.token['access_token']
+        return str(self.token['access_token'])
 
     def _task_done(self, task):
         self.tasks.discard(task)
@@ -271,6 +276,9 @@ class Endpoint(ClientSession):
                 return False
             try:
                 from eyepop.compute.api import refresh_compute_token
+                if self.client_session is None:
+                    log_requests.error('retry handler: client_session is None, cannot refresh token')
+                    return False
                 self.compute_ctx = await refresh_compute_token(self.compute_ctx, self.client_session)
                 log_requests.debug('retry handler: compute token refreshed successfully')
                 return True
@@ -296,10 +304,10 @@ class Endpoint(ClientSession):
             data: Any = None,
             content_type: str | None = None,
             timeout: aiohttp.ClientTimeout | None = None
-    ) -> "_RequestContextManager":
+    ) -> aiohttp.ClientResponse:
         failed_attempts = 0
         while True:
-            headers = {}
+            headers: dict[str, str] = {}
             authorization_header = await self._authorization_header()
             if authorization_header is not None:
                 headers['Authorization'] = authorization_header
@@ -309,8 +317,10 @@ class Endpoint(ClientSession):
                 headers['Content-Type'] = content_type
             try:
                 log_requests.debug('before %s %s', method, url)
-                if isinstance(data, Callable):
+                if callable(data):
                     data = data()
+                if self.client_session is None:
+                    raise RuntimeError("client_session is None")
                 response = await self.client_session.request(method, url, headers=headers, data=data, timeout=timeout)
                 log_requests.debug('after %s %s', method, url)
                 return response
