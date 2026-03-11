@@ -26,6 +26,7 @@ from eyepop.worker.worker_types import (
     ForwardComponent,
     FullForward,
     InferenceComponent,
+    MotionDetectConfig,
     MotionModel,
     Pop,
     TrackingComponent,
@@ -328,6 +329,10 @@ parser.add_argument('--tracking-iou-threshold', required=False, help="IoU thresh
 parser.add_argument('--tracking-sim-threshold', required=False, help="Similarity threshold to match tracks by re-id", default=None, type=float)
 parser.add_argument('--tracking-motion-model', required=False, help="Pick a motion model for tracking, one of 'random_walk', 'constant_velocity' or 'constant_acceleration'", default=None, type=str)
 
+# Optional motion detection parameters
+parser.add_argument('--motion-detect', required=False, help="Skip video frames w/o detected motion", default=False, action="store_true")
+
+
 main_args = parser.parse_args()
 
 if not main_args.local_path and not main_args.url and not main_args.asset_uuid:
@@ -471,6 +476,8 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
     visualize_prediction = None
     visualize_path = None
     example_image_src = None
+    motion_detect = MotionDetectConfig(motionGap=1) if args.motion_detect else None
+
     if args.dump:
         print("Pop:", pop.model_dump_json(indent=2))
         if params:
@@ -478,6 +485,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
 
     async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True) as endpoint:
         await endpoint.set_pop(pop)
+
         if args.local_path:
             if not os.path.exists(args.local_path):
                 log.warning(f"local path {args.local_path} does not exist")
@@ -501,7 +509,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                     if args.output:
                         print(path, json.dumps(result, indent=2))
             for local_file in local_files:
-                job = await endpoint.upload(local_file, params=params)
+                job = await endpoint.upload(local_file, params=params, motion_detect=motion_detect)
                 jobs.append(on_ready(job, local_file))
             await asyncio.gather(*jobs)
             if args.visualize and visualize_prediction is not None:
@@ -510,7 +518,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                 image.save(buffer, format="PNG")
                 example_image_src = f"data:image/png;base64, {base64.b64encode(buffer.getvalue()).decode()}"
         elif args.url:
-            job = await endpoint.load_from(args.url, params=params)
+            job = await endpoint.load_from(args.url, params=params, motion_detect=motion_detect)
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:
@@ -518,7 +526,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
             if args.visualize:
                 example_image_src = args.url
         elif args.asset_uuid:
-            job = await endpoint.load_asset(args.asset_uuid, params=params)
+            job = await endpoint.load_asset(args.asset_uuid, params=params, motion_detect=motion_detect)
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:
