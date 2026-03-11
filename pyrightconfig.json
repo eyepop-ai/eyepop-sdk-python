@@ -9,7 +9,8 @@
         "tests"
     ],
     "pythonVersion": "3.12",
-    "typeCheckingMode": "basic",
+    "typeCheckingMode": "standard",
     "reportMissingImports": false,
+    "reportMissingModuleSource": false,
     "reportMissingTypeStubs": false
 }

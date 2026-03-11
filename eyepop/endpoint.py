@@ -29,7 +29,7 @@ async def response_check_with_error_body(response: aiohttp.ClientResponse):
             request_info=response.request_info, # type: ignore
             history=response.history, # type: ignore
             status=response.status,
-            message=message,
+            message=message or "",
             headers=response.headers,
         )
 
@@ -157,7 +157,7 @@ class Endpoint(ClientSession):
         if len(tasks) > 0:
             await asyncio.gather(*tasks)
 
-        if self.request_tracer and self.client_session:
+        if self.request_tracer and self.client_session and self.event_sender:
             await self.event_sender.stop()
             if self.compute_ctx is None:
                 await self.request_tracer.send_and_reset(f'{self.eyepop_url}/events', await self._authorization_header(),
@@ -183,6 +183,7 @@ class Endpoint(ClientSession):
             raise_for_status=response_check_with_error_body,
             trace_configs=trace_configs
         )
+        assert self.client_session is not None
         try:
             await self._reconnect()
         except Exception as e:
@@ -216,6 +217,7 @@ class Endpoint(ClientSession):
                 return self.compute_ctx.m2m_access_token
             else:
                 log.debug("compute ctx m2m access token is None, fetching new token")
+                assert self.client_session is not None
                 authenticate_url = f'{self.compute_ctx.compute_url}/v1/auth/authenticate'
                 api_auth_header = {
                     'Authorization': f'Bearer {self.compute_ctx.api_key}',
@@ -229,16 +231,21 @@ class Endpoint(ClientSession):
                     return self.compute_ctx.m2m_access_token
         if self.secret_key is None:
             return None
+        assert self.client_session is not None
         now = time.time()
-        if self.token is None or self.expire_token_time < now:
+        if self.token is None or self.expire_token_time is None or self.expire_token_time < now:
             body = {'secret_key': self.secret_key}
             post_url = f'{self.eyepop_url}/authentication/token'
             log_requests.debug('before POST %s', post_url)
             async with self.client_session.post(post_url, json=body) as response:
-                self.token = await response.json()
-                self.expire_token_time = time.time() + self.token['expires_in'] - 60
+                token = await response.json()
+                assert token is not None
+                self.token = token
+                self.expire_token_time = time.time() + token['expires_in'] - 60
+            assert self.token is not None
             log_requests.debug('after POST %s expires_in=%d token_type=%s', post_url, self.token['expires_in'],
                                self.token['token_type'])
+        assert self.token is not None and self.expire_token_time is not None
         log.debug('using access token, valid for at least %d seconds', self.expire_token_time - now)
         return self.token['access_token']
 
@@ -271,6 +278,7 @@ class Endpoint(ClientSession):
                 return False
             try:
                 from eyepop.compute.api import refresh_compute_token
+                assert self.client_session is not None
                 self.compute_ctx = await refresh_compute_token(self.compute_ctx, self.client_session)
                 log_requests.debug('retry handler: compute token refreshed successfully')
                 return True
@@ -295,8 +303,10 @@ class Endpoint(ClientSession):
             accept: str | None = None,
             data: Any = None,
             content_type: str | None = None,
-            timeout: aiohttp.ClientTimeout | None = None
+            timeout: aiohttp.ClientTimeout | None = None,
+            extra_headers: dict[str, str] | None = None,
     ) -> "_RequestContextManager":
+        assert self.client_session is not None
         failed_attempts = 0
         while True:
             headers = {}
@@ -307,6 +317,8 @@ class Endpoint(ClientSession):
                 headers['Accept'] = accept
             if content_type is not None:
                 headers['Content-Type'] = content_type
+            if extra_headers is not None:
+                headers.update(extra_headers)
             try:
                 log_requests.debug('before %s %s', method, url)
                 if isinstance(data, Callable):

@@ -77,9 +77,10 @@ class DataClientSession(ClientSession):
 
     async def request_with_retry(self, method: str, url: str, accept: str | None = None, data: Any = None,
                                  content_type: str | None = None,
-                                 timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.client._RequestContextManager:
+                                 timeout: aiohttp.ClientTimeout | None = None,
+                                 extra_headers: dict[str, str] | None = None) -> aiohttp.client._RequestContextManager:
         url = urljoin(self.base_url, url)
-        return await self.delegee.request_with_retry(method, url, accept, data, content_type, timeout)
+        return await self.delegee.request_with_retry(method, url, accept, data, content_type, timeout, extra_headers)
 
 
 class DataEndpoint(Endpoint):
@@ -173,7 +174,7 @@ class DataEndpoint(Endpoint):
         )
 
         log_requests.debug("before ws connect: %s", ws_url)
-        ws = await websockets.asyncio.client.connect(uri=ws_url)
+        ws = await websockets.asyncio.client.connect(uri=ws_url)  # type: ignore[attr-defined]
         log_requests.debug("after ws connect: %s", ws_url)
         authorization_header = await self._authorization_header()
         if authorization_header is not None:
@@ -491,13 +492,11 @@ class DataEndpoint(Endpoint):
     async def evaluate_dataset(
             self,
             evaluate_request: EvaluateRequest,
-            worker_release: str | None = None,
     ) -> EvaluateJob:
         session = DataClientSession(self, await self.vlm_base_url())
 
         job = EvaluateJob(
             evaluate_request=evaluate_request,
-            worker_release=worker_release,
             session=session,
             callback=self.metrics_collector,
         )
@@ -1112,6 +1111,7 @@ class DataEndpoint(Endpoint):
             transcode_mode: TranscodeMode | None = None,
             start_timestamp: int | None = None,
             end_timestamp: int | None = None,
+            priority: str | None = None,
     ) -> InferJob:
         dataset_query = f'&dataset_uuid={dataset_uuid}' if dataset_uuid is not None else ''
         version_query = f'&dataset_version={dataset_version}' if dataset_version is not None else ''
@@ -1133,6 +1133,7 @@ class DataEndpoint(Endpoint):
             infer_request=infer_request,
             session=session,
             callback=self.metrics_collector,
+            priority=priority,
         )
         await self._task_start(job.execute())
         return job
@@ -1214,7 +1215,7 @@ class DataEndpoint(Endpoint):
             vlm_ability_uuid: str,
             auto_prompt: AutoPromptConfig,
     ) -> VlmAbilityResponse:
-        post_url = f'{await self.data_base_url()}/vlm_abilities{vlm_ability_uuid}/refine'
+        post_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/refine'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
                                                  data=auto_prompt.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
@@ -1238,7 +1239,7 @@ class DataEndpoint(Endpoint):
         if default_alias_name is not None:
             params['default_alias_name'] = default_alias_name
 
-        post_url = f'{await self.data_base_url()}/vlm_abilities{vlm_ability_uuid}/clone?{urlencode(params)}'
+        post_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/clone?{urlencode(params)}'
         async with await self.request_with_retry("POST", post_url) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
 
