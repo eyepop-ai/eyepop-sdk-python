@@ -1,11 +1,7 @@
 import enum
-from enum import StrEnum
 from typing import Annotated, Any, List, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
-
-from eyepop.data.types import Box
-from eyepop.data.types.asset import AreaType
 
 
 class PredictionVersion(enum.IntEnum):

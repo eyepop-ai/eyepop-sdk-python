@@ -8,7 +8,7 @@ import os
 import sys
 from argparse import Namespace
 from io import BytesIO
-from typing import Any, Sequence
+from typing import Any
 
 from dotenv import load_dotenv
 from PIL import Image
