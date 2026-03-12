@@ -34,7 +34,7 @@ class TestEndpointRetry(BaseEndpointTest):
                 else:
                     return CallbackResult(status=401, reason='test auth token expired')
 
-            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?events=true&mode=queue&processing=sync',
+            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
                        callback=loadFrom, repeat=True)
 
             job = endpoint.load_from(self.test_url)
@@ -46,7 +46,7 @@ class TestEndpointRetry(BaseEndpointTest):
             self.assertIsNone(job.predict())
 
             mock.assert_called_with(
-                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?events=true&mode=queue&processing=sync',
+                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync',
                 method='PATCH',
                 headers={
                     'Accept': 'application/jsonl',

@@ -18,6 +18,7 @@ from webui import webui
 
 from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
+from eyepop.data.types.asset import Area, RectangleArea
 from eyepop.worker.worker_types import (
     ComponentParams,
     ContourFinderComponent,
@@ -273,6 +274,17 @@ def list_of_boxes(arg: str) -> list[dict[str, Any]]:
     return boxes
 
 
+def rectangle_roi(arg: str) -> Area:
+    roi = ast.literal_eval(arg)
+
+    return RectangleArea(
+        x=roi[0],
+        y=roi[1],
+        width=roi[2],
+        height=roi[3],
+    )
+
+
 def add_optional_tracking_to_component(component: ForwardComponent, tracking_args: Namespace):
     if tracking_args.tracking:
         tracking_component = TrackingComponent()
@@ -331,6 +343,9 @@ parser.add_argument('--tracking-motion-model', required=False, help="Pick a moti
 
 # Optional motion detection parameters
 parser.add_argument('--motion-detect', required=False, help="Skip video frames w/o detected motion", default=False, action="store_true")
+
+# Optional global ROI parameters
+parser.add_argument('--roi', required=False, type=rectangle_roi, help="Rectangular ROI as (x, y, width, height)")
 
 
 main_args = parser.parse_args()
@@ -509,7 +524,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                     if args.output:
                         print(path, json.dumps(result, indent=2))
             for local_file in local_files:
-                job = await endpoint.upload(local_file, params=params, motion_detect=motion_detect)
+                job = await endpoint.upload(local_file, params=params, motion_detect=motion_detect, roi=args.roi)
                 jobs.append(on_ready(job, local_file))
             await asyncio.gather(*jobs)
             if args.visualize and visualize_prediction is not None:
@@ -518,7 +533,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                 image.save(buffer, format="PNG")
                 example_image_src = f"data:image/png;base64, {base64.b64encode(buffer.getvalue()).decode()}"
         elif args.url:
-            job = await endpoint.load_from(args.url, params=params, motion_detect=motion_detect)
+            job = await endpoint.load_from(args.url, params=params, motion_detect=motion_detect, roi=args.roi)
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:
@@ -526,7 +541,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
             if args.visualize:
                 example_image_src = args.url
         elif args.asset_uuid:
-            job = await endpoint.load_asset(args.asset_uuid, params=params, motion_detect=motion_detect)
+            job = await endpoint.load_asset(args.asset_uuid, params=params, motion_detect=motion_detect, roi=args.roi)
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:
