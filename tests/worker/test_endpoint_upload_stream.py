@@ -52,7 +52,7 @@ class TestEndpointUploadStream(BaseEndpointTest):
                                               {'source_id': self.test_source_id, 'seconds': 0,
                                                'system_timestamp': test_timestamp}))
 
-            mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?events=True&mode=queue&processing=sync&version=2',
+            mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync&version=2',
                        callback=upload)
 
             with open(self.test_file, 'rb') as file:
@@ -104,7 +104,7 @@ class TestEndpointUploadStream(BaseEndpointTest):
                                               {'source_id': self.test_source_id, 'seconds': 0,
                                                'system_timestamp': test_timestamp}))
 
-            mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?events=True&mode=queue&processing=sync&version=2',
+            mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync&version=2',
                        callback=upload)
 
             with open(self.test_file, 'rb') as file:
