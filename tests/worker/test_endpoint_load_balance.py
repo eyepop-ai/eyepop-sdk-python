@@ -34,7 +34,7 @@ class TestEndpointLoadBalance(BaseEndpointTest):
                 else:
                     return CallbackResult(status=401, reason='test auth token expired')
 
-            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-0/source?events=true&mode=queue&processing=sync',
+            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-0/source?mode=queue&processing=sync',
                        callback=loadFrom, repeat=True)
 
             job = endpoint.load_from(self.test_url)
@@ -46,7 +46,7 @@ class TestEndpointLoadBalance(BaseEndpointTest):
             self.assertIsNone(job.predict())
 
             mock.assert_called_with(
-                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-0/source?events=true&mode=queue&processing=sync',
+                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-0/source?mode=queue&processing=sync',
                 method='PATCH',
                 headers={
                     'Accept': 'application/jsonl',
@@ -77,10 +77,10 @@ class TestEndpointLoadBalance(BaseEndpointTest):
                 else:
                     return CallbackResult(status=401, reason='test auth token expired')
 
-            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-0/source?events=true&mode=queue&processing=sync',
+            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-0/source?mode=queue&processing=sync',
                        callback=loadFrom, repeat=True)
 
-            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-1/source?events=true&mode=queue&processing=sync',
+            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-1/source?mode=queue&processing=sync',
                        callback=loadFrom, repeat=True)
 
             job = endpoint.load_from(self.test_url)
@@ -100,7 +100,7 @@ class TestEndpointLoadBalance(BaseEndpointTest):
             self.assertIsNone(job.predict())
 
             mock.assert_called_with(
-                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-0/source?events=true&mode=queue&processing=sync',
+                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-0/source?mode=queue&processing=sync',
                 method='PATCH',
                 headers={
                     'Accept': 'application/jsonl',
@@ -111,7 +111,7 @@ class TestEndpointLoadBalance(BaseEndpointTest):
                 timeout=aiohttp.ClientTimeout(total=None, sock_read=600))
 
             mock.assert_called_with(
-                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-1/source?events=true&mode=queue&processing=sync',
+                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}-1/source?mode=queue&processing=sync',
                 method='PATCH',
                 headers={
                     'Accept': 'application/jsonl',
