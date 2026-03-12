@@ -4,6 +4,10 @@ import asyncio
 import base64
 import json
 import logging
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger('eyepop.example')
+
 import os
 import sys
 from argparse import Namespace
@@ -36,7 +40,7 @@ from eyepop.worker.worker_types import (
 load_dotenv()
 
 script_dir = os.path.dirname(__file__)
-log = logging.getLogger('eyepop.example')
+
 
 pop_examples = {
     "vehicles": Pop(components=[

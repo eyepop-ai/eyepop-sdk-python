@@ -124,7 +124,6 @@ class _UploadJob(WorkerJob):
                 'form-data', name='params', filename='blob')
         if self._roi is not None:
             roi_part = mp_writer.append_json(self._roi.model_dump(exclude_none=True))
-            print(roi_part)
             roi_part.set_content_disposition('form-data', name='roi', filename='blob')
         file_part = mp_writer.append(self.open_stream(), {'Content-Type': self.mime_type})
         file_part.set_content_disposition('form-data', name='file', filename='blob')
