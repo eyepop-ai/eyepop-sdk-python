@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 import aiohttp
 from pydantic import TypeAdapter
 
+from eyepop.data.types.asset import Area
 from eyepop.jobs import Job, JobStateCallback
 from eyepop.worker.worker_client_session import WorkerClientSession
 from eyepop.worker.worker_types import (
@@ -26,6 +27,7 @@ class WorkerJob(Job):
     """Abstract Job submitted to an EyePop.ai WorkerEndpoint."""
     _component_params: list[ComponentParams] | None
     _motion_detect: MotionDetectConfig | None
+    _roi: Area | None
     _version: PredictionVersion
 
     def __init__(
@@ -33,6 +35,7 @@ class WorkerJob(Job):
             session: WorkerClientSession,
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
+            roi: Area | None,
             on_ready: Callable[["WorkerJob"], None] | None,
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
@@ -40,6 +43,7 @@ class WorkerJob(Job):
         super().__init__(session, on_ready, callback)
         self._component_params = component_params
         self._motion_detect = motion_detect
+        self._roi = roi
         self._version = version
 
     async def predict(self) -> dict[str, Any] | None:
@@ -91,6 +95,7 @@ class _UploadJob(WorkerJob):
             video_mode: VideoMode | None,
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
+            roi: Area | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -100,6 +105,7 @@ class _UploadJob(WorkerJob):
             session=session,
             component_params=component_params,
             motion_detect=motion_detect,
+            roi=roi,
             on_ready=on_ready,
             callback=callback,
             version=version
@@ -116,6 +122,10 @@ class _UploadJob(WorkerJob):
                 TypeAdapter(list[ComponentParams]).dump_python(self._component_params))
             component_params_part.set_content_disposition(
                 'form-data', name='params', filename='blob')
+        if self._roi is not None:
+            roi_part = mp_writer.append_json(self._roi.model_dump(exclude_none=True))
+            print(roi_part)
+            roi_part.set_content_disposition('form-data', name='roi', filename='blob')
         file_part = mp_writer.append(self.open_stream(), {'Content-Type': self.mime_type})
         file_part.set_content_disposition('form-data', name='file', filename='blob')
         return mp_writer
@@ -123,7 +133,6 @@ class _UploadJob(WorkerJob):
 
     async def _do_execute_job(self, queue: Queue, session: WorkerClientSession):
         query_params: dict[str, Any] = {
-            "events": True,
             "mode": "queue",
         }
         if self.video_mode is not None:
@@ -154,7 +163,7 @@ class _UploadJob(WorkerJob):
             query_params['processing'] = 'async'
             query_params['sourceId'] = source_id
             upload_url = f'source?{urlencode(query_params)}'
-            if self._component_params is None:
+            if self._component_params is None and self._roi is None:
                 upload_coro = session.pipeline_post(upload_url,
                                                     accept='application/jsonl',
                                                     open_data=self.open_stream,
@@ -170,7 +179,7 @@ class _UploadJob(WorkerJob):
         else:
             query_params['processing'] = 'sync'
             upload_url = f'source?{urlencode(query_params)}'
-            if self._component_params is None:
+            if self._component_params is None and self._roi is None:
                 self._response = await session.pipeline_post(upload_url,
                                                              accept='application/jsonl',
                                                              open_data=self.open_stream,
@@ -199,6 +208,7 @@ class _UploadFileJob(_UploadJob):
             video_mode: VideoMode | None,
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
+            roi: Area | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -210,6 +220,7 @@ class _UploadFileJob(_UploadJob):
             video_mode=video_mode,
             component_params=component_params,
             motion_detect=motion_detect,
+            roi=roi,
             session=session,
             on_ready=on_ready,
             callback=callback,
@@ -229,6 +240,7 @@ class _UploadStreamJob(_UploadJob):
             video_mode: VideoMode | None,
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
+            roi: Area | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -240,6 +252,7 @@ class _UploadStreamJob(_UploadJob):
             video_mode=video_mode,
             component_params=component_params,
             motion_detect=motion_detect,
+            roi=roi,
             session=session,
             on_ready=on_ready,
             callback=callback,
@@ -257,6 +270,7 @@ class _LoadFromJob(WorkerJob):
             location: str,
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
+            roi: Area | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -266,12 +280,13 @@ class _LoadFromJob(WorkerJob):
             session=session,
             component_params=component_params,
             motion_detect=motion_detect,
+            roi=roi,
             on_ready=on_ready,
             callback=callback,
             version=version
         )
         self.location = location
-        self.target_url = 'source?events=true&mode=queue&processing=sync'
+        self.target_url = 'source?mode=queue&processing=sync'
         self.body = {
             "sourceType": "URL",
             "url": self.location,
@@ -279,6 +294,8 @@ class _LoadFromJob(WorkerJob):
         }
         if self._motion_detect is not None:
             self.body.update(self._motion_detect.model_dump(exclude_none=True))
+        if self._roi is not None:
+            self.body['roi'] = self._roi.model_dump(exclude_none=True)
         if self._component_params is not None:
             self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
 
@@ -299,6 +316,7 @@ class _LoadFromAssetUuidJob(WorkerJob):
             asset_uuid: str,
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
+            roi: Area | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -308,12 +326,13 @@ class _LoadFromAssetUuidJob(WorkerJob):
             session=session,
             component_params=component_params,
             motion_detect=motion_detect,
+            roi=roi,
             on_ready=on_ready,
             callback=callback,
             version=version
         )
         self.asset_uuid = asset_uuid
-        self.target_url = 'source?events=true&mode=queue&processing=sync'
+        self.target_url = 'source?mode=queue&processing=sync'
         self.body: dict[str, Any] = {
             "sourceType": "ASSET_UUID",
             "assetUuid": self.asset_uuid,
@@ -321,6 +340,8 @@ class _LoadFromAssetUuidJob(WorkerJob):
         }
         if self._motion_detect is not None:
             self.body.update(self._motion_detect.model_dump())
+        if self._roi is not None:
+            self.body['roi'] = self._roi.model_dump(exclude_none=True)
         if self._component_params is not None:
             self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
 

@@ -8,6 +8,7 @@ import aiohttp
 from aiohttp.client import _RequestContextManager
 
 from eyepop.compute.api import fetch_session_endpoint
+from eyepop.data.types.asset import Area
 from eyepop.endpoint import Endpoint
 from eyepop.exceptions import (
     PopConfigurationException,
@@ -308,6 +309,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             video_mode: VideoMode | None = None,
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
+            roi: Area | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _UploadFileJob(
@@ -315,6 +317,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             video_mode=video_mode,
             component_params=params,
             motion_detect=motion_detect,
+            roi=roi,
             session=self, on_ready=on_ready,
             callback=self.metrics_collector
         )
@@ -328,6 +331,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             video_mode: VideoMode | None = None,
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
+            roi: Area | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _UploadStreamJob(
@@ -336,6 +340,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             video_mode=video_mode,
             component_params=params,
             motion_detect=motion_detect,
+            roi=roi,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector
@@ -348,12 +353,14 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             location: str,
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
+            roi: Area | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _LoadFromJob(
             location=location,
             component_params=params,
             motion_detect=motion_detect,
+            roi=roi,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector
@@ -366,12 +373,14 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             asset_uuid: str,
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
+            roi: Area | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _LoadFromAssetUuidJob(
             asset_uuid=asset_uuid,
             component_params=params,
             motion_detect=motion_detect,
+            roi=roi,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector

@@ -1,7 +1,11 @@
 import enum
+from enum import StrEnum
 from typing import Annotated, Any, List, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from eyepop.data.types import Box
+from eyepop.data.types.asset import AreaType
 
 
 class PredictionVersion(enum.IntEnum):
@@ -215,4 +219,3 @@ class MotionDetectConfig(BaseModel):
     motionGap: int | None = Field(description="Gap of no detected motion in seconds before motion-stopped event is trigger, default is 5", default=None)
     motionGridX: int | None = Field(description="Grid x size of motion detection grid, default is 10", default=None)
     motionGridY: int | None = Field(description="Grid y size of motion detection grid, default is 10", default=None)
-

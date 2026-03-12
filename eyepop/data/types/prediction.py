@@ -64,6 +64,11 @@ class PredictedObject(PredictedClass):
     keyPoints: List[PredictedKeyPoints] | None = None
 
 
+class PredictedMotion(BaseModel):
+    begin_timestamp: int
+    finished_timestamp: int | None = None
+
+
 class Prediction(BaseModel):
     """Represents a prediction for an asset or a chunk of an asset."""
 
@@ -111,3 +116,4 @@ class Prediction(BaseModel):
     meshs: List[PredictedMesh] | None = None
     keyPoints: List[PredictedKeyPoints] | None = None
     embeddings: List[PredictedEmbedding] | None = None
+    motions: List[PredictedMotion] | None = None
