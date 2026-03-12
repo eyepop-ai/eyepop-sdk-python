@@ -120,7 +120,7 @@ class RequestTracer():
             self.events = immature_events
 
         if len(matured_events) > 0:
-            log.info('send_and_reset: %d (version: %s)', len(matured_events), __version__)
+            log.debug('send_and_reset: %d (version: %s)', len(matured_events), __version__)
             builder = flatbuffers.Builder()
             host_to_index = {}
             hosts = []
