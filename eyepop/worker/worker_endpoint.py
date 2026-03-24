@@ -310,6 +310,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            fps: str | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _UploadFileJob(
@@ -318,6 +319,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,
+            fps=fps,
             session=self, on_ready=on_ready,
             callback=self.metrics_collector
         )
@@ -332,6 +334,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            fps: str | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _UploadStreamJob(
@@ -341,6 +344,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,
+            fps=fps,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector
@@ -354,6 +358,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            fps: str | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _LoadFromJob(
@@ -361,6 +366,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,
+            fps=fps,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector
@@ -374,6 +380,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            fps: str | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob | SyncWorkerJob:
         job = _LoadFromAssetUuidJob(
@@ -381,6 +388,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,
+            fps=fps,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector
