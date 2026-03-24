@@ -4,10 +4,6 @@ import asyncio
 import base64
 import json
 import logging
-
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger('eyepop.example')
-
 import os
 import sys
 from argparse import Namespace
@@ -38,6 +34,9 @@ from eyepop.worker.worker_types import (
 )
 
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger('eyepop.example')
 
 script_dir = os.path.dirname(__file__)
 
@@ -371,7 +370,6 @@ elif main_args.model_uuid:
         InferenceComponent(
             id=i+1,
             abilityUuid=uuid,
-            targetFps=main_args.fps,
         ) for i, uuid in enumerate(main_args.model_uuid)
     ])
     if main_args.top_k is not None:
@@ -396,7 +394,6 @@ elif main_args.model_alias:
         InferenceComponent(
             id=i+1,
             ability=alias,
-            targetFps = main_args.fps,
         ) for i, alias in enumerate(main_args.model_alias)
     ])
 
@@ -528,7 +525,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                     if args.output:
                         print(path, json.dumps(result, indent=2))
             for local_file in local_files:
-                job = await endpoint.upload(local_file, params=params, motion_detect=motion_detect, roi=args.roi)
+                job = await endpoint.upload(local_file, params=params, motion_detect=motion_detect, roi=args.roi, fps=args.fps)
                 jobs.append(on_ready(job, local_file))
             await asyncio.gather(*jobs)
             if args.visualize and visualize_prediction is not None:
@@ -537,7 +534,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                 image.save(buffer, format="PNG")
                 example_image_src = f"data:image/png;base64, {base64.b64encode(buffer.getvalue()).decode()}"
         elif args.url:
-            job = await endpoint.load_from(args.url, params=params, motion_detect=motion_detect, roi=args.roi)
+            job = await endpoint.load_from(args.url, params=params, motion_detect=motion_detect, roi=args.roi, fps=args.fps)
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:
@@ -545,7 +542,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
             if args.visualize:
                 example_image_src = args.url
         elif args.asset_uuid:
-            job = await endpoint.load_asset(args.asset_uuid, params=params, motion_detect=motion_detect, roi=args.roi)
+            job = await endpoint.load_asset(args.asset_uuid, params=params, motion_detect=motion_detect, roi=args.roi, fps=args.fps)
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:

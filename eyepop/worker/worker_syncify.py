@@ -36,6 +36,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            fps: str | None = None,
             on_ready: typing.Callable[[WorkerJob], None] | None = None
     ) -> SyncWorkerJob:
         if on_ready is not None:
@@ -43,7 +44,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
                 "'on_ready' callback not supported for sync endpoints. "
                 "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
         job = run_coro_thread_save(self.event_loop, self.endpoint.upload(
-            location=location, video_mode=video_mode, params=params, motion_detect=motion_detect, roi=roi, on_ready=None))
+            location=location, video_mode=video_mode, params=params, motion_detect=motion_detect, roi=roi, fps=fps, on_ready=None))
         return SyncWorkerJob(job, self.event_loop)
 
     def upload_stream(
@@ -54,6 +55,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            fps: str | None = None,
             on_ready: typing.Callable[[WorkerJob], None] | None = None
     ) -> SyncWorkerJob:
         if on_ready is not None:
@@ -61,7 +63,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
                 "'on_ready' callback not supported for sync endpoints. "
                 "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
         job = run_coro_thread_save(self.event_loop, self.endpoint.upload_stream(
-            stream=stream, mime_type=mime_type, video_mode=video_mode, params=params, motion_detect=motion_detect, roi=roi, on_ready=None
+            stream=stream, mime_type=mime_type, video_mode=video_mode, params=params, motion_detect=motion_detect, roi=roi, fps=fps, on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
 
@@ -71,6 +73,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            fps: str | None = None,
             on_ready: typing.Callable[[WorkerJob], None] | None = None
     ) -> SyncWorkerJob:
         if on_ready is not None:
@@ -78,7 +81,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
                 "'on_ready' callback not supported for sync endpoints. "
                 "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
         job = run_coro_thread_save(self.event_loop, self.endpoint.load_from(
-            location=location, params=params, motion_detect=motion_detect, roi=roi, on_ready=None))
+            location=location, params=params, motion_detect=motion_detect, roi=roi, fps=fps, on_ready=None))
         return SyncWorkerJob(job, self.event_loop)
 
     def load_asset(
@@ -87,6 +90,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            fps: str | None = None,
             on_ready: typing.Callable[[WorkerJob], None] | None = None
     ) -> SyncWorkerJob:
         if on_ready is not None:
@@ -94,7 +98,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
                 "'on_ready' callback not supported for sync endpoints. "
                 "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
         job = run_coro_thread_save(self.event_loop, self.endpoint.load_asset(
-            asset_uuid=asset_uuid, params=params, motion_detect=motion_detect, roi=roi, ron_ready=None))
+            asset_uuid=asset_uuid, params=params, motion_detect=motion_detect, roi=roi, fps=fps, on_ready=None))
         return SyncWorkerJob(job, self.event_loop)
 
     def get_pop(self) -> Pop | None:
