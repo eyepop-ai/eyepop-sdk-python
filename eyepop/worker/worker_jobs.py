@@ -28,6 +28,7 @@ class WorkerJob(Job):
     _component_params: list[ComponentParams] | None
     _motion_detect: MotionDetectConfig | None
     _roi: Area | None
+    _fps: str | None
     _version: PredictionVersion
 
     def __init__(
@@ -36,6 +37,7 @@ class WorkerJob(Job):
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
+            fps: str | None,
             on_ready: Callable[["WorkerJob"], None] | None,
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
@@ -44,6 +46,7 @@ class WorkerJob(Job):
         self._component_params = component_params
         self._motion_detect = motion_detect
         self._roi = roi
+        self._fps = fps
         self._version = version
 
     async def predict(self) -> dict[str, Any] | None:
@@ -96,6 +99,7 @@ class _UploadJob(WorkerJob):
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
+            fps: str | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -106,6 +110,7 @@ class _UploadJob(WorkerJob):
             component_params=component_params,
             motion_detect=motion_detect,
             roi=roi,
+            fps=fps,
             on_ready=on_ready,
             callback=callback,
             version=version
@@ -125,6 +130,10 @@ class _UploadJob(WorkerJob):
         if self._roi is not None:
             roi_part = mp_writer.append_json(self._roi.model_dump(exclude_none=True))
             roi_part.set_content_disposition('form-data', name='roi', filename='blob')
+        if self._fps is not None:
+            fps_part = mp_writer.append_json(self._fps)
+            fps_part.set_content_disposition('form-data', name='fps', filename='blob')
+
         file_part = mp_writer.append(self.open_stream(), {'Content-Type': self.mime_type})
         file_part.set_content_disposition('form-data', name='file', filename='blob')
         return mp_writer
@@ -162,7 +171,7 @@ class _UploadJob(WorkerJob):
             query_params['processing'] = 'async'
             query_params['sourceId'] = source_id
             upload_url = f'source?{urlencode(query_params)}'
-            if self._component_params is None and self._roi is None:
+            if self._component_params is None and self._roi is None and self._fps is None:
                 upload_coro = session.pipeline_post(upload_url,
                                                     accept='application/jsonl',
                                                     open_data=self.open_stream,
@@ -178,7 +187,7 @@ class _UploadJob(WorkerJob):
         else:
             query_params['processing'] = 'sync'
             upload_url = f'source?{urlencode(query_params)}'
-            if self._component_params is None and self._roi is None:
+            if self._component_params is None and self._roi is None and self._fps is None:
                 self._response = await session.pipeline_post(upload_url,
                                                              accept='application/jsonl',
                                                              open_data=self.open_stream,
@@ -208,6 +217,7 @@ class _UploadFileJob(_UploadJob):
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
+            fps: str | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -220,6 +230,7 @@ class _UploadFileJob(_UploadJob):
             component_params=component_params,
             motion_detect=motion_detect,
             roi=roi,
+            fps=fps,
             session=session,
             on_ready=on_ready,
             callback=callback,
@@ -240,6 +251,7 @@ class _UploadStreamJob(_UploadJob):
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
+            fps: str | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -252,6 +264,7 @@ class _UploadStreamJob(_UploadJob):
             component_params=component_params,
             motion_detect=motion_detect,
             roi=roi,
+            fps=fps,
             session=session,
             on_ready=on_ready,
             callback=callback,
@@ -270,6 +283,7 @@ class _LoadFromJob(WorkerJob):
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
+            fps: str | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -280,6 +294,7 @@ class _LoadFromJob(WorkerJob):
             component_params=component_params,
             motion_detect=motion_detect,
             roi=roi,
+            fps=fps,
             on_ready=on_ready,
             callback=callback,
             version=version
@@ -293,10 +308,12 @@ class _LoadFromJob(WorkerJob):
         }
         if self._motion_detect is not None:
             self.body.update(self._motion_detect.model_dump(exclude_none=True))
-        if self._roi is not None:
-            self.body['roi'] = self._roi.model_dump(exclude_none=True)
         if self._component_params is not None:
             self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
+        if self._roi is not None:
+            self.body['roi'] = self._roi.model_dump(exclude_none=True)
+        if self._fps is not None:
+            self.body['fps'] = self._fps
 
         self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=600)
 
@@ -316,6 +333,7 @@ class _LoadFromAssetUuidJob(WorkerJob):
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
+            fps: str | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -326,6 +344,7 @@ class _LoadFromAssetUuidJob(WorkerJob):
             component_params=component_params,
             motion_detect=motion_detect,
             roi=roi,
+            fps=fps,
             on_ready=on_ready,
             callback=callback,
             version=version
