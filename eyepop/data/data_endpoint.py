@@ -62,7 +62,6 @@ from eyepop.data.data_types import (
     VlmAbilityResponse,
     VlmAbilityUpdate,
 )
-from eyepop.data.types import AutoAnnotateTask
 from eyepop.data.types.vlm import AutoPromptConfig, AutoTask
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings
