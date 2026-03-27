@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Sequence, Literal, Annotated
+from typing import Annotated, Any, Literal, Sequence
 
 from pydantic import BaseModel, Field
 
