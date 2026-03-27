@@ -216,19 +216,19 @@ class AutoPromptConfig(BaseModel):
 
 
 class TaskType(StrEnum):
+    base = "invalid>"
     classification = "classification"
 
 
 class BaseTask(BaseModel):
-    type: TaskType
-
-
-class ClassificationTask(BaseTask):
-    type: Literal[TaskType.classification] = TaskType.classification
     task_description: str | None = Field(
         default=None,
         description="Optional task description to append to the LLM prompt for customizing prompt creation",
     )
+
+
+class ClassificationTask(BaseTask):
+    type: Literal[TaskType.classification] = TaskType.classification
     classes: Sequence[str] = Field(
         description="List of class names."
     )
