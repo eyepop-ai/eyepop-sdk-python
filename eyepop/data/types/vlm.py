@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Any, Sequence
+from enum import StrEnum
+from typing import Any, Sequence, Literal, Annotated
 
 from pydantic import BaseModel, Field
 
@@ -214,6 +215,34 @@ class AutoPromptConfig(BaseModel):
     )
 
 
+class TaskType(StrEnum):
+    classification = "classification"
+
+
+class BaseTask(BaseModel):
+    type: TaskType
+
+
+class ClassificationTask(BaseTask):
+    type: Literal[TaskType.classification] = TaskType.classification
+    task_description: str | None = Field(
+        default=None,
+        description="Optional task description to append to the LLM prompt for customizing prompt creation",
+    )
+    classes: Sequence[str] = Field(
+        description="List of class names."
+    )
+    dataset_uuid: str = Field(description="The Uuid dataset to use as input for this auto task.")
+    num_samples: int = Field(
+        default=5,
+        description="For initial auto prompt creation this is the umber of chunks to sample per class. "
+                    "For auto prompt refine this is the number of failure samples to use per mismatch type (FP/FN).",
+    )
+
+
+AutoTask = Annotated[ClassificationTask, Field(discriminator="type")]
+
+
 class AbilityAliasEntry(BaseModel):
     alias: str
     tag: str
@@ -381,11 +410,21 @@ class VlmAbilityGroupCreate(BaseModel):
         default="",
         description="Optional human readable description of the ability group",
     )
+
     auto_prompt: AutoPromptConfig | None = Field(
         description="Optionally create an ability in this group via auto prompt agent. "
                     "The created ability will stay in 'in_progress' state until the agent completes.",
         default=None,
+        deprecated="Use auto_task instead"
     )
+
+    auto_task: AutoTask | None = Field(
+        description="Optionally create an ability in this group via auto task agent. "
+                    "The created ability will stay in 'in_progress' state until the agent completes."
+                    "Replaces the deprecated auto_prompt.",
+        default=None,
+    )
+
     default_alias_name: str | None = Field(
         default=None,
         description="Optionally use this name as default alias name for all abilities in this group",
