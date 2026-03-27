@@ -52,7 +52,7 @@ from eyepop.data.data_types import (
     VlmAbilityUpdate,
 )
 from eyepop.data.types import Roi
-from eyepop.data.types.vlm import AutoPromptConfig
+from eyepop.data.types.vlm import AutoPromptConfig, AutoTask
 from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 
 SyncEventHandler = Callable[[ChangeEvent], None]
@@ -833,9 +833,14 @@ class SyncDataEndpoint(SyncEndpoint):
     def refine_vlm_ability(
             self,
             vlm_ability_uuid: str,
-            auto_prompt: AutoPromptConfig,
+            auto_prompt: AutoPromptConfig | None = None,
+            auto_task: AutoTask | None = None,
     ) -> VlmAbilityResponse:
-        return run_coro_thread_save(self.event_loop, self.endpoint.refine_vlm_ability(vlm_ability_uuid, auto_prompt))
+        return run_coro_thread_save(self.event_loop, self.endpoint.refine_vlm_ability(
+            vlm_ability_uuid=vlm_ability_uuid,
+            auto_prompt=auto_prompt,
+            auto_task=auto_task,
+        ))
 
     def clone_vlm_ability(
             self,
