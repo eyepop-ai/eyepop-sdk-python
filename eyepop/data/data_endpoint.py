@@ -62,7 +62,7 @@ from eyepop.data.data_types import (
     VlmAbilityResponse,
     VlmAbilityUpdate,
 )
-from eyepop.data.types.vlm import AutoPromptConfig
+from eyepop.data.types.vlm import AutoPromptConfig, AutoTask
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings
 
@@ -1213,12 +1213,21 @@ class DataEndpoint(Endpoint):
     async def refine_vlm_ability(
             self,
             vlm_ability_uuid: str,
-            auto_prompt: AutoPromptConfig,
+            auto_prompt: AutoPromptConfig | None = None,
+            auto_task: AutoTask | None = None,
     ) -> VlmAbilityResponse:
-        post_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/refine'
-        async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
-                                                 data=auto_prompt.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
-            return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
+        if auto_prompt is not None:
+            post_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/refine'
+            async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
+                                                     data=auto_prompt.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
+                return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
+        elif auto_task is not None:
+            post_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}/refine_task'
+            async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
+                                                     data=auto_task.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
+                return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
+        else:
+            raise ValueError("Refine Vlm Abilities requires an auto_prompt or auto_task parameter")
 
     async def clone_vlm_ability(
             self,
