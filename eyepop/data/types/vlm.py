@@ -397,7 +397,13 @@ class VlmAbilityResponse(BaseModel):
         description="The list of alias entries assigned to this ability."
     )
     auto_prompt: AutoPromptConfig | None = Field(
-        description="Optionally, the auto promp config this ability was created or refined  with.",
+        description="Optionally, the auto prompt config this ability was created or refined  with.",
+        default=None,
+        deprecated="Use auto_task instead",
+    )
+    auto_task: AutoTask | None = Field(
+        description="Optionally, the auto task config this ability was created or refined  with."
+                    "Replaces the deprecated auto_prompt.",
         default=None,
     )
 
