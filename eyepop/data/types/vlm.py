@@ -220,7 +220,17 @@ class TaskType(StrEnum):
     classification = "classification"
 
 
+class TaskMode(StrEnum):
+    image = "image"
+    video = "video"
+
+
 class BaseTask(BaseModel):
+    task_mode: TaskMode | None = Field(
+        default=None,
+        description="Defines the processing mode for the task ability when run on videos. Either on individual "
+                    "images (frames of the video), or on video chunks of automatically determined length."
+    )
     task_description: str | None = Field(
         default=None,
         description="Optional task description to append to the LLM prompt for customizing prompt creation",
