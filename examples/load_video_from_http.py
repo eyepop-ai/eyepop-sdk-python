@@ -10,7 +10,7 @@ example_url_1 = 'https://demo-eyepop-videos.s3.amazonaws.com/test1_vlog.mp4'
 
 
 def load_video_from_url(url: str):
-    with EyePopSdk.workerEndpoint() as endpoint:
+    with EyePopSdk.sync_worker() as endpoint:
         job = endpoint.load_from(url)
         while result := job.predict():
             print(result)
@@ -19,7 +19,7 @@ def load_video_from_url(url: str):
 
 
 async def async_load_video_from_url(url: str):
-    async with EyePopSdk.workerEndpoint(is_async=True) as endpoint:
+    async with EyePopSdk.async_worker() as endpoint:
         job = await endpoint.load_from(url)
         while result := await job.predict():
             print(result)

@@ -68,7 +68,7 @@ caption_pop = Pop(components=[
 params = None
 
 async def main(args):
-    async with EyePopSdk.workerEndpoint(is_async=True) as endpoint:
+    async with EyePopSdk.async_worker() as endpoint:
         await endpoint.set_pop(caption_pop)
         if args.local_path:
             if not os.path.exists(args.local_path):

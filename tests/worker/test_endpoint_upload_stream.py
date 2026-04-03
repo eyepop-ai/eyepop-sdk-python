@@ -13,7 +13,7 @@ from tests.worker.base_endpoint_test import BaseEndpointTest
 
 class TestEndpointUploadStream(BaseEndpointTest):
     test_source_id = 'test_source_id'
-    test_file = resources.files(tests) / 'test.jpg'
+    test_file = str(resources.files(tests) / 'test.jpg')
     test_content_type = 'image/jpeg'
 
 
@@ -31,8 +31,11 @@ class TestEndpointUploadStream(BaseEndpointTest):
 }))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop)
-        with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                      pop_id=self.test_eyepop_pop_id) as endpoint:
+        with EyePopSdk.sync_worker(
+                eyepop_url=self.test_eyepop_url,
+                secret_key=self.test_eyepop_secret_key,
+                pop_id=self.test_eyepop_pop_id
+        ) as endpoint:
             self.assertBaseMock(mock)
             test_timestamp = time.time() * 1000 * 1000 * 1000
 
@@ -83,8 +86,11 @@ class TestEndpointUploadStream(BaseEndpointTest):
 }))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}',
                     callback=get_pop)
-        async with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                            pop_id=self.test_eyepop_pop_id, is_async=True) as endpoint:
+        async with EyePopSdk.async_worker(
+                eyepop_url=self.test_eyepop_url,
+                secret_key=self.test_eyepop_secret_key,
+                pop_id=self.test_eyepop_pop_id,
+        ) as endpoint:
             self.assertBaseMock(mock)
             test_timestamp = time.time() * 1000 * 1000 * 1000
 
