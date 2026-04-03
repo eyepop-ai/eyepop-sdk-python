@@ -2,7 +2,7 @@ import asyncio
 import time
 from pathlib import Path
 
-from eyepop import EyePopSdk, Job
+from eyepop import EyePopSdk
 from eyepop.worker.worker_jobs import WorkerJob
 
 source_path = Path(__file__).resolve()
