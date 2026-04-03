@@ -15,18 +15,7 @@ log = logging.getLogger("eyepop.compute")
 async def fetch_session_endpoint(
     compute_ctx: ComputeContext, client_session: aiohttp.ClientSession
 ) -> ComputeContext:
-    """Fetch or create a compute API session and wait for it to become ready.
-
-    Args:
-        compute_ctx: ComputeContext containing API key and compute URL
-        client_session: Existing aiohttp session to reuse connections
-
-    Returns:
-        Updated ComputeContext with session details and access token
-
-    Raises:
-        ComputeSessionException: If session creation or health check fails
-    """
+    """Fetch or create a compute API session, then poll until ready."""
     compute_context = await fetch_new_compute_session(compute_ctx, client_session)
 
     got_session = await wait_for_session(compute_context, client_session)
@@ -92,12 +81,16 @@ async def fetch_new_compute_session(
             if compute_ctx.pipeline_version:
                 body["pipeline_version"] = compute_ctx.pipeline_version
 
-            post_kwargs = {"headers": headers}
             if body:
-                post_kwargs["json"] = body
                 log.debug(f"POST /v1/sessions body: {body}")
 
-            async with client_session.post(f'{sessions_url}?wait=true', **post_kwargs) as post_response:
+            # Explicit kwargs instead of **post_kwargs — the dict unpacking
+            # confuses aiohttp's overloaded signature and breaks type checking
+            async with client_session.post(
+                f'{sessions_url}?wait=true',
+                headers=headers,
+                json=body if body else None,
+            ) as post_response:
                 post_response.raise_for_status()
                 res = await post_response.json()
                 log.debug(f"POST /v1/sessions response: {post_response.status}")

@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional, Type
+from typing import Any, Awaitable, Callable, Optional, Type
 
 import aiohttp
 
@@ -16,9 +16,6 @@ log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
 log_metrics = logging.getLogger('eyepop.metrics')
 
-
-if TYPE_CHECKING:
-    from aiohttp import _RequestContextManager
 
 async def response_check_with_error_body(response: aiohttp.ClientResponse):
     if not response.ok:
@@ -307,7 +304,7 @@ class Endpoint(ClientSession):
             content_type: str | None = None,
             timeout: aiohttp.ClientTimeout | None = None,
             extra_headers: dict[str, str] | None = None,
-    ) -> "_RequestContextManager":
+    ) -> aiohttp.ClientResponse:
         assert self.client_session is not None
         failed_attempts = 0
         while True:

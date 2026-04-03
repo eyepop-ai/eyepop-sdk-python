@@ -78,7 +78,7 @@ class DataClientSession(ClientSession):
     async def request_with_retry(self, method: str, url: str, accept: str | None = None, data: Any = None,
                                  content_type: str | None = None,
                                  timeout: aiohttp.ClientTimeout | None = None,
-                                 extra_headers: dict[str, str] | None = None) -> aiohttp.client._RequestContextManager:
+                                 extra_headers: dict[str, str] | None = None) -> aiohttp.ClientResponse:
         url = urljoin(self.base_url, url)
         return await self.delegee.request_with_retry(method, url, accept, data, content_type, timeout, extra_headers)
 
