@@ -13,7 +13,7 @@ from tests.worker.base_endpoint_test import BaseEndpointTest
 
 class TestEndpointUploadStream(BaseEndpointTest):
     test_source_id = 'test_source_id'
-    test_file = resources.files(tests) / 'test.jpg'
+    test_file = str(resources.files(tests) / 'test.jpg')
     test_content_type = 'image/jpeg'
 
 

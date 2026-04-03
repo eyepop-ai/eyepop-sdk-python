@@ -503,7 +503,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
     example_image_src = None
     motion_detect = MotionDetectConfig(motionGap=1) if args.motion_detect else None
 
-    if args.dump:
+    if args.dump and pop:
         print("Pop:", pop.model_dump_json(indent=2))
         if params:
             print("Params:", TypeAdapter(list[ComponentParams]).dump_json(params, indent=2).decode("utf-8"))
