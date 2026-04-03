@@ -196,12 +196,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.worker_config.get('status') == 'active_prod':
             self.is_dev_mode = False
 
-        print("WORKER CONFIG", self.worker_config)
-        print("POP ID", self.pop_id)
-        print("COMPUTE CONTEXT", self.compute_ctx)
-
         if self.is_dev_mode:
-            print("STARTING NOW")
             start_pipeline_url = f'{base_url}/pipelines'
             body = {
                 "pop": self.pop.model_dump() if self.pop else {},
