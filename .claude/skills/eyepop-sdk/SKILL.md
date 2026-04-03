@@ -54,11 +54,11 @@ See `eyepop-auth` skill for full authentication details.
 from eyepop import EyePopSdk
 
 # Sync
-with EyePopSdk.workerEndpoint() as endpoint:
+with EyePopSdk.sync_worker() as endpoint:
     result = endpoint.upload('image.jpg').predict()
 
 # Async
-async with EyePopSdk.workerEndpoint(is_async=True) as endpoint:
+async with EyePopSdk.async_worker() as endpoint:
     job = await endpoint.upload('image.jpg')
     result = await job.predict()
 ```

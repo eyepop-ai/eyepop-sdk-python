@@ -16,8 +16,11 @@ class TestEndpointRetry(BaseEndpointTest):
     @aioresponses()
     def test_sync_load_auth_retry(self, mock: aioresponses):
         self._prepare_mock(mock)
-        with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                      pop_id=self.test_eyepop_pop_id) as endpoint:
+        with EyePopSdk.sync_worker(
+                eyepop_url=self.test_eyepop_url,
+                secret_key=self.test_eyepop_secret_key,
+                pop_id=self.test_eyepop_pop_id,
+        ) as endpoint:
             self.assertBaseMock(mock)
             test_timestamp = time.time() * 1000 * 1000 * 1000
 

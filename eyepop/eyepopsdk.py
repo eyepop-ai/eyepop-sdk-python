@@ -1,6 +1,8 @@
 import logging
 import os
 
+from typing_extensions import deprecated
+
 from eyepop import __version__
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_syncify import SyncDataEndpoint
@@ -13,9 +15,11 @@ log.debug(f"EyePop SDK v{__version__} initializing...")
 class EyePopSdk:
     """EyePop.ai Python SDK for Worker API."""
 
+    @deprecated("use EyePopSdk.sync_worker() or EyePopSdk.async_worker() instead")
     @staticmethod
     def workerEndpoint(
             pop_id: str | None = None,
+            session_uuid: str | None = None,
             secret_key: str | None = None,
             api_key: str | None = None,
             access_token: str | None = None,
@@ -30,12 +34,102 @@ class EyePopSdk:
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
     ) -> WorkerEndpoint | SyncWorkerEndpoint:
+        if is_async:
+            return EyePopSdk.async_worker(
+                pop_id=pop_id,
+                session_uuid=session_uuid,
+                secret_key=secret_key,
+                api_key=api_key,
+                access_token=access_token,
+                auto_start=auto_start,
+                stop_jobs=stop_jobs,
+                eyepop_url=eyepop_url,
+                job_queue_length=job_queue_length,
+                is_local_mode=is_local_mode,
+                request_tracer_max_buffer=request_tracer_max_buffer,
+                dataset_uuid=dataset_uuid,
+                pipeline_image=pipeline_image,
+                pipeline_version=pipeline_version,
+            )
+        else:
+            return EyePopSdk.sync_worker(
+                pop_id=pop_id,
+                session_uuid=session_uuid,
+                secret_key=secret_key,
+                api_key=api_key,
+                access_token=access_token,
+                auto_start=auto_start,
+                stop_jobs=stop_jobs,
+                eyepop_url=eyepop_url,
+                job_queue_length=job_queue_length,
+                is_local_mode=is_local_mode,
+                request_tracer_max_buffer=request_tracer_max_buffer,
+                dataset_uuid=dataset_uuid,
+                pipeline_image=pipeline_image,
+                pipeline_version=pipeline_version,
+            )
+
+    @staticmethod
+    def sync_worker(
+            pop_id: str | None = None,
+            session_uuid: str | None = None,
+            secret_key: str | None = None,
+            api_key: str | None = None,
+            access_token: str | None = None,
+            auto_start: bool = True,
+            stop_jobs: bool = True,
+            eyepop_url: str | None = None,
+            job_queue_length: int = 1024,
+            is_local_mode: bool | None = None,
+            request_tracer_max_buffer: int = 1204,
+            dataset_uuid: str | None = None,
+            pipeline_image: str | None = None,
+            pipeline_version: str | None = None,
+    ) -> SyncWorkerEndpoint:
+        endpoint = EyePopSdk.async_worker(
+            pop_id=pop_id,
+            session_uuid=session_uuid,
+            secret_key=secret_key,
+            api_key=api_key,
+            access_token=access_token,
+            auto_start=auto_start,
+            stop_jobs=stop_jobs,
+            eyepop_url=eyepop_url,
+            job_queue_length=job_queue_length,
+            is_local_mode=is_local_mode,
+            request_tracer_max_buffer=request_tracer_max_buffer,
+            dataset_uuid=dataset_uuid,
+            pipeline_image=pipeline_image,
+            pipeline_version=pipeline_version,
+        )
+        return SyncWorkerEndpoint(endpoint)
+
+    @staticmethod
+    def async_worker(
+            pop_id: str | None = None,
+            session_uuid: str | None = None,
+            secret_key: str | None = None,
+            api_key: str | None = None,
+            access_token: str | None = None,
+            auto_start: bool = True,
+            stop_jobs: bool = True,
+            eyepop_url: str | None = None,
+            job_queue_length: int = 1024,
+            is_local_mode: bool | None = None,
+            request_tracer_max_buffer: int = 1204,
+            dataset_uuid: str | None = None,
+            pipeline_image: str | None = None,
+            pipeline_version: str | None = None,
+    ) -> WorkerEndpoint:
         if is_local_mode is None:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
             is_local_mode = local_mode_env.lower() in ("true", "yes")
 
         if pop_id is None:
             pop_id = os.getenv("EYEPOP_POP_ID", "transient")
+
+        if session_uuid is None:
+            session_uuid = os.getenv("EYEPOP_SESSION_UUID", None)
 
         has_any_auth_key = access_token is not None or secret_key is not None or api_key is not None
 
@@ -73,13 +167,18 @@ class EyePopSdk:
             if not is_transient_pop:
                 raise ValueError(f"Compute API only supports transient mode. Current pop_id: '{pop_id}'")
 
-        log.debug(f"Eyepop URL: {eyepop_url}")
+        if is_local_mode and api_key is None:
+            api_key = "<local api key>"
+
+        assert eyepop_url
+        log.debug(f"EyePop URL: {eyepop_url}")
 
         endpoint = WorkerEndpoint(
             secret_key=secret_key,
             access_token=access_token,
             api_key=api_key,
             pop_id=pop_id,
+            session_uuid=session_uuid,
             auto_start=auto_start,
             stop_jobs=stop_jobs,
             eyepop_url=eyepop_url,
@@ -89,10 +188,6 @@ class EyePopSdk:
             pipeline_image=pipeline_image,
             pipeline_version=pipeline_version,
         )
-
-        if not is_async:
-            return SyncWorkerEndpoint(endpoint)
-
         return endpoint
 
     """

@@ -16,8 +16,11 @@ class TestEndpointLoadBalance(BaseEndpointTest):
     @aioresponses()
     def test_sync_load_one(self, mock: aioresponses):
         self._prepare_mock(mock, 1)
-        with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                      pop_id=self.test_eyepop_pop_id) as endpoint:
+        with EyePopSdk.sync_worker(
+                eyepop_url=self.test_eyepop_url,
+                secret_key=self.test_eyepop_secret_key,
+                pop_id=self.test_eyepop_pop_id,
+        ) as endpoint:
             self.assertBaseMock(mock, status='active_prod')
             test_timestamp = time.time() * 1000 * 1000 * 1000
 
@@ -59,8 +62,11 @@ class TestEndpointLoadBalance(BaseEndpointTest):
     @aioresponses()
     def test_sync_load_two(self, mock: aioresponses):
         self._prepare_mock(mock, 2)
-        with EyePopSdk.workerEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
-                                      pop_id=self.test_eyepop_pop_id) as endpoint:
+        with EyePopSdk.sync_worker(
+                eyepop_url=self.test_eyepop_url,
+                secret_key=self.test_eyepop_secret_key,
+                pop_id=self.test_eyepop_pop_id,
+        ) as endpoint:
             self.assertBaseMock(mock, status='active_prod')
             test_timestamp = time.time() * 1000 * 1000 * 1000
 

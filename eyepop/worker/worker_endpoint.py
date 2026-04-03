@@ -5,7 +5,6 @@ from typing import Any, BinaryIO, Callable
 from urllib.parse import urljoin
 
 import aiohttp
-from aiohttp.client import _RequestContextManager
 
 from eyepop.compute.api import fetch_session_endpoint
 from eyepop.data.types.asset import Area
@@ -56,6 +55,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             api_key: str | None,
             eyepop_url: str,
             pop_id: str,
+            session_uuid: str | None,
             auto_start: bool,
             stop_jobs: bool,
             job_queue_length: int,
@@ -68,9 +68,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             secret_key=secret_key,
             access_token=access_token,
             eyepop_url=eyepop_url,
-            api_key=api_key,
             job_queue_length=job_queue_length,
             request_tracer_max_buffer=request_tracer_max_buffer,
+            api_key=api_key,
+            session_uuid=session_uuid,
         )
         self.pop_id = pop_id
         self.auto_start = auto_start
@@ -82,8 +83,9 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.compute_ctx.pipeline_image = pipeline_image
             if pipeline_version:
                 self.compute_ctx.pipeline_version = pipeline_version
-
-        self.is_dev_mode = True
+            self.is_dev_mode = not bool(session_uuid)
+        else:
+            self.is_dev_mode = True
 
         self.worker_config = None
         self.last_fetch_config_success_time = None
@@ -124,6 +126,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 del self.worker_config["pipeline_id"]
 
     async def _reconnect(self):
+        # Narrow Optional[ClientSession] — _reconnect is only called after connect()
+        assert self.client_session is not None
         if self.worker_config is not None:
             return
 
@@ -144,8 +148,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
             self.worker_config = {
                 "session_endpoint": self.compute_ctx.session_endpoint,
-                "pipeline_id": self.compute_ctx.pipeline_uuid,
-                "endpoints": []
+                "pipeline_id": self.compute_ctx.pipeline_id,
+                "endpoints": [],
             }
 
             self.last_fetch_config_success_time = time.time()
@@ -185,14 +189,15 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.last_fetch_config_error_time = time.time()
                 raise e
 
-        self.is_dev_mode = self.pop_id == 'transient' or self.worker_config.get('status') != 'active_prod'
-
         if self.compute_ctx:
             log_requests.debug(f'Using compute context config: {self.worker_config}')
 
         base_url = await self.dev_mode_base_url()
 
-        if self.pop_id == 'transient' or (self.compute_ctx and (not self.compute_ctx.pipeline_uuid or self.compute_ctx.pipeline_uuid == "")):
+        if self.worker_config.get('status') == 'active_prod':
+            self.is_dev_mode = False
+
+        if self.is_dev_mode:
             start_pipeline_url = f'{base_url}/pipelines'
             body = {
                 "pop": self.pop.model_dump() if self.pop else {},
@@ -218,16 +223,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.compute_ctx.pipeline_uuid = response_json['id']
                 log.debug(f"Created pipeline with ID: {response_json['id']}")
 
-            if self.is_dev_mode:
-                if 'session_endpoint' in self.worker_config:
-                    base_url = self.worker_config['session_endpoint'].rstrip("/")
-                else:
-                    base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-                endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
-                self.load_balancer = EndpointLoadBalancer([endpoint])
-                log.debug(f"Reinitialized load balancer with pipeline_id: {self.worker_config['pipeline_id']}")
-
-        if self.is_dev_mode:
             has_base_url = ('base_url' in self.worker_config and self.worker_config['base_url'] is not None) or \
                           ('session_endpoint' in self.worker_config and self.worker_config['session_endpoint'] is not None)
             has_pipeline_id = self.worker_config.get('pipeline_id') is not None
@@ -268,12 +263,21 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self.load_balancer = EndpointLoadBalancer([endpoint])
             log.debug(f"Initialized load balancer with endpoint: {endpoint}")
         else:
-            self.load_balancer = EndpointLoadBalancer(self.worker_config['endpoints'])
-            log.debug(f"Initialized load balancer with endpoints: {self.worker_config['endpoints']}")
+            if 'session_endpoint' in self.worker_config:
+                base_url = self.worker_config['session_endpoint'].rstrip("/")
+                endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
+                self.load_balancer = EndpointLoadBalancer([endpoint])
+                log.debug(f"Initialized load balancer with endpoint: {endpoint}")
+            else:
+                self.load_balancer = EndpointLoadBalancer(self.worker_config['endpoints'])
+                log.debug(f"Initialized load balancer with endpoints: {self.worker_config['endpoints']}")
 
 
-    async def session(self) -> dict:
+    # Parent returns dict | None — must match and guard against None before subscripting
+    async def session(self) -> dict | None:
         session = await super().session()
+        if session is None:
+            return None
         session['popId'] = self.pop_id
         if self.worker_config:
             if 'session_endpoint' in self.worker_config:
@@ -294,14 +298,14 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.pop = pop
         return response
 
-    async def dev_mode_pipeline_base_url(self):
-        if self.is_dev_mode:
-            base_url = await self.dev_mode_base_url()
-            if self.worker_config is None:
-                raise PopNotStartedException(pop_id=self.pop_id)
-            return f'{base_url}/pipelines/{self.worker_config["pipeline_id"]}'
-        else:
-            pass
+    async def dev_mode_pipeline_base_url(self) -> str:
+        # Was `else: pass` which made return type str | None — raise explicitly instead
+        if not self.is_dev_mode:
+            raise PopNotStartedException(pop_id=self.pop_id)
+        base_url = await self.dev_mode_base_url()
+        if self.worker_config is None:
+            raise PopNotStartedException(pop_id=self.pop_id)
+        return f'{base_url}/pipelines/{self.worker_config["pipeline_id"]}'
 
     async def upload(
             self,
@@ -407,21 +411,23 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
     #
     # Implements: _WorkerClientSession
+    # Return types changed from _RequestContextManager to ClientResponse — these methods
+    # await the request and return the response directly, not a context manager.
     #
 
     async def pipeline_get(self, url_path_and_query: str, accept: str | None = None,
-                           timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+                           timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.ClientResponse:
         return await self._pipeline_request_with_retry('GET', url_path_and_query, accept=accept, timeout=timeout)
 
     async def pipeline_post(self, url_path_and_query: str, accept: str | None = None, open_data: Callable | None = None,
                             content_type: str | None = None,
-                            timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+                            timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.ClientResponse:
         return await self._pipeline_request_with_retry('POST', url_path_and_query, accept=accept, open_data=open_data,
                                                        content_type=content_type, timeout=timeout)
 
     async def pipeline_patch(self, url_path_and_query: str, accept: str | None = None, data: Any = None,
                              content_type: str | None = None,
-                             timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+                             timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.ClientResponse:
         def open_data():
             if isinstance(data, str):
                 return StringIO(data)
@@ -432,12 +438,14 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                                                        content_type=content_type, timeout=timeout)
 
     async def pipeline_delete(self, url_path_and_query: str,
-                              timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+                              timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.ClientResponse:
         return await self._pipeline_request_with_retry('DELETE', url_path_and_query, timeout=timeout)
 
     async def _pipeline_request_with_retry(self, method: str, url_path_and_query: str, accept: str | None = None,
                                            open_data: Callable | None = None, content_type: str | None = None,
-                                           timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+                                           timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.ClientResponse:
+        # Narrow Optional[ClientSession] for all .request() calls below
+        assert self.client_session is not None
         if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time < time.time() - settings.force_refresh_config_secs:
             self.worker_config = None
 
@@ -508,6 +516,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
     async def _worker_request_with_retry(self, method: str, url_path_and_query: str, accept: str | None = None,
                                          data: Any = None, content_type: str | None = None,
-                                         timeout: aiohttp.ClientTimeout | None = None) -> "_RequestContextManager":
+                                         timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.ClientResponse:
         url = f'{await self.dev_mode_base_url()}/{url_path_and_query}'
         return await self.request_with_retry(method, url, accept, data, content_type, timeout)

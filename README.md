@@ -26,7 +26,7 @@ We recommend using [python-dotenv](https://pypi.org/project/python-dotenv/) to l
 ```python
 from eyepop import EyePopSdk
 
-endpoint = EyePopSdk.workerEndpoint()
+endpoint = EyePopSdk.sync_worker()
 endpoint.connect()
 # do work ....
 endpoint.disconnect()
@@ -35,7 +35,7 @@ endpoint.disconnect()
 Or pass credentials explicitly:
 
 ```python
-endpoint = EyePopSdk.workerEndpoint(
+endpoint = EyePopSdk.sync_worker(
     pop_id='my-pop-id',
     api_key='my-api-key',
 )
@@ -50,14 +50,14 @@ from eyepop import EyePopSdk
 
 
 def upload_photo(file_path: str):
-    with EyePopSdk.workerEndpoint() as endpoint:
+    with EyePopSdk.sync_worker() as endpoint:
         result = endpoint.upload(file_path).predict()
         print(result)
 
 
 upload_photo('examples/example.jpg')
 ```
-1. `EyePopSdk.workerEndpoint()` returns an endpoint object that authenticates and connects to a worker.
+1. `EyePopSdk.sync_worker()` returns an endpoint object that authenticates and connects to a worker.
 2. Using `with ... endpoint:` automatically manages the connection lifecycle. Alternatively, call
 `endpoint.connect()` and `endpoint.disconnect()` manually.
 3. `endpoint.upload(...)` uploads a local file to the worker. The image is queued and processed when the worker becomes available.
@@ -70,7 +70,7 @@ from eyepop import EyePopSdk
 
 
 def upload_photo_from_stream(file_path: str, mime_type: str):
-    with EyePopSdk.workerEndpoint() as endpoint:
+    with EyePopSdk.sync_worker() as endpoint:
         with open(file_path, 'rb') as file:
             result = endpoint.upload_stream(file, mime_type).predict()
             print(result)
@@ -87,7 +87,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from eyepop import EyePopSdk
 
-with EyePopSdk.workerEndpoint() as endpoint:
+with EyePopSdk.sync_worker() as endpoint:
     result = endpoint.upload('examples/example.jpg').predict()
 with Image.open('examples/example.jpg') as image:
     plt.imshow(image)
@@ -106,7 +106,7 @@ from eyepop import EyePopSdk
 
 
 def upload_photos(file_paths: list[str]):
-    with EyePopSdk.workerEndpoint() as endpoint:
+    with EyePopSdk.sync_worker() as endpoint:
         jobs = []
         for file_path in file_paths:
             jobs.append(endpoint.upload(file_path))
@@ -129,7 +129,7 @@ async def async_upload_photos(file_paths: list[str]):
     async def on_ready(job: Job):
         print(await job.predict())
 
-    async with EyePopSdk.workerEndpoint(is_async=True) as endpoint:
+    async with EyePopSdk.async_worker() as endpoint:
         for file_path in file_paths:
             await endpoint.upload(file_path, on_ready=on_ready)
 
@@ -147,7 +147,7 @@ from eyepop import EyePopSdk
 
 
 def load_from_url(url: str):
-    with EyePopSdk.workerEndpoint() as endpoint:
+    with EyePopSdk.sync_worker() as endpoint:
         result = endpoint.load_from(url).predict()
         print(result)
 
@@ -162,7 +162,7 @@ from eyepop import EyePopSdk
 
 
 def load_video_from_url(url: str):
-    with EyePopSdk.workerEndpoint() as endpoint:
+    with EyePopSdk.sync_worker() as endpoint:
         job = endpoint.load_from(url)
         while result := job.predict():
             print(result)
@@ -178,7 +178,7 @@ from eyepop import EyePopSdk
 
 
 def load_video_from_url(url: str):
-    with EyePopSdk.workerEndpoint() as endpoint:
+    with EyePopSdk.sync_worker() as endpoint:
         job = endpoint.load_from(url)
         while result := job.predict():
             print(result)
@@ -227,7 +227,7 @@ pop = Pop(components=[
 ])
 
 async def main():
-    async with EyePopSdk.workerEndpoint(is_async=True) as endpoint:
+    async with EyePopSdk.async_worker() as endpoint:
         await endpoint.set_pop(pop)
         job = await endpoint.upload('examples/example.jpg')
         while result := await job.predict():
@@ -359,22 +359,10 @@ See [infer_demo.py](examples/infer_demo.py) for a complete VLM inference and eva
 
 ## Other Options
 
-### Auto start workers
-By default, connecting to a worker endpoint will start a worker if none is running. Disable with:
-```python
-EyePopSdk.workerEndpoint(auto_start=False)
-```
-
-### Stop pending jobs
-By default, connecting cancels all currently running or queued jobs on the worker (the caller _takes full control_). Disable with:
-```python
-EyePopSdk.workerEndpoint(stop_jobs=False)
-```
-
 ### Custom worker images
 To use a custom worker Docker image (e.g. from a private registry):
 ```python
-EyePopSdk.workerEndpoint(
+EyePopSdk.sync_worker(
     pipeline_image='my-registry/my-worker:latest',
     pipeline_version='1.0.0',
 )
@@ -384,7 +372,7 @@ Or set via environment variables `EYEPOP_PIPELINE_IMAGE` and `EYEPOP_PIPELINE_VE
 ### Local mode
 For local development against a worker running on `127.0.0.1:8080`:
 ```python
-EyePopSdk.workerEndpoint(is_local_mode=True)
+EyePopSdk.sync_worker(is_local_mode=True)
 ```
 Or set the environment variable `EYEPOP_LOCAL_MODE=true`.
 
