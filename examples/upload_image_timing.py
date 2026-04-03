@@ -9,7 +9,7 @@ from eyepop.worker.worker_endpoint import WorkerEndpoint
 
 def upload_photos_sequentially(file_paths: list[str]):
     """Sequential processing of batch uploads - simple but slowest option."""
-    with EyePopSdk.workerEndpoint() as endpoint:
+    with EyePopSdk.sync_worker() as endpoint:
         for file_path in file_paths:
             job = endpoint.upload(file_path)
             while job.predict() is not None:
@@ -18,7 +18,7 @@ def upload_photos_sequentially(file_paths: list[str]):
 
 def upload_photos(file_paths: list[str]):
     """Parallel processing of batch uploads - fast but limited by memory."""
-    with EyePopSdk.workerEndpoint() as endpoint:
+    with EyePopSdk.sync_worker() as endpoint:
         jobs = []
         for file_path in file_paths:
             jobs.append(endpoint.upload(file_path))
@@ -36,7 +36,7 @@ def upload_photos_threaded(file_paths: list[str]):
         while job.predict() is not None:
             pass
 
-    with EyePopSdk.workerEndpoint() as endpoint:
+    with EyePopSdk.sync_worker() as endpoint:
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = [executor.submit(run_upload, endpoint, file_path) for file_path in file_paths]
 
@@ -62,7 +62,7 @@ async def async_upload_photos(file_paths: list[str]):
         finally:
             sem.release()
 
-    async with EyePopSdk.workerEndpoint(is_async=True, job_queue_length=512) as endpoint:
+    async with EyePopSdk.async_worker(job_queue_length=512) as endpoint:
         n = 0
         for file_path in file_paths:
             await endpoint.upload(file_path, on_ready=on_ready)

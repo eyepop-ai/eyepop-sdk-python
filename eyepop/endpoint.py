@@ -59,10 +59,12 @@ class Endpoint(ClientSession):
             eyepop_url: str,
             job_queue_length: int,
             request_tracer_max_buffer: int,
-            api_key: str | None = None
+            api_key: str | None = None,
+            session_uuid: str | None = None,
     ):
         self.secret_key = secret_key
         self.api_key = api_key
+        self.session_uuid = session_uuid
         if access_token is not None and access_token.lower().startswith("Bearer "):
             self.provided_access_token = access_token[len("Bearer "):]
         else:

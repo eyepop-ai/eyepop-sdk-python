@@ -12,7 +12,7 @@ is_streaming = len(sys.argv) > 2 and sys.argv[2].startswith("s")
 
 def upload_video(location: str):
     try:
-        with EyePopSdk.workerEndpoint(pop_id='transient') as endpoint:
+        with EyePopSdk.sync_worker() as endpoint:
             job = endpoint.upload(
                 location=location,
                 video_mode=VideoMode.BUFFER,

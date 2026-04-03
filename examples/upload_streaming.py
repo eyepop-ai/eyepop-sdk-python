@@ -8,7 +8,7 @@ example_file_1 = sys.argv[1]
 
 
 def upload_streaming(location: str):
-    with EyePopSdk.workerEndpoint() as endpoint:
+    with EyePopSdk.sync_worker() as endpoint:
         with open(location, 'rb') as f:
             job = endpoint.upload_stream(stream=f, mime_type=mimetypes.guess_type(location)[0])
             while result := job.predict():

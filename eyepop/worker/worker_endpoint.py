@@ -56,6 +56,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             api_key: str | None,
             eyepop_url: str,
             pop_id: str,
+            session_uuid: str | None,
             auto_start: bool,
             stop_jobs: bool,
             job_queue_length: int,
@@ -68,9 +69,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             secret_key=secret_key,
             access_token=access_token,
             eyepop_url=eyepop_url,
-            api_key=api_key,
             job_queue_length=job_queue_length,
             request_tracer_max_buffer=request_tracer_max_buffer,
+            api_key=api_key,
+            session_uuid=session_uuid,
         )
         self.pop_id = pop_id
         self.auto_start = auto_start
@@ -82,8 +84,9 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.compute_ctx.pipeline_image = pipeline_image
             if pipeline_version:
                 self.compute_ctx.pipeline_version = pipeline_version
-
-        self.is_dev_mode = True
+            self.is_dev_mode = not bool(session_uuid)
+        else:
+            self.is_dev_mode = True
 
         self.worker_config = None
         self.last_fetch_config_success_time = None
@@ -144,8 +147,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
             self.worker_config = {
                 "session_endpoint": self.compute_ctx.session_endpoint,
-                "pipeline_id": self.compute_ctx.pipeline_uuid,
-                "endpoints": []
+                "pipeline_id": self.compute_ctx.pipeline_id,
+                "endpoints": [],
             }
 
             self.last_fetch_config_success_time = time.time()
@@ -185,14 +188,20 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.last_fetch_config_error_time = time.time()
                 raise e
 
-        self.is_dev_mode = self.pop_id == 'transient' or self.worker_config.get('status') != 'active_prod'
-
         if self.compute_ctx:
             log_requests.debug(f'Using compute context config: {self.worker_config}')
 
         base_url = await self.dev_mode_base_url()
 
-        if self.pop_id == 'transient' or (self.compute_ctx and (not self.compute_ctx.pipeline_uuid or self.compute_ctx.pipeline_uuid == "")):
+        if self.worker_config.get('status') == 'active_prod':
+            self.is_dev_mode = False
+
+        print("WORKER CONFIG", self.worker_config)
+        print("POP ID", self.pop_id)
+        print("COMPUTE CONTEXT", self.compute_ctx)
+
+        if self.is_dev_mode:
+            print("STARTING NOW")
             start_pipeline_url = f'{base_url}/pipelines'
             body = {
                 "pop": self.pop.model_dump() if self.pop else {},
@@ -218,16 +227,14 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.compute_ctx.pipeline_uuid = response_json['id']
                 log.debug(f"Created pipeline with ID: {response_json['id']}")
 
-            if self.is_dev_mode:
-                if 'session_endpoint' in self.worker_config:
-                    base_url = self.worker_config['session_endpoint'].rstrip("/")
-                else:
-                    base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-                endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
-                self.load_balancer = EndpointLoadBalancer([endpoint])
-                log.debug(f"Reinitialized load balancer with pipeline_id: {self.worker_config['pipeline_id']}")
+            if 'session_endpoint' in self.worker_config:
+                base_url = self.worker_config['session_endpoint'].rstrip("/")
+            else:
+                base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+            endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
+            self.load_balancer = EndpointLoadBalancer([endpoint])
+            log.debug(f"Reinitialized load balancer with pipeline_id: {self.worker_config['pipeline_id']}")
 
-        if self.is_dev_mode:
             has_base_url = ('base_url' in self.worker_config and self.worker_config['base_url'] is not None) or \
                           ('session_endpoint' in self.worker_config and self.worker_config['session_endpoint'] is not None)
             has_pipeline_id = self.worker_config.get('pipeline_id') is not None
@@ -268,8 +275,14 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self.load_balancer = EndpointLoadBalancer([endpoint])
             log.debug(f"Initialized load balancer with endpoint: {endpoint}")
         else:
-            self.load_balancer = EndpointLoadBalancer(self.worker_config['endpoints'])
-            log.debug(f"Initialized load balancer with endpoints: {self.worker_config['endpoints']}")
+            if 'session_endpoint' in self.worker_config:
+                base_url = self.worker_config['session_endpoint'].rstrip("/")
+                endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
+                self.load_balancer = EndpointLoadBalancer([endpoint])
+                log.debug(f"Initialized load balancer with endpoint: {endpoint}")
+            else:
+                self.load_balancer = EndpointLoadBalancer(self.worker_config['endpoints'])
+                log.debug(f"Initialized load balancer with endpoints: {self.worker_config['endpoints']}")
 
 
     async def session(self) -> dict:

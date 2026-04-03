@@ -317,6 +317,7 @@ parser.add_argument('-l', '--local-path', required=False, type=str, default=Fals
 parser.add_argument('-a', '--asset-uuid', required=False, type=str, default=False, help="run the inference on an asset by its Uuid")
 parser.add_argument('-u', '--url', required=False, type=str, default=False, help="run the inference on a remote Url")
 parser.add_argument('-p', '--pop', required=False, type=str, help="run this pop", choices=list(pop_examples.keys()))
+parser.add_argument('-s', '--session', required=False, type=str, help="Use an existing a session uuid and do not set a pop, use the sessions as preconfigured", default=None)
 parser.add_argument('-m', '--model-uuid', required=False, type=str, action="append", help="run this model(s) by uuid")
 parser.add_argument('-ma', '--model-alias', required=False, type=str, action="append", help="run this model(s) by its tagged alias")
 parser.add_argument('-ms1', '--model-uuid-sam1', required=False, type=str, help="run this model by uuid and compose with SAM1 (EfficientSAM) and Contour Finder")
@@ -358,8 +359,14 @@ if not main_args.local_path and not main_args.url and not main_args.asset_uuid:
     parser.print_help()
     sys.exit(1)
 
-if not main_args.pop and not main_args.model_uuid and not main_args.model_alias and not main_args.model_uuid_sam1 and not main_args.model_uuid_sam2:
-    print("Need something do do, pass either --pop or --model-uuid or --model-alias or --model-uuid-sam1 or --model-uuid-sam2")
+if (not main_args.pop
+        and not main_args.model_uuid
+        and not main_args.model_alias
+        and not main_args.model_uuid_sam1
+        and not main_args.model_uuid_sam2
+        and not main_args.session):
+    print("Need something do do, pass either --pop or --model-uuid or --model-alias or --model-uuid-sam1 "
+          "or --model-uuid-sam2 (or start with a preconfigured session with --session)")
     parser.print_help()
     sys.exit(1)
 
@@ -454,8 +461,10 @@ elif main_args.model_uuid_sam2:
             )
         )
     ])
+elif main_args.session:
+    pop = None
 else:
-    raise ValueError("pop or model required")
+    raise ValueError("pop or model required (or a preconfigured session)")
 
 params = None
 if main_args.points:
@@ -499,8 +508,9 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
         if params:
             print("Params:", TypeAdapter(list[ComponentParams]).dump_json(params, indent=2).decode("utf-8"))
 
-    async with EyePopSdk.workerEndpoint(dataset_uuid=args.dataset_uuid, is_async=True) as endpoint:
-        await endpoint.set_pop(pop)
+    async with EyePopSdk.async_worker(dataset_uuid=args.dataset_uuid, session_uuid=args.session) as endpoint:
+        if pop:
+            await endpoint.set_pop(pop)
 
         if args.local_path:
             if not os.path.exists(args.local_path):

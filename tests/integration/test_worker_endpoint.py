@@ -20,7 +20,7 @@ def requires_api_key():
 
 @requires_api_key()
 def test_transient_pop_load_from_url():
-    with EyePopSdk.workerEndpoint(pop_id="transient") as endpoint:
+    with EyePopSdk.sync_worker(pop_id="transient") as endpoint:
         endpoint.set_pop(TEST_POP)
 
         job = endpoint.load_from(PUBLIC_TEST_IMAGE_URL)
@@ -42,7 +42,7 @@ def test_transient_pop_load_from_url():
 @requires_api_key()
 @pytest.mark.asyncio
 async def test_transient_pop_load_from_url_async():
-    async with EyePopSdk.workerEndpoint(pop_id="transient", is_async=True) as endpoint:
+    async with EyePopSdk.async_worker(pop_id="transient") as endpoint:
         await endpoint.set_pop(TEST_POP)
 
         job = await endpoint.load_from(PUBLIC_TEST_IMAGE_URL)
