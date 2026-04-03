@@ -1,6 +1,6 @@
 import logging
 import os
-from warnings import deprecated
+from typing_extensions import deprecated
 
 from eyepop import __version__
 from eyepop.data.data_endpoint import DataEndpoint
