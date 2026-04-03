@@ -1,5 +1,6 @@
 import logging
 import os
+
 from typing_extensions import deprecated
 
 from eyepop import __version__
