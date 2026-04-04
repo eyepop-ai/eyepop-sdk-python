@@ -142,7 +142,11 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.compute_ctx:
             if not self.compute_ctx.session_endpoint:
                 log_requests.debug("Fetching compute API session")
-                self.compute_ctx = await fetch_session_endpoint(self.compute_ctx, self.client_session)
+                self.compute_ctx = await fetch_session_endpoint(
+                    compute_ctx=self.compute_ctx,
+                    client_session=self.client_session,
+                    permanent_session_uuid=self.permanent_session_uuid,
+                )
                 self.eyepop_url = self.compute_ctx.session_endpoint
                 log_requests.debug(f"Compute session ready: {self.compute_ctx.session_endpoint}")
 
