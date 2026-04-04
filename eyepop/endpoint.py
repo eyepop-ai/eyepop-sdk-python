@@ -61,7 +61,7 @@ class Endpoint(ClientSession):
     ):
         self.secret_key = secret_key
         self.api_key = api_key
-        self.session_uuid = session_uuid
+        self.permanent_session_uuid = session_uuid
         if access_token is not None and access_token.lower().startswith("Bearer "):
             self.provided_access_token = access_token[len("Bearer "):]
         else:
