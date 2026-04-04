@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Any
 
 import aiohttp
 from pydantic import TypeAdapter
@@ -13,22 +14,31 @@ log = logging.getLogger("eyepop.compute")
 
 
 async def fetch_session_endpoint(
-    compute_ctx: ComputeContext, client_session: aiohttp.ClientSession
+    compute_ctx: ComputeContext,
+    client_session: aiohttp.ClientSession,
+    permanent_session_uuid: str | None
 ) -> ComputeContext:
     """Fetch or create a compute API session, then poll until ready."""
-    compute_context = await fetch_new_compute_session(compute_ctx, client_session)
+    if permanent_session_uuid is None:
+        compute_context = await fetch_new_compute_session(compute_ctx, client_session)
 
-    got_session = await wait_for_session(compute_context, client_session)
-    if got_session:
-        return compute_context
-
+        got_session = await wait_for_session(compute_context, client_session)
+        if got_session:
+            return compute_context
+    else:
+        return await fetch_permanent_compute_session(
+            compute_ctx=compute_ctx,
+            client_session=client_session,
+            permanent_session_uuid=permanent_session_uuid,
+        )
     raise ComputeSessionException(
         "Failed to fetch session endpoint", session_uuid=compute_context.session_uuid
     )
 
 
 async def fetch_new_compute_session(
-    compute_ctx: ComputeContext, client_session: aiohttp.ClientSession
+    compute_ctx: ComputeContext,
+    client_session: aiohttp.ClientSession
 ) -> ComputeContext:
     headers = {
         "Authorization": f"Bearer {compute_ctx.api_key}",
@@ -111,6 +121,12 @@ async def fetch_new_compute_session(
         else:
             res = None
 
+    _compute_context_from_response(compute_ctx, res)
+
+    return compute_ctx
+
+
+def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None | Any):
     try:
         session_response = TypeAdapter(ComputeApiSessionResponse).validate_python(res)
     except Exception as e:
@@ -146,8 +162,6 @@ async def fetch_new_compute_session(
             "M2M authentication is not configured properly.",
             session_uuid=compute_ctx.session_uuid,
         )
-
-    return compute_ctx
 
 
 async def refresh_compute_token(
@@ -191,3 +205,31 @@ async def refresh_compute_token(
         raise ComputeTokenException(
             f"Token refresh failed: {str(e)}", session_uuid=compute_ctx.session_uuid
         ) from e
+
+
+async def fetch_permanent_compute_session(
+    compute_ctx: ComputeContext,
+    client_session: aiohttp.ClientSession,
+    permanent_session_uuid: str
+) -> ComputeContext:
+    headers = {
+        "Authorization": f"Bearer {compute_ctx.api_key}",
+        "Accept": "application/json",
+    }
+
+    session_url = f"{compute_ctx.compute_url}/v1/sessions/{permanent_session_uuid}"
+    log.debug(f"Fetching session from: {session_url}")
+
+    try:
+        async with client_session.get(session_url, headers=headers) as get_response:
+            get_response.raise_for_status()
+            res = await get_response.json()
+            log.debug(f"GET /v1/sessions: {get_response.status}")
+            _compute_context_from_response(compute_ctx, res)
+            return compute_ctx
+    except aiohttp.ClientResponseError as e:
+        raise ComputeSessionException(
+            f"Failed to fetch existing sessions: {e.message}",
+        ) from e
+    except Exception as e:
+        raise ComputeSessionException(f"Unexpected error fetching sessions: {str(e)}") from e

@@ -189,7 +189,7 @@ async def test_fetch_session_endpoint_with_health_check(mock_fetch_new, mock_wai
     mock_wait.return_value = True
 
     async with aiohttp.ClientSession() as session:
-        result = await fetch_session_endpoint(mock_context, session)
+        result = await fetch_session_endpoint(mock_context, session, None)
 
     mock_fetch_new.assert_called_once_with(mock_context, session)
     mock_wait.assert_called_once_with(mock_context, session)
@@ -206,7 +206,7 @@ async def test_fetch_session_endpoint_raises_on_health_check_failure(mock_fetch_
 
     async with aiohttp.ClientSession() as session:
         with pytest.raises(ComputeSessionException, match="Failed to fetch"):
-            await fetch_session_endpoint(mock_context, session)
+            await fetch_session_endpoint(mock_context, session, None)
 
 
 @pytest.mark.asyncio
@@ -228,7 +228,7 @@ async def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
     mock_wait.return_value = True
 
     async with aiohttp.ClientSession() as session:
-        await fetch_session_endpoint(input_context, session)
+        await fetch_session_endpoint(input_context, session, None)
 
     called_context = mock_fetch_new.call_args[0][0]
     assert called_context.compute_url == "https://custom.compute.com"
