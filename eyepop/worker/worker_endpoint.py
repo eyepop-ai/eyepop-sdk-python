@@ -64,6 +64,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
             session_opts: dict | None = None,
+            session_headers: dict | None = None,
     ):
         super().__init__(
             secret_key=secret_key,
@@ -86,6 +87,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.compute_ctx.pipeline_version = pipeline_version
             if session_opts:
                 self.compute_ctx.session_opts = session_opts
+            if session_headers:
+                self.compute_ctx.session_headers = session_headers
             self.is_dev_mode = not bool(session_uuid)
         else:
             self.is_dev_mode = True
