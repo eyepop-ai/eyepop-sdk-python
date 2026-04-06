@@ -47,27 +47,27 @@ async def fetch_new_compute_session(
     sessions_url = f"{compute_ctx.compute_url}/v1/sessions"
 
     res = None
-    need_new_session = False
+    create_reason = None
 
     try:
         async with client_session.get(sessions_url, headers=headers) as get_response:
             log.debug(f"GET /v1/sessions - status: {get_response.status}")
             if get_response.status == 404:
-                need_new_session = True
+                create_reason = "no sessions endpoint (404)"
             else:
                 get_response.raise_for_status()
                 res = await get_response.json()
 
                 if not res:
-                    need_new_session = True
+                    create_reason = "empty response"
                 elif isinstance(res, list) and len(res) == 0:
-                    need_new_session = True
+                    create_reason = "no existing sessions"
                 elif isinstance(res, dict) and not res.get("session_uuid"):
-                    need_new_session = True
+                    create_reason = "response missing session_uuid"
 
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
-            need_new_session = True
+            create_reason = "no sessions endpoint (404)"
         else:
             raise ComputeSessionException(
                 f"Failed to fetch existing sessions: {e.message}",
@@ -75,7 +75,8 @@ async def fetch_new_compute_session(
     except Exception as e:
         raise ComputeSessionException(f"Unexpected error fetching sessions: {str(e)}") from e
 
-    if need_new_session:
+    if create_reason:
+        log.debug(f"Creating new session: {create_reason}")
         try:
             body = {}
             if compute_ctx.pipeline_image:
