@@ -215,7 +215,6 @@ class Endpoint(ClientSession):
             if self.compute_ctx.m2m_access_token:
                 return self.compute_ctx.m2m_access_token
             else:
-                log.debug("compute ctx m2m access token is None, fetching new token")
                 assert self.client_session is not None
                 authenticate_url = f'{self.compute_ctx.compute_url}/v1/auth/authenticate'
                 api_auth_header = {
@@ -224,9 +223,9 @@ class Endpoint(ClientSession):
                     'Accept': 'application/json'
                 }
                 async with self.client_session.post(authenticate_url, headers=api_auth_header) as response:
+                    log.debug(f"POST /v1/auth/authenticate - status: {response.status}")
                     response_json = await response.json()
                     self.compute_ctx.m2m_access_token = response_json['access_token']
-                    log.debug(f"compute ctx m2m access token: {self.compute_ctx.m2m_access_token}")
                     return self.compute_ctx.m2m_access_token
         if self.secret_key is None:
             return None

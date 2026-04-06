@@ -196,7 +196,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 raise e
 
         if self.compute_ctx:
-            log_requests.debug(f'Using compute context config: {self.worker_config}')
+            log_requests.debug(f'Compute session: {self.compute_ctx.session_uuid}')
 
         base_url = await self.dev_mode_base_url()
 
