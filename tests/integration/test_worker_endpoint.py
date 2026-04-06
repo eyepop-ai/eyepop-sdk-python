@@ -10,12 +10,36 @@ TEST_POP = Pop(components=[
     InferenceComponent(ability="eyepop.person:latest")
 ])
 
+# test.jpg is 480x640, model should detect at least 10 persons
+EXPECTED_SOURCE_WIDTH = 480
+EXPECTED_SOURCE_HEIGHT = 640
+MIN_EXPECTED_PERSONS = 10
+MIN_CONFIDENCE = 0.5
+
 
 def requires_api_key():
     return pytest.mark.skipif(
         not os.getenv("EYEPOP_API_KEY"),
         reason="EYEPOP_API_KEY environment variable not set",
     )
+
+
+def assert_person_detection_result(result: dict):
+    assert result["source_width"] == EXPECTED_SOURCE_WIDTH
+    assert result["source_height"] == EXPECTED_SOURCE_HEIGHT
+
+    objects = result.get("objects", [])
+    assert len(objects) >= MIN_EXPECTED_PERSONS, (
+        f"Expected at least {MIN_EXPECTED_PERSONS} persons, got {len(objects)}"
+    )
+
+    for obj in objects:
+        assert obj["classLabel"] == "person"
+        assert obj["confidence"] >= MIN_CONFIDENCE
+        assert obj["width"] > 0
+        assert obj["height"] > 0
+        assert obj["x"] >= 0
+        assert obj["y"] >= 0
 
 
 @requires_api_key()
@@ -26,17 +50,7 @@ def test_transient_pop_load_from_url():
         job = endpoint.load_from(PUBLIC_TEST_IMAGE_URL)
         result = job.predict()
 
-        print("\n=== Inference Result (sync) ===")
-        print(f"Source: {result.get('source_width')}x{result.get('source_height')}")
-        print(f"Objects detected: {len(result.get('objects', []))}")
-        for obj in result.get("objects", []):
-            print(f"  - {obj.get('classLabel')} (confidence: {obj.get('confidence', 0):.2f})")
-
-        assert result is not None
-        assert "source_width" in result
-        assert "source_height" in result
-        assert result["source_width"] > 0
-        assert result["source_height"] > 0
+        assert_person_detection_result(result)
 
 
 @requires_api_key()
@@ -48,17 +62,7 @@ async def test_transient_pop_load_from_url_async():
         job = await endpoint.load_from(PUBLIC_TEST_IMAGE_URL)
         result = await job.predict()
 
-        print("\n=== Inference Result (async) ===")
-        print(f"Source: {result.get('source_width')}x{result.get('source_height')}")
-        print(f"Objects detected: {len(result.get('objects', []))}")
-        for obj in result.get("objects", []):
-            print(f"  - {obj.get('classLabel')} (confidence: {obj.get('confidence', 0):.2f})")
-
-        assert result is not None
-        assert "source_width" in result
-        assert "source_height" in result
-        assert result["source_width"] > 0
-        assert result["source_height"] > 0
+        assert_person_detection_result(result)
 
 
 @requires_api_key()
