@@ -33,6 +33,7 @@ class EyePopSdk:
             dataset_uuid: str | None = None,
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
+            session_opts: dict | None = None,
     ) -> WorkerEndpoint | SyncWorkerEndpoint:
         if is_async:
             return EyePopSdk.async_worker(
@@ -50,6 +51,7 @@ class EyePopSdk:
                 dataset_uuid=dataset_uuid,
                 pipeline_image=pipeline_image,
                 pipeline_version=pipeline_version,
+                session_opts=session_opts,
             )
         else:
             return EyePopSdk.sync_worker(
@@ -67,6 +69,7 @@ class EyePopSdk:
                 dataset_uuid=dataset_uuid,
                 pipeline_image=pipeline_image,
                 pipeline_version=pipeline_version,
+                session_opts=session_opts,
             )
 
     @staticmethod
@@ -85,6 +88,7 @@ class EyePopSdk:
             dataset_uuid: str | None = None,
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
+            session_opts: dict | None = None,
     ) -> SyncWorkerEndpoint:
         endpoint = EyePopSdk.async_worker(
             pop_id=pop_id,
@@ -101,6 +105,7 @@ class EyePopSdk:
             dataset_uuid=dataset_uuid,
             pipeline_image=pipeline_image,
             pipeline_version=pipeline_version,
+            session_opts=session_opts,
         )
         return SyncWorkerEndpoint(endpoint)
 
@@ -120,6 +125,7 @@ class EyePopSdk:
             dataset_uuid: str | None = None,
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
+            session_opts: dict | None = None,
     ) -> WorkerEndpoint:
         if is_local_mode is None:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
@@ -187,6 +193,7 @@ class EyePopSdk:
             dataset_uuid=dataset_uuid,
             pipeline_image=pipeline_image,
             pipeline_version=pipeline_version,
+            session_opts=session_opts,
         )
         return endpoint
 
