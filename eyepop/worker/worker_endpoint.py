@@ -86,9 +86,9 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             if pipeline_version:
                 self.compute_ctx.pipeline_version = pipeline_version
             if session_opts:
-                self.compute_ctx.session_opts = session_opts
+                self.compute_ctx.session_opts = dict(session_opts)
             if session_headers:
-                self.compute_ctx.session_headers = session_headers
+                self.compute_ctx.session_headers = dict(session_headers)
             self.is_dev_mode = not bool(session_uuid)
         else:
             self.is_dev_mode = True
