@@ -85,9 +85,10 @@ async def fetch_new_compute_session(
             if compute_ctx.session_opts:
                 body.update(compute_ctx.session_opts)
 
+            post_headers = {**headers, **compute_ctx.session_headers} if compute_ctx.session_headers else headers
             async with client_session.post(
                 f'{sessions_url}?wait=true',
-                headers=headers,
+                headers=post_headers,
                 json=body if body else None,
             ) as post_response:
                 post_response.raise_for_status()
