@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 import aiohttp
+from pydantic import ValidationError
 
 from eyepop.compute.context import ComputeContext, PipelineStatus
 from eyepop.compute.responses import ComputeApiSessionResponse
@@ -48,7 +49,14 @@ async def wait_for_session(
                     await asyncio.sleep(interval)
                     continue
 
-                session_response = ComputeApiSessionResponse(**(await response.json()))
+                body = await response.json()
+
+                try:
+                    session_response = ComputeApiSessionResponse(**body)
+                except ValidationError:
+                    log.debug(f"GET /health - status: 200, simple health response (attempt {attempt})")
+                    return True
+
                 status = session_response.session_status
                 log.debug(f"GET /health - status: 200, pipeline: {status.value} (attempt {attempt})")
 
