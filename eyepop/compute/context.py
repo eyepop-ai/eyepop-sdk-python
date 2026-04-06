@@ -40,6 +40,10 @@ class ComputeContext(BaseModel):
         description="Custom Docker image tag for the worker pipeline",
         default_factory=lambda: os.getenv("EYEPOP_PIPELINE_VERSION", "")
     )
+    session_opts: dict = Field(
+        description="Arbitrary extra fields merged into the session POST body",
+        default_factory=dict
+    )
 
 
 class PipelineStatus(str, Enum):

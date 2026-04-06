@@ -90,6 +90,8 @@ async def fetch_new_compute_session(
                 body["pipeline_image"] = compute_ctx.pipeline_image
             if compute_ctx.pipeline_version:
                 body["pipeline_version"] = compute_ctx.pipeline_version
+            if compute_ctx.session_opts:
+                body.update(compute_ctx.session_opts)
 
             if body:
                 log.debug(f"POST /v1/sessions body: {body}")
@@ -138,23 +140,13 @@ def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None
     compute_ctx.access_token_expires_at = session_response.access_token_expires_at
     compute_ctx.access_token_expires_in = session_response.access_token_expires_in
     pipeline_id = ""
+
     if len(session_response.pipelines) > 0:
         pipeline_id = session_response.pipelines[0].get("id", None)
         if not pipeline_id:
             pipeline_id = session_response.pipelines[0].get("pipeline_id", "")
 
     compute_ctx.pipeline_id = pipeline_id
-
-    debug_obj = {
-        "session_endpoint": session_response.session_endpoint,
-        "session_uuid": session_response.session_uuid,
-        "m2m_access_token": session_response.access_token,
-        "m2m_access_token_expires_at": session_response.access_token_expires_at,
-        "m2m_access_token_expires_in": session_response.access_token_expires_in,
-        "pipeline_id": pipeline_id,
-        "pipelines": session_response.pipelines,
-    }
-    log.debug(json.dumps(debug_obj, indent=4))
 
     if not session_response.access_token or len(session_response.access_token.strip()) == 0:
         raise ComputeSessionException(
@@ -201,7 +193,6 @@ async def refresh_compute_token(
         ) from e
     except Exception as e:
         log.error("Failed to refresh token")
-        log.debug(str(e))
         raise ComputeTokenException(
             f"Token refresh failed: {str(e)}", session_uuid=compute_ctx.session_uuid
         ) from e
