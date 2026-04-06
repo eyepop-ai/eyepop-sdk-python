@@ -3,10 +3,13 @@ import logging
 
 import aiohttp
 
-from eyepop.compute.context import ComputeContext
+from eyepop.compute.context import ComputeContext, PipelineStatus
+from eyepop.compute.responses import ComputeApiSessionResponse
 from eyepop.exceptions import ComputeHealthCheckException
 
 log = logging.getLogger("eyepop.compute")
+
+_TERMINAL_STATES = {PipelineStatus.FAILED, PipelineStatus.ERROR, PipelineStatus.STOPPED}
 
 
 async def wait_for_session(
@@ -39,25 +42,40 @@ async def wait_for_session(
         attempt += 1
         try:
             async with client_session.get(health_url, headers=headers) as response:
-                log.debug(f"GET /health - status: {response.status} (attempt {attempt})")
+                if response.status != 200:
+                    last_message = f"HTTP {response.status}"
+                    log.debug(f"GET /health - status: {response.status} (attempt {attempt})")
+                    await asyncio.sleep(interval)
+                    continue
 
-                if response.status == 200:
+                session_response = ComputeApiSessionResponse(**(await response.json()))
+                status = session_response.session_status
+                log.debug(f"GET /health - status: 200, pipeline: {status.value} (attempt {attempt})")
+
+                if status == PipelineStatus.RUNNING:
                     return True
 
-                last_message = f"Health check returned status {response.status}"
+                if status in _TERMINAL_STATES:
+                    raise ComputeHealthCheckException(
+                        f"Session in terminal state: {status.value}. "
+                        f"Message: {session_response.session_message}",
+                        session_endpoint=compute_config.session_endpoint,
+                        last_status=status.value,
+                    )
+
+                last_message = f"Pipeline status: {status.value}"
                 await asyncio.sleep(interval)
-                continue
 
         except ComputeHealthCheckException:
             raise
         except aiohttp.ClientResponseError as e:
             last_message = f"HTTP {e.status}: {e.message}"
             log.debug(f"GET /health - error: {last_message} (attempt {attempt})")
+            await asyncio.sleep(interval)
         except Exception as e:
             last_message = str(e)
             log.debug(f"GET /health - error: {last_message} (attempt {attempt})")
-
-        await asyncio.sleep(interval)
+            await asyncio.sleep(interval)
 
     log.error(f"Session timed out after {timeout}s. Last message: {last_message}")
     raise TimeoutError(f"Session timed out after {timeout}s. Last message: {last_message}")
