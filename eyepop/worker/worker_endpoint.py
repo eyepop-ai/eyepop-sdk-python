@@ -63,6 +63,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             dataset_uuid: str | None = None,
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
+            session_opts: dict | None = None,
+            session_headers: dict | None = None,
     ):
         super().__init__(
             secret_key=secret_key,
@@ -83,6 +85,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.compute_ctx.pipeline_image = pipeline_image
             if pipeline_version:
                 self.compute_ctx.pipeline_version = pipeline_version
+            if session_opts:
+                self.compute_ctx.session_opts = dict(session_opts)
+            if session_headers:
+                self.compute_ctx.session_headers = dict(session_headers)
             self.is_dev_mode = not bool(session_uuid)
         else:
             self.is_dev_mode = True
@@ -194,7 +200,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 raise e
 
         if self.compute_ctx:
-            log_requests.debug(f'Using compute context config: {self.worker_config}')
+            log_requests.debug(f'Compute session: {self.compute_ctx.session_uuid}')
 
         base_url = await self.dev_mode_base_url()
 

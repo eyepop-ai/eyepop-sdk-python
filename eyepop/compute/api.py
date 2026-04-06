@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Any
 
@@ -46,35 +45,29 @@ async def fetch_new_compute_session(
     }
 
     sessions_url = f"{compute_ctx.compute_url}/v1/sessions"
-    log.debug(f"Fetching sessions from: {sessions_url}")
 
     res = None
-    need_new_session = False
+    create_reason = None
 
     try:
         async with client_session.get(sessions_url, headers=headers) as get_response:
+            log.debug(f"GET /v1/sessions - status: {get_response.status}")
             if get_response.status == 404:
-                need_new_session = True
-                log.debug("GET /v1/sessions returned 404, will create new session")
+                create_reason = "no sessions endpoint (404)"
             else:
                 get_response.raise_for_status()
                 res = await get_response.json()
-                log.debug(f"GET /v1/sessions: {get_response.status}")
 
                 if not res:
-                    need_new_session = True
-                    log.debug("Response is empty/None, need to create new session")
+                    create_reason = "empty response"
                 elif isinstance(res, list) and len(res) == 0:
-                    need_new_session = True
-                    log.debug("Response is empty list, need to create new session")
+                    create_reason = "no existing sessions"
                 elif isinstance(res, dict) and not res.get("session_uuid"):
-                    need_new_session = True
-                    log.debug("Response is dict without session_uuid, need to create new session")
+                    create_reason = "response missing session_uuid"
 
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
-            need_new_session = True
-            log.debug("GET /v1/sessions returned 404, will create new session")
+            create_reason = "no sessions endpoint (404)"
         else:
             raise ComputeSessionException(
                 f"Failed to fetch existing sessions: {e.message}",
@@ -82,28 +75,26 @@ async def fetch_new_compute_session(
     except Exception as e:
         raise ComputeSessionException(f"Unexpected error fetching sessions: {str(e)}") from e
 
-    if need_new_session:
+    if create_reason:
+        log.debug(f"Creating new session: {create_reason}")
         try:
-            log.debug(f"Creating new session via POST to: {sessions_url}")
             body = {}
             if compute_ctx.pipeline_image:
                 body["pipeline_image"] = compute_ctx.pipeline_image
             if compute_ctx.pipeline_version:
                 body["pipeline_version"] = compute_ctx.pipeline_version
+            if compute_ctx.session_opts:
+                body.update(compute_ctx.session_opts)
 
-            if body:
-                log.debug(f"POST /v1/sessions body: {body}")
-
-            # Explicit kwargs instead of **post_kwargs — the dict unpacking
-            # confuses aiohttp's overloaded signature and breaks type checking
+            post_headers = {**headers, **compute_ctx.session_headers} if compute_ctx.session_headers else headers
             async with client_session.post(
                 f'{sessions_url}?wait=true',
-                headers=headers,
+                headers=post_headers,
                 json=body if body else None,
             ) as post_response:
                 post_response.raise_for_status()
                 res = await post_response.json()
-                log.debug(f"POST /v1/sessions response: {post_response.status}")
+                log.debug(f"POST /v1/sessions - status: {post_response.status}")
         except aiohttp.ClientResponseError as e:
             raise ComputeSessionException(
                 f"Failed to create new session: {e.message}",
@@ -138,23 +129,13 @@ def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None
     compute_ctx.access_token_expires_at = session_response.access_token_expires_at
     compute_ctx.access_token_expires_in = session_response.access_token_expires_in
     pipeline_id = ""
+
     if len(session_response.pipelines) > 0:
         pipeline_id = session_response.pipelines[0].get("id", None)
         if not pipeline_id:
             pipeline_id = session_response.pipelines[0].get("pipeline_id", "")
 
     compute_ctx.pipeline_id = pipeline_id
-
-    debug_obj = {
-        "session_endpoint": session_response.session_endpoint,
-        "session_uuid": session_response.session_uuid,
-        "m2m_access_token": session_response.access_token,
-        "m2m_access_token_expires_at": session_response.access_token_expires_at,
-        "m2m_access_token_expires_in": session_response.access_token_expires_in,
-        "pipeline_id": pipeline_id,
-        "pipelines": session_response.pipelines,
-    }
-    log.debug(json.dumps(debug_obj, indent=4))
 
     if not session_response.access_token or len(session_response.access_token.strip()) == 0:
         raise ComputeSessionException(
@@ -176,32 +157,25 @@ async def refresh_compute_token(
     headers = {"Authorization": f"Bearer {compute_ctx.api_key}", "Accept": "application/json"}
 
     refresh_url = f"{compute_ctx.compute_url}/v1/auth/authenticate"
-    log.debug(f"Refreshing token at: {refresh_url}")
 
     try:
         async with client_session.post(refresh_url, headers=headers) as response:
             response.raise_for_status()
             token_response = await response.json()
-            log.debug(f"Token refresh response: {token_response}")
+            log.debug(f"POST /v1/auth/authenticate - status: {response.status}")
 
             compute_ctx.m2m_access_token = token_response.get("access_token", "")
             compute_ctx.access_token_expires_at = token_response.get("expires_at", "")
             compute_ctx.access_token_expires_in = token_response.get("expires_in", 0)
 
-            log.debug(
-                f"Token refreshed successfully, expires in: {compute_ctx.access_token_expires_in}s"
-            )
             return compute_ctx
 
     except aiohttp.ClientResponseError as e:
-        log.error(f"Failed to refresh token: HTTP {e.status} - {e.message}")
         raise ComputeTokenException(
             f"Token refresh failed: HTTP {e.status} - {e.message}",
             session_uuid=compute_ctx.session_uuid,
         ) from e
     except Exception as e:
-        log.error("Failed to refresh token")
-        log.debug(str(e))
         raise ComputeTokenException(
             f"Token refresh failed: {str(e)}", session_uuid=compute_ctx.session_uuid
         ) from e
@@ -218,13 +192,12 @@ async def fetch_permanent_compute_session(
     }
 
     session_url = f"{compute_ctx.compute_url}/v1/sessions/{permanent_session_uuid}"
-    log.debug(f"Fetching session from: {session_url}")
 
     try:
         async with client_session.get(session_url, headers=headers) as get_response:
             get_response.raise_for_status()
             res = await get_response.json()
-            log.debug(f"GET /v1/sessions: {get_response.status}")
+            log.debug(f"GET /v1/sessions/{permanent_session_uuid} - status: {get_response.status}")
             _compute_context_from_response(compute_ctx, res)
             return compute_ctx
     except aiohttp.ClientResponseError as e:
