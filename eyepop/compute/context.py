@@ -40,6 +40,14 @@ class ComputeContext(BaseModel):
         description="Custom Docker image tag for the worker pipeline",
         default_factory=lambda: os.getenv("EYEPOP_PIPELINE_VERSION", "")
     )
+    persist: bool = Field(
+        description="Create a persistent session that survives disconnects",
+        default=False
+    )
+    pop_uuid: str = Field(
+        description="The pop UUID for persistent session lookup",
+        default=""
+    )
 
 
 class PipelineStatus(str, Enum):

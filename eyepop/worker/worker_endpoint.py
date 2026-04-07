@@ -63,6 +63,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             dataset_uuid: str | None = None,
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
+            persist: bool = False,
     ):
         super().__init__(
             secret_key=secret_key,
@@ -78,12 +79,17 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.stop_jobs = stop_jobs
         self.dataset_uuid = dataset_uuid
 
+        self._persist = persist
+
         if self.compute_ctx:
             if pipeline_image:
                 self.compute_ctx.pipeline_image = pipeline_image
             if pipeline_version:
                 self.compute_ctx.pipeline_version = pipeline_version
-            self.is_dev_mode = not bool(session_uuid)
+            if persist:
+                self.compute_ctx.persist = True
+                self.compute_ctx.pop_uuid = pop_id
+            self.is_dev_mode = not bool(session_uuid) and not persist
         else:
             self.is_dev_mode = True
 
@@ -106,6 +112,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             return True
 
     async def _disconnect(self, timeout: float | None = None):
+        if self._persist:
+            return
         client_timeout = None
         if timeout is not None:
             client_timeout = aiohttp.ClientTimeout(total=timeout)
@@ -295,6 +303,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         return self.pop
 
     async def set_pop(self, pop: Pop):
+        if self._persist:
+            raise PopConfigurationException(self.pop_id, 'cannot modify a persistent session')
         if not self.is_dev_mode:
             raise PopConfigurationException(self.pop_id, 'set_pop not supported in production mode')
         response = await self.pipeline_patch('pop', content_type='application/json',

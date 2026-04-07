@@ -6,6 +6,7 @@ from typing_extensions import deprecated
 from eyepop import __version__
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_syncify import SyncDataEndpoint
+from eyepop.exceptions import PopConfigurationException
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_syncify import SyncWorkerEndpoint
 
@@ -85,6 +86,7 @@ class EyePopSdk:
             dataset_uuid: str | None = None,
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
+            persist: bool = False,
     ) -> SyncWorkerEndpoint:
         endpoint = EyePopSdk.async_worker(
             pop_id=pop_id,
@@ -101,6 +103,7 @@ class EyePopSdk:
             dataset_uuid=dataset_uuid,
             pipeline_image=pipeline_image,
             pipeline_version=pipeline_version,
+            persist=persist,
         )
         return SyncWorkerEndpoint(endpoint)
 
@@ -120,6 +123,7 @@ class EyePopSdk:
             dataset_uuid: str | None = None,
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
+            persist: bool = False,
     ) -> WorkerEndpoint:
         if is_local_mode is None:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
@@ -170,6 +174,11 @@ class EyePopSdk:
         if is_local_mode and api_key is None:
             api_key = "<local api key>"
 
+        if persist and (not pop_id or pop_id == "transient"):
+            raise PopConfigurationException("transient", "persist requires pop_id")
+        if session_uuid and pop_id and pop_id != "transient":
+            raise PopConfigurationException(pop_id, "cannot pass both pop_id and session_uuid")
+
         assert eyepop_url
         log.debug(f"EyePop URL: {eyepop_url}")
 
@@ -187,6 +196,7 @@ class EyePopSdk:
             dataset_uuid=dataset_uuid,
             pipeline_image=pipeline_image,
             pipeline_version=pipeline_version,
+            persist=persist,
         )
         return endpoint
 
