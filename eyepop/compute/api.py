@@ -90,6 +90,9 @@ async def fetch_new_compute_session(
                 body["pipeline_image"] = compute_ctx.pipeline_image
             if compute_ctx.pipeline_version:
                 body["pipeline_version"] = compute_ctx.pipeline_version
+            if compute_ctx.persist:
+                body["persist"] = True
+                body["pop_uuid"] = compute_ctx.pop_uuid
 
             if body:
                 log.debug(f"POST /v1/sessions body: {body}")
