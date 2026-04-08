@@ -158,7 +158,7 @@ class EyePopSdk:
 
         is_transient_pop = pop_id == "transient"
 
-        if api_key and not is_transient_pop:
+        if api_key and not is_transient_pop and not persist:
             raise ValueError(
                 f"EYEPOP_API_KEY can only be used with transient pops. "
                 f"Current pop_id: '{pop_id}'. Use EYEPOP_SECRET_KEY for named pops."
@@ -168,7 +168,7 @@ class EyePopSdk:
         if is_compute_url:
             if not api_key:
                 raise ValueError(f"Compute API endpoint ({eyepop_url}) requires EYEPOP_API_KEY")
-            if not is_transient_pop:
+            if not is_transient_pop and not persist:
                 raise ValueError(f"Compute API only supports transient mode. Current pop_id: '{pop_id}'")
 
         if is_local_mode and api_key is None:
