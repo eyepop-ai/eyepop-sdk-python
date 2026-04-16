@@ -196,6 +196,29 @@ class InferRunInfo(BaseModel):
     )
 
 
+class LLMProviderConfig(BaseModel):
+    provider: Literal["openai", "qwen3"] = Field(
+        default="openai",
+        description="LLM provider: 'openai' for OpenAI API, 'qwen3' for local Qwen3 LLM worker",
+    )
+    llm_api_key: str | None = Field(
+        default=None,
+        description="API key for the LLM provider (required for OpenAI)",
+    )
+    model: str = Field(
+        default="gpt-4o",
+        description="Model identifier for the LLM",
+    )
+    temperature: float = Field(
+        default=0.3,
+        description="Sampling temperature for LLM",
+    )
+    max_new_tokens: int = Field(
+        default=1048,
+        description="Maximum tokens to generate (used for qwen3 provider)",
+    )
+
+
 class AutoPromptConfig(BaseModel):
     num_samples: int = Field(
         default=5,
@@ -212,6 +235,9 @@ class AutoPromptConfig(BaseModel):
     )
     evaluate: EvaluateConfig = Field(
         description="EvaluateConfig for VLM evaluation.",
+    )
+    llm_config: LLMProviderConfig = Field(
+        description="LLM provider configuration for prompt generation.",
     )
 
 
