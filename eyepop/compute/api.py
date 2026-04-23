@@ -59,8 +59,6 @@ async def fetch_new_compute_session(
                 res = await get_response.json()
 
                 if not res:
-                    create_reason = "empty response"
-                elif isinstance(res, list) and len(res) == 0:
                     create_reason = "no existing sessions"
                 elif isinstance(res, dict) and not res.get("session_uuid"):
                     create_reason = "response missing session_uuid"
@@ -86,7 +84,15 @@ async def fetch_new_compute_session(
             if compute_ctx.session_opts:
                 body.update(compute_ctx.session_opts)
 
-            post_headers = {**headers, **compute_ctx.session_headers} if compute_ctx.session_headers else headers
+            post_headers = dict(headers)
+            if compute_ctx.session_headers:
+                reserved = {"authorization", "accept"}
+                conflicting = [k for k in compute_ctx.session_headers if k.lower() in reserved]
+                if conflicting:
+                    raise ComputeSessionException(
+                        f"session_headers cannot override reserved headers: {', '.join(conflicting)}"
+                    )
+                post_headers.update(compute_ctx.session_headers)
             async with client_session.post(
                 f'{sessions_url}?wait=true',
                 headers=post_headers,
@@ -99,6 +105,8 @@ async def fetch_new_compute_session(
             raise ComputeSessionException(
                 f"Failed to create new session: {e.message}",
             ) from e
+        except ComputeSessionException:
+            raise
         except Exception as e:
             raise ComputeSessionException(
                 f"No existing session and failed to create new one: {str(e)}"
