@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.15.1] - 2026-04-03
+
 ### Added
 - `pipeline_image` and `pipeline_version` parameters on `workerEndpoint()` for custom worker Docker images (also configurable via `EYEPOP_PIPELINE_IMAGE` and `EYEPOP_PIPELINE_VERSION` environment variables)
 - `videoChunkLengthSeconds` and `videoChunkOverlap` fields on `InferenceComponent` for chunked video processing
