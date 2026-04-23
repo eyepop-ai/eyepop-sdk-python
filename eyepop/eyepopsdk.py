@@ -127,6 +127,13 @@ class EyePopSdk:
             pipeline_version: str | None = None,
             **kwargs,
     ) -> WorkerEndpoint:
+        allowed_extra_keys = {"session_opts", "session_headers"}
+        unexpected_keys = set(kwargs) - allowed_extra_keys
+        if unexpected_keys:
+            raise TypeError(
+                f"Unexpected keyword argument(s): {', '.join(sorted(unexpected_keys))}"
+            )
+
         if is_local_mode is None:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
             is_local_mode = local_mode_env.lower() in ("true", "yes")
