@@ -24,8 +24,7 @@ Credentials are read from environment variables. Set **one** auth method:
 
 | Variable | Description |
 |---|---|
-| `EYEPOP_API_KEY` | API key for transient pops (default). |
-| `EYEPOP_SECRET_KEY` | Secret key for named pops. |
+| `EYEPOP_API_KEY` | API key from your dashboard. |
 | `EYEPOP_ACCESS_TOKEN` | Pre-issued OAuth access token. |
 
 Optional:
@@ -39,8 +38,6 @@ Optional:
 | `EYEPOP_PIPELINE_IMAGE` | Custom worker Docker image. |
 | `EYEPOP_PIPELINE_VERSION` | Custom worker image tag. |
 | `EYEPOP_ACCOUNT_ID` | Required for some Data API calls. |
-
-> **API_KEY vs SECRET_KEY**: `EYEPOP_API_KEY` only works with transient pops. For named pops, use `EYEPOP_SECRET_KEY`.
 
 Use [python-dotenv](https://pypi.org/project/python-dotenv/) to load a `.env` file (see [`.env.example`](.env.example)).
 
