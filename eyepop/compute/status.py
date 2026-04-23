@@ -53,9 +53,14 @@ async def wait_for_session(
 
                 try:
                     session_response = ComputeApiSessionResponse(**body)
-                except ValidationError:
-                    log.debug(f"GET /health - status: 200, simple health response (attempt {attempt})")
-                    return True
+                except ValidationError as e:
+                    if isinstance(body, dict) and "message" in body and "session_status" not in body:
+                        log.debug(f"GET /health - status: 200, simple health response (attempt {attempt})")
+                        return True
+                    last_message = f"Invalid health payload: {e}"
+                    log.debug(f"GET /health - {last_message} (attempt {attempt})")
+                    await asyncio.sleep(interval)
+                    continue
 
                 status = session_response.session_status
                 log.debug(f"GET /health - status: 200, pipeline: {status.value} (attempt {attempt})")
