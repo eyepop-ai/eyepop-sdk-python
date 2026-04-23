@@ -173,3 +173,4 @@ CLAUDE.local.md
 !.claude/agents/
 !.claude/skills/
 !CLAUDE.md
+.claude/settings.local.json
