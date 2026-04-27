@@ -42,6 +42,7 @@ script_dir = os.path.dirname(__file__)
 
 
 pop_examples = {
+    "noop": Pop(components=[]),
     "vehicles": Pop(components=[
         InferenceComponent(
             ability='eyepop.vehicle:latest',
@@ -351,6 +352,9 @@ parser.add_argument('--motion-detect', required=False, help="Skip video frames w
 # Optional global ROI parameters
 parser.add_argument('--roi', required=False, type=rectangle_roi, help="Rectangular ROI as (x, y, width, height)")
 
+# Optional caching media for post-processing on the worker
+parser.add_argument('-mc', '--media-cache-seconds', required=False, type=int, help="Cache most recent X seconds of media for post-processing on the worker", default=None)
+
 
 main_args = parser.parse_args()
 
@@ -535,7 +539,14 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                     if args.output:
                         print(path, json.dumps(result, indent=2))
             for local_file in local_files:
-                job = await endpoint.upload(local_file, params=params, motion_detect=motion_detect, roi=args.roi, fps=args.fps)
+                job = await endpoint.upload(
+                    local_file,
+                    params=params,
+                    motion_detect=motion_detect,
+                    roi=args.roi,
+                    fps=args.fps,
+                    media_cache_seconds=args.media_cache_seconds
+                )
                 jobs.append(on_ready(job, local_file))
             await asyncio.gather(*jobs)
             if args.visualize and visualize_prediction is not None:
@@ -544,7 +555,14 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                 image.save(buffer, format="PNG")
                 example_image_src = f"data:image/png;base64, {base64.b64encode(buffer.getvalue()).decode()}"
         elif args.url:
-            job = await endpoint.load_from(args.url, params=params, motion_detect=motion_detect, roi=args.roi, fps=args.fps)
+            job = await endpoint.load_from(
+                args.url,
+                params=params,
+                motion_detect=motion_detect,
+                roi=args.roi,
+                fps=args.fps,
+                media_cache_seconds=args.media_cache_seconds
+            )
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:
@@ -552,7 +570,14 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
             if args.visualize:
                 example_image_src = args.url
         elif args.asset_uuid:
-            job = await endpoint.load_asset(args.asset_uuid, params=params, motion_detect=motion_detect, roi=args.roi, fps=args.fps)
+            job = await endpoint.load_asset(
+                args.asset_uuid,
+                params=params,
+                motion_detect=motion_detect,
+                roi=args.roi,
+                fps=args.fps,
+                media_cache_seconds=args.media_cache_seconds
+            )
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:
