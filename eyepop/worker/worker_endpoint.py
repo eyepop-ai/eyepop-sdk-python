@@ -319,8 +319,9 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
             fps: str | None = None,
+            media_cache_seconds: int | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
-    ) -> WorkerJob | SyncWorkerJob:
+    ) -> WorkerJob:
         job = _UploadFileJob(
             location=location,
             video_mode=video_mode,
@@ -328,6 +329,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            media_cache_seconds=media_cache_seconds,
             session=self, on_ready=on_ready,
             callback=self.metrics_collector
         )
@@ -343,8 +345,9 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
             fps: str | None = None,
+            media_cache_seconds: int | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
-    ) -> WorkerJob | SyncWorkerJob:
+    ) -> WorkerJob:
         job = _UploadStreamJob(
             stream=stream,
             mime_type=mime_type,
@@ -353,6 +356,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector
@@ -367,14 +371,16 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
             fps: str | None = None,
+            media_cache_seconds: int | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
-    ) -> WorkerJob | SyncWorkerJob:
+    ) -> WorkerJob:
         job = _LoadFromJob(
             location=location,
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector
@@ -389,14 +395,16 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
             fps: str | None = None,
+            media_cache_seconds: int | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
-    ) -> WorkerJob | SyncWorkerJob:
+    ) -> WorkerJob:
         job = _LoadFromAssetUuidJob(
             asset_uuid=asset_uuid,
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector

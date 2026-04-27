@@ -30,6 +30,7 @@ class WorkerJob(Job):
     _roi: Area | None
     _fps: str | None
     _version: PredictionVersion
+    _media_cache_seconds: int | None
 
     def __init__(
             self,
@@ -38,6 +39,7 @@ class WorkerJob(Job):
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
             fps: str | None,
+            media_cache_seconds: int | None,
             on_ready: Callable[["WorkerJob"], None] | None,
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
@@ -47,6 +49,7 @@ class WorkerJob(Job):
         self._motion_detect = motion_detect
         self._roi = roi
         self._fps = fps
+        self._media_cache_seconds = media_cache_seconds
         self._version = version
 
     async def predict(self) -> dict[str, Any] | None:
@@ -100,6 +103,7 @@ class _UploadJob(WorkerJob):
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
             fps: str | None,
+            media_cache_seconds: int | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -111,6 +115,7 @@ class _UploadJob(WorkerJob):
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            media_cache_seconds=media_cache_seconds,
             on_ready=on_ready,
             callback=callback,
             version=version
@@ -149,6 +154,8 @@ class _UploadJob(WorkerJob):
             query_params['version'] = self._version
         if self._motion_detect is not None:
             query_params.update(self._motion_detect.model_dump(exclude_none=True))
+        if self._media_cache_seconds is not None:
+            query_params['mediaCacheSeconds'] = self._media_cache_seconds
 
         if self.needs_full_duplex:
             self._response = await session.pipeline_post(
@@ -218,19 +225,21 @@ class _UploadFileJob(_UploadJob):
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
             fps: str | None,
+            media_cache_seconds: int | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
         super().__init__(
-            mime_type=_guess_mime_type_from_location(location),
+            mime_type=_guess_mime_type_from_location(location) or 'application/octet-stream',
             open_stream=self._open_file_stream,
             video_mode=video_mode,
             component_params=component_params,
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            media_cache_seconds=media_cache_seconds,
             session=session,
             on_ready=on_ready,
             callback=callback,
@@ -252,6 +261,7 @@ class _UploadStreamJob(_UploadJob):
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
             fps: str | None,
+            media_cache_seconds: int | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -265,6 +275,7 @@ class _UploadStreamJob(_UploadJob):
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            media_cache_seconds=media_cache_seconds,
             session=session,
             on_ready=on_ready,
             callback=callback,
@@ -284,6 +295,7 @@ class _LoadFromJob(WorkerJob):
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
             fps: str | None,
+            media_cache_seconds: int | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -295,13 +307,14 @@ class _LoadFromJob(WorkerJob):
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            media_cache_seconds=media_cache_seconds,
             on_ready=on_ready,
             callback=callback,
             version=version
         )
         self.location = location
         self.target_url = 'source?mode=queue&processing=sync'
-        self.body = {
+        self.body: dict[str, Any] = {
             "sourceType": "URL",
             "url": self.location,
             "version": self._version,
@@ -314,6 +327,8 @@ class _LoadFromJob(WorkerJob):
             self.body['roi'] = self._roi.model_dump(exclude_none=True)
         if self._fps is not None:
             self.body['fps'] = self._fps
+        if self._media_cache_seconds is not None:
+            self.body['mediaCacheSeconds'] = self._media_cache_seconds
 
         self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=600)
 
@@ -334,6 +349,7 @@ class _LoadFromAssetUuidJob(WorkerJob):
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
             fps: str | None,
+            media_cache_seconds: int | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
@@ -345,6 +361,7 @@ class _LoadFromAssetUuidJob(WorkerJob):
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            media_cache_seconds=media_cache_seconds,
             on_ready=on_ready,
             callback=callback,
             version=version
@@ -362,6 +379,8 @@ class _LoadFromAssetUuidJob(WorkerJob):
             self.body['roi'] = self._roi.model_dump(exclude_none=True)
         if self._component_params is not None:
             self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
+        if self._media_cache_seconds is not None:
+            self.body['mediaCacheSeconds'] = self._media_cache_seconds
 
         self.timeouts = aiohttp.ClientTimeout(total=None, sock_read=600)
 
