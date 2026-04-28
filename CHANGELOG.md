@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.15.2] - 2026-04-27
+
+### Added
+- `mediaCacheSeconds` field on `InferenceComponent` to retain the last N seconds of live streams for replay and debugging.
+
 ## [3.15.1] - 2026-04-03
 
 ### Added
