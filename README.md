@@ -92,6 +92,8 @@ Cancel a job mid-stream with `job.cancel()`.
 Queue multiple uploads, then collect results:
 
 ```python
+file_paths = ['examples/example.jpg']  # replace with your paths
+
 with EyePopSdk.sync_worker() as endpoint:
     jobs = [endpoint.upload(p) for p in file_paths]
     for job in jobs:
