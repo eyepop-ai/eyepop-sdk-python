@@ -25,7 +25,7 @@ Get an API key at [dashboard.eyepop.ai](https://dashboard.eyepop.ai), then eithe
 export EYEPOP_API_KEY=...
 ```
 
-…or copy `../.env.example` to `.env` and fill it in (all examples call `load_dotenv()`).
+…or copy `../.env.example` to `.env` and fill it in. Examples that need credentials at startup (`pop_demo.py`, `auth_session.py`) call `load_dotenv()`; for others, export the variables in your shell.
 
 ## Running
 
