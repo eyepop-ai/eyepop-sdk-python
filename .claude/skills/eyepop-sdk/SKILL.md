@@ -111,7 +111,7 @@ Pop(components=[
     InferenceComponent(
         ability='eyepop.vehicle:latest',
         forward=CropForward(targets=[
-            InferenceComponent(ability='eyepop.vehicle.licence-plate:latest')
+            InferenceComponent(ability='eyepop.vehicle.license-plate:latest')
         ])
     )
 ])
