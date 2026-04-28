@@ -166,12 +166,12 @@ pop = Pop(components=[
                 agnostic=True,
             ),
             InferenceComponent(
-                ability='eyepop.vehicle.licence-plate:latest',
+                ability='eyepop.vehicle.license-plate:latest',
                 topK=1,
                 forward=CropForward(targets=[
                     InferenceComponent(
                         ability='eyepop.text.recognize.landscape:latest',
-                        categoryName='licence-plate',
+                        categoryName='license-plate',
                     ),
                 ]),
             ),
