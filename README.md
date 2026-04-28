@@ -2,9 +2,11 @@
 
 Python SDK for EyePop.ai's inference and data APIs.
 
-- **Install**: `pip install eyepop`
-- **Requires**: Python 3.12+
-- **Examples**: see [`examples/`](examples/)
+```shell
+pip install eyepop
+```
+
+Requires Python 3.12+.
 
 ## Quickstart
 
@@ -12,11 +14,15 @@ Python SDK for EyePop.ai's inference and data APIs.
 from eyepop import EyePopSdk
 
 with EyePopSdk.sync_worker() as endpoint:
-    result = endpoint.upload('examples/example.jpg').predict()
+    result = endpoint.upload('photo.jpg').predict()
     print(result)
 ```
 
-Set `EYEPOP_API_KEY` in your environment (get one at [dashboard.eyepop.ai](https://dashboard.eyepop.ai)), or pass `api_key=...` to `sync_worker()`.
+Set `EYEPOP_API_KEY` in your environment (get one at [dashboard.eyepop.ai](https://dashboard.eyepop.ai)), or pass `api_key=...` to `sync_worker()`:
+
+```python
+endpoint = EyePopSdk.sync_worker(api_key='my-api-key', pop_id='my-pop-id')
+```
 
 ## Configuration
 
@@ -32,20 +38,7 @@ Optional:
 | Variable | Description |
 |---|---|
 | `EYEPOP_POP_ID` | Named pop ID. Defaults to `transient`. |
-| `EYEPOP_SESSION_UUID` | Reuse an existing worker session. |
-| `EYEPOP_URL` | Override API endpoint. |
-| `EYEPOP_LOCAL_MODE` | Connect to a worker at `127.0.0.1:8080`. |
-| `EYEPOP_PIPELINE_IMAGE` | Custom worker Docker image. |
-| `EYEPOP_PIPELINE_VERSION` | Custom worker image tag. |
 | `EYEPOP_ACCOUNT_ID` | Required for some Data API calls. |
-
-Use [python-dotenv](https://pypi.org/project/python-dotenv/) to load a `.env` file (see [`.env.example`](.env.example)).
-
-You can also pass credentials explicitly:
-
-```python
-endpoint = EyePopSdk.sync_worker(pop_id='my-pop-id', api_key='my-api-key')
-```
 
 ## Usage
 
@@ -55,7 +48,7 @@ endpoint = EyePopSdk.sync_worker(pop_id='my-pop-id', api_key='my-api-key')
 from eyepop import EyePopSdk
 
 with EyePopSdk.sync_worker() as endpoint:
-    result = endpoint.upload('examples/example.jpg').predict()
+    result = endpoint.upload('photo.jpg').predict()
     print(result)
 ```
 
@@ -65,7 +58,7 @@ with EyePopSdk.sync_worker() as endpoint:
 
 ```python
 with EyePopSdk.sync_worker() as endpoint:
-    with open('examples/example.jpg', 'rb') as file:
+    with open('photo.jpg', 'rb') as file:
         result = endpoint.upload_stream(file, 'image/jpeg').predict()
 ```
 
@@ -92,7 +85,7 @@ Cancel a job mid-stream with `job.cancel()`.
 Queue multiple uploads, then collect results:
 
 ```python
-file_paths = ['examples/example.jpg']  # replace with your paths
+file_paths = ['photo1.jpg', 'photo2.jpg']
 
 with EyePopSdk.sync_worker() as endpoint:
     jobs = [endpoint.upload(p) for p in file_paths]
@@ -114,7 +107,7 @@ async def main(paths):
         for p in paths:
             await endpoint.upload(p, on_ready=on_ready)
 
-asyncio.run(main(['examples/example.jpg'] * 100))
+asyncio.run(main(['photo1.jpg', 'photo2.jpg']))
 ```
 
 ### Visualize results
@@ -125,15 +118,13 @@ import matplotlib.pyplot as plt
 from eyepop import EyePopSdk
 
 with EyePopSdk.sync_worker() as endpoint:
-    result = endpoint.upload('examples/example.jpg').predict()
+    result = endpoint.upload('photo.jpg').predict()
 
-with Image.open('examples/example.jpg') as image:
+with Image.open('photo.jpg') as image:
     plt.imshow(image)
 EyePopSdk.plot(plt.gca()).prediction(result)
 plt.show()
 ```
-
-See [`examples/visualize_with_webui2.py`](examples/visualize_with_webui2.py) for an interactive viewer.
 
 ## Composable Pops
 
@@ -208,8 +199,6 @@ pop = Pop(components=[
 ])
 ```
 
-Full catalogue: face mesh, hand tracking, body pose, SAM segmentation, and more in [`examples/pop_demo.py`](examples/pop_demo.py).
-
 ## Data Endpoint
 
 Dataset management, VLM inference, and evaluation workflows.
@@ -256,28 +245,3 @@ async with EyePopSdk.dataEndpoint(is_async=True, job_queue_length=4) as endpoint
     response = await job.response
     print(response.model_dump_json(indent=2))
 ```
-
-See [`examples/infer_demo.py`](examples/infer_demo.py) for the complete flow.
-
-## Advanced
-
-### Custom worker image
-
-```python
-EyePopSdk.sync_worker(
-    pipeline_image='my-registry/my-worker:latest',
-    pipeline_version='1.0.0',
-)
-```
-
-Or set `EYEPOP_PIPELINE_IMAGE` and `EYEPOP_PIPELINE_VERSION`.
-
-### Local mode
-
-Connect to a local worker at `127.0.0.1:8080`:
-
-```python
-EyePopSdk.sync_worker(is_local_mode=True)
-```
-
-Or set `EYEPOP_LOCAL_MODE=true`.
