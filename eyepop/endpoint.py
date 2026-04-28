@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import time
 from types import TracebackType
 from typing import Any, Awaitable, Callable, Optional, Type
 
@@ -34,12 +33,9 @@ async def response_check_with_error_body(response: aiohttp.ClientResponse):
 class Endpoint(ClientSession):
     """Abstract EyePop Endpoint."""
 
-    secret_key: str | None
     api_key: str | None
     provided_access_token: str | None
     eyepop_url: str
-    token: dict[str, Any] | None
-    expire_token_time: float | None
     compute_ctx: Any | None
     request_tracer: RequestTracer | None
     event_sender: Periodic | None
@@ -51,7 +47,6 @@ class Endpoint(ClientSession):
 
     def __init__(
             self,
-            secret_key: str | None,
             access_token: str | None,
             eyepop_url: str,
             job_queue_length: int,
@@ -59,7 +54,6 @@ class Endpoint(ClientSession):
             api_key: str | None = None,
             session_uuid: str | None = None,
     ):
-        self.secret_key = secret_key
         self.api_key = api_key
         self.permanent_session_uuid = session_uuid
         if access_token is not None and access_token.lower().startswith("Bearer "):
@@ -67,8 +61,6 @@ class Endpoint(ClientSession):
         else:
             self.provided_access_token = access_token
         self.eyepop_url = eyepop_url
-        self.token = None
-        self.expire_token_time = None
         self.compute_ctx = None
 
         if api_key is not None:
@@ -87,9 +79,7 @@ class Endpoint(ClientSession):
             self.event_sender = None
 
         self.retry_handlers = dict()
-        if self.secret_key is not None:
-            self.retry_handlers[401] = self._retry_401
-        elif self.compute_ctx is not None:
+        if self.compute_ctx is not None:
             self.retry_handlers[401] = self._retry_401_compute
         self.retry_handlers[500] = self._retry_50x
         self.retry_handlers[502] = self._retry_50x
@@ -199,7 +189,7 @@ class Endpoint(ClientSession):
             return None
         return {
             'eyepopUrl': self.eyepop_url, 'accessToken': token,
-            'validUntil': None if self.expire_token_time is None else self.expire_token_time * 1000
+            'validUntil': None,
         }
 
     async def _reconnect(self):
@@ -214,39 +204,20 @@ class Endpoint(ClientSession):
         if self.compute_ctx is not None:
             if self.compute_ctx.m2m_access_token:
                 return self.compute_ctx.m2m_access_token
-            else:
-                log.debug("compute ctx m2m access token is None, fetching new token")
-                assert self.client_session is not None
-                authenticate_url = f'{self.compute_ctx.compute_url}/v1/auth/authenticate'
-                api_auth_header = {
-                    'Authorization': f'Bearer {self.compute_ctx.api_key}',
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                }
-                async with self.client_session.post(authenticate_url, headers=api_auth_header) as response:
-                    response_json = await response.json()
-                    self.compute_ctx.m2m_access_token = response_json['access_token']
-                    log.debug(f"compute ctx m2m access token: {self.compute_ctx.m2m_access_token}")
-                    return self.compute_ctx.m2m_access_token
-        if self.secret_key is None:
-            return None
-        assert self.client_session is not None
-        now = time.time()
-        if self.token is None or self.expire_token_time is None or self.expire_token_time < now:
-            body = {'secret_key': self.secret_key}
-            post_url = f'{self.eyepop_url}/authentication/token'
-            log_requests.debug('before POST %s', post_url)
-            async with self.client_session.post(post_url, json=body) as response:
-                token = await response.json()
-                assert token is not None
-                self.token = token
-                self.expire_token_time = time.time() + token['expires_in'] - 60
-            assert self.token is not None
-            log_requests.debug('after POST %s expires_in=%d token_type=%s', post_url, self.token['expires_in'],
-                               self.token['token_type'])
-        assert self.token is not None and self.expire_token_time is not None
-        log.debug('using access token, valid for at least %d seconds', self.expire_token_time - now)
-        return self.token['access_token']
+            log.debug("compute ctx m2m access token is None, fetching new token")
+            assert self.client_session is not None
+            authenticate_url = f'{self.compute_ctx.compute_url}/v1/auth/authenticate'
+            api_auth_header = {
+                'Authorization': f'Bearer {self.compute_ctx.api_key}',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+            async with self.client_session.post(authenticate_url, headers=api_auth_header) as response:
+                response_json = await response.json()
+                self.compute_ctx.m2m_access_token = response_json['access_token']
+                log.debug(f"compute ctx m2m access token: {self.compute_ctx.m2m_access_token}")
+                return self.compute_ctx.m2m_access_token
+        return None
 
     def _task_done(self, task):
         self.tasks.discard(task)
@@ -257,15 +228,6 @@ class Endpoint(ClientSession):
         task = asyncio.create_task(coro)
         self.tasks.add(task)
         task.add_done_callback(self._task_done)
-
-    async def _retry_401(self, status_code: int, failed_attempts: int) -> bool:
-        if failed_attempts > 1:
-            return False
-        else:
-            log_requests.debug('retry handler: after 401, about to retry with fresh access token')
-            self.token = None
-            self.expire_token_time = None
-            return True
 
     async def _retry_401_compute(self, status_code: int, failed_attempts: int) -> bool:
         if failed_attempts > 1:

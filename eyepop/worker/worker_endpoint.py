@@ -30,32 +30,17 @@ log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
 log_metrics = logging.getLogger('eyepop.metrics')
 
-def should_use_compute_api(pop_id: str, api_key: str | None) -> bool:
-    """Determine if we should use Compute API based on pop_id and api_key."""
-    if not api_key:
-        return False
-
-    is_transient = pop_id == "transient" or not pop_id
-
-    if not is_transient:
-        log.debug(f"Pop ID {pop_id} is not transient, will not use compute API")
-        return False
-
-    log.debug("Using compute API")
-    return True
 
 class WorkerEndpoint(Endpoint, WorkerClientSession):
     """Endpoint to an EyePop.ai worker."""
 
     def __init__(
             self,
-            secret_key: str | None,
             access_token: str | None,
             api_key: str | None,
             eyepop_url: str,
             pop_id: str,
             session_uuid: str | None,
-            auto_start: bool,
             stop_jobs: bool,
             job_queue_length: int,
             request_tracer_max_buffer: int,
@@ -64,7 +49,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             pipeline_version: str | None = None,
     ):
         super().__init__(
-            secret_key=secret_key,
             access_token=access_token,
             eyepop_url=eyepop_url,
             job_queue_length=job_queue_length,
@@ -73,7 +57,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             session_uuid=session_uuid,
         )
         self.pop_id = pop_id
-        self.auto_start = auto_start
         self.stop_jobs = stop_jobs
         self.dataset_uuid = dataset_uuid
 
@@ -138,67 +121,35 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time > time.time() - settings.min_config_reconnect_secs:
             raise aiohttp.ClientConnectionError()
 
-        if self.compute_ctx:
-            if not self.compute_ctx.session_endpoint:
-                log_requests.debug("Fetching compute API session")
-                self.compute_ctx = await fetch_session_endpoint(
-                    compute_ctx=self.compute_ctx,
-                    client_session=self.client_session,
-                    permanent_session_uuid=self.permanent_session_uuid,
-                )
-                self.eyepop_url = self.compute_ctx.session_endpoint
-                log_requests.debug(f"Compute session ready: {self.compute_ctx.session_endpoint}")
+        if not self.compute_ctx:
+            raise RuntimeError(
+                "WorkerEndpoint requires compute API context (api_key). "
+                "The legacy named-pop config path has been removed."
+            )
 
-            self.worker_config = {
-                "session_endpoint": self.compute_ctx.session_endpoint,
-                "pipeline_id": self.compute_ctx.pipeline_id,
-                "endpoints": [],
-            }
+        if not self.compute_ctx.session_endpoint:
+            log_requests.debug("Fetching compute API session")
+            self.compute_ctx = await fetch_session_endpoint(
+                compute_ctx=self.compute_ctx,
+                client_session=self.client_session,
+                permanent_session_uuid=self.permanent_session_uuid,
+            )
+            self.eyepop_url = self.compute_ctx.session_endpoint
+            log_requests.debug(f"Compute session ready: {self.compute_ctx.session_endpoint}")
 
-            self.last_fetch_config_success_time = time.time()
-            self.last_fetch_config_error = None
-            self.last_fetch_config_error_time = None
-        else:
-            if self.pop_id == 'transient':
-                config_url = f'{self.eyepop_url}/workers/config'
-            else:
-                config_url = f'{self.eyepop_url}/pops/{self.pop_id}/config?auto_start={self.auto_start}'
-            headers = {}
-            authorization_header = await self._authorization_header()
-            if authorization_header is not None:
-                headers['Authorization'] = authorization_header
-            try:
-                async with self.client_session.get(config_url, headers=headers) as response:
-                    self.worker_config = await response.json()
-                self.last_fetch_config_success_time = time.time()
-                self.last_fetch_config_error = None
-                self.last_fetch_config_error_time = None
-            except aiohttp.ClientResponseError as e:
-                if e.status != 401:
-                    self.last_fetch_config_error = e
-                    self.last_fetch_config_error_time = time.time()
-                    raise e
-                else:
-                    self.token = None
-                    self.expire_token_time = None
-                    headers = {}
-                    authorization_header = await self._authorization_header()
-                    if authorization_header is not None:
-                        headers['Authorization'] = authorization_header
-                    async with self.client_session.get(config_url, headers=headers) as retried_response:
-                        self.worker_config = await retried_response.json()
-            except aiohttp.ClientConnectionError as e:
-                self.last_fetch_config_error = e
-                self.last_fetch_config_error_time = time.time()
-                raise e
+        self.worker_config = {
+            "session_endpoint": self.compute_ctx.session_endpoint,
+            "pipeline_id": self.compute_ctx.pipeline_id,
+            "endpoints": [],
+        }
 
-        if self.compute_ctx:
-            log_requests.debug(f'Using compute context config: {self.worker_config}')
+        self.last_fetch_config_success_time = time.time()
+        self.last_fetch_config_error = None
+        self.last_fetch_config_error_time = None
+
+        log_requests.debug(f'Using compute context config: {self.worker_config}')
 
         base_url = await self.dev_mode_base_url()
-
-        if self.worker_config.get('status') == 'active_prod':
-            self.is_dev_mode = False
 
         if self.is_dev_mode:
             start_pipeline_url = f'{base_url}/pipelines'

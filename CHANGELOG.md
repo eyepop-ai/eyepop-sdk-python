@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed (BREAKING)
+- `secret_key` parameter and `EYEPOP_SECRET_KEY` environment variable. Construction now raises `ValueError` if either is set. Use `api_key` / `EYEPOP_API_KEY` and create deployments via the EyePop dashboard or CLI for named, persistent sessions.
+- Legacy named-pop config path (`/pops/<pop_id>/config`). The SDK now talks only to the compute API session surface (`/v1/sessions`).
+- `auto_start` parameter on `workerEndpoint()` / `sync_worker()` / `async_worker()`. Sessions are always provisioned through the compute API.
+- `should_use_compute_api()` helper. The compute API is the only supported path.
+
+### Deprecated
+- `pop_id` parameter. Pop selection now happens at deployment creation time (dashboard / CLI). Passing `pop_id` other than `"transient"` emits a deprecation warning.
+
+### Changed
+- `eyepop_url` defaults to `https://compute.eyepop.ai` (no fallback to `https://api.eyepop.ai`).
+
 ## [3.15.2] - 2026-04-27
 
 ### Added
