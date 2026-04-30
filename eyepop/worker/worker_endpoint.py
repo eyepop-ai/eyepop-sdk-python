@@ -208,17 +208,18 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                     self.pop = Pop(**pop_as_dict)
             log.debug('current pop is %s', self.pop)
 
+        session_endpoint = self.worker_config.get('session_endpoint')
         if self.is_dev_mode:
-            if 'session_endpoint' in self.worker_config:
-                base_url = self.worker_config['session_endpoint'].rstrip("/")
+            if session_endpoint is not None:
+                base_url = session_endpoint.rstrip("/")
             else:
                 base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
             endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
             self.load_balancer = EndpointLoadBalancer([endpoint])
             log.debug(f"Initialized load balancer with endpoint: {endpoint}")
         else:
-            if 'session_endpoint' in self.worker_config:
-                base_url = self.worker_config['session_endpoint'].rstrip("/")
+            if session_endpoint is not None:
+                base_url = session_endpoint.rstrip("/")
                 endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
                 self.load_balancer = EndpointLoadBalancer([endpoint])
                 log.debug(f"Initialized load balancer with endpoint: {endpoint}")
