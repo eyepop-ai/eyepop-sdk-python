@@ -44,6 +44,6 @@ class ComputeApiSessionResponse(BaseModel):
     pipeline_ttl: int | None = Field(description="The ttl of the pipeline", default=None)
     session_active: bool = Field(description="Whether the session is active", default=False)
     persistent: bool = Field(
-        description="Whether the session is persistent (static). Ephemeral when False.",
+        description="Whether the session is persistent. Ephemeral when False.",
         default=False,
     )
