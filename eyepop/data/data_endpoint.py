@@ -98,7 +98,6 @@ class DataEndpoint(Endpoint):
 
     def __init__(
             self,
-            secret_key: str | None,
             access_token: str | None,
             eyepop_url: str,
             account_id: str | None,
@@ -108,7 +107,6 @@ class DataEndpoint(Endpoint):
             api_key: str | None = None
     ):
         super().__init__(
-            secret_key=secret_key,
             access_token=access_token,
             eyepop_url=eyepop_url,
             api_key=api_key,
