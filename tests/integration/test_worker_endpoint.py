@@ -28,7 +28,7 @@ def assert_person_detection_result(result: dict):
     assert result["source_width"] == EXPECTED_SOURCE_WIDTH
     assert result["source_height"] == EXPECTED_SOURCE_HEIGHT
 
-    objects = result.get("objects", [])
+    objects = result.get("objects") or []
     assert len(objects) >= MIN_EXPECTED_PERSONS, (
         f"Expected at least {MIN_EXPECTED_PERSONS} persons, got {len(objects)}"
     )
