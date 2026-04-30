@@ -39,10 +39,12 @@ async def wait_for_session(
     last_message = "No message received"
     attempt = 0
 
+    request_timeout = aiohttp.ClientTimeout(total=interval)
+
     while asyncio.get_event_loop().time() < end_time:
         attempt += 1
         try:
-            async with client_session.get(health_url, headers=headers) as response:
+            async with client_session.get(health_url, headers=headers, timeout=request_timeout) as response:
                 if response.status != 200:
                     last_message = f"HTTP {response.status}"
                     log.debug(f"GET /health - status: {response.status} (attempt {attempt})")
@@ -85,7 +87,7 @@ async def wait_for_session(
             last_message = f"HTTP {e.status}: {e.message}"
             log.debug(f"GET /health - error: {last_message} (attempt {attempt})")
             await asyncio.sleep(interval)
-        except Exception as e:
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
             last_message = str(e)
             log.debug(f"GET /health - error: {last_message} (attempt {attempt})")
             await asyncio.sleep(interval)
