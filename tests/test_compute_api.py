@@ -358,3 +358,19 @@ async def test_creates_new_session_when_single_dict_is_persistent(mock_compute_c
         result = await fetch_new_compute_session(mock_compute_config, session)
 
     assert result.session_uuid == "ephemeral-456"
+
+
+@pytest.mark.asyncio
+async def test_adopts_single_dict_ephemeral_session(mock_compute_config, aioresponses):
+    """GET returns single ephemeral dict → SDK adopts it without POST."""
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=EPHEMERAL_SESSION_RESPONSE,
+        status=200,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(mock_compute_config, session)
+
+    assert result.session_uuid == "ephemeral-456"
+    assert result.session_endpoint == "https://ephemeral.example.com"
