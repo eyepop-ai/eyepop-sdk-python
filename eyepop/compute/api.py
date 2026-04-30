@@ -61,10 +61,13 @@ async def fetch_new_compute_session(
 
                 if not res:
                     need_new_session = True
-                elif isinstance(res, list) and len(res) == 0:
-                    need_new_session = True
-                elif isinstance(res, dict) and not res.get("session_uuid"):
-                    need_new_session = True
+                elif isinstance(res, list):
+                    res = [s for s in res if isinstance(s, dict) and not s.get("persistent")]
+                    if not res:
+                        need_new_session = True
+                elif isinstance(res, dict):
+                    if not res.get("session_uuid") or res.get("persistent"):
+                        need_new_session = True
 
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
