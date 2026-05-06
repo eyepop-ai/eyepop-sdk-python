@@ -87,6 +87,7 @@ class InferenceComponent(BaseComponent):
     ability: str | None = None
     categoryName: str | None = None
     confidenceThreshold: float | None = None
+    objectAreaThreshold: float | None = None
     topK: int | None = None
     topKClasses: int | None = None
     targetFps: str | None = None
