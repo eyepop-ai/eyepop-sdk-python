@@ -64,6 +64,11 @@ class WorkerJob(Job):
                         source_id = result.get('source_id', None)
                         message = result.get('message', None)
                         raise ValueError(f"Error in source {source_id}: {message}")
+                    type_ = event.get('type', None)
+                    if type_ == 'error':
+                        source_id = event.get('source_id', None)
+                        message = event.get('message', None)
+                        raise ValueError(f"Error in source {source_id}: {message}")
                 else:
                     return result
 
