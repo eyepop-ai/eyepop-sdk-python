@@ -18,10 +18,28 @@ with EyePopSdk.sync_worker() as endpoint:
     print(result)
 ```
 
-Set `EYEPOP_API_KEY` in your environment (get one at [dashboard.eyepop.ai](https://dashboard.eyepop.ai)), or pass `api_key=...` to `sync_worker()`:
+For transient worker sessions, set `EYEPOP_API_KEY` in your environment (get one at [dashboard.eyepop.ai](https://dashboard.eyepop.ai)), or pass `api_key=...` to `sync_worker()`:
 
 ```python
-endpoint = EyePopSdk.sync_worker(api_key='my-api-key', pop_id='my-pop-id')
+endpoint = EyePopSdk.sync_worker(api_key='my-api-key')
+```
+
+For a provisioned persistent session, also pass `session_uuid=...` or set `EYEPOP_SESSION_UUID`:
+
+```python
+endpoint = EyePopSdk.sync_worker(
+    api_key='my-api-key',
+    session_uuid='your-session-uuid',
+)
+```
+
+For named pops on the legacy Web API path, use `secret_key=...` with `pop_id=...`:
+
+```python
+endpoint = EyePopSdk.sync_worker(
+    secret_key='my-secret-key',
+    pop_id='my-pop-id',
+)
 ```
 
 ## Configuration
@@ -30,14 +48,16 @@ Credentials are read from environment variables. Set **one** auth method:
 
 | Variable | Description |
 |---|---|
-| `EYEPOP_API_KEY` | API key from your dashboard. |
+| `EYEPOP_API_KEY` | API key from your dashboard for transient or persistent compute sessions. |
+| `EYEPOP_SECRET_KEY` | Secret key for named-pop connections on the Web API path. |
 | `EYEPOP_ACCESS_TOKEN` | Pre-issued OAuth access token. |
 
 Optional:
 
 | Variable | Description |
 |---|---|
-| `EYEPOP_POP_ID` | Named pop ID. Defaults to `transient`. |
+| `EYEPOP_SESSION_UUID` | Existing persistent session UUID to connect to instead of creating a transient session. |
+| `EYEPOP_POP_ID` | Named pop ID for Web API flows. Defaults to `transient`. |
 | `EYEPOP_ACCOUNT_ID` | Required for some Data API calls. |
 
 ## Usage
