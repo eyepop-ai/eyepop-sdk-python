@@ -10,6 +10,7 @@ class ComputeApiPipelineStatus(BaseModel):
 
 class ComputeApiSessionRequest(BaseModel):
     account_uuid: str = Field(description="Required account uuid to create a session")
+    session_name: str = Field(description="Optional name to create a session", default="")
 
 
 class ComputeApiSessionResponse(BaseModel):

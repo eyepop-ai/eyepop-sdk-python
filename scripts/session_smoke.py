@@ -7,12 +7,13 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import aiohttp
 
 from eyepop import EyePopSdk, __version__
-from eyepop.worker.worker_types import InferenceComponent, Pop
+from eyepop.worker.worker_endpoint import WorkerEndpoint
+from eyepop.worker.worker_types import DynamicComponent, InferenceComponent, Pop
 
 DEFAULT_IMAGE = Path("tests/test.jpg")
 DESCRIPTION = "Run a deterministic SDK transient-session smoke test."
@@ -39,6 +40,11 @@ def parse_args() -> argparse.Namespace:
         "--api-key",
         default=os.getenv("EYEPOP_API_KEY"),
         help="EyePop API key. Defaults to EYEPOP_API_KEY.",
+    )
+    parser.add_argument(
+        "--session-name",
+        default=os.getenv("EYEPOP_SESSION_NAME"),
+        help="Optional transient session name for run correlation.",
     )
     parser.add_argument(
         "--image",
@@ -100,12 +106,18 @@ def require_inputs(args: argparse.Namespace) -> None:
 
 
 def build_pop(args: argparse.Namespace) -> Pop:
+    component = cast(
+        DynamicComponent,
+        InferenceComponent(
+            ability=args.ability,
+            categoryName=args.expected_class,
+            modelUuid=None,
+            model=None,
+        ),
+    )
     return Pop(
         components=[
-            InferenceComponent(
-                ability=args.ability,
-                categoryName=args.expected_class,
-            )
+            component
         ]
     )
 
@@ -195,6 +207,7 @@ async def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "expected_class": args.expected_class,
         "min_objects": args.min_objects,
         "min_confidence": args.min_confidence,
+        "session_name": args.session_name or "",
         "session_uuid": "",
         "session_uuid_short": "",
         "cleanup": {"ok": True, "result": "not_started"},
@@ -205,7 +218,9 @@ async def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             pop_id="transient",
             api_key=args.api_key,
             eyepop_url=eyepop_url,
-        ) as endpoint:
+            session_name=args.session_name,
+        ) as raw_endpoint:
+            endpoint = cast(WorkerEndpoint, raw_endpoint)
             await endpoint.set_pop(build_pop(args))
             compute_ctx = getattr(endpoint, "compute_ctx", None)
             session_uuid = getattr(compute_ctx, "session_uuid", "") or ""
@@ -275,6 +290,7 @@ async def main() -> int:
         summary = {
             "ok": False,
             "environment": args.environment,
+            "session_name": args.session_name or "",
             "error": f"{type(exc).__name__}: {exc}",
         }
 

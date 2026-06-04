@@ -264,6 +264,41 @@ async def test_creates_session_with_pipeline_image(aioresponses):
 
 
 @pytest.mark.asyncio
+async def test_creates_session_with_session_name(aioresponses):
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        session_name="sessions-smoke-123",
+    )
+
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[],
+        status=200,
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        payload={**MOCK_SESSION_RESPONSE, "session_name": "sessions-smoke-123"},
+        status=200,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(ctx, session)
+
+    aioresponses.assert_called_with(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        method="POST",
+        headers={
+            "Authorization": "Bearer test-api-key",
+            "Accept": "application/json",
+        },
+        data=None,
+        json={"session_name": "sessions-smoke-123"},
+    )
+    assert result.session_name == "sessions-smoke-123"
+
+
+@pytest.mark.asyncio
 async def test_creates_session_without_pipeline_image(aioresponses):
     """Test that no body is sent when pipeline_image is not set."""
     ctx = ComputeContext(

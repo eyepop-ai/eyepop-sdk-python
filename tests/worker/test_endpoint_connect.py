@@ -16,6 +16,17 @@ class TestEndpointConnect(BaseEndpointTest):
         with self.assertRaises(KeyError):
             EyePopSdk.sync_worker()
 
+    def test_session_name_sets_compute_context(self):
+        endpoint = EyePopSdk.async_worker(
+            eyepop_url="https://compute.eyepop.ai",
+            api_key="test-api-key",
+            pop_id="transient",
+            session_name="sessions-smoke-123",
+        )
+
+        self.assertIsNotNone(endpoint.compute_ctx)
+        self.assertEqual(endpoint.compute_ctx.session_name, "sessions-smoke-123")
+
     @aioresponses()
     def test_connect_ok(self, mock: aioresponses):
 

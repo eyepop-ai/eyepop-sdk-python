@@ -82,6 +82,8 @@ async def fetch_new_compute_session(
     if need_new_session:
         try:
             body = {}
+            if compute_ctx.session_name:
+                body["session_name"] = compute_ctx.session_name
             if compute_ctx.pipeline_image:
                 body["pipeline_image"] = compute_ctx.pipeline_image
             if compute_ctx.pipeline_version:
