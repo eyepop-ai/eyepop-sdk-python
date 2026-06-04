@@ -1,6 +1,9 @@
 name: Sessions Smoke
 
 on:
+  push:
+    branches:
+      - codex/session-smoke-workflow
   schedule:
     # 07:30 and 14:30 America/Los_Angeles while daylight saving time is in effect.
     - cron: "30 14,21 * * *"
@@ -21,7 +24,7 @@ on:
         type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'schedule' && 'production' || inputs.target_env }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.target_env || 'production' }}
   cancel-in-progress: true
 
 permissions:
@@ -29,14 +32,14 @@ permissions:
 
 jobs:
   session-smoke:
-    name: ${{ github.event_name == 'schedule' && 'production' || inputs.target_env }} transient session
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.target_env || 'production' }} transient session
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: ${{ github.event_name == 'schedule' && 'production' || inputs.target_env }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.target_env || 'production' }}
     env:
-      TARGET_ENV: ${{ github.event_name == 'schedule' && 'production' || inputs.target_env }}
-      SDK_VERSION: ${{ github.event_name == 'schedule' && 'latest' || inputs.sdk_version }}
-      EYEPOP_SESSION_NAME: smoke-${{ github.event_name == 'schedule' && 'production' || inputs.target_env }}-${{ github.run_id }}-${{ github.run_attempt }}
+      TARGET_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.target_env || 'production' }}
+      SDK_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.sdk_version || github.event_name == 'schedule' && 'latest' || 'source' }}
+      EYEPOP_SESSION_NAME: smoke-${{ github.event_name == 'workflow_dispatch' && inputs.target_env || 'production' }}-${{ github.run_id }}-${{ github.run_attempt }}
       SUMMARY_JSON: session-smoke-summary.json
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
