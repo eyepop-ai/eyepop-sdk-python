@@ -36,6 +36,7 @@ jobs:
     env:
       TARGET_ENV: ${{ github.event_name == 'schedule' && 'production' || inputs.target_env }}
       SDK_VERSION: ${{ github.event_name == 'schedule' && 'latest' || inputs.sdk_version }}
+      EYEPOP_SESSION_NAME: smoke-${{ github.event_name == 'schedule' && 'production' || inputs.target_env }}-${{ github.run_id }}-${{ github.run_attempt }}
       EYEPOP_API_KEY: ${{ secrets.EYEPOP_API_KEY }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       SUMMARY_JSON: session-smoke-summary.json
@@ -90,6 +91,7 @@ jobs:
               jq -r '
                 "- ok: \((.ok // false)|tostring)",
                 "- sdk_version: \(.sdk_version // "n/a")",
+                "- session_name: \(.session_name // "n/a")",
                 "- session_uuid: \(.session_uuid_short // "n/a")",
                 "- ability: \(.ability // "n/a")",
                 "- predictions: \((.prediction_count // "n/a")|tostring)",
@@ -126,6 +128,7 @@ jobs:
 
           ok="false"
           session_uuid="n/a"
+          session_name="n/a"
           predictions="n/a"
           matching_objects="n/a"
           cleanup="n/a"
@@ -136,6 +139,7 @@ jobs:
           if [[ -f "$SUMMARY_JSON" ]] && jq -e . "$SUMMARY_JSON" >/dev/null 2>&1; then
             ok="$(jq -r '(.ok // false)|tostring' "$SUMMARY_JSON")"
             actual_sdk="$(jq -r '.sdk_version // "n/a"' "$SUMMARY_JSON")"
+            session_name="$(jq -r '.session_name // "n/a"' "$SUMMARY_JSON")"
             session_uuid="$(jq -r '.session_uuid_short // "n/a"' "$SUMMARY_JSON")"
             predictions="$(jq -r '(.prediction_count // "n/a")|tostring' "$SUMMARY_JSON")"
             matching_objects="$(jq -r '(.matching_object_count // "n/a")|tostring' "$SUMMARY_JSON")"
@@ -157,7 +161,7 @@ jobs:
           fi
 
           text="$title $status"
-          details="*Environment:* $TARGET_ENV\n*SDK:* $actual_sdk (requested: $SDK_VERSION)\n*Run:* <$RUN_URL|GitHub Actions>\n*Session:* $session_uuid\n*Predictions:* $predictions\n*Matching objects:* $matching_objects\n*Cleanup:* $cleanup\n*Duration:* ${duration}s"
+          details="*Environment:* $TARGET_ENV\n*SDK:* $actual_sdk (requested: $SDK_VERSION)\n*Run:* <$RUN_URL|GitHub Actions>\n*Session name:* $session_name\n*Session:* $session_uuid\n*Predictions:* $predictions\n*Matching objects:* $matching_objects\n*Cleanup:* $cleanup\n*Duration:* ${duration}s"
           if [[ -n "$error" ]]; then
             details="$details\n*Error:* $error"
           fi
