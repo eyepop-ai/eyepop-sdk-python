@@ -37,6 +37,7 @@ jobs:
       SMOKE_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
       SDK_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.sdk_version || github.event_name == 'schedule' && 'latest' || 'source' }}
       EYEPOP_SESSION_NAME: smoke-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}-${{ github.run_id }}-${{ github.run_attempt }}
+      EYEPOP_URL: ${{ vars.EYEPOP_URL }}
       SUMMARY_JSON: session-smoke-summary.json
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
