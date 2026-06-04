@@ -1,0 +1,193 @@
+name: Sessions Smoke
+
+on:
+  schedule:
+    # 07:30 and 14:30 America/Los_Angeles while daylight saving time is in effect.
+    - cron: "30 14,21 * * *"
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: Environment to smoke
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - production
+      sdk_version:
+        description: "SDK package to test: latest, source, or an exact version like 3.2.1"
+        required: true
+        default: latest
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'schedule' && 'production' || inputs.target_env }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  session-smoke:
+    name: ${{ github.event_name == 'schedule' && 'production' || inputs.target_env }} transient session
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ github.event_name == 'schedule' && 'production' || inputs.target_env }}
+    env:
+      TARGET_ENV: ${{ github.event_name == 'schedule' && 'production' || inputs.target_env }}
+      SDK_VERSION: ${{ github.event_name == 'schedule' && 'latest' || inputs.sdk_version }}
+      EYEPOP_API_KEY: ${{ secrets.EYEPOP_API_KEY }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      SUMMARY_JSON: session-smoke-summary.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install SDK under test
+        run: |
+          set -euo pipefail
+          if [[ "$SDK_VERSION" == "source" ]]; then
+            uv sync --locked --all-extras --dev
+          else
+            uv venv
+            if [[ "$SDK_VERSION" == "latest" ]]; then
+              uv pip install --upgrade eyepop
+            else
+              uv pip install "eyepop==$SDK_VERSION"
+            fi
+          fi
+
+      - name: Run SDK session smoke
+        id: smoke
+        run: |
+          set -euo pipefail
+          if [[ "$SDK_VERSION" == "source" ]]; then
+            uv run python scripts/session_smoke.py \
+              --environment "$TARGET_ENV" \
+              --image tests/test.jpg \
+              --summary-json "$SUMMARY_JSON"
+          else
+            cd "$RUNNER_TEMP"
+            "$GITHUB_WORKSPACE/.venv/bin/python" "$GITHUB_WORKSPACE/scripts/session_smoke.py" \
+              --environment "$TARGET_ENV" \
+              --image "$GITHUB_WORKSPACE/tests/test.jpg" \
+              --summary-json "$GITHUB_WORKSPACE/$SUMMARY_JSON"
+          fi
+
+      - name: Write summary
+        if: always()
+        run: |
+          {
+            echo "## Sessions Smoke"
+            echo ""
+            echo "- environment: $TARGET_ENV"
+            echo "- requested_sdk: $SDK_VERSION"
+            echo "- conclusion: ${{ steps.smoke.conclusion }}"
+            echo "- run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            if [[ -f "$SUMMARY_JSON" ]] && jq -e . "$SUMMARY_JSON" >/dev/null 2>&1; then
+              jq -r '
+                "- ok: \((.ok // false)|tostring)",
+                "- sdk_version: \(.sdk_version // "n/a")",
+                "- session_uuid: \(.session_uuid_short // "n/a")",
+                "- ability: \(.ability // "n/a")",
+                "- predictions: \((.prediction_count // "n/a")|tostring)",
+                "- matching_objects: \((.matching_object_count // "n/a")|tostring)",
+                "- cleanup: \(.cleanup.result // "n/a")",
+                "- duration_seconds: \((.duration_seconds // "n/a")|tostring)",
+                if .error then "- error: \(.error)" else empty end
+              ' "$SUMMARY_JSON"
+            else
+              echo "- result: no JSON summary captured"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload smoke summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sessions-smoke-summary-${{ env.TARGET_ENV }}
+          path: ${{ env.SUMMARY_JSON }}
+          if-no-files-found: ignore
+
+      - name: Notify Slack
+        if: always()
+        env:
+          SMOKE_CONCLUSION: ${{ steps.smoke.conclusion }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
+            echo "SLACK_WEBHOOK_URL not set; skipping Slack notification"
+            exit 0
+          fi
+
+          ok="false"
+          session_uuid="n/a"
+          predictions="n/a"
+          matching_objects="n/a"
+          cleanup="n/a"
+          duration="n/a"
+          actual_sdk="n/a"
+          error=""
+
+          if [[ -f "$SUMMARY_JSON" ]] && jq -e . "$SUMMARY_JSON" >/dev/null 2>&1; then
+            ok="$(jq -r '(.ok // false)|tostring' "$SUMMARY_JSON")"
+            actual_sdk="$(jq -r '.sdk_version // "n/a"' "$SUMMARY_JSON")"
+            session_uuid="$(jq -r '.session_uuid_short // "n/a"' "$SUMMARY_JSON")"
+            predictions="$(jq -r '(.prediction_count // "n/a")|tostring' "$SUMMARY_JSON")"
+            matching_objects="$(jq -r '(.matching_object_count // "n/a")|tostring' "$SUMMARY_JSON")"
+            cleanup="$(jq -r '.cleanup.result // "n/a"' "$SUMMARY_JSON")"
+            duration="$(jq -r '(.duration_seconds // "n/a")|tostring' "$SUMMARY_JSON")"
+            error="$(jq -r '.error // ""' "$SUMMARY_JSON")"
+          else
+            error="No JSON summary captured"
+          fi
+
+          title="Production sessions smoke"
+          if [[ "$TARGET_ENV" != "production" ]]; then
+            title="${TARGET_ENV^} sessions smoke"
+          fi
+
+          status="passed"
+          if [[ "$SMOKE_CONCLUSION" != "success" || "$ok" != "true" ]]; then
+            status="failed"
+          fi
+
+          text="$title $status"
+          details="*Environment:* $TARGET_ENV\n*SDK:* $actual_sdk (requested: $SDK_VERSION)\n*Run:* <$RUN_URL|GitHub Actions>\n*Session:* $session_uuid\n*Predictions:* $predictions\n*Matching objects:* $matching_objects\n*Cleanup:* $cleanup\n*Duration:* ${duration}s"
+          if [[ -n "$error" ]]; then
+            details="$details\n*Error:* $error"
+          fi
+
+          jq -n \
+            --arg text "$text" \
+            --arg title "$title" \
+            --arg status "$status" \
+            --arg details "$details" \
+            '{
+              text: $text,
+              blocks: [
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: ("*" + $title + " " + $status + "*")
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: $details
+                  }
+                }
+              ]
+            }' > slack-payload.json
+
+          curl -sS -X POST \
+            -H "Content-Type: application/json" \
+            --data @slack-payload.json \
+            "$SLACK_WEBHOOK_URL"
