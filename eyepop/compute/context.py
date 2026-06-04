@@ -17,6 +17,10 @@ class ComputeContext(BaseModel):
     )
     session_endpoint: str = Field(description="The endpoint of the session", default="")
     session_uuid: str = Field(description="The uuid of the session", default="")
+    session_name: str = Field(
+        description="The requested name of the session",
+        default_factory=lambda: os.getenv("EYEPOP_SESSION_NAME", "")
+    )
     pipeline_uuid: str = Field(description="The uuid of the pipeline", default="")
     pipeline_id: str = Field(description="The id of the pipeline", default="")
     user_uuid: str = Field(description="The uuid of the user", default=os.getenv("EYEPOP_USER_UUID", ""))
@@ -66,4 +70,3 @@ class PipelineStatus(str, Enum):
             elif "pending" in value_lower or "creat" in value_lower or "start" in value_lower:
                 return cls.PENDING
         return cls.UNKNOWN
-
