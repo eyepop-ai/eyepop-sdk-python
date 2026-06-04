@@ -11,7 +11,7 @@ description: EyePop Python SDK - usage patterns, testing examples, and composabl
 |------|--------|----------|
 | `~/Code/eyepop/eyepop-sdk-python` | `main` | Python 3.12+ |
 
-Package: `eyepop` on PyPI (current: ~3.11.x)
+Package: `eyepop` on PyPI.
 
 ## Authentication
 

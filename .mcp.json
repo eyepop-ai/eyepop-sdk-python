@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "eyepop": {
+      "command": "npx",
+      "args": ["-y", "github:eyepop-ai/eyepop-developer-mcp"]
+    },
+    "qmd": {
+      "command": "qmd",
+      "args": ["mcp"]
+    }
+  }
+}
