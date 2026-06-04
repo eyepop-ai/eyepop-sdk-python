@@ -9,14 +9,11 @@ on:
     - cron: "30 14,21 * * *"
   workflow_dispatch:
     inputs:
-      target_env:
+      environment:
         description: Environment to smoke
         required: true
         default: production
-        type: choice
-        options:
-          - staging
-          - production
+        type: environment
       sdk_version:
         description: "SDK package to test: latest, source, or an exact version like 3.2.1"
         required: true
@@ -24,7 +21,7 @@ on:
         type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.target_env || 'production' }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
   cancel-in-progress: true
 
 permissions:
@@ -32,14 +29,14 @@ permissions:
 
 jobs:
   session-smoke:
-    name: ${{ github.event_name == 'workflow_dispatch' && inputs.target_env || 'production' }} transient session
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }} transient session
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.target_env || 'production' }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
     env:
-      TARGET_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.target_env || 'production' }}
+      SMOKE_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
       SDK_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.sdk_version || github.event_name == 'schedule' && 'latest' || 'source' }}
-      EYEPOP_SESSION_NAME: smoke-${{ github.event_name == 'workflow_dispatch' && inputs.target_env || 'production' }}-${{ github.run_id }}-${{ github.run_attempt }}
+      EYEPOP_SESSION_NAME: smoke-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}-${{ github.run_id }}-${{ github.run_attempt }}
       SUMMARY_JSON: session-smoke-summary.json
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -71,13 +68,13 @@ jobs:
           set -euo pipefail
           if [[ "$SDK_VERSION" == "source" ]]; then
             uv run python scripts/session_smoke.py \
-              --environment "$TARGET_ENV" \
+              --environment "$SMOKE_ENVIRONMENT" \
               --image tests/test.jpg \
               --summary-json "$SUMMARY_JSON"
           else
             cd "$RUNNER_TEMP"
             "$GITHUB_WORKSPACE/.venv/bin/python" "$GITHUB_WORKSPACE/scripts/session_smoke.py" \
-              --environment "$TARGET_ENV" \
+              --environment "$SMOKE_ENVIRONMENT" \
               --image "$GITHUB_WORKSPACE/tests/test.jpg" \
               --summary-json "$GITHUB_WORKSPACE/$SUMMARY_JSON"
           fi
@@ -88,7 +85,7 @@ jobs:
           {
             echo "## Sessions Smoke"
             echo ""
-            echo "- environment: $TARGET_ENV"
+            echo "- environment: $SMOKE_ENVIRONMENT"
             echo "- requested_sdk: $SDK_VERSION"
             echo "- conclusion: ${{ steps.smoke.conclusion }}"
             echo "- run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
@@ -114,7 +111,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: sessions-smoke-summary-${{ env.TARGET_ENV }}
+          name: sessions-smoke-summary-${{ env.SMOKE_ENVIRONMENT }}
           path: ${{ env.SUMMARY_JSON }}
           if-no-files-found: ignore
 
@@ -157,8 +154,8 @@ jobs:
           fi
 
           title="Production sessions smoke"
-          if [[ "$TARGET_ENV" != "production" ]]; then
-            title="${TARGET_ENV^} sessions smoke"
+          if [[ "$SMOKE_ENVIRONMENT" != "production" ]]; then
+            title="${SMOKE_ENVIRONMENT^} sessions smoke"
           fi
 
           status="passed"
@@ -167,7 +164,7 @@ jobs:
           fi
 
           text="$title $status"
-          details="*Environment:* $TARGET_ENV\n*SDK:* $actual_sdk (requested: $SDK_VERSION)\n*Run:* <$RUN_URL|GitHub Actions>\n*Session name:* $session_name\n*Session:* $session_uuid\n*Predictions:* $predictions\n*Matching objects:* $matching_objects\n*Cleanup:* $cleanup\n*Duration:* ${duration}s"
+          details="*Environment:* $SMOKE_ENVIRONMENT\n*SDK:* $actual_sdk (requested: $SDK_VERSION)\n*Run:* <$RUN_URL|GitHub Actions>\n*Session name:* $session_name\n*Session:* $session_uuid\n*Predictions:* $predictions\n*Matching objects:* $matching_objects\n*Cleanup:* $cleanup\n*Duration:* ${duration}s"
           if [[ -n "$error" ]]; then
             details="$details\n*Error:* $error"
           fi
