@@ -37,14 +37,14 @@ jobs:
       TARGET_ENV: ${{ github.event_name == 'schedule' && 'production' || inputs.target_env }}
       SDK_VERSION: ${{ github.event_name == 'schedule' && 'latest' || inputs.sdk_version }}
       EYEPOP_SESSION_NAME: smoke-${{ github.event_name == 'schedule' && 'production' || inputs.target_env }}-${{ github.run_id }}-${{ github.run_attempt }}
-      EYEPOP_API_KEY: ${{ secrets.EYEPOP_API_KEY }}
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       SUMMARY_JSON: session-smoke-summary.json
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
 
       - name: Install SDK under test
         run: |
@@ -62,6 +62,8 @@ jobs:
 
       - name: Run SDK session smoke
         id: smoke
+        env:
+          EYEPOP_API_KEY: ${{ secrets.EYEPOP_API_KEY }}
         run: |
           set -euo pipefail
           if [[ "$SDK_VERSION" == "source" ]]; then
@@ -107,7 +109,7 @@ jobs:
 
       - name: Upload smoke summary
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: sessions-smoke-summary-${{ env.TARGET_ENV }}
           path: ${{ env.SUMMARY_JSON }}
@@ -116,6 +118,7 @@ jobs:
       - name: Notify Slack
         if: always()
         env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SMOKE_CONCLUSION: ${{ steps.smoke.conclusion }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -191,7 +194,17 @@ jobs:
               ]
             }' > slack-payload.json
 
-          curl -sS -X POST \
-            -H "Content-Type: application/json" \
-            --data @slack-payload.json \
-            "$SLACK_WEBHOOK_URL"
+          for attempt in 1 2 3; do
+            if curl --fail-with-body -sS -X POST \
+              -H "Content-Type: application/json" \
+              --data @slack-payload.json \
+              "$SLACK_WEBHOOK_URL"; then
+              exit 0
+            fi
+
+            if [[ "$attempt" == "3" ]]; then
+              exit 1
+            fi
+
+            sleep $((attempt * 5))
+          done
