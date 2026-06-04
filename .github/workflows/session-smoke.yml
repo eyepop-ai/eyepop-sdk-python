@@ -1,9 +1,6 @@
 name: Sessions Smoke
 
 on:
-  push:
-    branches:
-      - codex/session-smoke-workflow
   schedule:
     # 07:30 and 14:30 America/Los_Angeles while daylight saving time is in effect.
     - cron: "30 14,21 * * *"
@@ -117,7 +114,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Notify Slack
-        if: always()
+        if: ${{ failure() }}
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SMOKE_CONCLUSION: ${{ steps.smoke.conclusion }}
@@ -130,7 +127,6 @@ jobs:
             exit 0
           fi
 
-          ok="false"
           session_uuid="n/a"
           session_name="n/a"
           predictions="n/a"
@@ -138,10 +134,9 @@ jobs:
           cleanup="n/a"
           duration="n/a"
           actual_sdk="n/a"
-          error=""
+          reason="Smoke workflow failed before a JSON summary was captured."
 
           if [[ -f "$SUMMARY_JSON" ]] && jq -e . "$SUMMARY_JSON" >/dev/null 2>&1; then
-            ok="$(jq -r '(.ok // false)|tostring' "$SUMMARY_JSON")"
             actual_sdk="$(jq -r '.sdk_version // "n/a"' "$SUMMARY_JSON")"
             session_name="$(jq -r '.session_name // "n/a"' "$SUMMARY_JSON")"
             session_uuid="$(jq -r '.session_uuid_short // "n/a"' "$SUMMARY_JSON")"
@@ -149,9 +144,13 @@ jobs:
             matching_objects="$(jq -r '(.matching_object_count // "n/a")|tostring' "$SUMMARY_JSON")"
             cleanup="$(jq -r '.cleanup.result // "n/a"' "$SUMMARY_JSON")"
             duration="$(jq -r '(.duration_seconds // "n/a")|tostring' "$SUMMARY_JSON")"
-            error="$(jq -r '.error // ""' "$SUMMARY_JSON")"
+            reason="$(jq -r '.error // ""' "$SUMMARY_JSON")"
           else
-            error="No JSON summary captured"
+            reason="No JSON summary captured."
+          fi
+
+          if [[ -z "$reason" ]]; then
+            reason="Smoke step concluded with ${SMOKE_CONCLUSION}."
           fi
 
           title="Production sessions smoke"
@@ -159,22 +158,22 @@ jobs:
             title="${SMOKE_ENVIRONMENT^} sessions smoke"
           fi
 
-          status="passed"
-          if [[ "$SMOKE_CONCLUSION" != "success" || "$ok" != "true" ]]; then
-            status="failed"
-          fi
-
-          text="$title $status"
-          details="*Environment:* $SMOKE_ENVIRONMENT\n*SDK:* $actual_sdk (requested: $SDK_VERSION)\n*Run:* <$RUN_URL|GitHub Actions>\n*Session name:* $session_name\n*Session:* $session_uuid\n*Predictions:* $predictions\n*Matching objects:* $matching_objects\n*Cleanup:* $cleanup\n*Duration:* ${duration}s"
-          if [[ -n "$error" ]]; then
-            details="$details\n*Error:* $error"
-          fi
+          text="$title failed: $reason"
 
           jq -n \
             --arg text "$text" \
             --arg title "$title" \
-            --arg status "$status" \
-            --arg details "$details" \
+            --arg reason "$reason" \
+            --arg environment "$SMOKE_ENVIRONMENT" \
+            --arg requested_sdk "$SDK_VERSION" \
+            --arg actual_sdk "$actual_sdk" \
+            --arg session_name "$session_name" \
+            --arg session_uuid "$session_uuid" \
+            --arg predictions "$predictions" \
+            --arg matching_objects "$matching_objects" \
+            --arg cleanup "$cleanup" \
+            --arg duration "$duration" \
+            --arg run_url "$RUN_URL" \
             '{
               text: $text,
               blocks: [
@@ -182,15 +181,38 @@ jobs:
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: ("*" + $title + " " + $status + "*")
+                    text: ("*" + $title + " failed*")
                   }
                 },
                 {
                   type: "section",
                   text: {
                     type: "mrkdwn",
-                    text: $details
+                    text: ("*Reason:* " + $reason)
                   }
+                },
+                {
+                  type: "section",
+                  fields: [
+                    {type: "mrkdwn", text: ("*Environment:*\n" + $environment)},
+                    {type: "mrkdwn", text: ("*SDK:*\n" + $actual_sdk + " (requested: " + $requested_sdk + ")")},
+                    {type: "mrkdwn", text: ("*Session name:*\n" + $session_name)},
+                    {type: "mrkdwn", text: ("*Session:*\n" + $session_uuid)},
+                    {type: "mrkdwn", text: ("*Predictions:*\n" + $predictions)},
+                    {type: "mrkdwn", text: ("*Matching objects:*\n" + $matching_objects)},
+                    {type: "mrkdwn", text: ("*Cleanup:*\n" + $cleanup)},
+                    {type: "mrkdwn", text: ("*Duration:*\n" + $duration + "s")}
+                  ]
+                },
+                {
+                  type: "actions",
+                  elements: [
+                    {
+                      type: "button",
+                      text: {type: "plain_text", text: "Open GitHub run"},
+                      url: $run_url
+                    }
+                  ]
                 }
               ]
             }' > slack-payload.json
