@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Scheduled sessions smoke workflow for validating transient SDK inference against production with optional Slack status alerts and selectable SDK package versions.
+
 ### Fixed
 - Worker connections without a `session_uuid` no longer adopt an existing persistent session. The compute API session list is now filtered by the new `persistent` flag so ephemeral connections always pick (or create) an ephemeral session, and persistent sessions are only reachable when their UUID is passed explicitly. (AWSU-166)
 
