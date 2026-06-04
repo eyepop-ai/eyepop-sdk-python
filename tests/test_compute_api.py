@@ -278,7 +278,7 @@ async def test_creates_session_with_session_name(aioresponses):
     )
     aioresponses.post(
         "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
-        payload={**MOCK_SESSION_RESPONSE, "session_name": "sessions-smoke-123"},
+        payload={**MOCK_SESSION_RESPONSE, "session_name": "server-session-456"},
         status=200,
     )
 
@@ -295,7 +295,7 @@ async def test_creates_session_with_session_name(aioresponses):
         data=None,
         json={"session_name": "sessions-smoke-123"},
     )
-    assert result.session_name == "sessions-smoke-123"
+    assert result.session_name == "server-session-456"
 
 
 @pytest.mark.asyncio
