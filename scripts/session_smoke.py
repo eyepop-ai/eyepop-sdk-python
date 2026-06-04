@@ -101,6 +101,9 @@ def require_inputs(args: argparse.Namespace) -> None:
     if args.min_objects < 1:
         raise ValueError("--min-objects must be at least 1")
 
+    if not 0.0 <= args.min_confidence <= 1.0:
+        raise ValueError("--min-confidence must be between 0.0 and 1.0")
+
     if not args.image.is_file():
         raise FileNotFoundError(f"Image fixture does not exist: {args.image}")
 
@@ -136,11 +139,13 @@ def matching_objects(result: dict[str, Any], expected_class: str, min_confidence
         return []
 
     matches = []
+    expected = expected_class.strip().lower()
     for obj in objects:
         if not isinstance(obj, dict):
             continue
         confidence = obj.get("confidence", 0)
-        if object_label(obj) == expected_class and isinstance(confidence, (int, float)) and confidence >= min_confidence:
+        detected = object_label(obj).strip().lower()
+        if detected == expected and isinstance(confidence, (int, float)) and confidence >= min_confidence:
             matches.append(obj)
     return matches
 
