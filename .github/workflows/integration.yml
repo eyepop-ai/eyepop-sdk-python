@@ -1,29 +1,22 @@
-name: Integration Tests
+name: Staging SDK Integration
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment to test against'
-        required: true
-        default: 'staging'
-        type: choice
-        options:
-          - staging
-          - production
   schedule:
     - cron: '0 6 * * *'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-staging
   cancel-in-progress: true
 
 jobs:
   integration:
+    name: staging integration
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: staging
     env:
-      EYEPOP_URL: https://compute.staging.eyepop.xyz
+      EYEPOP_URL: ${{ vars.EYEPOP_URL }}
     steps:
     - uses: actions/checkout@v4
 
