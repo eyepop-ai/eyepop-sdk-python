@@ -127,6 +127,8 @@ def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None
 
     compute_ctx.session_endpoint = session_response.session_endpoint
     compute_ctx.session_uuid = session_response.session_uuid
+    if session_response.session_name:
+        compute_ctx.session_name = session_response.session_name
     compute_ctx.m2m_access_token = session_response.access_token
     compute_ctx.access_token_expires_at = session_response.access_token_expires_at
     compute_ctx.access_token_expires_in = session_response.access_token_expires_in
