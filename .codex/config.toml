@@ -1,0 +1,9 @@
+# Codex MCP config (per-repo, adjustable). Codex natively reads ~/.codex/config.toml;
+# this mirrors the Claude .mcp.json so you can wire/merge it per your setup.
+[mcp_servers.eyepop]
+command = "npx"
+args = ["-y", "github:eyepop-ai/eyepop-developer-mcp"]
+
+[mcp_servers.qmd]
+command = "qmd"
+args = ["mcp"]
