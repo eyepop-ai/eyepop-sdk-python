@@ -110,6 +110,26 @@ class TestEndpointConnect(BaseEndpointTest):
         self.assertBaseMock(mock, is_transient=True)
 
     @aioresponses()
+    def test_connect_transient_with_pipeline_id_targets_existing_pipeline(self, mock: aioresponses):
+        target_pipeline_id = "agent-camera_1-vehicle_tracking"
+        self.setup_base_mock(mock)
+
+        mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
+            {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
+        endpoint = EyePopSdk.sync_worker(
+            eyepop_url=self.test_eyepop_url,
+            secret_key=self.test_eyepop_secret_key,
+            pop_id='transient',
+            pipeline_id=target_pipeline_id,
+        )
+        try:
+            endpoint.connect()
+            self.assertEqual(endpoint.endpoint.worker_config["pipeline_id"], target_pipeline_id)
+            self.assertEqual(endpoint.endpoint.load_balancer.get_debug_status()[0]["pipeline_id"], target_pipeline_id)
+        finally:
+            endpoint.disconnect()
+
+    @aioresponses()
     def test_connect_unauthorized(self, mock: aioresponses):
         self.setup_base_mock(mock)
 

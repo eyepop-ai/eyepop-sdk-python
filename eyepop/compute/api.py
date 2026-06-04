@@ -132,8 +132,8 @@ def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None
     compute_ctx.m2m_access_token = session_response.access_token
     compute_ctx.access_token_expires_at = session_response.access_token_expires_at
     compute_ctx.access_token_expires_in = session_response.access_token_expires_in
-    pipeline_id = ""
-    if len(session_response.pipelines) > 0:
+    pipeline_id = compute_ctx.pipeline_id
+    if not pipeline_id and len(session_response.pipelines) > 0:
         pipeline_id = session_response.pipelines[0].get("id", None)
         if not pipeline_id:
             pipeline_id = session_response.pipelines[0].get("pipeline_id", "")
