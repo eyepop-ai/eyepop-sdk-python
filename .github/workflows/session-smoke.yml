@@ -2,8 +2,8 @@ name: Sessions Smoke
 
 on:
   schedule:
-    # 07:30 and 14:30 America/Los_Angeles while daylight saving time is in effect.
-    - cron: "30 14,21 * * *"
+    # Run hourly at minute 30.
+    - cron: "30 * * * *"
   workflow_dispatch:
     inputs:
       environment:
