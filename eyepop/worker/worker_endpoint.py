@@ -78,15 +78,15 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.auto_start = auto_start
         self.stop_jobs = stop_jobs
         self.dataset_uuid = dataset_uuid
-        self.requested_pipeline_id = pipeline_id
+        self.requested_pipeline_id = pipeline_id or None
 
         if self.compute_ctx:
             if pipeline_image:
                 self.compute_ctx.pipeline_image = pipeline_image
             if pipeline_version:
                 self.compute_ctx.pipeline_version = pipeline_version
-            if pipeline_id:
-                self.compute_ctx.pipeline_id = pipeline_id
+            if self.requested_pipeline_id:
+                self.compute_ctx.pipeline_id = self.requested_pipeline_id
             if session_name:
                 self.compute_ctx.session_name = session_name
             self.is_dev_mode = not bool(session_uuid)
