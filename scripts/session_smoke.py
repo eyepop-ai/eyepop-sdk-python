@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import inspect
 import json
 import os
 import sys
@@ -181,6 +182,22 @@ def summarize_predictions(
     }
 
 
+def sdk_supports_session_name() -> bool:
+    return "session_name" in inspect.signature(EyePopSdk.async_worker).parameters
+
+
+def async_worker_kwargs(args: argparse.Namespace, eyepop_url: str) -> tuple[dict[str, Any], bool]:
+    kwargs: dict[str, Any] = {
+        "pop_id": "transient",
+        "api_key": args.api_key,
+        "eyepop_url": eyepop_url,
+    }
+    session_name_supported = sdk_supports_session_name()
+    if args.session_name and session_name_supported:
+        kwargs["session_name"] = args.session_name
+    return kwargs, session_name_supported
+
+
 async def delete_transient_session(api_key: str, eyepop_url: str, session_uuid: str) -> dict[str, Any]:
     headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
     url = f"{eyepop_url.rstrip('/')}/v1/sessions/{session_uuid}"
@@ -200,6 +217,7 @@ async def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_inputs(args)
 
     eyepop_url = args.eyepop_url or ENV_URLS[args.environment]
+    worker_kwargs, session_name_supported = async_worker_kwargs(args, eyepop_url)
     started = time.monotonic()
     session_uuid = ""
     summary: dict[str, Any] = {
@@ -213,18 +231,15 @@ async def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "min_objects": args.min_objects,
         "min_confidence": args.min_confidence,
         "session_name": args.session_name or "",
+        "session_name_supported": session_name_supported,
+        "session_name_applied": "session_name" in worker_kwargs,
         "session_uuid": "",
         "session_uuid_short": "",
         "cleanup": {"ok": True, "result": "not_started"},
     }
 
     try:
-        async with EyePopSdk.async_worker(
-            pop_id="transient",
-            api_key=args.api_key,
-            eyepop_url=eyepop_url,
-            session_name=args.session_name,
-        ) as raw_endpoint:
+        async with EyePopSdk.async_worker(**worker_kwargs) as raw_endpoint:
             endpoint = cast(WorkerEndpoint, raw_endpoint)
             await endpoint.set_pop(build_pop(args))
             compute_ctx = getattr(endpoint, "compute_ctx", None)
