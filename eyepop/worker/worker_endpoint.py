@@ -62,6 +62,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             dataset_uuid: str | None = None,
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
+            pipeline_id: str | None = None,
             session_name: str | None = None,
     ):
         super().__init__(
@@ -77,12 +78,15 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.auto_start = auto_start
         self.stop_jobs = stop_jobs
         self.dataset_uuid = dataset_uuid
+        self.requested_pipeline_id = pipeline_id or None
 
         if self.compute_ctx:
             if pipeline_image:
                 self.compute_ctx.pipeline_image = pipeline_image
             if pipeline_version:
                 self.compute_ctx.pipeline_version = pipeline_version
+            if self.requested_pipeline_id:
+                self.compute_ctx.pipeline_id = self.requested_pipeline_id
             if session_name:
                 self.compute_ctx.session_name = session_name
             self.is_dev_mode = not bool(session_uuid)
@@ -113,6 +117,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             client_timeout = aiohttp.ClientTimeout(total=timeout)
         if (self.is_dev_mode and self.pop_id == 'transient'
                 and self.worker_config is not None and self.worker_config.get('pipeline_id') is not None
+                and self.requested_pipeline_id is None
                 and self.client_session is not None):
             try:
                 base_url = await self.dev_mode_base_url()
@@ -173,6 +178,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             try:
                 async with self.client_session.get(config_url, headers=headers) as response:
                     self.worker_config = await response.json()
+                    if self.requested_pipeline_id:
+                        self.worker_config['pipeline_id'] = self.requested_pipeline_id
                 self.last_fetch_config_success_time = time.time()
                 self.last_fetch_config_error = None
                 self.last_fetch_config_error_time = None
@@ -190,6 +197,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                         headers['Authorization'] = authorization_header
                     async with self.client_session.get(config_url, headers=headers) as retried_response:
                         self.worker_config = await retried_response.json()
+                        if self.requested_pipeline_id:
+                            self.worker_config['pipeline_id'] = self.requested_pipeline_id
             except aiohttp.ClientConnectionError as e:
                 self.last_fetch_config_error = e
                 self.last_fetch_config_error_time = time.time()
@@ -203,7 +212,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.worker_config.get('status') == 'active_prod':
             self.is_dev_mode = False
 
-        if self.is_dev_mode:
+        if self.is_dev_mode and self.requested_pipeline_id is None:
             start_pipeline_url = f'{base_url}/pipelines'
             body = {
                 "pop": self.pop.model_dump() if self.pop else {},
@@ -235,7 +244,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             if not has_base_url or not has_pipeline_id:
                 raise PopNotStartedException(pop_id=self.pop_id)
 
-        if self.is_dev_mode and self.stop_jobs:
+        if self.is_dev_mode and self.stop_jobs and self.requested_pipeline_id is None:
             stop_jobs_url = f'{await self.dev_mode_pipeline_base_url()}/source?mode=preempt&processing=sync'
             body = {'sourceType': 'NONE'}
             headers = {}

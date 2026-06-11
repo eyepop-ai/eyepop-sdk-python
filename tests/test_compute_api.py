@@ -4,7 +4,11 @@ import aiohttp
 import pytest
 
 from eyepop.compute import ComputeContext
-from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint
+from eyepop.compute.api import (
+    fetch_new_compute_session,
+    fetch_permanent_compute_session,
+    fetch_session_endpoint,
+)
 from eyepop.exceptions import ComputeSessionException
 
 MOCK_SESSION_RESPONSE = {
@@ -48,6 +52,58 @@ async def test_fetches_existing_session_successfully(mock_compute_config, aiores
     assert result.session_endpoint == "https://pipeline.example.com"
     assert result.m2m_access_token == "jwt-token-123"
     assert result.pipeline_id == "pipeline-123"
+
+
+@pytest.mark.asyncio
+async def test_preserves_requested_pipeline_id_when_session_has_multiple_pipelines(aioresponses):
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        pipeline_id="pipeline-requested",
+    )
+    response = {
+        **MOCK_SESSION_RESPONSE,
+        "pipelines": [
+            {"pipeline_id": "agent-camera_1-vehicle_tracking"},
+            {"pipeline_id": "pipeline-requested"},
+        ],
+    }
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[response],
+        status=200
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(ctx, session)
+
+    assert result.pipeline_id == "pipeline-requested"
+
+
+@pytest.mark.asyncio
+async def test_preserves_requested_pipeline_id_for_permanent_session(aioresponses):
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        pipeline_id="pipeline-requested",
+    )
+    response = {
+        **MOCK_SESSION_RESPONSE,
+        "pipelines": [
+            {"pipeline_id": "agent-camera_1-vehicle_tracking"},
+            {"pipeline_id": "pipeline-requested"},
+        ],
+    }
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions/session-456",
+        payload=response,
+        status=200
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_permanent_compute_session(ctx, session, "session-456")
+
+    assert result.pipeline_id == "pipeline-requested"
 
 
 @pytest.mark.asyncio

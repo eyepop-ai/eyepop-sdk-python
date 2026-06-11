@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Scheduled sessions smoke workflow for validating transient SDK inference against production with optional Slack status alerts and selectable SDK package versions.
+- `pipeline_id` support on worker session creation for targeting an existing pipeline in a transient session.
 - `session_name` support on worker session creation, also configurable via `EYEPOP_SESSION_NAME`.
 
 ### Fixed
