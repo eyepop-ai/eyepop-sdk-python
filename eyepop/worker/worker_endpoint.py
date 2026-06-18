@@ -1,7 +1,7 @@
 import logging
 import time
 from io import StringIO
-from typing import Any, BinaryIO, Callable
+from typing import Any, BinaryIO, Callable, AsyncIterable, Iterable
 from urllib.parse import urljoin
 
 import aiohttp
@@ -342,7 +342,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
     async def upload_stream(
             self,
-            stream: BinaryIO,
+            stream: BinaryIO | AsyncIterable[bytes] | Iterable[bytes],
             mime_type: str,
             video_mode: VideoMode | None = None,
             params: list[ComponentParams] | None = None,
@@ -582,13 +582,19 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 headers['Content-Type'] = content_type
             try:
                 if open_data is not None:
-                    with open_data() as data:
-                        if isinstance(data, StringIO):
-                            response = await self.client_session.request(method, url, headers=headers,
-                                                                         data=data.getvalue(), timeout=timeout)
-                        else:
-                            response = await self.client_session.request(method, url, headers=headers, data=data,
-                                                                         timeout=timeout)
+                    data = open_data()
+                    if isinstance(data, StringIO):
+                        response = await self.client_session.request(method, url, headers=headers,
+                                                                     data=data.getvalue(), timeout=timeout)
+                    elif isinstance(data, AsyncIterable):
+                        async def data_streamer():
+                            async for chunk in data:
+                                yield chunk
+                        response = await self.client_session.request(method, url, headers=headers, data=data_streamer(),
+                                                                     timeout=timeout)
+                    else:
+                        response = await self.client_session.request(method, url, headers=headers, data=data,
+                                                                     timeout=timeout)
                 else:
                     response = await self.client_session.request(method, url, headers=headers, timeout=timeout)
 

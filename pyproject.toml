@@ -64,7 +64,8 @@ example = [
     "pybars3",
     "python-dotenv",
     "aiofiles==25.1.0",
-    "auth0-python>=4.13.0"
+    "auth0-python>=4.13.0",
+    "ay~=0.1.1"
 ]
 dev = [
     "build>=1.0.0,<2.0.0",

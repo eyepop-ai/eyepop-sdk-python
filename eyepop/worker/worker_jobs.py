@@ -3,7 +3,7 @@ import json
 import logging
 import mimetypes
 from asyncio import Queue
-from typing import Any, BinaryIO, Callable
+from typing import Any, BinaryIO, Callable, AsyncIterable, Iterable
 from urllib.parse import urlencode
 
 import aiohttp
@@ -99,10 +99,10 @@ class _UploadSource:
     mime_type may be None when it cannot be derived (a raw stream group with no
     caller-supplied mime); the server no longer requires a per-member content type.
     """
-    open_stream: Callable[[], Any]
+    open_stream: Callable[[], BinaryIO  | AsyncIterable[bytes]]
     mime_type: str | None
 
-    def __init__(self, open_stream: Callable[[], Any], mime_type: str | None):
+    def __init__(self, open_stream: Callable[[], BinaryIO  | AsyncIterable[bytes]], mime_type: str | None):
         self.open_stream = open_stream
         self.mime_type = mime_type
 
@@ -257,13 +257,13 @@ def _guess_mime_type_from_location(location: str):
     return mime_type
 
 
-def _file_stream_opener(location: str) -> Callable[[], Any]:
+def _file_stream_opener(location: str) -> Callable[[], BinaryIO]:
     def opener():
         return open(location, 'rb')
     return opener
 
 
-def _stream_opener(stream: BinaryIO) -> Callable[[], Any]:
+def _stream_opener(stream: BinaryIO) -> Callable[[], BinaryIO]:
     def opener():
         return stream
     return opener
@@ -305,7 +305,7 @@ class _UploadFileJob(_UploadJob):
 class _UploadStreamJob(_UploadJob):
     def __init__(
             self,
-            stream: BinaryIO,
+            stream: BinaryIO | AsyncIterable[bytes],
             mime_type: str,
             video_mode: VideoMode | None,
             component_params: list[ComponentParams] | None,

@@ -2,14 +2,20 @@ import argparse
 import ast
 import asyncio
 import base64
+import io
 import json
 import logging
 import os
+import queue
 import sys
 from argparse import Namespace
+from asyncio import sleep
 from io import BytesIO
-from typing import Any
+from typing import Any, BinaryIO
 
+import av
+import httpx
+from av.packet import Packet
 from dotenv import load_dotenv
 from PIL import Image
 from pybars import Compiler
@@ -30,12 +36,12 @@ from eyepop.worker.worker_types import (
     MotionDetectConfig,
     MotionModel,
     Pop,
-    TrackingComponent,
+    TrackingComponent, VideoMode,
 )
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('eyepop.example')
 
 script_dir = os.path.dirname(__file__)
@@ -137,6 +143,7 @@ pop_examples = {
         InferenceComponent(
             ability='eyepop.person:latest',
             categoryName="person",
+            objectAreaThreshold=0.01,
             forward=CropForward(
                 boxPadding=0.5,
                 targets=[InferenceComponent(
@@ -148,7 +155,7 @@ pop_examples = {
                         targets=[InferenceComponent(
                             ability='eyepop.person.3d-body-points.heavy:latest',
                             categoryName="3d-body-points",
-                            confidenceThreshold=0.25
+                            confidenceThreshold=0.1
                         )]
                     )
                 )]
@@ -317,6 +324,7 @@ parser.add_argument('-d', '--dump', required=False, help="dump composable pop de
 parser.add_argument('-l', '--local-path', required=False, type=str, default=False, help="run the inference on a local file, or all files on a directory")
 parser.add_argument('-a', '--asset-uuid', required=False, type=str, default=False, help="run the inference on an asset by its Uuid")
 parser.add_argument('-u', '--url', required=False, type=str, default=False, help="run the inference on a remote Url")
+parser.add_argument('-proxy', '--proxy-url', required=False, type=str, default=False, help="Resolve the given URL and proxy the content stream")
 parser.add_argument('-p', '--pop', required=False, type=str, help="run this pop", choices=list(pop_examples.keys()))
 parser.add_argument('-s', '--session', required=False, type=str, help="Use an existing a session uuid and do not set a pop, use the sessions as preconfigured", default=None)
 parser.add_argument('-m', '--model-uuid', required=False, type=str, action="append", help="run this model(s) by uuid")
@@ -358,8 +366,8 @@ parser.add_argument('-mc', '--media-cache-seconds', required=False, type=int, he
 
 main_args = parser.parse_args()
 
-if not main_args.local_path and not main_args.url and not main_args.asset_uuid:
-    print("Need something to run inference on; pass either --url or --local-path or --asset-uuid")
+if not main_args.local_path and not main_args.url and not main_args.asset_uuid and not main_args.proxy_url:
+    print("Need something to run inference on; pass either --url or --local-path or --asset-uuid or --proxy-url")
     parser.print_help()
     sys.exit(1)
 
@@ -569,6 +577,106 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                     print(json.dumps(result, indent=2))
             if args.visualize:
                 example_image_src = args.url
+        elif args.proxy_url:
+            if args.proxy_url.startswith("http:") or args.proxy_url.startswith("https:"):
+                async with httpx.AsyncClient() as http_client:
+                    async with http_client.stream("GET", args.proxy_url) as response:
+                        response.raise_for_status()
+                        job = await endpoint.upload_stream(
+                            response.aiter_bytes(),
+                            mime_type=response.headers.get("content-type"),
+                            params=params,
+                            motion_detect=motion_detect,
+                            roi=args.roi,
+                            fps=args.fps,
+                            media_cache_seconds=args.media_cache_seconds
+                        )
+                        while result := await job.predict():
+                            visualize_prediction = result
+                            if args.output:
+                                print(json.dumps(result, indent=2))
+                        if args.visualize:
+                            example_image_src = args.url
+            elif args.proxy_url.startswith("rtsp:"):
+                container = av.open(args.proxy_url, 'r', options={
+                    'rtsp_transport': 'tcp',
+                })
+                in_video_stream = container.streams.video[0]
+
+                class PipeBuffer(io.RawIOBase):
+                    def __init__(self):
+                        self.queue = queue.Queue()
+                        self.buffer = b""
+
+                    def writable(self):
+                        return True
+
+                    def write(self, b):
+                        if isinstance(b, str):
+                            b = b.encode('utf-8')
+                        self.queue.put(b)
+                        return len(b)
+
+                    def read(self, n=-1):
+                        # Fetch chunks from queue if our internal buffer is empty
+                        if not self.buffer:
+                            try:
+                                # Blocks until data is available
+                                self.buffer = self.queue.get(block=True, timeout=None)
+                            except queue.Empty:
+                                return b""  # EOF
+
+                        # If n is negative, read everything available
+                        if n < 0:
+                            res, self.buffer = self.buffer, b""
+                            return res
+
+                        # Otherwise, slice out the exact number of bytes requested
+                        res = self.buffer[:n]
+                        self.buffer = self.buffer[n:]
+                        print(f"pipe read {len(res)} bytes")
+                        return res
+
+                pipe = PipeBuffer()
+                mpegts_muxer = av.open(pipe, format='mpegts', mode='w')
+                out_video_stream = mpegts_muxer.add_stream_from_template(template=in_video_stream)
+
+                def pipe_through():
+                    has_key_frame = False
+                    for packet in container.demux(in_video_stream):
+                        if packet.dts is None:
+                            continue
+                        if not has_key_frame:
+                            has_key_frame = packet.is_keyframe
+                        if not has_key_frame:
+                            continue
+                        packet.stream = out_video_stream
+                        mpegts_muxer.mux(packet)
+
+                task = asyncio.create_task(asyncio.to_thread(pipe_through))
+
+                job = await endpoint.upload_stream(
+                    pipe,
+                    mime_type="video/mpegts",
+                    video_mode=VideoMode.STREAM,
+                    params=params,
+                    motion_detect=motion_detect,
+                    roi=args.roi,
+                    fps=args.fps,
+                    media_cache_seconds=args.media_cache_seconds
+                )
+                while result := await job.predict():
+                    visualize_prediction = result
+                    if args.output:
+                        print(json.dumps(result, indent=2))
+                if args.visualize:
+                    example_image_src = args.url
+
+                await asyncio.gather(task)
+            else:
+                print(f"unsupported protocol in proxy URL {args.proxy_url}")
+                sys.exit(1)
+
         elif args.asset_uuid:
             job = await endpoint.load_asset(
                 args.asset_uuid,
@@ -605,6 +713,3 @@ if main_args.visualize:
     window.set_root_folder('.')
     window.show(preview)
     webui.wait()
-
-
-
