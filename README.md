@@ -80,6 +80,33 @@ with EyePopSdk.sync_worker() as endpoint:
 
 Cancel a job mid-stream with `job.cancel()`.
 
+### Image groups (multiple images, one result)
+
+Send several images as a **single** source that the pop processes **together** as
+one inference unit — for example a multi-image VLM prompt. The group yields
+**one** prediction for the whole set, unlike [Batching](#batching) below, where
+each image is an independent inference.
+
+```python
+with EyePopSdk.sync_worker() as endpoint:
+    # local files
+    result = endpoint.upload_group(['a.jpg', 'b.jpg', 'c.jpg']).predict()
+
+    # in-memory streams (optional parallel content types)
+    with open('a.jpg', 'rb') as a, open('b.jpg', 'rb') as b:
+        result = endpoint.upload_stream_group([a, b]).predict()
+
+    # remote URLs (the server fetches each)
+    result = endpoint.load_from_group([
+        'https://example.com/a.jpg',
+        'https://example.com/b.jpg',
+    ]).predict()
+```
+
+Image order is preserved end-to-end. A group may contain **up to 16 images**
+(enforced server-side). The pop's ability must be multi-image-capable; a
+single-image ability handed a group returns an error.
+
 ### Batching
 
 Queue multiple uploads, then collect results:
