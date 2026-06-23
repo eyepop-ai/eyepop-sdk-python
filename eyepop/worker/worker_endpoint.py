@@ -21,7 +21,9 @@ from eyepop.worker.worker_jobs import (
     WorkerJob,
     _LoadFromAssetUuidJob,
     _LoadFromJob,
+    _UploadFileGroupJob,
     _UploadFileJob,
+    _UploadStreamGroupJob,
     _UploadStreamJob,
 )
 from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, Pop, VideoMode
@@ -366,6 +368,62 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         await self._task_start(job.execute())
         return job
 
+    async def upload_stream_group(
+            self,
+            streams: list[BinaryIO],
+            mime_types: list[str] | None = None,
+            params: list[ComponentParams] | None = None,
+            roi: Area | None = None,
+            media_cache_seconds: int | None = None,
+            on_ready: Callable[[WorkerJob], None] | None = None
+    ) -> WorkerJob:
+        """Uploads multiple in-memory streams as a single image group (one inference unit).
+
+        The streams are processed together and yield a single prediction stream;
+        order follows `streams`. `mime_types`, if given, is a parallel list setting
+        each stream's content type and must match `streams` in length; if omitted,
+        no per-stream content type is sent. `params`, `roi`, and
+        `media_cache_seconds` apply once to the whole group.
+        """
+        job = _UploadStreamGroupJob(
+            streams=streams,
+            mime_types=mime_types,
+            component_params=params,
+            roi=roi,
+            media_cache_seconds=media_cache_seconds,
+            session=self,
+            on_ready=on_ready,
+            callback=self.metrics_collector
+        )
+        await self._task_start(job.execute())
+        return job
+
+    async def upload_group(
+            self,
+            locations: list[str],
+            params: list[ComponentParams] | None = None,
+            roi: Area | None = None,
+            media_cache_seconds: int | None = None,
+            on_ready: Callable[[WorkerJob], None] | None = None
+    ) -> WorkerJob:
+        """Uploads multiple local images as a single image group (one inference unit).
+
+        The images are processed together and yield a single prediction stream.
+        Image order follows `locations`. Unlike `upload`, there is no `video_mode`
+        or `motion_detect` (a group is still images); `params`, `roi`, and
+        `media_cache_seconds` apply once to the whole group.
+        """
+        job = _UploadFileGroupJob(
+            locations=locations,
+            component_params=params,
+            roi=roi,
+            media_cache_seconds=media_cache_seconds,
+            session=self, on_ready=on_ready,
+            callback=self.metrics_collector
+        )
+        await self._task_start(job.execute())
+        return job
+
     async def load_from(
             self,
             location: str,
@@ -377,11 +435,40 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob:
         job = _LoadFromJob(
-            location=location,
+            locations=[location],
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            media_cache_seconds=media_cache_seconds,
+            session=self,
+            on_ready=on_ready,
+            callback=self.metrics_collector
+        )
+        await self._task_start(job.execute())
+        return job
+
+    async def load_from_group(
+            self,
+            locations: list[str],
+            params: list[ComponentParams] | None = None,
+            roi: Area | None = None,
+            media_cache_seconds: int | None = None,
+            on_ready: Callable[[WorkerJob], None] | None = None
+    ) -> WorkerJob:
+        """Loads multiple server-fetched URLs as a single image group (one inference unit).
+
+        The URLs are processed together and yield a single prediction stream;
+        order follows `locations`. The server fetches each URL and reads its own
+        content type, so no mime type is supplied. `params`, `roi`, and
+        `media_cache_seconds` apply once to the whole group.
+        """
+        job = _LoadFromJob(
+            locations=locations,
+            component_params=params,
+            motion_detect=None,
+            roi=roi,
+            fps=None,
             media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,

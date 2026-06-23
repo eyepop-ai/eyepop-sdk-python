@@ -85,6 +85,50 @@ class SyncWorkerEndpoint(SyncEndpoint):
         ))
         return SyncWorkerJob(job, self.event_loop)
 
+    def upload_stream_group(
+            self,
+            streams: list[typing.BinaryIO],
+            mime_types: list[str] | None = None,
+            params: list[ComponentParams] | None = None,
+            roi: Area | None = None,
+            media_cache_seconds: int | None = None,
+            on_ready: typing.Callable[[WorkerJob], None] | None = None
+    ) -> SyncWorkerJob:
+        if on_ready is not None:
+            raise TypeError(
+                "'on_ready' callback not supported for sync endpoints. "
+                "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
+        job = run_coro_thread_save(self.event_loop, self.endpoint.upload_stream_group(
+            streams=streams,
+            mime_types=mime_types,
+            params=params,
+            roi=roi,
+            media_cache_seconds=media_cache_seconds,
+            on_ready=None
+        ))
+        return SyncWorkerJob(job, self.event_loop)
+
+    def upload_group(
+            self,
+            locations: list[str],
+            params: list[ComponentParams] | None = None,
+            roi: Area | None = None,
+            media_cache_seconds: int | None = None,
+            on_ready: typing.Callable[[WorkerJob], None] | None = None
+    ) -> SyncWorkerJob:
+        if on_ready is not None:
+            raise TypeError(
+                "'on_ready' callback not supported for sync endpoints. "
+                "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
+        job = run_coro_thread_save(self.event_loop, self.endpoint.upload_group(
+            locations=locations,
+            params=params,
+            roi=roi,
+            media_cache_seconds=media_cache_seconds,
+            on_ready=None
+        ))
+        return SyncWorkerJob(job, self.event_loop)
+
     def load_from(
             self,
             location: str,
@@ -105,6 +149,27 @@ class SyncWorkerEndpoint(SyncEndpoint):
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            media_cache_seconds=media_cache_seconds,
+            on_ready=None
+        ))
+        return SyncWorkerJob(job, self.event_loop)
+
+    def load_from_group(
+            self,
+            locations: list[str],
+            params: list[ComponentParams] | None = None,
+            roi: Area | None = None,
+            media_cache_seconds: int | None = None,
+            on_ready: typing.Callable[[WorkerJob], None] | None = None
+    ) -> SyncWorkerJob:
+        if on_ready is not None:
+            raise TypeError(
+                "'on_ready' callback not supported for sync endpoints. "
+                "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
+        job = run_coro_thread_save(self.event_loop, self.endpoint.load_from_group(
+            locations=locations,
+            params=params,
+            roi=roi,
             media_cache_seconds=media_cache_seconds,
             on_ready=None
         ))
