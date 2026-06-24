@@ -33,6 +33,8 @@ class SyncWorkerEndpoint(SyncEndpoint):
             self,
             location: str,
             video_mode: VideoMode | None = None,
+            is_live: bool | None = None,
+            captured_at_offset_ns: int | None = None,
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,

@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from PIL import Image
 from pybars import Compiler
 from pydantic import TypeAdapter
+from relay_example import relay_http_source, relay_rtsp_source
 from webui import webui
 
 from eyepop import EyePopSdk, Job
@@ -137,6 +138,7 @@ pop_examples = {
         InferenceComponent(
             ability='eyepop.person:latest',
             categoryName="person",
+            objectAreaThreshold=0.01,
             forward=CropForward(
                 boxPadding=0.5,
                 targets=[InferenceComponent(
@@ -148,7 +150,7 @@ pop_examples = {
                         targets=[InferenceComponent(
                             ability='eyepop.person.3d-body-points.heavy:latest',
                             categoryName="3d-body-points",
-                            confidenceThreshold=0.25
+                            confidenceThreshold=0.1
                         )]
                     )
                 )]
@@ -317,6 +319,7 @@ parser.add_argument('-d', '--dump', required=False, help="dump composable pop de
 parser.add_argument('-l', '--local-path', required=False, type=str, default=False, help="run the inference on a local file, or all files on a directory")
 parser.add_argument('-a', '--asset-uuid', required=False, type=str, default=False, help="run the inference on an asset by its Uuid")
 parser.add_argument('-u', '--url', required=False, type=str, default=False, help="run the inference on a remote Url")
+parser.add_argument('-proxy', '--proxy-url', required=False, type=str, default=False, help="Resolve the given URL and proxy the content stream")
 parser.add_argument('-p', '--pop', required=False, type=str, help="run this pop", choices=list(pop_examples.keys()))
 parser.add_argument('-s', '--session', required=False, type=str, help="Use an existing a session uuid and do not set a pop, use the sessions as preconfigured", default=None)
 parser.add_argument('-m', '--model-uuid', required=False, type=str, action="append", help="run this model(s) by uuid")
@@ -358,8 +361,8 @@ parser.add_argument('-mc', '--media-cache-seconds', required=False, type=int, he
 
 main_args = parser.parse_args()
 
-if not main_args.local_path and not main_args.url and not main_args.asset_uuid:
-    print("Need something to run inference on; pass either --url or --local-path or --asset-uuid")
+if not main_args.local_path and not main_args.url and not main_args.asset_uuid and not main_args.proxy_url:
+    print("Need something to run inference on; pass either --url or --local-path or --asset-uuid or --proxy-url")
     parser.print_help()
     sys.exit(1)
 
@@ -569,6 +572,39 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                     print(json.dumps(result, indent=2))
             if args.visualize:
                 example_image_src = args.url
+        elif args.proxy_url:
+            if args.proxy_url.startswith("http:") or args.proxy_url.startswith("https:"):
+                async for result in relay_http_source(
+                        source_url=args.proxy_url,
+                        endpoint=endpoint,
+                        params=params,
+                        motion_detect=motion_detect,
+                        roi=args.roi,
+                        fps=args.fps,
+                ):
+                    visualize_prediction = result
+                    if args.output:
+                        print(json.dumps(result, indent=2))
+                if args.visualize:
+                    example_image_src = args.url
+            elif args.proxy_url.startswith("rtsp:"):
+                async for result in relay_rtsp_source(
+                        source_url=args.proxy_url,
+                        endpoint=endpoint,
+                        params=params,
+                        motion_detect=motion_detect,
+                        roi=args.roi,
+                        fps=args.fps,
+                ):
+                    visualize_prediction = result
+                    if args.output:
+                        print(json.dumps(result, indent=2))
+                if args.visualize:
+                    example_image_src = args.url
+            else:
+                print(f"unsupported protocol in proxy URL {args.proxy_url}")
+                sys.exit(1)
+
         elif args.asset_uuid:
             job = await endpoint.load_asset(
                 args.asset_uuid,
@@ -605,6 +641,3 @@ if main_args.visualize:
     window.set_root_folder('.')
     window.show(preview)
     webui.wait()
-
-
-
