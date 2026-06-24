@@ -3,7 +3,7 @@ import json
 import logging
 import mimetypes
 from asyncio import Queue
-from typing import Any, BinaryIO, Callable
+from typing import Any, AsyncIterable, BinaryIO, Callable
 from urllib.parse import urlencode
 
 import aiohttp
@@ -99,10 +99,10 @@ class _UploadSource:
     mime_type may be None when it cannot be derived (a raw stream group with no
     caller-supplied mime); the server no longer requires a per-member content type.
     """
-    open_stream: Callable[[], Any]
+    open_stream: Callable[[], BinaryIO  | AsyncIterable[bytes]]
     mime_type: str | None
 
-    def __init__(self, open_stream: Callable[[], Any], mime_type: str | None):
+    def __init__(self, open_stream: Callable[[], BinaryIO  | AsyncIterable[bytes]], mime_type: str | None):
         self.open_stream = open_stream
         self.mime_type = mime_type
 
@@ -118,12 +118,16 @@ class _UploadJob(WorkerJob):
     """
     sources: list[_UploadSource]
     video_mode: VideoMode | None
+    is_live: bool | None
+    captured_at_offset_ns: int | None
     needs_full_duplex: bool
 
     def __init__(
             self,
             sources: list[_UploadSource],
             video_mode: VideoMode | None,
+            is_live: bool | None,
+            captured_at_offset_ns: int | None,
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
@@ -149,6 +153,8 @@ class _UploadJob(WorkerJob):
             raise ValueError("upload requires at least one source")
         self.sources = sources
         self.video_mode = video_mode
+        self.is_live = is_live
+        self.captured_at_offset_ns = captured_at_offset_ns
         # Full duplex is only used for a single video upload; an image group is
         # always posted as one sync multipart request.
         self.needs_full_duplex = (
@@ -186,6 +192,10 @@ class _UploadJob(WorkerJob):
         }
         if self.video_mode is not None:
             query_params['videoMode'] = self.video_mode.value
+        if self.is_live is not None:
+            query_params["isLive"] = self.is_live
+        if self.captured_at_offset_ns is not None:
+            query_params['capturedAtOffsetNs'] = self.captured_at_offset_ns
         if self._version is not None:
             query_params['version'] = self._version
         if self._motion_detect is not None:
@@ -257,13 +267,13 @@ def _guess_mime_type_from_location(location: str):
     return mime_type
 
 
-def _file_stream_opener(location: str) -> Callable[[], Any]:
+def _file_stream_opener(location: str) -> Callable[[], BinaryIO]:
     def opener():
         return open(location, 'rb')
     return opener
 
 
-def _stream_opener(stream: BinaryIO) -> Callable[[], Any]:
+def _stream_opener(stream: BinaryIO) -> Callable[[], BinaryIO]:
     def opener():
         return stream
     return opener
@@ -290,6 +300,8 @@ class _UploadFileJob(_UploadJob):
                 _file_stream_opener(location),
                 _guess_mime_type_from_location(location) or 'application/octet-stream')],
             video_mode=video_mode,
+            is_live=None,
+            captured_at_offset_ns=None,
             component_params=component_params,
             motion_detect=motion_detect,
             roi=roi,
@@ -305,9 +317,11 @@ class _UploadFileJob(_UploadJob):
 class _UploadStreamJob(_UploadJob):
     def __init__(
             self,
-            stream: BinaryIO,
+            stream: BinaryIO | AsyncIterable[bytes],
             mime_type: str,
             video_mode: VideoMode | None,
+            is_live: bool | None,
+            captured_at_offset_ns: int | None,
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
@@ -322,6 +336,8 @@ class _UploadStreamJob(_UploadJob):
         super().__init__(
             sources=[_UploadSource(self._get_opened_stream, mime_type)],
             video_mode=video_mode,
+            is_live=is_live,
+            captured_at_offset_ns=captured_at_offset_ns,
             component_params=component_params,
             motion_detect=motion_detect,
             roi=roi,
@@ -367,6 +383,8 @@ class _UploadFileGroupJob(_UploadJob):
         super().__init__(
             sources=sources,
             video_mode=None,
+            is_live=None,
+            captured_at_offset_ns=None,
             component_params=component_params,
             motion_detect=None,
             roi=roi,
@@ -404,6 +422,8 @@ class _UploadStreamGroupJob(_UploadJob):
         super().__init__(
             sources=sources,
             video_mode=None,
+            is_live=None,
+            captured_at_offset_ns=None,
             component_params=component_params,
             motion_detect=None,
             roi=roi,

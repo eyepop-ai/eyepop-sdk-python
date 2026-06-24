@@ -59,12 +59,14 @@ doc = [
     "Pygments",
 ]
 example = [
-    "pyqt5",
-    "webui2",
-    "pybars3",
-    "python-dotenv",
+    "pyqt5~=5.15.11",
+    "pybars3~=0.9.7",
+    "python-dotenv~=1.2.2",
     "aiofiles==25.1.0",
-    "auth0-python>=4.13.0"
+    "auth0-python>=4.13.0",
+    "ay~=0.1.1",
+    "av~=17.1.0",
+    "webui2~=2.5.8"
 ]
 dev = [
     "build>=1.0.0,<2.0.0",
