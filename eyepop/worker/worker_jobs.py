@@ -3,7 +3,7 @@ import json
 import logging
 import mimetypes
 from asyncio import Queue
-from typing import Any, BinaryIO, Callable, AsyncIterable, Iterable
+from typing import Any, AsyncIterable, BinaryIO, Callable
 from urllib.parse import urlencode
 
 import aiohttp

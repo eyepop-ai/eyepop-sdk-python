@@ -1,7 +1,7 @@
 import logging
 import time
 from io import StringIO
-from typing import Any, BinaryIO, Callable, AsyncIterable, Iterable
+from typing import Any, AsyncIterable, BinaryIO, Callable, Iterable
 from urllib.parse import urljoin
 
 import aiohttp
@@ -591,10 +591,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                         response = await self.client_session.request(method, url, headers=headers,
                                                                      data=data.getvalue(), timeout=timeout)
                     elif isinstance(data, AsyncIterable):
-                        async def data_streamer():
-                            async for chunk in data:
+                        async def data_streamer(_data: AsyncIterable):
+                            async for chunk in _data:
                                 yield chunk
-                        response = await self.client_session.request(method, url, headers=headers, data=data_streamer(),
+                        response = await self.client_session.request(method, url, headers=headers, data=data_streamer(data),
                                                                      timeout=timeout)
                     else:
                         response = await self.client_session.request(method, url, headers=headers, data=data,

@@ -2,24 +2,21 @@ import argparse
 import ast
 import asyncio
 import base64
-import io
 import json
 import logging
 import os
-import queue
 import sys
 from argparse import Namespace
 from io import BytesIO
 from typing import Any
 
-import av
 from dotenv import load_dotenv
 from PIL import Image
 from pybars import Compiler
 from pydantic import TypeAdapter
+from relay_example import relay_http_source, relay_rtsp_source
 from webui import webui
 
-from relay_example import relay_http_source, relay_rtsp_source
 from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
 from eyepop.data.types.asset import Area, RectangleArea
@@ -34,7 +31,7 @@ from eyepop.worker.worker_types import (
     MotionDetectConfig,
     MotionModel,
     Pop,
-    TrackingComponent, VideoMode,
+    TrackingComponent,
 )
 
 load_dotenv()
