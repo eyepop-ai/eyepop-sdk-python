@@ -9,19 +9,17 @@ import os
 import queue
 import sys
 from argparse import Namespace
-from asyncio import sleep
 from io import BytesIO
-from typing import Any, BinaryIO
+from typing import Any
 
 import av
-import httpx
-from av.packet import Packet
 from dotenv import load_dotenv
 from PIL import Image
 from pybars import Compiler
 from pydantic import TypeAdapter
 from webui import webui
 
+from relay_example import relay_http_source, relay_rtsp_source
 from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
 from eyepop.data.types.asset import Area, RectangleArea
@@ -41,7 +39,7 @@ from eyepop.worker.worker_types import (
 
 load_dotenv()
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 log = logging.getLogger('eyepop.example')
 
 script_dir = os.path.dirname(__file__)
@@ -579,100 +577,33 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                 example_image_src = args.url
         elif args.proxy_url:
             if args.proxy_url.startswith("http:") or args.proxy_url.startswith("https:"):
-                async with httpx.AsyncClient() as http_client:
-                    async with http_client.stream("GET", args.proxy_url) as response:
-                        response.raise_for_status()
-                        job = await endpoint.upload_stream(
-                            response.aiter_bytes(),
-                            mime_type=response.headers.get("content-type"),
-                            params=params,
-                            motion_detect=motion_detect,
-                            roi=args.roi,
-                            fps=args.fps,
-                            media_cache_seconds=args.media_cache_seconds
-                        )
-                        while result := await job.predict():
-                            visualize_prediction = result
-                            if args.output:
-                                print(json.dumps(result, indent=2))
-                        if args.visualize:
-                            example_image_src = args.url
-            elif args.proxy_url.startswith("rtsp:"):
-                container = av.open(args.proxy_url, 'r', options={
-                    'rtsp_transport': 'tcp',
-                })
-                in_video_stream = container.streams.video[0]
-
-                class PipeBuffer(io.RawIOBase):
-                    def __init__(self):
-                        self.queue = queue.Queue()
-                        self.buffer = b""
-
-                    def writable(self):
-                        return True
-
-                    def write(self, b):
-                        if isinstance(b, str):
-                            b = b.encode('utf-8')
-                        self.queue.put(b)
-                        return len(b)
-
-                    def read(self, n=-1):
-                        # Fetch chunks from queue if our internal buffer is empty
-                        if not self.buffer:
-                            try:
-                                # Blocks until data is available
-                                self.buffer = self.queue.get(block=True, timeout=None)
-                            except queue.Empty:
-                                return b""  # EOF
-
-                        # If n is negative, read everything available
-                        if n < 0:
-                            res, self.buffer = self.buffer, b""
-                            return res
-
-                        # Otherwise, slice out the exact number of bytes requested
-                        res = self.buffer[:n]
-                        self.buffer = self.buffer[n:]
-                        print(f"pipe read {len(res)} bytes")
-                        return res
-
-                pipe = PipeBuffer()
-                mpegts_muxer = av.open(pipe, format='mpegts', mode='w')
-                out_video_stream = mpegts_muxer.add_stream_from_template(template=in_video_stream)
-
-                def pipe_through():
-                    has_key_frame = False
-                    for packet in container.demux(in_video_stream):
-                        if packet.dts is None:
-                            continue
-                        if not has_key_frame:
-                            has_key_frame = packet.is_keyframe
-                        if not has_key_frame:
-                            continue
-                        packet.stream = out_video_stream
-                        mpegts_muxer.mux(packet)
-
-                task = asyncio.create_task(asyncio.to_thread(pipe_through))
-
-                job = await endpoint.upload_stream(
-                    pipe,
-                    mime_type="video/mpegts",
-                    video_mode=VideoMode.STREAM,
-                    params=params,
-                    motion_detect=motion_detect,
-                    roi=args.roi,
-                    fps=args.fps,
-                    media_cache_seconds=args.media_cache_seconds
-                )
-                while result := await job.predict():
+                async for result in relay_http_source(
+                        source_url=args.proxy_url,
+                        endpoint=endpoint,
+                        params=params,
+                        motion_detect=motion_detect,
+                        roi=args.roi,
+                        fps=args.fps,
+                ):
                     visualize_prediction = result
                     if args.output:
                         print(json.dumps(result, indent=2))
                 if args.visualize:
                     example_image_src = args.url
-
-                await asyncio.gather(task)
+            elif args.proxy_url.startswith("rtsp:"):
+                async for result in relay_rtsp_source(
+                        source_url=args.proxy_url,
+                        endpoint=endpoint,
+                        params=params,
+                        motion_detect=motion_detect,
+                        roi=args.roi,
+                        fps=args.fps,
+                ):
+                    visualize_prediction = result
+                    if args.output:
+                        print(json.dumps(result, indent=2))
+                if args.visualize:
+                    example_image_src = args.url
             else:
                 print(f"unsupported protocol in proxy URL {args.proxy_url}")
                 sys.exit(1)
