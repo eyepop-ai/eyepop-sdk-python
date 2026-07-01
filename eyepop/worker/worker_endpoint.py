@@ -65,6 +65,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
             session_name: str | None = None,
+            pop: Pop | dict[str, Any] | None = None,
     ):
         super().__init__(
             secret_key=secret_key,
@@ -79,6 +80,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.auto_start = auto_start
         self.stop_jobs = stop_jobs
         self.dataset_uuid = dataset_uuid
+        self.pop = pop if isinstance(pop, Pop) else Pop(**pop) if pop is not None else Pop(components=[])
 
         if self.compute_ctx:
             if pipeline_image:
@@ -87,6 +89,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.compute_ctx.pipeline_version = pipeline_version
             if session_name:
                 self.compute_ctx.session_name = session_name
+            self.compute_ctx.pop = self.pop.model_dump() if self.pop is not None else None
             self.is_dev_mode = not bool(session_uuid)
         else:
             self.is_dev_mode = True
@@ -95,9 +98,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.last_fetch_config_success_time = None
         self.last_fetch_config_error = None
         self.last_fetch_config_error_time = None
-
-        # new way
-        self.pop = Pop(components=[])
 
         self.add_retry_handler(404, self._retry_404)
 
@@ -114,11 +114,13 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if timeout is not None:
             client_timeout = aiohttp.ClientTimeout(total=timeout)
         if (self.is_dev_mode and self.pop_id == 'transient'
-                and self.worker_config is not None and self.worker_config.get('pipeline_id') is not None
+                and self._has_pipeline_id()
                 and self.client_session is not None):
+            worker_config = self.worker_config
+            assert worker_config is not None
             try:
                 base_url = await self.dev_mode_base_url()
-                delete_pipeline_url = f'{base_url}/pipelines/{self.worker_config["pipeline_id"]}'
+                delete_pipeline_url = f'{base_url}/pipelines/{worker_config["pipeline_id"]}'
                 headers = {}
                 authorization_header = await self._authorization_header()
                 if authorization_header is not None:
@@ -127,7 +129,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             except Exception as e:
                 log.exception(e, exc_info=True)
             finally:
-                del self.worker_config["pipeline_id"]
+                del worker_config["pipeline_id"]
 
     async def _reconnect(self):
         # Narrow Optional[ClientSession] — _reconnect is only called after connect()
@@ -200,44 +202,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.compute_ctx:
             log_requests.debug(f'Compute session: {self.compute_ctx.session_uuid}')
 
-        base_url = await self.dev_mode_base_url()
-
         if self.worker_config.get('status') == 'active_prod':
             self.is_dev_mode = False
 
-        if self.is_dev_mode:
-            start_pipeline_url = f'{base_url}/pipelines'
-            body = {
-                "pop": self.pop.model_dump() if self.pop else {},
-                "source": {
-                    "sourceType": "NONE"
-                },
-                "idleTimeoutSeconds": 300,
-                "logging": ["out_meta"],
-                "videoOutput": "no_output",
-            }
-            if self.dataset_uuid is not None:
-                body["datasetUuid"] = self.dataset_uuid
-
-            headers = {}
-            authorization_header = await self._authorization_header()
-            if authorization_header is not None:
-                headers['Authorization'] = authorization_header
-            async with self.client_session.post(start_pipeline_url, headers=headers, json=body) as response:
-                response_json = await response.json()
-            self.worker_config['pipeline_id'] = response_json['id']
-
-            if self.compute_ctx:
-                self.compute_ctx.pipeline_uuid = response_json['id']
-                log.debug(f"Created pipeline with ID: {response_json['id']}")
-
-            has_base_url = ('base_url' in self.worker_config and self.worker_config['base_url'] is not None) or \
-                          ('session_endpoint' in self.worker_config and self.worker_config['session_endpoint'] is not None)
-            has_pipeline_id = self.worker_config.get('pipeline_id') is not None
-            if not has_base_url or not has_pipeline_id:
-                raise PopNotStartedException(pop_id=self.pop_id)
-
-        if self.is_dev_mode and self.stop_jobs:
+        if self.is_dev_mode and self.stop_jobs and self._has_pipeline_id():
             stop_jobs_url = f'{await self.dev_mode_pipeline_base_url()}/source?mode=preempt&processing=sync'
             body = {'sourceType': 'NONE'}
             headers = {}
@@ -262,24 +230,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                     self.pop = Pop(**pop_as_dict)
             log.debug('current pop is %s', self.pop)
 
-        if self.is_dev_mode:
-            if 'session_endpoint' in self.worker_config:
-                base_url = self.worker_config['session_endpoint'].rstrip("/")
-            else:
-                base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-            endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
-            self.load_balancer = EndpointLoadBalancer([endpoint])
-            log.debug(f"Initialized load balancer with endpoint: {endpoint}")
-        else:
-            if 'session_endpoint' in self.worker_config:
-                base_url = self.worker_config['session_endpoint'].rstrip("/")
-                endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
-                self.load_balancer = EndpointLoadBalancer([endpoint])
-                log.debug(f"Initialized load balancer with endpoint: {endpoint}")
-            else:
-                self.load_balancer = EndpointLoadBalancer(self.worker_config['endpoints'])
-                log.debug(f"Initialized load balancer with endpoints: {self.worker_config['endpoints']}")
-
+        self._configure_load_balancer()
 
     # Parent returns dict | None — must match and guard against None before subscripting
     async def session(self) -> dict | None:
@@ -292,7 +243,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 session['baseUrl'] = self.worker_config['session_endpoint']
             elif 'base_url' in self.worker_config:
                 session['baseUrl'] = self.worker_config['base_url']
-            session['pipelineId'] = self.worker_config['pipeline_id']
+            session['pipelineId'] = self.worker_config.get('pipeline_id')
         return session
 
     async def get_pop(self) -> Pop | None:
@@ -301,9 +252,17 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
     async def set_pop(self, pop: Pop):
         if not self.is_dev_mode:
             raise PopConfigurationException(self.pop_id, 'set_pop not supported in production mode')
+        self.pop = pop
+        if self.compute_ctx:
+            self.compute_ctx.pop = pop.model_dump()
+        if self.client_session is None:
+            return {"pop": pop.model_dump()}
+        if self.worker_config is None:
+            await self._reconnect()
+        if self.is_dev_mode and not self._has_pipeline_id():
+            return await self._create_pipeline()
         response = await self.pipeline_patch('pop', content_type='application/json',
                                              data=pop.model_dump_json())
-        self.pop = pop
         return response
 
     async def dev_mode_pipeline_base_url(self) -> str:
@@ -313,6 +272,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         base_url = await self.dev_mode_base_url()
         if self.worker_config is None:
             raise PopNotStartedException(pop_id=self.pop_id)
+        if not self._has_pipeline_id():
+            await self._ensure_pipeline_started()
         return f'{base_url}/pipelines/{self.worker_config["pipeline_id"]}'
 
     async def upload(
@@ -514,6 +475,83 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             return self.worker_config['session_endpoint'].rstrip("/")
         return urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
 
+    def _has_pipeline_id(self) -> bool:
+        return self.worker_config is not None and bool(self.worker_config.get('pipeline_id'))
+
+    def _pipeline_create_body(self) -> dict[str, Any]:
+        body = {
+            "pop": self.pop.model_dump() if self.pop else {},
+            "source": {
+                "sourceType": "NONE"
+            },
+            "idleTimeoutSeconds": 300,
+            "logging": ["out_meta"],
+            "videoOutput": "no_output",
+        }
+        if self.dataset_uuid is not None:
+            body["datasetUuid"] = self.dataset_uuid
+        return body
+
+    async def _ensure_pipeline_started(self) -> dict[str, Any] | None:
+        if self._has_pipeline_id():
+            return None
+        return await self._create_pipeline()
+
+    async def _create_pipeline(self) -> dict[str, Any]:
+        assert self.client_session is not None
+        if self.worker_config is None:
+            await self._reconnect()
+        if self.worker_config is None:
+            raise PopNotStartedException(pop_id=self.pop_id)
+
+        start_pipeline_url = f'{await self.dev_mode_base_url()}/pipelines'
+        headers = {}
+        authorization_header = await self._authorization_header()
+        if authorization_header is not None:
+            headers['Authorization'] = authorization_header
+
+        async with self.client_session.post(
+                start_pipeline_url,
+                headers=headers,
+                json=self._pipeline_create_body(),
+        ) as response:
+            response.raise_for_status()
+            response_json = await response.json()
+
+        self.worker_config['pipeline_id'] = response_json['id']
+        if self.compute_ctx:
+            self.compute_ctx.pipeline_uuid = response_json['id']
+            self.compute_ctx.pipeline_id = response_json['id']
+            log.debug(f"Created pipeline with ID: {response_json['id']}")
+
+        self._configure_load_balancer()
+        return response_json
+
+    def _configure_load_balancer(self):
+        if self.worker_config is None:
+            return
+
+        if self.is_dev_mode:
+            if not self._has_pipeline_id():
+                self.load_balancer = EndpointLoadBalancer([])
+                return
+            if 'session_endpoint' in self.worker_config:
+                base_url = self.worker_config['session_endpoint'].rstrip("/")
+            else:
+                base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+            endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
+            self.load_balancer = EndpointLoadBalancer([endpoint])
+            log.debug(f"Initialized load balancer with endpoint: {endpoint}")
+        else:
+            if 'session_endpoint' in self.worker_config:
+                base_url = self.worker_config['session_endpoint'].rstrip("/")
+                endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
+                self.load_balancer = EndpointLoadBalancer([endpoint])
+                log.debug(f"Initialized load balancer with endpoint: {endpoint}")
+            else:
+                self.load_balancer = EndpointLoadBalancer(self.worker_config['endpoints'])
+                log.debug(f"Initialized load balancer with endpoints: {self.worker_config['endpoints']}")
+
     #
     # Implements: _WorkerClientSession
     # Return types changed from _RequestContextManager to ClientResponse — these methods
@@ -561,6 +599,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         while time.time() - start_time < settings.max_retry_time_secs:
             if self.worker_config is None:
                 await self._reconnect()
+            if self.is_dev_mode and not self._has_pipeline_id():
+                await self._ensure_pipeline_started()
 
             entry = self.load_balancer.next_entry(settings.max_retry_time_secs + 1)
             log.debug(f"Load balancer entry: {entry}")

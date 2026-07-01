@@ -21,6 +21,24 @@ class TestEndpointPop(BaseEndpointTest):
     )
 
     current_pop: Pop | None = None
+
+    def assert_pipeline_started_with_pop(self, mock: aioresponses, pop: Pop):
+        mock.assert_called_with(
+            f'{self.test_worker_url}/pipelines',
+            method='POST',
+            headers={'Authorization': f'Bearer {self.test_access_token}'},
+            data=None,
+            json={
+                "pop": pop.model_dump(),
+                "source": {
+                    "sourceType": "NONE",
+                },
+                "idleTimeoutSeconds": 300,
+                "logging": ["out_meta"],
+                "videoOutput": "no_output"
+            }
+        )
+
     @aioresponses()
     def test_sync_get_pop(self, mock: aioresponses):
 
@@ -44,7 +62,7 @@ class TestEndpointPop(BaseEndpointTest):
         ) as endpoint:
             cur_pop = endpoint.get_pop()
         self.assertEqual(cur_pop, Pop(components=[]))
-        self.assertBaseMock(mock, is_transient=True)
+        self.assertBaseMock(mock, is_transient=True, expect_pipeline_started=False)
 
     @aioresponses()
     def test_sync_set_pop(self, mock: aioresponses):
@@ -65,20 +83,9 @@ class TestEndpointPop(BaseEndpointTest):
                 secret_key=self.test_eyepop_secret_key,
                 pop_id="transient",
         ) as endpoint:
-            def set_pop(url, **kwargs) -> CallbackResult:
-                if kwargs['headers']['Authorization'] != f'Bearer {self.test_access_token}':
-                    return CallbackResult(status=401, reason='test auth token expired')
-                else:
-                    self.current_pop = Pop(**json.loads(kwargs['data']))
-                    return CallbackResult(status=204)
-
-            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/pop',
-                       callback=set_pop)
-            
             endpoint.set_pop(self.test_new_pop)
             self.assertEqual(endpoint.get_pop(), self.test_new_pop)
-            self.assertEqual(self.current_pop, self.test_new_pop)
-        self.assertBaseMock(mock, is_transient=True)
+            self.assert_pipeline_started_with_pop(mock, self.test_new_pop)
 
 
     @aioresponses()
@@ -104,7 +111,7 @@ class TestEndpointPop(BaseEndpointTest):
         ) as endpoint:
             cur_pop = await endpoint.get_pop()
         self.assertEqual(cur_pop, Pop(components=[]))
-        self.assertBaseMock(mock, is_transient=True)
+        self.assertBaseMock(mock, is_transient=True, expect_pipeline_started=False)
 
     
     @aioresponses()
@@ -128,21 +135,6 @@ class TestEndpointPop(BaseEndpointTest):
                 secret_key=self.test_eyepop_secret_key,
                 pop_id="transient",
         ) as endpoint:
-            def set_pop(url, **kwargs) -> CallbackResult:
-                if kwargs['headers']['Authorization'] != f'Bearer {self.test_access_token}':
-                    return CallbackResult(status=401, reason='test auth token expired')
-                elif kwargs['headers']['Content-Type'] != 'application/json':
-                    return CallbackResult(status=400, reason='unsupported content type')
-                else:
-                    self.current_pop = Pop(**json.loads(kwargs['data']))
-                    return CallbackResult(status=204)
-
-            mock.patch(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/pop',
-                       callback=set_pop)
-            
             await endpoint.set_pop(self.test_new_pop)
             self.assertEqual(await endpoint.get_pop(), self.test_new_pop)
-            self.assertEqual(self.current_pop, self.test_new_pop)
-
-        self.assertBaseMock(mock, is_transient=True)
-
+            self.assert_pipeline_started_with_pop(mock, self.test_new_pop)

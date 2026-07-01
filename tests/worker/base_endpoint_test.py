@@ -100,7 +100,8 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
             is_transient: bool = False,
             status: str = 'active_dev',
             num_endpoints: int = 1,
-            provided_access_token: str | None = None
+            provided_access_token: str | None = None,
+            expect_pipeline_started: bool = True,
     ):
         if provided_access_token is None:
             provided_access_token = self.test_access_token
@@ -110,6 +111,8 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
             mock.assert_called_with(f'{self.test_eyepop_url}/workers/config',
                                     method='GET',
                                     headers={'Authorization': f'Bearer {provided_access_token}'})
+            if not expect_pipeline_started:
+                return
             start_url = f'{self.test_worker_url}/pipelines'
             mock.assert_called_with(
                 start_url,
