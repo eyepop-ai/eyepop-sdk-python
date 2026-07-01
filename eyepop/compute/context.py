@@ -1,5 +1,6 @@
 import os
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -43,6 +44,10 @@ class ComputeContext(BaseModel):
     pipeline_version: str = Field(
         description="Custom Docker image tag for the worker pipeline",
         default_factory=lambda: os.getenv("EYEPOP_PIPELINE_VERSION", "")
+    )
+    pop: dict[str, Any] | None = Field(
+        description="Pop definition used by compute API for session scheduling",
+        default=None
     )
 
 

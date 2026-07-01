@@ -88,6 +88,8 @@ async def fetch_new_compute_session(
                 body["pipeline_image"] = compute_ctx.pipeline_image
             if compute_ctx.pipeline_version:
                 body["pipeline_version"] = compute_ctx.pipeline_version
+            if compute_ctx.pop is not None:
+                body["pop"] = compute_ctx.pop
 
             async with client_session.post(
                 f'{sessions_url}?wait=true',

@@ -17,7 +17,7 @@ class SyncWorkerJob:
         self.job = job
         self.event_loop = event_loop
 
-    def predict(self) -> dict:
+    def predict(self) -> dict | None:
         prediction = run_coro_thread_save(self.event_loop, self.job.predict())
         return prediction
 
@@ -207,5 +207,4 @@ class SyncWorkerEndpoint(SyncEndpoint):
 
     def set_pop(self, pop: Pop) -> dict:
         return run_coro_thread_save(self.event_loop, self.endpoint.set_pop(pop))
-
 
