@@ -4,8 +4,6 @@ import unittest
 
 from aioresponses import CallbackResult, aioresponses
 
-from eyepop.worker.worker_types import Pop
-
 
 class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
 
@@ -120,7 +118,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
                 headers={'Authorization': f'Bearer {provided_access_token}'},
                 data=None,
                 json={
-                    "pop": Pop(components=[]).model_dump(),
+                    "pop": {},
                     "source": {
                         "sourceType": "NONE",
                     },
