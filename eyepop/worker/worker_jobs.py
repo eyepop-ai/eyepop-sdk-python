@@ -3,7 +3,7 @@ import json
 import logging
 import mimetypes
 from asyncio import Queue
-from typing import Any, AsyncIterable, BinaryIO, Callable
+from typing import Any, AsyncIterable, BinaryIO, Callable, Iterable, cast
 from urllib.parse import urlencode
 
 import aiohttp
@@ -44,7 +44,7 @@ class WorkerJob(Job):
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
     ):
-        super().__init__(session, on_ready, callback)
+        super().__init__(session, cast(Callable[[Job], Any] | None, on_ready), callback)
         self._component_params = component_params
         self._motion_detect = motion_detect
         self._roi = roi
@@ -99,10 +99,10 @@ class _UploadSource:
     mime_type may be None when it cannot be derived (a raw stream group with no
     caller-supplied mime); the server no longer requires a per-member content type.
     """
-    open_stream: Callable[[], BinaryIO  | AsyncIterable[bytes]]
+    open_stream: Callable[[], BinaryIO | AsyncIterable[bytes] | Iterable[bytes]]
     mime_type: str | None
 
-    def __init__(self, open_stream: Callable[[], BinaryIO  | AsyncIterable[bytes]], mime_type: str | None):
+    def __init__(self, open_stream: Callable[[], BinaryIO | AsyncIterable[bytes] | Iterable[bytes]], mime_type: str | None):
         self.open_stream = open_stream
         self.mime_type = mime_type
 
@@ -273,7 +273,7 @@ def _file_stream_opener(location: str) -> Callable[[], BinaryIO]:
     return opener
 
 
-def _stream_opener(stream: BinaryIO) -> Callable[[], BinaryIO]:
+def _stream_opener(stream: BinaryIO | AsyncIterable[bytes] | Iterable[bytes]) -> Callable[[], BinaryIO | AsyncIterable[bytes] | Iterable[bytes]]:
     def opener():
         return stream
     return opener
@@ -317,7 +317,7 @@ class _UploadFileJob(_UploadJob):
 class _UploadStreamJob(_UploadJob):
     def __init__(
             self,
-            stream: BinaryIO | AsyncIterable[bytes],
+            stream: BinaryIO | AsyncIterable[bytes] | Iterable[bytes],
             mime_type: str,
             video_mode: VideoMode | None,
             is_live: bool | None,
@@ -572,4 +572,3 @@ class _LoadFromAssetUuidJob(WorkerJob):
                                                       content_type='application/json',
                                                       timeout=self.timeouts)
         await self._do_read_response(queue)
-

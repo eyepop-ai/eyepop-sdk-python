@@ -107,7 +107,7 @@ class TestEndpointConnect(BaseEndpointTest):
         finally:
             endpoint.disconnect()
 
-        self.assertBaseMock(mock, is_transient=True)
+        self.assertBaseMock(mock, is_transient=True, expect_pipeline_started=False)
 
     @aioresponses()
     def test_connect_unauthorized(self, mock: aioresponses):

@@ -47,11 +47,12 @@ class Job:
 
     def __init__(self,
                  session: ClientSession,
-                 on_ready: Callable[["Job"], None] | None,
+                 on_ready: Callable[["Job"], Any] | None,
                  callback: JobStateCallback | None = None):
         self.on_ready = on_ready
         self._session = session
-        self._response = None
+        self._response: Any = None
+        self._callback: JobStateCallback
         self._queue = asyncio.Queue(maxsize=128)
         if callback is not None:
             self._callback = callback
@@ -64,7 +65,9 @@ class Job:
         self._callback.finalized(self)
 
     async def push_message(self, message: dict[str, Any]):
-        await self._queue.put(message)
+        queue = self._queue
+        if queue is not None:
+            await queue.put(message)
 
     async def pop_result(self) -> Any:
         queue = self._queue
@@ -92,6 +95,8 @@ class Job:
 
     async def execute(self):
         queue = self._queue
+        if queue is None:
+            return
         session = self._session
 
         self._callback.started(self)
@@ -115,6 +120,5 @@ class Job:
             if self.on_ready is not None:
                 await self.on_ready(self)
 
-    async def _do_execute_job(self, queue: Queue, session: ClientSession):
+    async def _do_execute_job(self, queue: Queue, session: Any):
         raise NotImplementedError("can't execute abstract jobs")
-

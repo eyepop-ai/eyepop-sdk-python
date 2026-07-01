@@ -8,6 +8,7 @@ from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_syncify import SyncDataEndpoint
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_syncify import SyncWorkerEndpoint
+from eyepop.worker.worker_types import Pop
 
 log = logging.getLogger('eyepop')
 log.debug(f"EyePop SDK v{__version__} initializing...")
@@ -34,6 +35,7 @@ class EyePopSdk:
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
             session_name: str | None = None,
+            pop: Pop | dict[str, object] | None = None,
     ) -> WorkerEndpoint | SyncWorkerEndpoint:
         if is_async:
             return EyePopSdk.async_worker(
@@ -52,6 +54,7 @@ class EyePopSdk:
                 pipeline_image=pipeline_image,
                 pipeline_version=pipeline_version,
                 session_name=session_name,
+                pop=pop,
             )
         else:
             return EyePopSdk.sync_worker(
@@ -70,6 +73,7 @@ class EyePopSdk:
                 pipeline_image=pipeline_image,
                 pipeline_version=pipeline_version,
                 session_name=session_name,
+                pop=pop,
             )
 
     @staticmethod
@@ -89,6 +93,7 @@ class EyePopSdk:
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
             session_name: str | None = None,
+            pop: Pop | dict[str, object] | None = None,
     ) -> SyncWorkerEndpoint:
         endpoint = EyePopSdk.async_worker(
             pop_id=pop_id,
@@ -106,6 +111,7 @@ class EyePopSdk:
             pipeline_image=pipeline_image,
             pipeline_version=pipeline_version,
             session_name=session_name,
+            pop=pop,
         )
         return SyncWorkerEndpoint(endpoint)
 
@@ -126,6 +132,7 @@ class EyePopSdk:
             pipeline_image: str | None = None,
             pipeline_version: str | None = None,
             session_name: str | None = None,
+            pop: Pop | dict[str, object] | None = None,
     ) -> WorkerEndpoint:
         if is_local_mode is None:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
@@ -194,6 +201,7 @@ class EyePopSdk:
             pipeline_image=pipeline_image,
             pipeline_version=pipeline_version,
             session_name=session_name,
+            pop=pop,
         )
         return endpoint
 

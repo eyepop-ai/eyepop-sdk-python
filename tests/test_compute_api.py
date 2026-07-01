@@ -1,7 +1,9 @@
+import json
 from unittest.mock import patch
 
 import aiohttp
 import pytest
+from aioresponses import CallbackResult
 
 from eyepop.compute import ComputeContext
 from eyepop.compute.api import fetch_new_compute_session, fetch_session_endpoint
@@ -68,6 +70,36 @@ async def test_creates_session_when_none_exists(mock_compute_config, aioresponse
 
     assert result.session_endpoint == "https://pipeline.example.com"
     assert result.m2m_access_token == "jwt-token-123"
+
+
+@pytest.mark.asyncio
+async def test_creates_session_with_pop_for_scheduling(aioresponses):
+    pop = {"components": [{"type": "inference", "model": "yolo"}], "postTransform": None}
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        pop=pop,
+    )
+    captured_body = {}
+
+    def create_session(url, **kwargs):
+        captured_body.update(kwargs["json"])
+        return CallbackResult(body=json.dumps(MOCK_SESSION_RESPONSE), status=200)
+
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[],
+        status=200
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        callback=create_session
+    )
+
+    async with aiohttp.ClientSession() as session:
+        await fetch_new_compute_session(ctx, session)
+
+    assert captured_body["pop"] == pop
 
 
 @pytest.mark.asyncio
