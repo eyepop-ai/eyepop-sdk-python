@@ -103,6 +103,30 @@ async def test_creates_session_with_pop_for_scheduling(aioresponses):
 
 
 @pytest.mark.asyncio
+async def test_creates_session_without_pop_when_unset(mock_compute_config, aioresponses):
+    captured_body = {}
+
+    def create_session(url, **kwargs):
+        captured_body.update(kwargs.get("json") or {})
+        return CallbackResult(body=json.dumps(MOCK_SESSION_RESPONSE), status=200)
+
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[],
+        status=200
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        callback=create_session
+    )
+
+    async with aiohttp.ClientSession() as session:
+        await fetch_new_compute_session(mock_compute_config, session)
+
+    assert "pop" not in captured_body
+
+
+@pytest.mark.asyncio
 async def test_creates_session_when_get_returns_404(mock_compute_config, aioresponses):
     aioresponses.get(
         "https://compute.staging.eyepop.xyz/v1/sessions",
