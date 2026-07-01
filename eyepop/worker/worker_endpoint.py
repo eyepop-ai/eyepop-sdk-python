@@ -1,7 +1,8 @@
+import asyncio
 import logging
 import time
 from io import StringIO
-from typing import Any, AsyncIterable, BinaryIO, Callable, Iterable
+from typing import Any, AsyncIterable, BinaryIO, Callable
 from urllib.parse import urljoin
 
 import aiohttp
@@ -80,7 +81,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.auto_start = auto_start
         self.stop_jobs = stop_jobs
         self.dataset_uuid = dataset_uuid
-        self.pop = pop if isinstance(pop, Pop) else Pop(**pop) if pop is not None else Pop(components=[])
+        self.pop = pop if isinstance(pop, Pop) else Pop(**pop) if pop is not None else None
 
         if self.compute_ctx:
             if pipeline_image:
@@ -95,6 +96,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self.is_dev_mode = True
 
         self.worker_config = None
+        self._pipeline_create_lock = asyncio.Lock()
         self.last_fetch_config_success_time = None
         self.last_fetch_config_error = None
         self.last_fetch_config_error_time = None
@@ -215,7 +217,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             async with self.client_session.patch(stop_jobs_url, headers=headers, json=body) as response:
                 pass
 
-        if self.is_dev_mode and self.pop is None:
+        if self.is_dev_mode and self.pop is None and self._has_pipeline_id():
             get_url = await self.dev_mode_pipeline_base_url()
             headers = {}
             authorization_header = await self._authorization_header()
@@ -260,7 +262,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.worker_config is None:
             await self._reconnect()
         if self.is_dev_mode and not self._has_pipeline_id():
-            return await self._create_pipeline()
+            return await self._ensure_pipeline_started()
         response = await self.pipeline_patch('pop', content_type='application/json',
                                              data=pop.model_dump_json())
         return response
@@ -303,7 +305,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
     async def upload_stream(
             self,
-            stream: BinaryIO | AsyncIterable[bytes] | Iterable[bytes],
+            stream: BinaryIO | AsyncIterable[bytes],
             mime_type: str,
             video_mode: VideoMode | None = None,
             is_live: bool | None = None,
@@ -495,7 +497,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
     async def _ensure_pipeline_started(self) -> dict[str, Any] | None:
         if self._has_pipeline_id():
             return None
-        return await self._create_pipeline()
+        async with self._pipeline_create_lock:
+            if self._has_pipeline_id():
+                return None
+            return await self._create_pipeline()
 
     async def _create_pipeline(self) -> dict[str, Any]:
         assert self.client_session is not None

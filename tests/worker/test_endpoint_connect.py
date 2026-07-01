@@ -1,11 +1,14 @@
+import asyncio
 import json
 import unittest
 import uuid
+from types import MethodType
 
 from aiohttp import ClientResponseError
 from aioresponses import CallbackResult, aioresponses
 
 from eyepop import EyePopSdk
+from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_types import Pop
 from tests.worker.base_endpoint_test import BaseEndpointTest
 
@@ -26,6 +29,29 @@ class TestEndpointConnect(BaseEndpointTest):
 
         self.assertIsNotNone(endpoint.compute_ctx)
         self.assertEqual(endpoint.compute_ctx.session_name, "sessions-smoke-123")
+
+    async def test_ensure_pipeline_started_serializes_concurrent_creation(self):
+        endpoint = object.__new__(WorkerEndpoint)
+        endpoint.worker_config = {}
+        endpoint._pipeline_create_lock = asyncio.Lock()
+        create_calls = 0
+
+        async def create_pipeline(self):
+            nonlocal create_calls
+            create_calls += 1
+            await asyncio.sleep(0)
+            self.worker_config["pipeline_id"] = "created-pipeline"
+            return {"id": "created-pipeline"}
+
+        endpoint._create_pipeline = MethodType(create_pipeline, endpoint)
+
+        await asyncio.gather(
+            endpoint._ensure_pipeline_started(),
+            endpoint._ensure_pipeline_started(),
+        )
+
+        self.assertEqual(create_calls, 1)
+        self.assertEqual(endpoint.worker_config["pipeline_id"], "created-pipeline")
 
     @aioresponses()
     def test_connect_ok(self, mock: aioresponses):

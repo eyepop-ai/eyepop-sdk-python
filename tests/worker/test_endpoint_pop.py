@@ -61,7 +61,7 @@ class TestEndpointPop(BaseEndpointTest):
                 pop_id="transient",
         ) as endpoint:
             cur_pop = endpoint.get_pop()
-        self.assertEqual(cur_pop, Pop(components=[]))
+        self.assertIsNone(cur_pop)
         self.assertBaseMock(mock, is_transient=True, expect_pipeline_started=False)
 
     @aioresponses()
@@ -110,7 +110,7 @@ class TestEndpointPop(BaseEndpointTest):
                 pop_id="transient",
         ) as endpoint:
             cur_pop = await endpoint.get_pop()
-        self.assertEqual(cur_pop, Pop(components=[]))
+        self.assertIsNone(cur_pop)
         self.assertBaseMock(mock, is_transient=True, expect_pipeline_started=False)
 
     
