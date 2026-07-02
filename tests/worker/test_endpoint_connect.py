@@ -18,6 +18,27 @@ class TestEndpointConnect(BaseEndpointTest):
         with self.assertRaises(KeyError):
             EyePopSdk.sync_worker()
 
+    def compute_transient_session_response(
+        self, pipelines: list[dict[str, str]] | None = None
+    ) -> dict:
+        if pipelines is None:
+            pipelines = [{"pipeline_id": self.test_pipeline_id}]
+        return {
+            "session_uuid": "session-456",
+            "session_endpoint": self.test_worker_url,
+            "access_token": self.test_access_token,
+            "pipelines": pipelines,
+            "session_status": "running",
+        }
+
+    def async_compute_transient_worker(self) -> WorkerEndpoint:
+        return EyePopSdk.async_worker(
+            eyepop_url=self.test_eyepop_url,
+            api_key="test-api-key",
+            pop_id="transient",
+            stop_jobs=False,
+        )
+
     def test_session_name_sets_compute_context(self):
         endpoint = EyePopSdk.async_worker(
             eyepop_url="https://compute.eyepop.ai",
@@ -164,17 +185,8 @@ class TestEndpointConnect(BaseEndpointTest):
         captured_session_body = {}
         captured_pipeline_body = {}
         call_order: list[str] = []
-        session_response = {
-            "session_uuid": "session-456",
-            "session_endpoint": self.test_worker_url,
-            "access_token": self.test_access_token,
-            "pipelines": [{"pipeline_id": self.test_pipeline_id}],
-            "session_status": "running",
-        }
-        session_response_without_pipeline = {
-            **session_response,
-            "pipelines": [],
-        }
+        session_response = self.compute_transient_session_response()
+        session_response_without_pipeline = self.compute_transient_session_response(pipelines=[])
 
         def create_or_update_session(url, **kwargs) -> CallbackResult:
             captured_session_body.update(kwargs["json"])
@@ -215,12 +227,7 @@ class TestEndpointConnect(BaseEndpointTest):
             repeat=True,
         )
 
-        endpoint = EyePopSdk.async_worker(
-            eyepop_url=self.test_eyepop_url,
-            api_key="test-api-key",
-            pop_id="transient",
-            stop_jobs=False,
-        )
+        endpoint = self.async_compute_transient_worker()
         try:
             await endpoint.connect()
             response = await endpoint.set_pop(new_pop)
@@ -256,13 +263,7 @@ class TestEndpointConnect(BaseEndpointTest):
         new_pop = Pop(components=[])
         session_post_called = False
         pipeline_post_called = False
-        session_response = {
-            "session_uuid": "session-456",
-            "session_endpoint": self.test_worker_url,
-            "access_token": self.test_access_token,
-            "pipelines": [{"pipeline_id": self.test_pipeline_id}],
-            "session_status": "running",
-        }
+        session_response = self.compute_transient_session_response()
 
         def create_or_update_session(url, **kwargs) -> CallbackResult:
             nonlocal session_post_called
@@ -297,12 +298,7 @@ class TestEndpointConnect(BaseEndpointTest):
         )
         mock.post(f"{self.test_worker_url}/pipelines", callback=create_pipeline)
 
-        endpoint = EyePopSdk.async_worker(
-            eyepop_url=self.test_eyepop_url,
-            api_key="test-api-key",
-            pop_id="transient",
-            stop_jobs=False,
-        )
+        endpoint = self.async_compute_transient_worker()
         try:
             await endpoint.connect()
             with self.assertRaises(ClientResponseError):
