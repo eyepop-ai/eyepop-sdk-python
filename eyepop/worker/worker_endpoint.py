@@ -105,15 +105,21 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
         self.add_retry_handler(404, self._retry_404)
 
+    def _reset_config_fetch_state(self) -> None:
+        self.last_fetch_config_success_time = None
+        self.last_fetch_config_error = None
+        self.last_fetch_config_error_time = None
+
     async def _retry_404(self, status_code: int, failed_attempts: int) -> bool:
         if failed_attempts > 1:
             return False
         else:
             log_requests.debug("after 404, about to retry with fresh config")
             self.worker_config = None
+            self._reset_config_fetch_state()
             return True
 
-    async def _disconnect(self, timeout: float | None = None):
+    async def _disconnect(self, timeout: float | None = None, *, suppress_errors: bool = True):
         client_timeout = None
         if timeout is not None:
             client_timeout = aiohttp.ClientTimeout(total=timeout)
@@ -125,6 +131,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         ):
             worker_config = self.worker_config
             assert worker_config is not None
+            deleted_pipeline = False
             try:
                 base_url = await self.dev_mode_base_url()
                 delete_pipeline_url = f"{base_url}/pipelines/{worker_config['pipeline_id']}"
@@ -132,13 +139,21 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 authorization_header = await self._authorization_header()
                 if authorization_header is not None:
                     headers["Authorization"] = authorization_header
-                await self.client_session.delete(
+                response = await self.client_session.delete(
                     delete_pipeline_url, headers=headers, timeout=client_timeout
                 )
+                try:
+                    response.raise_for_status()
+                    deleted_pipeline = True
+                finally:
+                    response.release()
             except Exception as e:
                 log.exception(e, exc_info=True)
+                if not suppress_errors:
+                    raise
             finally:
-                del worker_config["pipeline_id"]
+                if suppress_errors or deleted_pipeline:
+                    worker_config.pop("pipeline_id", None)
 
     async def _reconnect(self):
         # Narrow Optional[ClientSession] — _reconnect is only called after connect()
@@ -290,7 +305,11 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         response = await self.pipeline_patch(
             "pop", content_type="application/json", data=pop.model_dump_json()
         )
-        return response
+        try:
+            response.raise_for_status()
+            return await response.json()
+        finally:
+            response.release()
 
     async def _set_pop_on_compute_transient(self, pop: Pop) -> dict[str, Any]:
         assert self.compute_ctx is not None
@@ -299,7 +318,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.worker_config is None:
             await self._reconnect()
         if self._has_pipeline_id():
-            await self._disconnect()
+            await self._disconnect(suppress_errors=False)
 
         self.compute_ctx.pop = pop.model_dump()
         self.compute_ctx.pipeline_uuid = ""
@@ -740,6 +759,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                     # pipeline might have just shut down
                     log_requests.debug("no healthy endpoints, about to retry with fresh config")
                     self.worker_config = None
+                    self._reset_config_fetch_state()
                     retried_re_config = True
                     continue
                 else:
