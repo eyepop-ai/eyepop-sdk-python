@@ -29,9 +29,10 @@ from eyepop.worker.worker_jobs import (
 )
 from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, Pop, VideoMode
 
-log = logging.getLogger('eyepop')
-log_requests = logging.getLogger('eyepop.requests')
-log_metrics = logging.getLogger('eyepop.metrics')
+log = logging.getLogger("eyepop")
+log_requests = logging.getLogger("eyepop.requests")
+log_metrics = logging.getLogger("eyepop.metrics")
+
 
 def should_use_compute_api(pop_id: str, api_key: str | None) -> bool:
     """Determine if we should use Compute API based on pop_id and api_key."""
@@ -47,26 +48,27 @@ def should_use_compute_api(pop_id: str, api_key: str | None) -> bool:
     log.debug("Using compute API")
     return True
 
+
 class WorkerEndpoint(Endpoint, WorkerClientSession):
     """Endpoint to an EyePop.ai worker."""
 
     def __init__(
-            self,
-            secret_key: str | None,
-            access_token: str | None,
-            api_key: str | None,
-            eyepop_url: str,
-            pop_id: str,
-            session_uuid: str | None,
-            auto_start: bool,
-            stop_jobs: bool,
-            job_queue_length: int,
-            request_tracer_max_buffer: int,
-            dataset_uuid: str | None = None,
-            pipeline_image: str | None = None,
-            pipeline_version: str | None = None,
-            session_name: str | None = None,
-            pop: Pop | dict[str, Any] | None = None,
+        self,
+        secret_key: str | None,
+        access_token: str | None,
+        api_key: str | None,
+        eyepop_url: str,
+        pop_id: str,
+        session_uuid: str | None,
+        auto_start: bool,
+        stop_jobs: bool,
+        job_queue_length: int,
+        request_tracer_max_buffer: int,
+        dataset_uuid: str | None = None,
+        pipeline_image: str | None = None,
+        pipeline_version: str | None = None,
+        session_name: str | None = None,
+        pop: Pop | dict[str, Any] | None = None,
     ):
         super().__init__(
             secret_key=secret_key,
@@ -107,7 +109,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if failed_attempts > 1:
             return False
         else:
-            log_requests.debug('after 404, about to retry with fresh config')
+            log_requests.debug("after 404, about to retry with fresh config")
             self.worker_config = None
             return True
 
@@ -115,19 +117,24 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         client_timeout = None
         if timeout is not None:
             client_timeout = aiohttp.ClientTimeout(total=timeout)
-        if (self.is_dev_mode and self.pop_id == 'transient'
-                and self._has_pipeline_id()
-                and self.client_session is not None):
+        if (
+            self.is_dev_mode
+            and self.pop_id == "transient"
+            and self._has_pipeline_id()
+            and self.client_session is not None
+        ):
             worker_config = self.worker_config
             assert worker_config is not None
             try:
                 base_url = await self.dev_mode_base_url()
-                delete_pipeline_url = f'{base_url}/pipelines/{worker_config["pipeline_id"]}'
+                delete_pipeline_url = f"{base_url}/pipelines/{worker_config['pipeline_id']}"
                 headers = {}
                 authorization_header = await self._authorization_header()
                 if authorization_header is not None:
-                    headers['Authorization'] = authorization_header
-                await self.client_session.delete(delete_pipeline_url, headers=headers, timeout=client_timeout)
+                    headers["Authorization"] = authorization_header
+                await self.client_session.delete(
+                    delete_pipeline_url, headers=headers, timeout=client_timeout
+                )
             except Exception as e:
                 log.exception(e, exc_info=True)
             finally:
@@ -139,12 +146,19 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.worker_config is not None:
             return
 
-        if self.last_fetch_config_error_time is not None and self.last_fetch_config_error_time > time.time() - settings.min_config_reconnect_secs:
+        if (
+            self.last_fetch_config_error_time is not None
+            and self.last_fetch_config_error_time > time.time() - settings.min_config_reconnect_secs
+        ):
             if self.last_fetch_config_error is not None:
                 raise self.last_fetch_config_error
             raise aiohttp.ClientConnectionError()
 
-        if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time > time.time() - settings.min_config_reconnect_secs:
+        if (
+            self.last_fetch_config_success_time is not None
+            and self.last_fetch_config_success_time
+            > time.time() - settings.min_config_reconnect_secs
+        ):
             raise aiohttp.ClientConnectionError()
 
         if self.compute_ctx:
@@ -168,14 +182,16 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self.last_fetch_config_error = None
             self.last_fetch_config_error_time = None
         else:
-            if self.pop_id == 'transient':
-                config_url = f'{self.eyepop_url}/workers/config'
+            if self.pop_id == "transient":
+                config_url = f"{self.eyepop_url}/workers/config"
             else:
-                config_url = f'{self.eyepop_url}/pops/{self.pop_id}/config?auto_start={self.auto_start}'
+                config_url = (
+                    f"{self.eyepop_url}/pops/{self.pop_id}/config?auto_start={self.auto_start}"
+                )
             headers = {}
             authorization_header = await self._authorization_header()
             if authorization_header is not None:
-                headers['Authorization'] = authorization_header
+                headers["Authorization"] = authorization_header
             try:
                 async with self.client_session.get(config_url, headers=headers) as response:
                     self.worker_config = await response.json()
@@ -193,8 +209,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                     headers = {}
                     authorization_header = await self._authorization_header()
                     if authorization_header is not None:
-                        headers['Authorization'] = authorization_header
-                    async with self.client_session.get(config_url, headers=headers) as retried_response:
+                        headers["Authorization"] = authorization_header
+                    async with self.client_session.get(
+                        config_url, headers=headers
+                    ) as retried_response:
                         self.worker_config = await retried_response.json()
             except aiohttp.ClientConnectionError as e:
                 self.last_fetch_config_error = e
@@ -202,19 +220,23 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 raise e
 
         if self.compute_ctx:
-            log_requests.debug(f'Compute session: {self.compute_ctx.session_uuid}')
+            log_requests.debug(f"Compute session: {self.compute_ctx.session_uuid}")
 
-        if self.worker_config.get('status') == 'active_prod':
+        if self.worker_config.get("status") == "active_prod":
             self.is_dev_mode = False
 
         if self.is_dev_mode and self.stop_jobs and self._has_pipeline_id():
-            stop_jobs_url = f'{await self.dev_mode_pipeline_base_url()}/source?mode=preempt&processing=sync'
-            body = {'sourceType': 'NONE'}
+            stop_jobs_url = (
+                f"{await self.dev_mode_pipeline_base_url()}/source?mode=preempt&processing=sync"
+            )
+            body = {"sourceType": "NONE"}
             headers = {}
             authorization_header = await self._authorization_header()
             if authorization_header is not None:
-                headers['Authorization'] = authorization_header
-            async with self.client_session.patch(stop_jobs_url, headers=headers, json=body) as response:
+                headers["Authorization"] = authorization_header
+            async with self.client_session.patch(
+                stop_jobs_url, headers=headers, json=body
+            ) as response:
                 pass
 
         if self.is_dev_mode and self.pop is None and self._has_pipeline_id():
@@ -222,15 +244,15 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             headers = {}
             authorization_header = await self._authorization_header()
             if authorization_header is not None:
-                headers['Authorization'] = authorization_header
+                headers["Authorization"] = authorization_header
             async with self.client_session.get(get_url, headers=headers) as response:
                 response_json = await response.json()
-                pop_as_dict = response_json.get('pop')
+                pop_as_dict = response_json.get("pop")
                 if pop_as_dict is None:
                     self.pop = None
                 else:
                     self.pop = Pop(**pop_as_dict)
-            log.debug('current pop is %s', self.pop)
+            log.debug("current pop is %s", self.pop)
 
         self._configure_load_balancer()
 
@@ -239,13 +261,13 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         session = await super().session()
         if session is None:
             return None
-        session['popId'] = self.pop_id
+        session["popId"] = self.pop_id
         if self.worker_config:
-            if 'session_endpoint' in self.worker_config:
-                session['baseUrl'] = self.worker_config['session_endpoint']
-            elif 'base_url' in self.worker_config:
-                session['baseUrl'] = self.worker_config['base_url']
-            session['pipelineId'] = self.worker_config.get('pipeline_id')
+            if "session_endpoint" in self.worker_config:
+                session["baseUrl"] = self.worker_config["session_endpoint"]
+            elif "base_url" in self.worker_config:
+                session["baseUrl"] = self.worker_config["base_url"]
+            session["pipelineId"] = self.worker_config.get("pipeline_id")
         return session
 
     async def get_pop(self) -> Pop | None:
@@ -253,19 +275,51 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
     async def set_pop(self, pop: Pop):
         if not self.is_dev_mode:
-            raise PopConfigurationException(self.pop_id, 'set_pop not supported in production mode')
+            raise PopConfigurationException(self.pop_id, "set_pop not supported in production mode")
         self.pop = pop
         if self.compute_ctx:
             self.compute_ctx.pop = pop.model_dump()
         if self.client_session is None:
             return {"pop": pop.model_dump()}
+        if self.compute_ctx and self.permanent_session_uuid is None:
+            return await self._set_pop_on_compute_transient(pop)
         if self.worker_config is None:
             await self._reconnect()
         if self.is_dev_mode and not self._has_pipeline_id():
             return await self._ensure_pipeline_started()
-        response = await self.pipeline_patch('pop', content_type='application/json',
-                                             data=pop.model_dump_json())
+        response = await self.pipeline_patch(
+            "pop", content_type="application/json", data=pop.model_dump_json()
+        )
         return response
+
+    async def _set_pop_on_compute_transient(self, pop: Pop) -> dict[str, Any]:
+        assert self.compute_ctx is not None
+        assert self.client_session is not None
+
+        if self.worker_config is None:
+            await self._reconnect()
+        if self._has_pipeline_id():
+            await self._disconnect()
+
+        self.compute_ctx.pop = pop.model_dump()
+        self.compute_ctx.pipeline_uuid = ""
+        self.compute_ctx.pipeline_id = ""
+        self.compute_ctx = await fetch_session_endpoint(
+            compute_ctx=self.compute_ctx,
+            client_session=self.client_session,
+            permanent_session_uuid=None,
+        )
+        self.eyepop_url = self.compute_ctx.session_endpoint
+        self.worker_config = {
+            "session_endpoint": self.compute_ctx.session_endpoint,
+            "pipeline_id": self.compute_ctx.pipeline_id,
+            "endpoints": [],
+        }
+        self.last_fetch_config_success_time = time.time()
+        self.last_fetch_config_error = None
+        self.last_fetch_config_error_time = None
+        self._configure_load_balancer()
+        return await self._create_pipeline(wait_until_ready=True)
 
     async def dev_mode_pipeline_base_url(self) -> str:
         # Was `else: pass` which made return type str | None — raise explicitly instead
@@ -276,18 +330,18 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             raise PopNotStartedException(pop_id=self.pop_id)
         if not self._has_pipeline_id():
             await self._ensure_pipeline_started()
-        return f'{base_url}/pipelines/{self.worker_config["pipeline_id"]}'
+        return f"{base_url}/pipelines/{self.worker_config['pipeline_id']}"
 
     async def upload(
-            self,
-            location: str,
-            video_mode: VideoMode | None = None,
-            params: list[ComponentParams] | None = None,
-            motion_detect: MotionDetectConfig | None = None,
-            roi: Area | None = None,
-            fps: str | None = None,
-            media_cache_seconds: int | None = None,
-            on_ready: Callable[[WorkerJob], None] | None = None
+        self,
+        location: str,
+        video_mode: VideoMode | None = None,
+        params: list[ComponentParams] | None = None,
+        motion_detect: MotionDetectConfig | None = None,
+        roi: Area | None = None,
+        fps: str | None = None,
+        media_cache_seconds: int | None = None,
+        on_ready: Callable[[WorkerJob], None] | None = None,
     ) -> WorkerJob:
         job = _UploadFileJob(
             location=location,
@@ -297,25 +351,26 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             roi=roi,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
-            session=self, on_ready=on_ready,
-            callback=self.metrics_collector
+            session=self,
+            on_ready=on_ready,
+            callback=self.metrics_collector,
         )
-        await  self._task_start(job.execute())
+        await self._task_start(job.execute())
         return job
 
     async def upload_stream(
-            self,
-            stream: BinaryIO | AsyncIterable[bytes],
-            mime_type: str,
-            video_mode: VideoMode | None = None,
-            is_live: bool | None = None,
-            captured_at_offset_ns: int | None = None,
-            params: list[ComponentParams] | None = None,
-            motion_detect: MotionDetectConfig | None = None,
-            roi: Area | None = None,
-            fps: str | None = None,
-            media_cache_seconds: int | None = None,
-            on_ready: Callable[[WorkerJob], None] | None = None
+        self,
+        stream: BinaryIO | AsyncIterable[bytes],
+        mime_type: str,
+        video_mode: VideoMode | None = None,
+        is_live: bool | None = None,
+        captured_at_offset_ns: int | None = None,
+        params: list[ComponentParams] | None = None,
+        motion_detect: MotionDetectConfig | None = None,
+        roi: Area | None = None,
+        fps: str | None = None,
+        media_cache_seconds: int | None = None,
+        on_ready: Callable[[WorkerJob], None] | None = None,
     ) -> WorkerJob:
         job = _UploadStreamJob(
             stream=stream,
@@ -330,19 +385,19 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
         )
         await self._task_start(job.execute())
         return job
 
     async def upload_stream_group(
-            self,
-            streams: list[BinaryIO],
-            mime_types: list[str] | None = None,
-            params: list[ComponentParams] | None = None,
-            roi: Area | None = None,
-            media_cache_seconds: int | None = None,
-            on_ready: Callable[[WorkerJob], None] | None = None
+        self,
+        streams: list[BinaryIO],
+        mime_types: list[str] | None = None,
+        params: list[ComponentParams] | None = None,
+        roi: Area | None = None,
+        media_cache_seconds: int | None = None,
+        on_ready: Callable[[WorkerJob], None] | None = None,
     ) -> WorkerJob:
         """Uploads multiple in-memory streams as a single image group (one inference unit).
 
@@ -360,18 +415,18 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
         )
         await self._task_start(job.execute())
         return job
 
     async def upload_group(
-            self,
-            locations: list[str],
-            params: list[ComponentParams] | None = None,
-            roi: Area | None = None,
-            media_cache_seconds: int | None = None,
-            on_ready: Callable[[WorkerJob], None] | None = None
+        self,
+        locations: list[str],
+        params: list[ComponentParams] | None = None,
+        roi: Area | None = None,
+        media_cache_seconds: int | None = None,
+        on_ready: Callable[[WorkerJob], None] | None = None,
     ) -> WorkerJob:
         """Uploads multiple local images as a single image group (one inference unit).
 
@@ -385,21 +440,22 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             component_params=params,
             roi=roi,
             media_cache_seconds=media_cache_seconds,
-            session=self, on_ready=on_ready,
-            callback=self.metrics_collector
+            session=self,
+            on_ready=on_ready,
+            callback=self.metrics_collector,
         )
         await self._task_start(job.execute())
         return job
 
     async def load_from(
-            self,
-            location: str,
-            params: list[ComponentParams] | None = None,
-            motion_detect: MotionDetectConfig | None = None,
-            roi: Area | None = None,
-            fps: str | None = None,
-            media_cache_seconds: int | None = None,
-            on_ready: Callable[[WorkerJob], None] | None = None
+        self,
+        location: str,
+        params: list[ComponentParams] | None = None,
+        motion_detect: MotionDetectConfig | None = None,
+        roi: Area | None = None,
+        fps: str | None = None,
+        media_cache_seconds: int | None = None,
+        on_ready: Callable[[WorkerJob], None] | None = None,
     ) -> WorkerJob:
         job = _LoadFromJob(
             locations=[location],
@@ -410,18 +466,18 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
         )
         await self._task_start(job.execute())
         return job
 
     async def load_from_group(
-            self,
-            locations: list[str],
-            params: list[ComponentParams] | None = None,
-            roi: Area | None = None,
-            media_cache_seconds: int | None = None,
-            on_ready: Callable[[WorkerJob], None] | None = None
+        self,
+        locations: list[str],
+        params: list[ComponentParams] | None = None,
+        roi: Area | None = None,
+        media_cache_seconds: int | None = None,
+        on_ready: Callable[[WorkerJob], None] | None = None,
     ) -> WorkerJob:
         """Loads multiple server-fetched URLs as a single image group (one inference unit).
 
@@ -439,20 +495,20 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
         )
         await self._task_start(job.execute())
         return job
 
     async def load_asset(
-            self,
-            asset_uuid: str,
-            params: list[ComponentParams] | None = None,
-            motion_detect: MotionDetectConfig | None = None,
-            roi: Area | None = None,
-            fps: str | None = None,
-            media_cache_seconds: int | None = None,
-            on_ready: Callable[[WorkerJob], None] | None = None
+        self,
+        asset_uuid: str,
+        params: list[ComponentParams] | None = None,
+        motion_detect: MotionDetectConfig | None = None,
+        roi: Area | None = None,
+        fps: str | None = None,
+        media_cache_seconds: int | None = None,
+        on_ready: Callable[[WorkerJob], None] | None = None,
     ) -> WorkerJob:
         job = _LoadFromAssetUuidJob(
             asset_uuid=asset_uuid,
@@ -463,7 +519,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
         )
         await self._task_start(job.execute())
         return job
@@ -473,19 +529,17 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             await self._reconnect()
         if self.worker_config is None:
             raise PopNotStartedException(pop_id=self.pop_id)
-        if 'session_endpoint' in self.worker_config:
-            return self.worker_config['session_endpoint'].rstrip("/")
-        return urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
+        if "session_endpoint" in self.worker_config:
+            return self.worker_config["session_endpoint"].rstrip("/")
+        return urljoin(self.eyepop_url, self.worker_config["base_url"]).rstrip("/")
 
     def _has_pipeline_id(self) -> bool:
-        return self.worker_config is not None and bool(self.worker_config.get('pipeline_id'))
+        return self.worker_config is not None and bool(self.worker_config.get("pipeline_id"))
 
     def _pipeline_create_body(self) -> dict[str, Any]:
         body = {
             "pop": self.pop.model_dump() if self.pop else {},
-            "source": {
-                "sourceType": "NONE"
-            },
+            "source": {"sourceType": "NONE"},
             "idleTimeoutSeconds": 300,
             "logging": ["out_meta"],
             "videoOutput": "no_output",
@@ -502,35 +556,64 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 return None
             return await self._create_pipeline()
 
-    async def _create_pipeline(self) -> dict[str, Any]:
+    async def _create_pipeline(self, wait_until_ready: bool = False) -> dict[str, Any]:
         assert self.client_session is not None
         if self.worker_config is None:
             await self._reconnect()
         if self.worker_config is None:
             raise PopNotStartedException(pop_id=self.pop_id)
 
-        start_pipeline_url = f'{await self.dev_mode_base_url()}/pipelines'
+        start_pipeline_url = f"{await self.dev_mode_base_url()}/pipelines"
         headers = {}
         authorization_header = await self._authorization_header()
         if authorization_header is not None:
-            headers['Authorization'] = authorization_header
+            headers["Authorization"] = authorization_header
 
         async with self.client_session.post(
-                start_pipeline_url,
-                headers=headers,
-                json=self._pipeline_create_body(),
+            start_pipeline_url,
+            headers=headers,
+            json=self._pipeline_create_body(),
         ) as response:
             response.raise_for_status()
             response_json = await response.json()
 
-        self.worker_config['pipeline_id'] = response_json['id']
+        self.worker_config["pipeline_id"] = response_json["id"]
         if self.compute_ctx:
-            self.compute_ctx.pipeline_uuid = response_json['id']
-            self.compute_ctx.pipeline_id = response_json['id']
+            self.compute_ctx.pipeline_uuid = response_json["id"]
+            self.compute_ctx.pipeline_id = response_json["id"]
             log.debug(f"Created pipeline with ID: {response_json['id']}")
 
         self._configure_load_balancer()
+        if wait_until_ready:
+            await self._wait_for_pipeline_ready()
         return response_json
+
+    async def _wait_for_pipeline_ready(self):
+        assert self.client_session is not None
+        timeout = settings.session_timeout
+        interval = settings.session_interval
+        end_time = asyncio.get_event_loop().time() + timeout
+        last_message = "No message received"
+        request_timeout = aiohttp.ClientTimeout(total=interval)
+
+        while asyncio.get_event_loop().time() < end_time:
+            try:
+                get_url = await self.dev_mode_pipeline_base_url()
+                headers = {}
+                authorization_header = await self._authorization_header()
+                if authorization_header is not None:
+                    headers["Authorization"] = authorization_header
+                async with self.client_session.get(
+                    get_url, headers=headers, timeout=request_timeout
+                ) as response:
+                    await response.json()
+                    return
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as e:
+                last_message = str(e)
+                log_requests.debug("waiting for pipeline ready: %s", last_message)
+                await asyncio.sleep(interval)
+
+        raise TimeoutError(f"Pipeline timed out after {timeout}s. Last message: {last_message}")
 
     def _configure_load_balancer(self):
         if self.worker_config is None:
@@ -540,22 +623,24 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             if not self._has_pipeline_id():
                 self.load_balancer = EndpointLoadBalancer([])
                 return
-            if 'session_endpoint' in self.worker_config:
-                base_url = self.worker_config['session_endpoint'].rstrip("/")
+            if "session_endpoint" in self.worker_config:
+                base_url = self.worker_config["session_endpoint"].rstrip("/")
             else:
-                base_url = urljoin(self.eyepop_url, self.worker_config['base_url']).rstrip("/")
-            endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
+                base_url = urljoin(self.eyepop_url, self.worker_config["base_url"]).rstrip("/")
+            endpoint = {"base_url": base_url, "pipeline_id": self.worker_config["pipeline_id"]}
             self.load_balancer = EndpointLoadBalancer([endpoint])
             log.debug(f"Initialized load balancer with endpoint: {endpoint}")
         else:
-            if 'session_endpoint' in self.worker_config:
-                base_url = self.worker_config['session_endpoint'].rstrip("/")
-                endpoint = {'base_url': base_url, 'pipeline_id': self.worker_config['pipeline_id']}
+            if "session_endpoint" in self.worker_config:
+                base_url = self.worker_config["session_endpoint"].rstrip("/")
+                endpoint = {"base_url": base_url, "pipeline_id": self.worker_config["pipeline_id"]}
                 self.load_balancer = EndpointLoadBalancer([endpoint])
                 log.debug(f"Initialized load balancer with endpoint: {endpoint}")
             else:
-                self.load_balancer = EndpointLoadBalancer(self.worker_config['endpoints'])
-                log.debug(f"Initialized load balancer with endpoints: {self.worker_config['endpoints']}")
+                self.load_balancer = EndpointLoadBalancer(self.worker_config["endpoints"])
+                log.debug(
+                    f"Initialized load balancer with endpoints: {self.worker_config['endpoints']}"
+                )
 
     #
     # Implements: _WorkerClientSession
@@ -563,38 +648,79 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
     # await the request and return the response directly, not a context manager.
     #
 
-    async def pipeline_get(self, url_path_and_query: str, accept: str | None = None,
-                           timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.ClientResponse:
-        return await self._pipeline_request_with_retry('GET', url_path_and_query, accept=accept, timeout=timeout)
+    async def pipeline_get(
+        self,
+        url_path_and_query: str,
+        accept: str | None = None,
+        timeout: aiohttp.ClientTimeout | None = None,
+    ) -> aiohttp.ClientResponse:
+        return await self._pipeline_request_with_retry(
+            "GET", url_path_and_query, accept=accept, timeout=timeout
+        )
 
-    async def pipeline_post(self, url_path_and_query: str, accept: str | None = None, open_data: Callable | None = None,
-                            content_type: str | None = None,
-                            timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.ClientResponse:
-        return await self._pipeline_request_with_retry('POST', url_path_and_query, accept=accept, open_data=open_data,
-                                                       content_type=content_type, timeout=timeout)
+    async def pipeline_post(
+        self,
+        url_path_and_query: str,
+        accept: str | None = None,
+        open_data: Callable | None = None,
+        content_type: str | None = None,
+        timeout: aiohttp.ClientTimeout | None = None,
+    ) -> aiohttp.ClientResponse:
+        return await self._pipeline_request_with_retry(
+            "POST",
+            url_path_and_query,
+            accept=accept,
+            open_data=open_data,
+            content_type=content_type,
+            timeout=timeout,
+        )
 
-    async def pipeline_patch(self, url_path_and_query: str, accept: str | None = None, data: Any = None,
-                             content_type: str | None = None,
-                             timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.ClientResponse:
+    async def pipeline_patch(
+        self,
+        url_path_and_query: str,
+        accept: str | None = None,
+        data: Any = None,
+        content_type: str | None = None,
+        timeout: aiohttp.ClientTimeout | None = None,
+    ) -> aiohttp.ClientResponse:
         def open_data():
             if isinstance(data, str):
                 return StringIO(data)
             else:
                 return data
 
-        return await self._pipeline_request_with_retry('PATCH', url_path_and_query, accept=accept, open_data=open_data,
-                                                       content_type=content_type, timeout=timeout)
+        return await self._pipeline_request_with_retry(
+            "PATCH",
+            url_path_and_query,
+            accept=accept,
+            open_data=open_data,
+            content_type=content_type,
+            timeout=timeout,
+        )
 
-    async def pipeline_delete(self, url_path_and_query: str,
-                              timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.ClientResponse:
-        return await self._pipeline_request_with_retry('DELETE', url_path_and_query, timeout=timeout)
+    async def pipeline_delete(
+        self, url_path_and_query: str, timeout: aiohttp.ClientTimeout | None = None
+    ) -> aiohttp.ClientResponse:
+        return await self._pipeline_request_with_retry(
+            "DELETE", url_path_and_query, timeout=timeout
+        )
 
-    async def _pipeline_request_with_retry(self, method: str, url_path_and_query: str, accept: str | None = None,
-                                           open_data: Callable | None = None, content_type: str | None = None,
-                                           timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.ClientResponse:
+    async def _pipeline_request_with_retry(
+        self,
+        method: str,
+        url_path_and_query: str,
+        accept: str | None = None,
+        open_data: Callable | None = None,
+        content_type: str | None = None,
+        timeout: aiohttp.ClientTimeout | None = None,
+    ) -> aiohttp.ClientResponse:
         # Narrow Optional[ClientSession] for all .request() calls below
         assert self.client_session is not None
-        if self.last_fetch_config_success_time is not None and self.last_fetch_config_success_time < time.time() - settings.force_refresh_config_secs:
+        if (
+            self.last_fetch_config_success_time is not None
+            and self.last_fetch_config_success_time
+            < time.time() - settings.force_refresh_config_secs
+        ):
             self.worker_config = None
 
         failed_attempts = 0
@@ -612,40 +738,49 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             if entry is None:
                 if not retried_re_config:
                     # pipeline might have just shut down
-                    log_requests.debug('no healthy endpoints, about to retry with fresh config')
+                    log_requests.debug("no healthy endpoints, about to retry with fresh config")
                     self.worker_config = None
                     retried_re_config = True
                     continue
                 else:
-                    raise PopNotReachableException(self.pop_id, self.load_balancer.get_debug_status())
+                    raise PopNotReachableException(
+                        self.pop_id, self.load_balancer.get_debug_status()
+                    )
 
-            url = f'{entry.base_url}/pipelines/{entry.pipeline_id}/{url_path_and_query}'
+            url = f"{entry.base_url}/pipelines/{entry.pipeline_id}/{url_path_and_query}"
 
             headers = {}
             authorization_header = await self._authorization_header()
             if authorization_header is not None:
-                headers['Authorization'] = authorization_header
+                headers["Authorization"] = authorization_header
             if accept is not None:
-                headers['Accept'] = accept
+                headers["Accept"] = accept
             if content_type is not None:
-                headers['Content-Type'] = content_type
+                headers["Content-Type"] = content_type
             try:
                 if open_data is not None:
                     data = open_data()
                     if isinstance(data, StringIO):
-                        response = await self.client_session.request(method, url, headers=headers,
-                                                                     data=data.getvalue(), timeout=timeout)
+                        response = await self.client_session.request(
+                            method, url, headers=headers, data=data.getvalue(), timeout=timeout
+                        )
                     elif isinstance(data, AsyncIterable):
+
                         async def data_streamer(_data: AsyncIterable):
                             async for chunk in _data:
                                 yield chunk
-                        response = await self.client_session.request(method, url, headers=headers, data=data_streamer(data),
-                                                                     timeout=timeout)
+
+                        response = await self.client_session.request(
+                            method, url, headers=headers, data=data_streamer(data), timeout=timeout
+                        )
                     else:
-                        response = await self.client_session.request(method, url, headers=headers, data=data,
-                                                                     timeout=timeout)
+                        response = await self.client_session.request(
+                            method, url, headers=headers, data=data, timeout=timeout
+                        )
                 else:
-                    response = await self.client_session.request(method, url, headers=headers, timeout=timeout)
+                    response = await self.client_session.request(
+                        method, url, headers=headers, timeout=timeout
+                    )
 
                 entry.mark_success()
 
@@ -657,21 +792,27 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 else:
                     failed_attempts += 1
                     if e.status not in self.retry_handlers:
-                        log_requests.exception('unexpected error: %s', e)
+                        log_requests.exception("unexpected error: %s", e)
                         raise e
                     if not await self.retry_handlers[e.status](e.status, failed_attempts):
-                        log_requests.exception('unexpected error')
+                        log_requests.exception("unexpected error")
                         raise e
             except aiohttp.ClientConnectionError:
                 entry.mark_error()
             except Exception as e:
-                log_requests.exception('unexpected error')
+                log_requests.exception("unexpected error")
                 raise e
 
         raise PopNotReachableException(self.pop_id, [])
 
-    async def _worker_request_with_retry(self, method: str, url_path_and_query: str, accept: str | None = None,
-                                         data: Any = None, content_type: str | None = None,
-                                         timeout: aiohttp.ClientTimeout | None = None) -> aiohttp.ClientResponse:
-        url = f'{await self.dev_mode_base_url()}/{url_path_and_query}'
+    async def _worker_request_with_retry(
+        self,
+        method: str,
+        url_path_and_query: str,
+        accept: str | None = None,
+        data: Any = None,
+        content_type: str | None = None,
+        timeout: aiohttp.ClientTimeout | None = None,
+    ) -> aiohttp.ClientResponse:
+        url = f"{await self.dev_mode_base_url()}/{url_path_and_query}"
         return await self.request_with_retry(method, url, accept, data, content_type, timeout)

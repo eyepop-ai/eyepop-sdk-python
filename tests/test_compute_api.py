@@ -19,21 +19,15 @@ MOCK_SESSION_RESPONSE = {
     "session_status": "running",
     "session_message": "Session created successfully",
     "pipeline_ttl": 3600,
-    "session_active": True
+    "session_active": True,
 }
 
-MOCK_SESSION_RESPONSE_NO_PIPELINES = {
-    **MOCK_SESSION_RESPONSE,
-    "pipelines": []
-}
+MOCK_SESSION_RESPONSE_NO_PIPELINES = {**MOCK_SESSION_RESPONSE, "pipelines": []}
 
 
 @pytest.fixture
 def mock_compute_config():
-    return ComputeContext(
-        compute_url="https://compute.staging.eyepop.xyz",
-        api_key="test-api-key"
-    )
+    return ComputeContext(compute_url="https://compute.staging.eyepop.xyz", api_key="test-api-key")
 
 
 @pytest.mark.asyncio
@@ -41,7 +35,7 @@ async def test_fetches_existing_session_successfully(mock_compute_config, aiores
     aioresponses.get(
         "https://compute.staging.eyepop.xyz/v1/sessions",
         payload=[MOCK_SESSION_RESPONSE],
-        status=200
+        status=200,
     )
 
     async with aiohttp.ClientSession() as session:
@@ -54,15 +48,11 @@ async def test_fetches_existing_session_successfully(mock_compute_config, aiores
 
 @pytest.mark.asyncio
 async def test_creates_session_when_none_exists(mock_compute_config, aioresponses):
-    aioresponses.get(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
-        payload=[],
-        status=200
-    )
+    aioresponses.get("https://compute.staging.eyepop.xyz/v1/sessions", payload=[], status=200)
     aioresponses.post(
         "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
         payload=MOCK_SESSION_RESPONSE,
-        status=200
+        status=200,
     )
 
     async with aiohttp.ClientSession() as session:
@@ -86,14 +76,9 @@ async def test_creates_session_with_pop_for_scheduling(aioresponses):
         captured_body.update(kwargs["json"])
         return CallbackResult(body=json.dumps(MOCK_SESSION_RESPONSE), status=200)
 
-    aioresponses.get(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
-        payload=[],
-        status=200
-    )
+    aioresponses.get("https://compute.staging.eyepop.xyz/v1/sessions", payload=[], status=200)
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
-        callback=create_session
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true", callback=create_session
     )
 
     async with aiohttp.ClientSession() as session:
@@ -110,14 +95,9 @@ async def test_creates_session_without_pop_when_unset(mock_compute_config, aiore
         captured_body.update(kwargs.get("json") or {})
         return CallbackResult(body=json.dumps(MOCK_SESSION_RESPONSE), status=200)
 
-    aioresponses.get(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
-        payload=[],
-        status=200
-    )
+    aioresponses.get("https://compute.staging.eyepop.xyz/v1/sessions", payload=[], status=200)
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
-        callback=create_session
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true", callback=create_session
     )
 
     async with aiohttp.ClientSession() as session:
@@ -128,14 +108,11 @@ async def test_creates_session_without_pop_when_unset(mock_compute_config, aiore
 
 @pytest.mark.asyncio
 async def test_creates_session_when_get_returns_404(mock_compute_config, aioresponses):
-    aioresponses.get(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
-        status=404
-    )
+    aioresponses.get("https://compute.staging.eyepop.xyz/v1/sessions", status=404)
     aioresponses.post(
         "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
         payload=MOCK_SESSION_RESPONSE,
-        status=200
+        status=200,
     )
 
     async with aiohttp.ClientSession() as session:
@@ -148,9 +125,7 @@ async def test_creates_session_when_get_returns_404(mock_compute_config, aioresp
 @pytest.mark.asyncio
 async def test_handles_single_session_response(mock_compute_config, aioresponses):
     aioresponses.get(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
-        payload=MOCK_SESSION_RESPONSE,
-        status=200
+        "https://compute.staging.eyepop.xyz/v1/sessions", payload=MOCK_SESSION_RESPONSE, status=200
     )
 
     async with aiohttp.ClientSession() as session:
@@ -165,7 +140,7 @@ async def test_handles_empty_pipelines_list(mock_compute_config, aioresponses):
     aioresponses.get(
         "https://compute.staging.eyepop.xyz/v1/sessions",
         payload=[MOCK_SESSION_RESPONSE_NO_PIPELINES],
-        status=200
+        status=200,
     )
 
     async with aiohttp.ClientSession() as session:
@@ -182,7 +157,7 @@ async def test_raises_exception_when_no_access_token(mock_compute_config, aiores
     aioresponses.get(
         "https://compute.staging.eyepop.xyz/v1/sessions",
         payload=[response_without_token],
-        status=200
+        status=200,
     )
 
     async with aiohttp.ClientSession() as session:
@@ -192,10 +167,7 @@ async def test_raises_exception_when_no_access_token(mock_compute_config, aiores
 
 @pytest.mark.asyncio
 async def test_raises_exception_on_http_error(mock_compute_config, aioresponses):
-    aioresponses.get(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
-        status=500
-    )
+    aioresponses.get("https://compute.staging.eyepop.xyz/v1/sessions", status=500)
 
     async with aiohttp.ClientSession() as session:
         with pytest.raises(ComputeSessionException):
@@ -204,10 +176,7 @@ async def test_raises_exception_on_http_error(mock_compute_config, aioresponses)
 
 @pytest.mark.asyncio
 async def test_raises_exception_on_403_forbidden(mock_compute_config, aioresponses):
-    aioresponses.get(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
-        status=403
-    )
+    aioresponses.get("https://compute.staging.eyepop.xyz/v1/sessions", status=403)
 
     async with aiohttp.ClientSession() as session:
         with pytest.raises(ComputeSessionException):
@@ -216,14 +185,10 @@ async def test_raises_exception_on_403_forbidden(mock_compute_config, aiorespons
 
 @pytest.mark.asyncio
 async def test_raises_exception_when_post_fails(mock_compute_config, aioresponses):
-    aioresponses.get(
-        "https://compute.staging.eyepop.xyz/v1/sessions",
-        payload=[],
-        status=200
-    )
+    aioresponses.get("https://compute.staging.eyepop.xyz/v1/sessions", payload=[], status=200)
     aioresponses.post(
         "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
-        exception=Exception("Failed to create session")
+        exception=Exception("Failed to create session"),
     )
 
     async with aiohttp.ClientSession() as session:
@@ -239,7 +204,7 @@ async def test_fetch_session_endpoint_with_health_check(mock_fetch_new, mock_wai
         compute_url="https://compute.staging.eyepop.xyz",
         api_key="test-key",
         session_endpoint="https://session.example.com",
-        m2m_access_token="jwt-123"
+        m2m_access_token="jwt-123",
     )
     mock_fetch_new.return_value = mock_context
     mock_wait.return_value = True
@@ -270,15 +235,12 @@ async def test_fetch_session_endpoint_raises_on_health_check_failure(mock_fetch_
 @patch("eyepop.compute.api.fetch_new_compute_session")
 async def test_fetch_session_endpoint_passes_context(mock_fetch_new, mock_wait):
     """Test that fetch_session_endpoint correctly passes context through."""
-    input_context = ComputeContext(
-        compute_url="https://custom.compute.com",
-        api_key="custom-key"
-    )
+    input_context = ComputeContext(compute_url="https://custom.compute.com", api_key="custom-key")
     mock_context = ComputeContext(
         compute_url="https://custom.compute.com",
         api_key="custom-key",
         session_endpoint="https://session.example.com",
-        m2m_access_token="jwt-123"
+        m2m_access_token="jwt-123",
     )
     mock_fetch_new.return_value = mock_context
     mock_wait.return_value = True
@@ -432,7 +394,9 @@ async def test_creates_new_session_when_only_persistent_exist(mock_compute_confi
 
 
 @pytest.mark.asyncio
-async def test_creates_new_session_when_single_dict_is_persistent(mock_compute_config, aioresponses):
+async def test_creates_new_session_when_single_dict_is_persistent(
+    mock_compute_config, aioresponses
+):
     """GET returns a single persistent dict → SDK must not adopt it; POST instead."""
     aioresponses.get(
         "https://compute.staging.eyepop.xyz/v1/sessions",
