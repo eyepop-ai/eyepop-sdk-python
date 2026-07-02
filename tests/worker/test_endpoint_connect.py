@@ -163,6 +163,7 @@ class TestEndpointConnect(BaseEndpointTest):
         new_pop = Pop(components=[])
         captured_session_body = {}
         captured_pipeline_body = {}
+        call_order: list[str] = []
         session_response = {
             "session_uuid": "session-456",
             "session_endpoint": self.test_worker_url,
@@ -177,11 +178,17 @@ class TestEndpointConnect(BaseEndpointTest):
 
         def create_or_update_session(url, **kwargs) -> CallbackResult:
             captured_session_body.update(kwargs["json"])
+            call_order.append("session_post")
             return CallbackResult(status=200, body=json.dumps(session_response_without_pipeline))
 
         def create_pipeline(url, **kwargs) -> CallbackResult:
             captured_pipeline_body.update(kwargs["json"])
+            call_order.append("pipeline_post")
             return CallbackResult(status=200, body=json.dumps({"id": self.test_pipeline_id}))
+
+        def delete_pipeline(url, **kwargs) -> CallbackResult:
+            call_order.append("pipeline_delete")
+            return CallbackResult(status=204)
 
         mock.get(
             f"{self.test_eyepop_url}/v1/sessions", status=200, body=json.dumps([session_response])
@@ -196,7 +203,9 @@ class TestEndpointConnect(BaseEndpointTest):
             repeat=True,
         )
         mock.delete(
-            f"{self.test_worker_url}/pipelines/{self.test_pipeline_id}", status=204, repeat=True
+            f"{self.test_worker_url}/pipelines/{self.test_pipeline_id}",
+            callback=delete_pipeline,
+            repeat=True,
         )
         mock.post(f"{self.test_worker_url}/pipelines", callback=create_pipeline)
         mock.get(
@@ -219,6 +228,8 @@ class TestEndpointConnect(BaseEndpointTest):
             self.assertEqual(response["id"], self.test_pipeline_id)
             self.assertEqual(captured_session_body["pop"], new_pop.model_dump())
             self.assertEqual(captured_pipeline_body["pop"], new_pop.model_dump())
+            self.assertLess(call_order.index("pipeline_delete"), call_order.index("session_post"))
+            self.assertLess(call_order.index("session_post"), call_order.index("pipeline_post"))
         finally:
             await endpoint.disconnect()
 
@@ -237,6 +248,69 @@ class TestEndpointConnect(BaseEndpointTest):
             },
             json={"pop": new_pop.model_dump()},
         )
+
+    @aioresponses()
+    async def test_set_pop_on_compute_transient_fails_before_recreate_when_delete_fails(
+        self, mock: aioresponses
+    ):
+        new_pop = Pop(components=[])
+        session_post_called = False
+        pipeline_post_called = False
+        session_response = {
+            "session_uuid": "session-456",
+            "session_endpoint": self.test_worker_url,
+            "access_token": self.test_access_token,
+            "pipelines": [{"pipeline_id": self.test_pipeline_id}],
+            "session_status": "running",
+        }
+
+        def create_or_update_session(url, **kwargs) -> CallbackResult:
+            nonlocal session_post_called
+            session_post_called = True
+            return CallbackResult(status=200, body=json.dumps({**session_response, "pipelines": []}))
+
+        def create_pipeline(url, **kwargs) -> CallbackResult:
+            nonlocal pipeline_post_called
+            pipeline_post_called = True
+            return CallbackResult(status=200, body=json.dumps({"id": self.test_pipeline_id}))
+
+        mock.get(
+            f"{self.test_eyepop_url}/v1/sessions", status=200, body=json.dumps([session_response])
+        )
+        mock.get(
+            f"{self.test_worker_url}/health",
+            status=200,
+            body=json.dumps({"message": "ok"}),
+            repeat=True,
+        )
+        mock.get(
+            f"{self.test_worker_url}/pipelines/{self.test_pipeline_id}",
+            status=200,
+            body=json.dumps({"pop": new_pop.model_dump(), "status": "IDLE"}),
+            repeat=True,
+        )
+        mock.delete(
+            f"{self.test_worker_url}/pipelines/{self.test_pipeline_id}", status=500, repeat=True
+        )
+        mock.post(
+            f"{self.test_eyepop_url}/v1/sessions?wait=true", callback=create_or_update_session
+        )
+        mock.post(f"{self.test_worker_url}/pipelines", callback=create_pipeline)
+
+        endpoint = EyePopSdk.async_worker(
+            eyepop_url=self.test_eyepop_url,
+            api_key="test-api-key",
+            pop_id="transient",
+            stop_jobs=False,
+        )
+        try:
+            await endpoint.connect()
+            with self.assertRaises(ClientResponseError):
+                await endpoint.set_pop(new_pop)
+            self.assertFalse(session_post_called)
+            self.assertFalse(pipeline_post_called)
+        finally:
+            await endpoint.disconnect()
 
     @aioresponses()
     def test_connect_unauthorized(self, mock: aioresponses):

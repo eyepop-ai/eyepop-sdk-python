@@ -70,14 +70,11 @@ async def fetch_new_compute_session(
                             need_new_session = True
 
         except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                need_new_session = True
-            else:
-                raise ComputeSessionException(
-                    f"Failed to fetch existing sessions: {e.message}",
-                ) from e
+            raise ComputeSessionException(
+                f"Failed to fetch existing sessions: {e.message}",
+            ) from e
         except Exception as e:
-            raise ComputeSessionException(f"Unexpected error fetching sessions: {str(e)}") from e
+            raise ComputeSessionException(f"Unexpected error fetching sessions: {e!s}") from e
 
     if need_new_session:
         try:
@@ -95,7 +92,7 @@ async def fetch_new_compute_session(
             ) from e
         except Exception as e:
             raise ComputeSessionException(
-                f"No existing session and failed to create new one: {str(e)}"
+                f"No existing session and failed to create new one: {e!s}"
             ) from e
 
     if isinstance(res, list):
