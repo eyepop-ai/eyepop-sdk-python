@@ -16,7 +16,7 @@ log = logging.getLogger("eyepop.compute")
 async def fetch_session_endpoint(
     compute_ctx: ComputeContext,
     client_session: aiohttp.ClientSession,
-    permanent_session_uuid: str | None
+    permanent_session_uuid: str | None,
 ) -> ComputeContext:
     """Fetch or create a compute API session, then poll until ready."""
     if permanent_session_uuid is None:
@@ -37,8 +37,7 @@ async def fetch_session_endpoint(
 
 
 async def fetch_new_compute_session(
-    compute_ctx: ComputeContext,
-    client_session: aiohttp.ClientSession
+    compute_ctx: ComputeContext, client_session: aiohttp.ClientSession
 ) -> ComputeContext:
     headers = {
         "Authorization": f"Bearer {compute_ctx.api_key}",
@@ -48,53 +47,44 @@ async def fetch_new_compute_session(
     sessions_url = f"{compute_ctx.compute_url}/v1/sessions"
 
     res = None
-    need_new_session = False
+    need_new_session = compute_ctx.pop is not None
 
-    try:
-        async with client_session.get(sessions_url, headers=headers) as get_response:
-            log.debug(f"GET /v1/sessions - status: {get_response.status}")
-            if get_response.status == 404:
-                need_new_session = True
-            else:
-                get_response.raise_for_status()
-                res = await get_response.json()
-
-                if not res:
+    if not need_new_session:
+        try:
+            async with client_session.get(sessions_url, headers=headers) as get_response:
+                log.debug(f"GET /v1/sessions - status: {get_response.status}")
+                if get_response.status == 404:
                     need_new_session = True
-                elif isinstance(res, list):
-                    res = [s for s in res if isinstance(s, dict) and not s.get("persistent")]
+                else:
+                    get_response.raise_for_status()
+                    res = await get_response.json()
+
                     if not res:
                         need_new_session = True
-                elif isinstance(res, dict):
-                    if not res.get("session_uuid") or res.get("persistent"):
-                        need_new_session = True
+                    elif isinstance(res, list):
+                        res = [s for s in res if isinstance(s, dict) and not s.get("persistent")]
+                        if not res:
+                            need_new_session = True
+                    elif isinstance(res, dict):
+                        if not res.get("session_uuid") or res.get("persistent"):
+                            need_new_session = True
 
-    except aiohttp.ClientResponseError as e:
-        if e.status == 404:
-            need_new_session = True
-        else:
-            raise ComputeSessionException(
-                f"Failed to fetch existing sessions: {e.message}",
-            ) from e
-    except Exception as e:
-        raise ComputeSessionException(f"Unexpected error fetching sessions: {str(e)}") from e
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                need_new_session = True
+            else:
+                raise ComputeSessionException(
+                    f"Failed to fetch existing sessions: {e.message}",
+                ) from e
+        except Exception as e:
+            raise ComputeSessionException(f"Unexpected error fetching sessions: {str(e)}") from e
 
     if need_new_session:
         try:
-            body = {}
-            if compute_ctx.session_name:
-                body["session_name"] = compute_ctx.session_name
-            if compute_ctx.pipeline_image:
-                body["pipeline_image"] = compute_ctx.pipeline_image
-            if compute_ctx.pipeline_version:
-                body["pipeline_version"] = compute_ctx.pipeline_version
-            if compute_ctx.pop is not None:
-                body["pop"] = compute_ctx.pop
-
             async with client_session.post(
-                f'{sessions_url}?wait=true',
+                f"{sessions_url}?wait=true",
                 headers=headers,
-                json=body if body else None,
+                json=_session_create_body(compute_ctx),
             ) as post_response:
                 post_response.raise_for_status()
                 res = await post_response.json()
@@ -119,6 +109,19 @@ async def fetch_new_compute_session(
     _compute_context_from_response(compute_ctx, res)
 
     return compute_ctx
+
+
+def _session_create_body(compute_ctx: ComputeContext) -> dict[str, Any] | None:
+    body = {}
+    if compute_ctx.session_name:
+        body["session_name"] = compute_ctx.session_name
+    if compute_ctx.pipeline_image:
+        body["pipeline_image"] = compute_ctx.pipeline_image
+    if compute_ctx.pipeline_version:
+        body["pipeline_version"] = compute_ctx.pipeline_version
+    if compute_ctx.pop is not None:
+        body["pop"] = compute_ctx.pop
+    return body if body else None
 
 
 def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None | Any):
@@ -198,9 +201,7 @@ async def refresh_compute_token(
 
 
 async def fetch_permanent_compute_session(
-    compute_ctx: ComputeContext,
-    client_session: aiohttp.ClientSession,
-    permanent_session_uuid: str
+    compute_ctx: ComputeContext, client_session: aiohttp.ClientSession, permanent_session_uuid: str
 ) -> ComputeContext:
     headers = {
         "Authorization": f"Bearer {compute_ctx.api_key}",
