@@ -115,6 +115,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self.worker_config = None
             self._owns_pipeline_id = False
             if self._is_compute_transient():
+                assert self.compute_ctx is not None
                 self.compute_ctx.pipeline_id = ""
             return True
 
@@ -308,6 +309,9 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self.worker_config["session_endpoint"] = self.compute_ctx.session_endpoint
             if not self._owns_pipeline_id:
                 self.worker_config["pipeline_id"] = ""
+
+        if self._owns_pipeline_id:
+            self._configure_load_balancer()
 
         if not self._has_pipeline_id():
             return await self._ensure_pipeline_started()
