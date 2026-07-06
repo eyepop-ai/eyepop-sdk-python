@@ -88,6 +88,12 @@ def parse_args() -> argparse.Namespace:
         help="Path to write machine-readable run summary.",
     )
     parser.add_argument(
+        "--pop-file",
+        type=Path,
+        default=None,
+        help="Path to a pop JSON file. When set, overrides --ability.",
+    )
+    parser.add_argument(
         "--no-cleanup",
         action="store_true",
         help="Skip transient session deletion. Intended only for local debugging.",
@@ -108,8 +114,14 @@ def require_inputs(args: argparse.Namespace) -> None:
     if not args.image.is_file():
         raise FileNotFoundError(f"Image fixture does not exist: {args.image}")
 
+    if args.pop_file is not None and not args.pop_file.is_file():
+        raise FileNotFoundError(f"Pop fixture does not exist: {args.pop_file}")
+
 
 def build_pop(args: argparse.Namespace) -> Pop:
+    if args.pop_file is not None:
+        raw = json.loads(args.pop_file.read_text())
+        return Pop(**raw)
     component = cast(
         DynamicComponent,
         InferenceComponent(
@@ -119,11 +131,7 @@ def build_pop(args: argparse.Namespace) -> Pop:
             model=None,
         ),
     )
-    return Pop(
-        components=[
-            component
-        ]
-    )
+    return Pop(components=[component])
 
 
 def object_label(obj: dict[str, Any]) -> str:
@@ -227,7 +235,8 @@ async def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "sdk_version": __version__,
         "eyepop_url": eyepop_url,
         "image": str(args.image),
-        "ability": args.ability,
+        "pop_file": str(args.pop_file) if args.pop_file else "",
+        "ability": str(args.pop_file) if args.pop_file else args.ability,
         "expected_class": args.expected_class,
         "min_objects": args.min_objects,
         "min_confidence": args.min_confidence,
