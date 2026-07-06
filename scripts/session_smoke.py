@@ -134,16 +134,19 @@ def object_label(obj: dict[str, Any]) -> str:
     return ""
 
 
-def matching_objects(result: dict[str, Any], expected_class: str, min_confidence: float) -> list[dict[str, Any]]:
-    objects = result.get("objects") or []
-    if not isinstance(objects, list):
-        return []
+def _result_items(result: dict[str, Any]) -> list[dict[str, Any]]:
+    items = []
+    for key in ("objects", "classes"):
+        val = result.get(key) or []
+        if isinstance(val, list):
+            items.extend(obj for obj in val if isinstance(obj, dict))
+    return items
 
+
+def matching_objects(result: dict[str, Any], expected_class: str, min_confidence: float) -> list[dict[str, Any]]:
     matches = []
     expected = expected_class.strip().lower()
-    for obj in objects:
-        if not isinstance(obj, dict):
-            continue
+    for obj in _result_items(result):
         confidence = obj.get("confidence", 0)
         detected = object_label(obj).strip().lower()
         if detected == expected and isinstance(confidence, (int, float)) and confidence >= min_confidence:
@@ -159,9 +162,7 @@ def summarize_predictions(
     all_objects = []
     matches = []
     for result in predictions:
-        objects = result.get("objects") or []
-        if isinstance(objects, list):
-            all_objects.extend(obj for obj in objects if isinstance(obj, dict))
+        all_objects.extend(_result_items(result))
         matches.extend(matching_objects(result, expected_class, min_confidence))
 
     return {
