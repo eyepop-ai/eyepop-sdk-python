@@ -103,6 +103,45 @@ async def test_creates_session_with_pop_for_scheduling(aioresponses):
 
 
 @pytest.mark.asyncio
+async def test_pop_is_authoritative_when_transient_exists(aioresponses):
+    pop = {"components": [{"type": "inference", "ability": "eyepop.person:latest"}]}
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        pop=pop,
+    )
+    captured_body = {}
+
+    def configure_session(url, **kwargs):
+        captured_body.update(kwargs["json"])
+        return CallbackResult(body=json.dumps({
+            **MOCK_SESSION_RESPONSE,
+            "pipelines": [{"pipeline_id": "stale-pipeline"}],
+        }), status=200)
+
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[{
+            **MOCK_SESSION_RESPONSE,
+            "session_uuid": "existing-transient",
+            "pipelines": [{"pipeline_id": "stale-pipeline"}],
+            "persistent": False,
+        }],
+        status=200
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        callback=configure_session
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(ctx, session)
+
+    assert captured_body["pop"] == pop
+    assert result.pipeline_id == ""
+
+
+@pytest.mark.asyncio
 async def test_creates_session_without_pop_when_unset(mock_compute_config, aioresponses):
     captured_body = {}
 
