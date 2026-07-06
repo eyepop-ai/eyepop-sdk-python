@@ -192,6 +192,88 @@ class TestEndpointConnect(BaseEndpointTest):
         self.assertEqual(captured_pipeline_body["pop"], new_pop.model_dump())
 
     @aioresponses()
+    async def test_compute_transient_set_pop_patches_owned_pipeline_on_updated_endpoint(
+        self, mock: aioresponses
+    ):
+        old_worker_url = "http://old-worker.test"
+        new_worker_url = "http://new-worker.test"
+        owned_pipeline_id = "owned-pipeline"
+        initial_pop = Pop(components=[])
+        new_pop = Pop(components=[])
+        session_responses = [
+            {
+                "session_uuid": "session-456",
+                "session_endpoint": old_worker_url,
+                "access_token": self.test_access_token,
+                "pipelines": [],
+                "session_status": "running",
+                "persistent": False,
+            },
+            {
+                "session_uuid": "session-456",
+                "session_endpoint": old_worker_url,
+                "access_token": self.test_access_token,
+                "pipelines": [],
+                "session_status": "running",
+                "persistent": False,
+            },
+            {
+                "session_uuid": "session-456",
+                "session_endpoint": new_worker_url,
+                "access_token": self.test_access_token,
+                "pipelines": [{"pipeline_id": owned_pipeline_id}],
+                "session_status": "running",
+                "persistent": False,
+            },
+        ]
+        old_patch_calls = []
+        new_patch_calls = []
+
+        def configure_session(url, **kwargs) -> CallbackResult:
+            return CallbackResult(status=200, body=json.dumps(session_responses.pop(0)))
+
+        def create_pipeline(url, **kwargs) -> CallbackResult:
+            return CallbackResult(status=200, body=json.dumps({"id": owned_pipeline_id}))
+
+        def patch_old_pipeline(url, **kwargs) -> CallbackResult:
+            old_patch_calls.append(kwargs)
+            return CallbackResult(status=200, body=json.dumps({"endpoint": "old"}))
+
+        def patch_new_pipeline(url, **kwargs) -> CallbackResult:
+            new_patch_calls.append(kwargs)
+            return CallbackResult(status=200, body=json.dumps({"endpoint": "new"}))
+
+        mock.get(
+            "https://compute.eyepop.ai/v1/sessions",
+            status=200,
+            body=json.dumps([session_responses.pop(0)]),
+        )
+        mock.get(f"{old_worker_url}/health", status=200, body=json.dumps({"message": "ok"}), repeat=True)
+        mock.get(f"{new_worker_url}/health", status=200, body=json.dumps({"message": "ok"}), repeat=True)
+        mock.post("https://compute.eyepop.ai/v1/sessions?wait=true", callback=configure_session, repeat=True)
+        mock.post(f"{old_worker_url}/pipelines", callback=create_pipeline)
+        mock.patch(f"{old_worker_url}/pipelines/{owned_pipeline_id}/pop", callback=patch_old_pipeline)
+        mock.patch(f"{new_worker_url}/pipelines/{owned_pipeline_id}/pop", callback=patch_new_pipeline)
+        mock.delete(f"{new_worker_url}/pipelines/{owned_pipeline_id}", status=204)
+
+        endpoint = EyePopSdk.async_worker(
+            eyepop_url="https://compute.eyepop.ai",
+            api_key="test-api-key",
+            pop_id="transient",
+        )
+        try:
+            await endpoint.connect()
+            await endpoint.set_pop(initial_pop)
+            response = await endpoint.set_pop(new_pop)
+        finally:
+            await endpoint.disconnect()
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(old_patch_calls, [])
+        self.assertEqual(len(new_patch_calls), 1)
+        self.assertEqual(json.loads(new_patch_calls[0]["data"]), new_pop.model_dump())
+
+    @aioresponses()
     def test_connect_unauthorized(self, mock: aioresponses):
         self.setup_base_mock(mock)
 
