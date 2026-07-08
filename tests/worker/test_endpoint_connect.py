@@ -4,6 +4,7 @@ import unittest
 import uuid
 from types import MethodType
 
+import aiohttp
 from aiohttp import ClientResponseError
 from aioresponses import CallbackResult, aioresponses
 
@@ -211,6 +212,37 @@ class TestEndpointConnect(BaseEndpointTest):
             timeout=None,
         )
         self.assertNotIn("pipeline_id", endpoint.worker_config)
+
+    @aioresponses()
+    async def test_disconnect_compute_transient_unowned_pipeline_skips_delete(self, mock: aioresponses):
+        delete_url = f"{self.test_worker_url}/pipelines/{self.test_pipeline_id}"
+        mock.delete(delete_url, status=204)
+
+        endpoint = EyePopSdk.async_worker(
+            eyepop_url="https://compute.eyepop.ai",
+            api_key="test-api-key",
+            pop_id="transient",
+        )
+        endpoint.worker_config = {
+            "session_endpoint": self.test_worker_url,
+            "pipeline_id": self.test_pipeline_id,
+            "endpoints": [],
+        }
+        self.assertIsNotNone(endpoint.compute_ctx)
+        endpoint.compute_ctx.pipeline_id = self.test_pipeline_id
+        endpoint.compute_ctx.pipeline_owned = False
+        endpoint._owns_pipeline_id = False
+
+        async with aiohttp.ClientSession() as session:
+            endpoint.client_session = session
+            await endpoint._disconnect()
+
+        self.assertIn("pipeline_id", endpoint.worker_config)
+        delete_calls = [
+            key for key in mock.requests
+            if key[0] == "DELETE" and str(key[1]) == delete_url
+        ]
+        self.assertEqual([], delete_calls)
 
     @aioresponses()
     def test_connect_unauthorized(self, mock: aioresponses):
