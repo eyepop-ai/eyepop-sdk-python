@@ -11,6 +11,7 @@ from eyepop.compute.api import fetch_session_endpoint
 from eyepop.data.types.asset import Area
 from eyepop.endpoint import Endpoint
 from eyepop.exceptions import (
+    ComputeSessionException,
     PopConfigurationException,
     PopNotReachableException,
     PopNotStartedException,
@@ -171,8 +172,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 log_requests.debug(f"Compute session ready: {self.compute_ctx.session_endpoint}")
 
             pipeline_id = self.compute_ctx.pipeline_id
-            self._owns_pipeline_id = False
-            if self._is_compute_transient():
+            self._owns_pipeline_id = bool(pipeline_id and self.compute_ctx.pipeline_owned)
+            if self._is_compute_transient() and not self._owns_pipeline_id:
                 pipeline_id = ""
 
             self.worker_config = {
@@ -298,27 +299,36 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             permanent_session_uuid=None,
         )
         self.eyepop_url = self.compute_ctx.session_endpoint
+        pipeline_id = self.compute_ctx.pipeline_id if self.compute_ctx.pipeline_owned else ""
 
         if self.worker_config is None:
             self.worker_config = {
                 "session_endpoint": self.compute_ctx.session_endpoint,
-                "pipeline_id": "",
+                "pipeline_id": pipeline_id,
                 "endpoints": [],
             }
         else:
             self.worker_config["session_endpoint"] = self.compute_ctx.session_endpoint
-            if not self._owns_pipeline_id:
-                self.worker_config["pipeline_id"] = ""
+            self.worker_config["pipeline_id"] = pipeline_id
+
+        self._owns_pipeline_id = bool(
+            self.compute_ctx.pipeline_id and self.compute_ctx.pipeline_owned
+        )
 
         if self._owns_pipeline_id:
             self._configure_load_balancer()
 
         if not self._has_pipeline_id():
-            return await self._ensure_pipeline_started()
+            raise ComputeSessionException(
+                "Compute transient session did not return an owned pipeline",
+                session_uuid=self.compute_ctx.session_uuid,
+            )
 
-        response = await self.pipeline_patch('pop', content_type='application/json',
-                                             data=pop.model_dump_json())
-        return response
+        return {
+            "session_uuid": self.compute_ctx.session_uuid,
+            "session_endpoint": self.compute_ctx.session_endpoint,
+            "pipeline_id": self.compute_ctx.pipeline_id,
+        }
 
     async def dev_mode_pipeline_base_url(self) -> str:
         # Was `else: pass` which made return type str | None — raise explicitly instead

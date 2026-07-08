@@ -89,8 +89,12 @@ async def fetch_new_compute_session(
             if compute_ctx.pop is not None:
                 body["pop"] = compute_ctx.pop
 
+            query = "wait=true"
+            if compute_ctx.pop is not None:
+                query = f"{query}&transient=true"
+
             async with client_session.post(
-                f'{sessions_url}?wait=true',
+                f'{sessions_url}?{query}',
                 headers=headers,
                 json=body if body else None,
             ) as post_response:
@@ -115,6 +119,11 @@ async def fetch_new_compute_session(
             res = None
 
     _compute_context_from_response(compute_ctx, res)
+    if compute_ctx.pop is not None and not compute_ctx.pipeline_owned:
+        raise ComputeSessionException(
+            "Transient compute session did not return an owned pipeline",
+            session_uuid=compute_ctx.session_uuid,
+        )
 
     return compute_ctx
 
@@ -133,12 +142,13 @@ def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None
     compute_ctx.access_token_expires_at = session_response.access_token_expires_at
     compute_ctx.access_token_expires_in = session_response.access_token_expires_in
     pipeline_id = ""
-    if compute_ctx.pop is None and len(session_response.pipelines) > 0:
+    if len(session_response.pipelines) > 0:
         pipeline_id = session_response.pipelines[0].get("id", None)
         if not pipeline_id:
             pipeline_id = session_response.pipelines[0].get("pipeline_id", "")
 
     compute_ctx.pipeline_id = pipeline_id
+    compute_ctx.pipeline_owned = bool(compute_ctx.pop is not None and pipeline_id)
 
     debug_obj = {
         "session_endpoint": session_response.session_endpoint,
@@ -147,6 +157,7 @@ def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None
         "m2m_access_token_expires_at": session_response.access_token_expires_at,
         "m2m_access_token_expires_in": session_response.access_token_expires_in,
         "pipeline_id": pipeline_id,
+        "pipeline_owned": compute_ctx.pipeline_owned,
         "pipelines": session_response.pipelines,
     }
     log.debug(json.dumps(debug_obj, indent=4))
