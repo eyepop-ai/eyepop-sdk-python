@@ -48,34 +48,36 @@ async def fetch_new_compute_session(
     sessions_url = f"{compute_ctx.compute_url}/v1/sessions"
 
     res = None
-    need_new_session = compute_ctx.pop is not None
+    need_new_session = False
 
-    if not need_new_session:
-        try:
-            async with client_session.get(sessions_url, headers=headers) as get_response:
-                log.debug(f"GET /v1/sessions - status: {get_response.status}")
-                if get_response.status == 404:
+    try:
+        async with client_session.get(sessions_url, headers=headers) as get_response:
+            log.debug(f"GET /v1/sessions - status: {get_response.status}")
+            if get_response.status == 404:
+                need_new_session = True
+            else:
+                get_response.raise_for_status()
+                res = await get_response.json()
+
+                if not res:
                     need_new_session = True
-                else:
-                    get_response.raise_for_status()
-                    res = await get_response.json()
-
+                elif isinstance(res, list):
+                    res = [s for s in res if isinstance(s, dict) and not s.get("persistent")]
                     if not res:
                         need_new_session = True
-                    elif isinstance(res, list):
-                        res = [s for s in res if isinstance(s, dict) and not s.get("persistent")]
-                        if not res:
-                            need_new_session = True
-                    elif isinstance(res, dict):
-                        if not res.get("session_uuid") or res.get("persistent"):
-                            need_new_session = True
+                elif isinstance(res, dict):
+                    if not res.get("session_uuid") or res.get("persistent"):
+                        need_new_session = True
 
-        except aiohttp.ClientResponseError as e:
+    except aiohttp.ClientResponseError as e:
+        if e.status == 404:
+            need_new_session = True
+        else:
             raise ComputeSessionException(
                 f"Failed to fetch existing sessions: {e.message}",
             ) from e
-        except Exception as e:
-            raise ComputeSessionException(f"Unexpected error fetching sessions: {str(e)}") from e
+    except Exception as e:
+        raise ComputeSessionException(f"Unexpected error fetching sessions: {str(e)}") from e
 
     if need_new_session:
         try:
@@ -133,7 +135,7 @@ def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None
     compute_ctx.access_token_expires_at = session_response.access_token_expires_at
     compute_ctx.access_token_expires_in = session_response.access_token_expires_in
     pipeline_id = ""
-    if compute_ctx.pop is None and len(session_response.pipelines) > 0:
+    if len(session_response.pipelines) > 0:
         pipeline_id = session_response.pipelines[0].get("id", None)
         if not pipeline_id:
             pipeline_id = session_response.pipelines[0].get("pipeline_id", "")

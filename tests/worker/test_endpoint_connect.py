@@ -136,62 +136,6 @@ class TestEndpointConnect(BaseEndpointTest):
         self.assertBaseMock(mock, is_transient=True, expect_pipeline_started=False)
 
     @aioresponses()
-    async def test_compute_transient_set_pop_does_not_patch_shared_pipeline(
-        self, mock: aioresponses
-    ):
-        new_pop = Pop(components=[])
-        captured_session_body = {}
-        captured_pipeline_body = {}
-        shared_pipeline_id = "shared-pipeline"
-        owned_pipeline_id = "owned-pipeline"
-        session_response = {
-            "session_uuid": "session-456",
-            "session_endpoint": self.test_worker_url,
-            "access_token": self.test_access_token,
-            "pipelines": [{"pipeline_id": shared_pipeline_id}],
-            "session_status": "running",
-            "persistent": False,
-        }
-
-        def configure_session(url, **kwargs) -> CallbackResult:
-            captured_session_body.update(kwargs["json"])
-            return CallbackResult(status=200, body=json.dumps(session_response))
-
-        def create_pipeline(url, **kwargs) -> CallbackResult:
-            captured_pipeline_body.update(kwargs["json"])
-            return CallbackResult(status=200, body=json.dumps({"id": owned_pipeline_id}))
-
-        mock.get(
-            "https://compute.eyepop.ai/v1/sessions",
-            status=200,
-            body=json.dumps([session_response]),
-        )
-        mock.get(
-            f"{self.test_worker_url}/health",
-            status=200,
-            body=json.dumps({"message": "ok"}),
-            repeat=True,
-        )
-        mock.post("https://compute.eyepop.ai/v1/sessions?wait=true", callback=configure_session)
-        mock.post(f"{self.test_worker_url}/pipelines", callback=create_pipeline)
-        mock.delete(f"{self.test_worker_url}/pipelines/{owned_pipeline_id}", status=204)
-
-        endpoint = EyePopSdk.async_worker(
-            eyepop_url="https://compute.eyepop.ai",
-            api_key="test-api-key",
-            pop_id="transient",
-        )
-        try:
-            await endpoint.connect()
-            response = await endpoint.set_pop(new_pop)
-        finally:
-            await endpoint.disconnect()
-
-        self.assertEqual(response["id"], owned_pipeline_id)
-        self.assertEqual(captured_session_body["pop"], new_pop.model_dump())
-        self.assertEqual(captured_pipeline_body["pop"], new_pop.model_dump())
-
-    @aioresponses()
     def test_connect_unauthorized(self, mock: aioresponses):
         self.setup_base_mock(mock)
 
