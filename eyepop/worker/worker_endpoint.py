@@ -127,7 +127,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             client_timeout = aiohttp.ClientTimeout(total=timeout)
         if (self.is_dev_mode and self.pop_id == 'transient'
                 and self._has_pipeline_id()
-                and self._owns_pipeline_id
+                and (not self._is_compute_transient() or self._owns_pipeline_id)
                 and self.client_session is not None):
             worker_config = self.worker_config
             assert worker_config is not None

@@ -183,6 +183,36 @@ class TestEndpointConnect(BaseEndpointTest):
         self.assertBaseMock(mock, is_transient=True, expect_pipeline_started=False)
 
     @aioresponses()
+    async def test_disconnect_transient_existing_pipeline_deletes_pipeline(self, mock: aioresponses):
+        mock.get(
+            "https://api.eyepop.ai/workers/config",
+            status=200,
+            body=json.dumps({
+                "base_url": self.test_worker_url,
+                "pipeline_id": self.test_pipeline_id,
+            }),
+        )
+        mock.delete(f"{self.test_worker_url}/pipelines/{self.test_pipeline_id}", status=204)
+
+        endpoint = EyePopSdk.async_worker(
+            access_token=self.test_access_token,
+            pop_id="transient",
+            stop_jobs=False,
+            pop=Pop(components=[]),
+        )
+
+        await endpoint.connect()
+        await endpoint.disconnect()
+
+        mock.assert_called_with(
+            f"{self.test_worker_url}/pipelines/{self.test_pipeline_id}",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {self.test_access_token}"},
+            timeout=None,
+        )
+        self.assertNotIn("pipeline_id", endpoint.worker_config)
+
+    @aioresponses()
     def test_connect_unauthorized(self, mock: aioresponses):
         self.setup_base_mock(mock)
 
