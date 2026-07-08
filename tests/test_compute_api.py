@@ -92,14 +92,15 @@ async def test_creates_session_with_pop_for_scheduling(aioresponses):
         status=200
     )
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true&transient=true",
         callback=create_session
     )
 
     async with aiohttp.ClientSession() as session:
-        await fetch_new_compute_session(ctx, session)
+        result = await fetch_new_compute_session(ctx, session)
 
     assert captured_body["pop"] == pop
+    assert result.pipeline_id == "pipeline-123"
 
 
 @pytest.mark.asyncio
@@ -116,7 +117,7 @@ async def test_pop_is_authoritative_when_transient_exists(aioresponses):
         captured_body.update(kwargs["json"])
         return CallbackResult(body=json.dumps({
             **MOCK_SESSION_RESPONSE,
-            "pipelines": [{"pipeline_id": "stale-pipeline"}],
+            "pipelines": [{"pipeline_id": "fresh-pipeline"}],
         }), status=200)
 
     aioresponses.get(
@@ -130,7 +131,7 @@ async def test_pop_is_authoritative_when_transient_exists(aioresponses):
         status=200
     )
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true&transient=true",
         callback=configure_session
     )
 
@@ -138,7 +139,27 @@ async def test_pop_is_authoritative_when_transient_exists(aioresponses):
         result = await fetch_new_compute_session(ctx, session)
 
     assert captured_body["pop"] == pop
-    assert result.pipeline_id == ""
+    assert result.pipeline_id == "fresh-pipeline"
+
+
+@pytest.mark.asyncio
+async def test_pop_transient_session_requires_returned_pipeline(aioresponses):
+    pop = {"components": [{"type": "inference", "ability": "eyepop.person:latest"}]}
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        pop=pop,
+    )
+
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true&transient=true",
+        payload=MOCK_SESSION_RESPONSE_NO_PIPELINES,
+        status=200,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        with pytest.raises(ComputeSessionException):
+            await fetch_new_compute_session(ctx, session)
 
 
 @pytest.mark.asyncio
