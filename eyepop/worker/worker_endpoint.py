@@ -11,6 +11,7 @@ from eyepop.compute.api import fetch_session_endpoint
 from eyepop.data.types.asset import Area
 from eyepop.endpoint import Endpoint
 from eyepop.exceptions import (
+    ComputeSessionException,
     PopConfigurationException,
     PopNotReachableException,
     PopNotStartedException,
@@ -96,6 +97,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self.is_dev_mode = True
 
         self.worker_config = None
+        self._owns_pipeline_id = False
         self._pipeline_create_lock = asyncio.Lock()
         self.last_fetch_config_success_time = None
         self.last_fetch_config_error = None
@@ -103,12 +105,20 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
         self.add_retry_handler(404, self._retry_404)
 
+    def _is_compute_transient(self) -> bool:
+        return self.compute_ctx is not None and self.permanent_session_uuid is None
+
     async def _retry_404(self, status_code: int, failed_attempts: int) -> bool:
         if failed_attempts > 1:
             return False
         else:
             log_requests.debug('after 404, about to retry with fresh config')
             self.worker_config = None
+            self._owns_pipeline_id = False
+            if self._is_compute_transient():
+                assert self.compute_ctx is not None
+                self.compute_ctx.pipeline_id = ""
+                self.compute_ctx.pipeline_owned = False
             return True
 
     async def _disconnect(self, timeout: float | None = None):
@@ -117,6 +127,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             client_timeout = aiohttp.ClientTimeout(total=timeout)
         if (self.is_dev_mode and self.pop_id == 'transient'
                 and self._has_pipeline_id()
+                and self._owns_pipeline_id
                 and self.client_session is not None):
             worker_config = self.worker_config
             assert worker_config is not None
@@ -131,7 +142,11 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             except Exception as e:
                 log.exception(e, exc_info=True)
             finally:
-                del worker_config["pipeline_id"]
+                worker_config.pop("pipeline_id", None)
+                self._owns_pipeline_id = False
+                if self.compute_ctx:
+                    self.compute_ctx.pipeline_id = ""
+                    self.compute_ctx.pipeline_owned = False
 
     async def _reconnect(self):
         # Narrow Optional[ClientSession] — _reconnect is only called after connect()
@@ -158,9 +173,14 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.eyepop_url = self.compute_ctx.session_endpoint
                 log_requests.debug(f"Compute session ready: {self.compute_ctx.session_endpoint}")
 
+            pipeline_id = self.compute_ctx.pipeline_id
+            self._owns_pipeline_id = bool(pipeline_id and self.compute_ctx.pipeline_owned)
+            if self._is_compute_transient() and not self._owns_pipeline_id:
+                pipeline_id = ""
+
             self.worker_config = {
                 "session_endpoint": self.compute_ctx.session_endpoint,
-                "pipeline_id": self.compute_ctx.pipeline_id,
+                "pipeline_id": pipeline_id,
                 "endpoints": [],
             }
 
@@ -207,7 +227,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         if self.worker_config.get('status') == 'active_prod':
             self.is_dev_mode = False
 
-        if self.is_dev_mode and self.stop_jobs and self._has_pipeline_id():
+        if (self.is_dev_mode and self.stop_jobs and self._has_pipeline_id()
+                and (not self._is_compute_transient() or self._owns_pipeline_id)):
             stop_jobs_url = f'{await self.dev_mode_pipeline_base_url()}/source?mode=preempt&processing=sync'
             body = {'sourceType': 'NONE'}
             headers = {}
@@ -259,6 +280,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self.compute_ctx.pop = pop.model_dump()
         if self.client_session is None:
             return {"pop": pop.model_dump()}
+        if self._is_compute_transient():
+            return await self._set_pop_on_compute_transient(pop)
         if self.worker_config is None:
             await self._reconnect()
         if self.is_dev_mode and not self._has_pipeline_id():
@@ -266,6 +289,45 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         response = await self.pipeline_patch('pop', content_type='application/json',
                                              data=pop.model_dump_json())
         return response
+
+    async def _set_pop_on_compute_transient(self, pop: Pop):
+        assert self.compute_ctx is not None
+        assert self.client_session is not None
+
+        self.compute_ctx.pop = pop.model_dump()
+        self.compute_ctx.pipeline_id = ""
+        self.compute_ctx.pipeline_owned = False
+        self.compute_ctx = await fetch_session_endpoint(
+            compute_ctx=self.compute_ctx,
+            client_session=self.client_session,
+            permanent_session_uuid=None,
+        )
+        self.eyepop_url = self.compute_ctx.session_endpoint
+
+        pipeline_id = self.compute_ctx.pipeline_id if self.compute_ctx.pipeline_owned else ""
+        if self.worker_config is None:
+            self.worker_config = {
+                "session_endpoint": self.compute_ctx.session_endpoint,
+                "pipeline_id": pipeline_id,
+                "endpoints": [],
+            }
+        else:
+            self.worker_config["session_endpoint"] = self.compute_ctx.session_endpoint
+            self.worker_config["pipeline_id"] = pipeline_id
+
+        self._owns_pipeline_id = bool(pipeline_id)
+        if not self._has_pipeline_id():
+            raise ComputeSessionException(
+                "Compute transient session did not return an owned pipeline",
+                session_uuid=self.compute_ctx.session_uuid,
+            )
+
+        self._configure_load_balancer()
+        return {
+            "session_uuid": self.compute_ctx.session_uuid,
+            "session_endpoint": self.compute_ctx.session_endpoint,
+            "pipeline_id": self.compute_ctx.pipeline_id,
+        }
 
     async def dev_mode_pipeline_base_url(self) -> str:
         # Was `else: pass` which made return type str | None — raise explicitly instead
@@ -524,9 +586,11 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             response_json = await response.json()
 
         self.worker_config['pipeline_id'] = response_json['id']
+        self._owns_pipeline_id = True
         if self.compute_ctx:
             self.compute_ctx.pipeline_uuid = response_json['id']
             self.compute_ctx.pipeline_id = response_json['id']
+            self.compute_ctx.pipeline_owned = True
             log.debug(f"Created pipeline with ID: {response_json['id']}")
 
         self._configure_load_balancer()
