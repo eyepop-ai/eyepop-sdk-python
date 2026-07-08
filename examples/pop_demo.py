@@ -37,6 +37,7 @@ from eyepop.worker.worker_types import (
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
+
 log = logging.getLogger('eyepop.example')
 
 script_dir = os.path.dirname(__file__)
@@ -317,6 +318,7 @@ parser = argparse.ArgumentParser(
                     epilog='.')
 parser.add_argument('-d', '--dump', required=False, help="dump composable pop definition to stdout", default=False, action="store_true")
 parser.add_argument('-l', '--local-path', required=False, type=str, default=False, help="run the inference on a local file, or all files on a directory")
+parser.add_argument('--sample-count', required=False, type=int, help="When running the inference on a directory, sample trhis number of images")
 parser.add_argument('-a', '--asset-uuid', required=False, type=str, default=False, help="run the inference on an asset by its Uuid")
 parser.add_argument('-u', '--url', required=False, type=str, default=False, help="run the inference on a remote Url")
 parser.add_argument('-proxy', '--proxy-url', required=False, type=str, default=False, help="Resolve the given URL and proxy the content stream")
@@ -529,6 +531,8 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                 local_files = []
 
                 for f in os.listdir(args.local_path):
+                    if args.sample_count is not None and args.sample_count <= len(local_files):
+                        break
                     local_file = os.path.join(args.local_path, f)
                     if os.path.isfile(local_file):
                         local_files.append(local_file)
