@@ -24,6 +24,7 @@ class ComputeContext(BaseModel):
     )
     pipeline_uuid: str = Field(description="The uuid of the pipeline", default="")
     pipeline_id: str = Field(description="The id of the pipeline", default="")
+    pipeline_owned: bool = Field(description="Whether this SDK endpoint owns the pipeline", default=False)
     user_uuid: str = Field(description="The uuid of the user", default=os.getenv("EYEPOP_USER_UUID", ""))
     api_key: str = Field(description="The api key of the user", default=os.getenv("EYEPOP_API_KEY", ""))
     m2m_access_token: str = Field(description="The JWT access token from compute API", default="")

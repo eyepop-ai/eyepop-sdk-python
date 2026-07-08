@@ -48,36 +48,34 @@ async def fetch_new_compute_session(
     sessions_url = f"{compute_ctx.compute_url}/v1/sessions"
 
     res = None
-    need_new_session = False
+    need_new_session = compute_ctx.pop is not None
 
-    try:
-        async with client_session.get(sessions_url, headers=headers) as get_response:
-            log.debug(f"GET /v1/sessions - status: {get_response.status}")
-            if get_response.status == 404:
-                need_new_session = True
-            else:
-                get_response.raise_for_status()
-                res = await get_response.json()
-
-                if not res:
+    if not need_new_session:
+        try:
+            async with client_session.get(sessions_url, headers=headers) as get_response:
+                log.debug(f"GET /v1/sessions - status: {get_response.status}")
+                if get_response.status == 404:
                     need_new_session = True
-                elif isinstance(res, list):
-                    res = [s for s in res if isinstance(s, dict) and not s.get("persistent")]
+                else:
+                    get_response.raise_for_status()
+                    res = await get_response.json()
+
                     if not res:
                         need_new_session = True
-                elif isinstance(res, dict):
-                    if not res.get("session_uuid") or res.get("persistent"):
-                        need_new_session = True
+                    elif isinstance(res, list):
+                        res = [s for s in res if isinstance(s, dict) and not s.get("persistent")]
+                        if not res:
+                            need_new_session = True
+                    elif isinstance(res, dict):
+                        if not res.get("session_uuid") or res.get("persistent"):
+                            need_new_session = True
 
-    except aiohttp.ClientResponseError as e:
-        if e.status == 404:
-            need_new_session = True
-        else:
+        except aiohttp.ClientResponseError as e:
             raise ComputeSessionException(
                 f"Failed to fetch existing sessions: {e.message}",
             ) from e
-    except Exception as e:
-        raise ComputeSessionException(f"Unexpected error fetching sessions: {str(e)}") from e
+        except Exception as e:
+            raise ComputeSessionException(f"Unexpected error fetching sessions: {str(e)}") from e
 
     if need_new_session:
         try:
@@ -91,8 +89,12 @@ async def fetch_new_compute_session(
             if compute_ctx.pop is not None:
                 body["pop"] = compute_ctx.pop
 
+            query = "wait=true"
+            if compute_ctx.pop is not None:
+                query = f"{query}&transient=true"
+
             async with client_session.post(
-                f'{sessions_url}?wait=true',
+                f'{sessions_url}?{query}',
                 headers=headers,
                 json=body if body else None,
             ) as post_response:
@@ -117,6 +119,11 @@ async def fetch_new_compute_session(
             res = None
 
     _compute_context_from_response(compute_ctx, res)
+    if compute_ctx.pop is not None and not compute_ctx.pipeline_owned:
+        raise ComputeSessionException(
+            "Transient compute session did not return an owned pipeline",
+            session_uuid=compute_ctx.session_uuid,
+        )
 
     return compute_ctx
 
@@ -141,6 +148,7 @@ def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None
             pipeline_id = session_response.pipelines[0].get("pipeline_id", "")
 
     compute_ctx.pipeline_id = pipeline_id
+    compute_ctx.pipeline_owned = bool(compute_ctx.pop is not None and pipeline_id)
 
     debug_obj = {
         "session_endpoint": session_response.session_endpoint,
@@ -149,6 +157,7 @@ def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None
         "m2m_access_token_expires_at": session_response.access_token_expires_at,
         "m2m_access_token_expires_in": session_response.access_token_expires_in,
         "pipeline_id": pipeline_id,
+        "pipeline_owned": compute_ctx.pipeline_owned,
         "pipelines": session_response.pipelines,
     }
     log.debug(json.dumps(debug_obj, indent=4))

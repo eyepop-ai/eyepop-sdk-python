@@ -30,6 +30,53 @@ class TestEndpointConnect(BaseEndpointTest):
         self.assertIsNotNone(endpoint.compute_ctx)
         self.assertEqual(endpoint.compute_ctx.session_name, "sessions-smoke-123")
 
+    @aioresponses()
+    async def test_compute_transient_connect_with_pop_uses_compute_created_pipeline(
+        self, mock: aioresponses
+    ):
+        pop = Pop(components=[])
+        owned_pipeline_id = "owned-pipeline"
+        captured_session_body = {}
+
+        def create_session(url, **kwargs) -> CallbackResult:
+            captured_session_body.update(kwargs["json"])
+            return CallbackResult(status=200, body=json.dumps({
+                "session_uuid": "session-456",
+                "session_endpoint": self.test_worker_url,
+                "access_token": self.test_access_token,
+                "pipelines": [{"pipeline_id": owned_pipeline_id}],
+                "session_status": "running",
+            }))
+
+        mock.post(
+            "https://compute.eyepop.ai/v1/sessions?wait=true&transient=true",
+            callback=create_session,
+        )
+        mock.get(
+            f"{self.test_worker_url}/health",
+            status=200,
+            body=json.dumps({"message": "ok"}),
+        )
+        mock.patch(
+            f"{self.test_worker_url}/pipelines/{owned_pipeline_id}/source?mode=preempt&processing=sync",
+            status=204,
+        )
+        mock.delete(f"{self.test_worker_url}/pipelines/{owned_pipeline_id}", status=204)
+
+        endpoint = EyePopSdk.async_worker(
+            eyepop_url="https://compute.eyepop.ai",
+            api_key="test-api-key",
+            pop_id="transient",
+            pop=pop,
+        )
+        try:
+            await endpoint.connect()
+            self.assertEqual(endpoint.worker_config["pipeline_id"], owned_pipeline_id)
+            self.assertTrue(endpoint.compute_ctx.pipeline_owned)
+            self.assertEqual(captured_session_body["pop"], pop.model_dump())
+        finally:
+            await endpoint.disconnect()
+
     async def test_ensure_pipeline_started_serializes_concurrent_creation(self):
         endpoint = object.__new__(WorkerEndpoint)
         endpoint.worker_config = {}
