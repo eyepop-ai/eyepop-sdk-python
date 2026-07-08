@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `pop` support on worker session creation so transient compute sessions can be scheduled before starting a worker pipeline.
 
 ### Fixed
-- Transient compute workers now patch owned pipelines through the updated session endpoint after `set_pop()` triggers compute session rescheduling.
 - Worker connections without a `session_uuid` no longer adopt an existing persistent session. The compute API session list is now filtered by the new `persistent` flag so ephemeral connections always pick (or create) an ephemeral session, and persistent sessions are only reachable when their UUID is passed explicitly. (AWSU-166)
 
 ## [3.15.2] - 2026-04-27
