@@ -50,7 +50,7 @@ class TestEndpointConnect(BaseEndpointTest):
             }))
 
         mock.post(
-            "https://compute.eyepop.ai/v1/sessions?wait=true&transient=true",
+            "https://compute.eyepop.ai/v1/sessions?wait=true",
             callback=create_session,
         )
         mock.get(

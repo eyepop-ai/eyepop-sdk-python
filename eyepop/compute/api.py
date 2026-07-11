@@ -89,12 +89,8 @@ async def fetch_new_compute_session(
             if compute_ctx.pop is not None:
                 body["pop"] = compute_ctx.pop
 
-            query = "wait=true"
-            if compute_ctx.pop is not None:
-                query = f"{query}&transient=true"
-
             async with client_session.post(
-                f'{sessions_url}?{query}',
+                f'{sessions_url}?wait=true',
                 headers=headers,
                 json=body if body else None,
             ) as post_response:

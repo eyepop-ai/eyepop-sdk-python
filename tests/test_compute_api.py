@@ -87,7 +87,7 @@ async def test_creates_session_with_pop_for_scheduling(aioresponses):
         return CallbackResult(body=json.dumps(MOCK_SESSION_RESPONSE), status=200)
 
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true&transient=true",
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
         callback=create_session
     )
 
@@ -109,7 +109,7 @@ async def test_pop_transient_session_requires_returned_pipeline(aioresponses):
     )
 
     aioresponses.post(
-        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true&transient=true",
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
         payload=MOCK_SESSION_RESPONSE_NO_PIPELINES,
         status=200,
     )
