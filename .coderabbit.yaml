@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+tone_instructions: "Be direct and concise. Prioritize correctness, regressions, security, runtime behavior, and missing tests over style nits."
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  review_details: false
+  commit_status: false
+  collapse_walkthrough: true
+  poem: false
+
+  auto_review:
+    enabled: false
+    auto_incremental_review: false
+    drafts: false
+    labels:
+      - review-ready
+      - "!skip-review"
+      - "!no-review"
+      - "!autorelease: pending"
+    base_branches:
+      - main
+    ignore_title_keywords:
+      - "[skip review]"
+      - "DO NOT MERGE"
+    ignore_usernames:
+      - "dependabot[bot]"
+      - "github-actions[bot]"
+
+  path_filters:
+    - "!**/__pycache__/**"
+    - "!**/.mypy_cache/**"
+    - "!**/.pytest_cache/**"
+    - "!**/.ruff_cache/**"
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/coverage/**"
+    - "!**/test-results/**"
+    - "!**/playwright-report/**"
+    - "!**/*.lock"
+
+  pre_merge_checks:
+    docstrings:
+      mode: off
+
+  tools:
+    actionlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    shellcheck:
+      enabled: true
+    yamllint:
+      enabled: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - ".agents/**/*.md"
+      - ".claude/**/*.md"
+      - "docs/**/*.md"
+
+chat:
+  auto_reply: true
+  art: false
