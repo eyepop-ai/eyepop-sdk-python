@@ -56,7 +56,7 @@ jobs:
         echo "Proper wheel contents!"
 
     - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@v1
+      uses: pypa/gh-action-pypi-publish@v1.14.1
       with:
         user: __token__
         password: ${{ secrets.PYPI_API_TOKEN }}
