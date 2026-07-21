@@ -1,0 +1,6 @@
+detectors:
+  - name: eyepop-api-key
+    keywords:
+      - eyp_
+    regex:
+      key: '\beyp_[A-Za-z0-9_-]{50,}'
