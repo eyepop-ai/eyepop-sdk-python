@@ -37,12 +37,12 @@ jobs:
       EYEPOP_URL: ${{ vars.EYEPOP_URL }}
       SUMMARY_JSON: session-smoke-summary.json
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+        uses: astral-sh/setup-uv@v9.0.0
 
       - name: Install SDK under test
         run: |
@@ -53,6 +53,15 @@ jobs:
             uv venv
             if [[ "$SDK_VERSION" == "latest" ]]; then
               uv pip install --upgrade eyepop
+            elif [[ "$SDK_VERSION" == *.dev* || "$SDK_VERSION" == *rc* ]]; then
+              # Pre-release builds (e.g. per-push TestPyPI dev packages) live on TestPyPI;
+              # pull the package from there while resolving deps across both indexes
+              # (unsafe-best-match lets deps like aiohttp resolve from PyPI instead of
+              # TestPyPI's stale mirror).
+              uv pip install --prerelease allow \
+                --extra-index-url https://test.pypi.org/simple/ \
+                --index-strategy unsafe-best-match \
+                "eyepop==$SDK_VERSION"
             else
               uv pip install "eyepop==$SDK_VERSION"
             fi
@@ -107,7 +116,7 @@ jobs:
 
       - name: Upload smoke summary
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@v7
         with:
           name: sessions-smoke-summary-${{ env.SMOKE_ENVIRONMENT }}
           path: ${{ env.SUMMARY_JSON }}

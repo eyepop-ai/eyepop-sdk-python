@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `pop` support on worker session creation so transient compute sessions can be scheduled before starting a worker pipeline.
 
 ### Fixed
+- Transient sessions started with a `pop` now wait for the compute API to finish creating the pipeline before reporting an ownership failure. Previously the SDK checked pipeline ownership on the initial session response and raised immediately, so a session created a moment before its pipeline row landed (common right after a compute API deploy) failed spuriously. The client-visible "did not return an owned pipeline" error is preserved for sessions that genuinely never receive a pipeline.
 - Worker connections without a `session_uuid` no longer adopt an existing persistent session. The compute API session list is now filtered by the new `persistent` flag so ephemeral connections always pick (or create) an ephemeral session, and persistent sessions are only reachable when their UUID is passed explicitly. (AWSU-166)
 
 ## [3.15.2] - 2026-04-27

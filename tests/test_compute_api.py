@@ -100,7 +100,12 @@ async def test_creates_session_with_pop_for_scheduling(aioresponses):
 
 
 @pytest.mark.asyncio
-async def test_pop_transient_session_requires_returned_pipeline(aioresponses):
+async def test_pop_transient_session_without_pipeline_defers_ownership(aioresponses):
+    """A pop session whose POST response has no pipeline yet must not fail here.
+
+    Ownership is resolved during the readiness wait (the pipeline may still be
+    creating), so session creation records an unowned pipeline rather than raising.
+    """
     pop = {"components": [{"type": "inference", "model": "yolo"}], "postTransform": None}
     ctx = ComputeContext(
         compute_url="https://compute.staging.eyepop.xyz",
@@ -115,8 +120,46 @@ async def test_pop_transient_session_requires_returned_pipeline(aioresponses):
     )
 
     async with aiohttp.ClientSession() as session:
-        with pytest.raises(ComputeSessionException):
-            await fetch_new_compute_session(ctx, session)
+        result = await fetch_new_compute_session(ctx, session)
+
+    assert result.pipeline_id == ""
+    assert not result.pipeline_owned
+
+
+@pytest.mark.asyncio
+async def test_transient_session_waits_for_pipeline_creation(aioresponses):
+    """Deploy-window race: session ready before the pipeline row lands.
+
+    The pipeline appears on a later /health poll; the SDK must wait, not fail.
+    """
+    pop = {"components": [{"type": "inference", "model": "yolo"}], "postTransform": None}
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        pop=pop,
+        wait_for_session_timeout=10,
+        wait_for_session_interval=1,
+    )
+
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true&transient=true",
+        payload=MOCK_SESSION_RESPONSE_NO_PIPELINES,
+        status=200,
+    )
+    aioresponses.get(
+        "https://pipeline.example.com/health",
+        payload={**MOCK_SESSION_RESPONSE_NO_PIPELINES, "session_status": "pipeline_creating"},
+    )
+    aioresponses.get(
+        "https://pipeline.example.com/health",
+        payload=MOCK_SESSION_RESPONSE,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_session_endpoint(ctx, session, None)
+
+    assert result.pipeline_id == "pipeline-123"
+    assert result.pipeline_owned
 
 
 @pytest.mark.asyncio

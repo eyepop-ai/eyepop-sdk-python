@@ -5,7 +5,7 @@ from typing import Any
 import aiohttp
 from pydantic import TypeAdapter
 
-from eyepop.compute.context import ComputeContext
+from eyepop.compute.context import ComputeContext, first_pipeline_id
 from eyepop.compute.responses import ComputeApiSessionResponse
 from eyepop.compute.status import wait_for_session
 from eyepop.exceptions import ComputeSessionException, ComputeTokenException
@@ -119,11 +119,6 @@ async def fetch_new_compute_session(
             res = None
 
     _compute_context_from_response(compute_ctx, res)
-    if compute_ctx.pop is not None and not compute_ctx.pipeline_owned:
-        raise ComputeSessionException(
-            "Transient compute session did not return an owned pipeline",
-            session_uuid=compute_ctx.session_uuid,
-        )
 
     return compute_ctx
 
@@ -141,12 +136,7 @@ def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None
     compute_ctx.m2m_access_token = session_response.access_token
     compute_ctx.access_token_expires_at = session_response.access_token_expires_at
     compute_ctx.access_token_expires_in = session_response.access_token_expires_in
-    pipeline_id = ""
-    if len(session_response.pipelines) > 0:
-        pipeline_id = session_response.pipelines[0].get("id", None)
-        if not pipeline_id:
-            pipeline_id = session_response.pipelines[0].get("pipeline_id", "")
-
+    pipeline_id = first_pipeline_id(session_response.pipelines)
     compute_ctx.pipeline_id = pipeline_id
     compute_ctx.pipeline_owned = bool(compute_ctx.pop is not None and pipeline_id)
 
