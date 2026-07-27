@@ -3,7 +3,7 @@ import pytest
 
 from eyepop.compute.context import ComputeContext, PipelineStatus
 from eyepop.compute.status import wait_for_session
-from eyepop.exceptions import ComputeHealthCheckException
+from eyepop.exceptions import ComputeHealthCheckException, ComputeSessionException
 
 HEALTH_URL = "https://session.example.com/health"
 
@@ -96,6 +96,50 @@ async def test_times_out_when_never_ready(aioresponses):
     async with aiohttp.ClientSession() as session:
         with pytest.raises(TimeoutError, match="timed out"):
             await wait_for_session(_config(wait_for_session_timeout=1), session)
+
+
+@pytest.mark.asyncio
+async def test_pop_session_waits_for_pipeline_then_owns(aioresponses):
+    """A pop session stays not-ready until an owned pipeline appears."""
+    aioresponses.get(HEALTH_URL, payload={
+        "session_uuid": "s1",
+        "session_endpoint": "https://session.example.com",
+        "access_token": "tok",
+        "session_status": "pipeline_creating",
+        "pipelines": [],
+    })
+    aioresponses.get(HEALTH_URL, payload={
+        "session_uuid": "s1",
+        "session_endpoint": "https://session.example.com",
+        "access_token": "tok",
+        "session_status": "running",
+        "pipelines": [{"pipeline_id": "pl-1"}],
+    })
+
+    ctx = _config(pop={"components": []})
+    async with aiohttp.ClientSession() as session:
+        assert await wait_for_session(ctx, session) is True
+
+    assert ctx.pipeline_id == "pl-1"
+    assert ctx.pipeline_owned
+
+
+@pytest.mark.asyncio
+async def test_pop_session_running_without_pipeline_raises_session_exception(aioresponses):
+    """RUNNING but never an owned pipeline → the intended client-visible error, not a timeout."""
+    for _ in range(100):
+        aioresponses.get(HEALTH_URL, payload={
+            "session_uuid": "s1",
+            "session_endpoint": "https://session.example.com",
+            "access_token": "tok",
+            "session_status": "running",
+            "pipelines": [],
+        })
+
+    ctx = _config(pop={"components": []}, wait_for_session_timeout=1)
+    async with aiohttp.ClientSession() as session:
+        with pytest.raises(ComputeSessionException):
+            await wait_for_session(ctx, session)
 
 
 @pytest.mark.asyncio

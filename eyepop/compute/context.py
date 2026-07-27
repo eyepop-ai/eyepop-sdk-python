@@ -52,6 +52,13 @@ class ComputeContext(BaseModel):
     )
 
 
+def first_pipeline_id(pipelines: list[dict]) -> str:
+    if not pipelines:
+        return ""
+    first = pipelines[0]
+    return first.get("id") or first.get("pipeline_id", "")
+
+
 class PipelineStatus(str, Enum):
     UNKNOWN = "unknown"
     PENDING = "pending"
