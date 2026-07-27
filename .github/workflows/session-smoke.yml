@@ -53,6 +53,15 @@ jobs:
             uv venv
             if [[ "$SDK_VERSION" == "latest" ]]; then
               uv pip install --upgrade eyepop
+            elif [[ "$SDK_VERSION" == *.dev* || "$SDK_VERSION" == *rc* ]]; then
+              # Pre-release builds (e.g. per-push TestPyPI dev packages) live on TestPyPI;
+              # pull the package from there while resolving deps across both indexes
+              # (unsafe-best-match lets deps like aiohttp resolve from PyPI instead of
+              # TestPyPI's stale mirror).
+              uv pip install --prerelease allow \
+                --extra-index-url https://test.pypi.org/simple/ \
+                --index-strategy unsafe-best-match \
+                "eyepop==$SDK_VERSION"
             else
               uv pip install "eyepop==$SDK_VERSION"
             fi

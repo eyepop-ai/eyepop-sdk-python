@@ -4,9 +4,9 @@ import logging
 import aiohttp
 from pydantic import ValidationError
 
-from eyepop.compute.context import ComputeContext, PipelineStatus
+from eyepop.compute.context import ComputeContext, PipelineStatus, first_pipeline_id
 from eyepop.compute.responses import ComputeApiSessionResponse
-from eyepop.exceptions import ComputeHealthCheckException
+from eyepop.exceptions import ComputeHealthCheckException, ComputeSessionException
 
 log = logging.getLogger("eyepop.compute")
 
@@ -67,7 +67,14 @@ async def wait_for_session(
                 status = session_response.session_status
                 log.debug(f"GET /health - status: 200, pipeline: {status.value} (attempt {attempt})")
 
-                if status == PipelineStatus.RUNNING:
+                pipeline_id = first_pipeline_id(session_response.pipelines)
+                if pipeline_id:
+                    compute_config.pipeline_id = pipeline_id
+                    compute_config.pipeline_owned = compute_config.pop is not None
+
+                awaiting_pipeline = compute_config.pop is not None and not compute_config.pipeline_owned
+
+                if status == PipelineStatus.RUNNING and not awaiting_pipeline:
                     return True
 
                 if status in _TERMINAL_STATES:
@@ -78,7 +85,11 @@ async def wait_for_session(
                         last_status=status.value,
                     )
 
-                last_message = f"Pipeline status: {status.value}"
+                last_message = (
+                    "Awaiting owned pipeline creation"
+                    if awaiting_pipeline
+                    else f"Pipeline status: {status.value}"
+                )
                 await asyncio.sleep(interval)
 
         except ComputeHealthCheckException:
@@ -91,6 +102,12 @@ async def wait_for_session(
             last_message = str(e)
             log.debug(f"GET /health - error: {last_message} (attempt {attempt})")
             await asyncio.sleep(interval)
+
+    if compute_config.pop is not None and not compute_config.pipeline_owned:
+        raise ComputeSessionException(
+            "Transient compute session did not return an owned pipeline",
+            session_uuid=compute_config.session_uuid,
+        )
 
     log.error(f"Session timed out after {timeout}s. Last message: {last_message}")
     raise TimeoutError(f"Session timed out after {timeout}s. Last message: {last_message}")
