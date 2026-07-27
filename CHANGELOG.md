@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `session_name` support on worker session creation, also configurable via `EYEPOP_SESSION_NAME`.
 - `pop` support on worker session creation so transient compute sessions can be scheduled before starting a worker pipeline.
 
+### Changed
+- The PyPI publish workflow can be run manually via `workflow_dispatch` with a version input; when triggered that way it creates the matching GitHub Release with auto-generated notes before publishing, so the Releases page and PyPI stay in sync without a hand-drafted UI release.
+
 ### Fixed
 - Transient sessions started with a `pop` now wait for the compute API to finish creating the pipeline before reporting an ownership failure. Previously the SDK checked pipeline ownership on the initial session response and raised immediately, so a session created a moment before its pipeline row landed (common right after a compute API deploy) failed spuriously. The client-visible "did not return an owned pipeline" error is preserved for sessions that genuinely never receive a pipeline.
 - Worker connections without a `session_uuid` no longer adopt an existing persistent session. The compute API session list is now filtered by the new `persistent` flag so ephemeral connections always pick (or create) an ephemeral session, and persistent sessions are only reachable when their UUID is passed explicitly. (AWSU-166)

@@ -3,13 +3,19 @@ name: Upload Python Package
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 3.17.2 (no leading 'v')"
+        required: true
+        type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.release.tag_name || inputs.version }}
+  cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   deploy:
@@ -19,6 +25,38 @@ jobs:
     - uses: actions/checkout@v7
       with:
         fetch-depth: 0
+
+    - name: Resolve version and tag
+      id: version
+      env:
+        RAW: ${{ github.event.release.tag_name || inputs.version }}
+      run: |
+        set -euo pipefail
+        TAG="$RAW"
+        [[ "$TAG" == v* ]] || TAG="v$TAG"
+        echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+        echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+    # When run manually (not from a UI-published release), create the GitHub
+    # Release ourselves with auto-generated notes so the Releases UI and PyPI
+    # stay in sync. A release created with GITHUB_TOKEN does not re-fire the
+    # `release: published` event, so this same run must also publish below.
+    - name: Create GitHub Release with auto-generated notes
+      if: github.event_name == 'workflow_dispatch'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ steps.version.outputs.tag }}
+      run: |
+        set -euo pipefail
+        if gh release view "$TAG" >/dev/null 2>&1; then
+          echo "Release $TAG already exists; skipping creation."
+        else
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --generate-notes
+        fi
+        git fetch --tags --force
 
     - name: Install uv
       uses: astral-sh/setup-uv@v9.0.0
@@ -33,13 +71,11 @@ jobs:
       run: uvx --from build pyproject-build --installer uv
 
     - name: Sanity check version matches tag...
+      env:
+        EXPECTED_VERSION: ${{ steps.version.outputs.version }}
       run: |
         uv pip install dist/*.whl
         BUILT_VERSION=$(uv run python -c "import eyepop; print(eyepop.__version__)")
-        RELEASE_TAG="${{ github.event.release.tag_name }}"
-
-        # Strip v prefix if it's there
-        EXPECTED_VERSION="${RELEASE_TAG#v}"
 
         if [ "$BUILT_VERSION" != "$EXPECTED_VERSION" ]; then
           echo "ERROR: Built version ($BUILT_VERSION) does not match release tag ($EXPECTED_VERSION)"
@@ -60,4 +96,3 @@ jobs:
       with:
         user: __token__
         password: ${{ secrets.PYPI_API_TOKEN }}
-
