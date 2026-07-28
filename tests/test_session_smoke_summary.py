@@ -12,10 +12,15 @@ from typing import Any, AsyncIterator
 import pytest
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
+WORKFLOW_SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "scripts"
 
 
 def load_script(name: str) -> Any:
-    spec = importlib.util.spec_from_file_location(name, SCRIPTS_DIR / f"{name}.py")
+    return load_module(name, SCRIPTS_DIR / f"{name}.py")
+
+
+def load_module(name: str, path: Path) -> Any:
+    spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
@@ -25,7 +30,11 @@ def load_script(name: str) -> Any:
 
 session_smoke_summary = load_script("session_smoke_summary")
 session_smoke = load_script("session_smoke")
-ensure_summary = session_smoke_summary.ensure_summary
+workflow_summary = load_module(
+    "ensure_session_smoke_summary",
+    WORKFLOW_SCRIPTS_DIR / "ensure_session_smoke_summary.py",
+)
+ensure_summary = workflow_summary.ensure_summary
 finalize_summary = session_smoke_summary.finalize_summary
 new_summary = session_smoke_summary.new_summary
 read_summary = session_smoke_summary.read_summary

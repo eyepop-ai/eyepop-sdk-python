@@ -116,72 +116,18 @@ jobs:
         run: |
           set -euo pipefail
           summary_path="$GITHUB_WORKSPACE/$SUMMARY_JSON"
-          helper="$GITHUB_WORKSPACE/scripts/session_smoke_summary.py"
-
-          if [[ -f "$helper" ]]; then
-            python "$helper" \
-              --summary-json "$summary_path" \
-              --environment "$SMOKE_ENVIRONMENT" \
-              --requested-sdk-version "$SDK_VERSION" \
-              --session-name "$EYEPOP_SESSION_NAME" \
-              --resolved-sdk-version-file "$RUNNER_TEMP/session-smoke-sdk-version" \
-              --started-at-file "$RUNNER_TEMP/session-smoke-started-at" \
-              --step "checkout=$CHECKOUT_CONCLUSION" \
-              --step "setup_uv=$SETUP_UV_CONCLUSION" \
-              --step "install_sdk=$INSTALL_SDK_CONCLUSION" \
-              --step "resolve_sdk=$RESOLVE_SDK_CONCLUSION" \
-              --step "smoke=$SMOKE_CONCLUSION"
-          else
-            python - "$summary_path" <<'PY'
-          import json
-          import os
-          import sys
-          import time
-
-          steps = (
-              ("checkout", "checkout", "Repository checkout failed before the smoke harness started."),
-              ("setup_uv", "setup", "Smoke runner setup failed before the SDK was installed."),
-              ("install_sdk", "sdk_install", "SDK installation failed before the smoke harness started."),
-              ("resolve_sdk", "sdk_resolution", "Installed SDK version resolution failed before the smoke harness started."),
-          )
-          conclusions = {
-              "checkout": os.environ.get("CHECKOUT_CONCLUSION", ""),
-              "setup_uv": os.environ.get("SETUP_UV_CONCLUSION", ""),
-              "install_sdk": os.environ.get("INSTALL_SDK_CONCLUSION", ""),
-              "resolve_sdk": os.environ.get("RESOLVE_SDK_CONCLUSION", ""),
-          }
-          phase, error = next(
-              ((phase, error) for step, phase, error in steps if conclusions[step] in {"failure", "cancelled", "timed_out"}),
-              ("harness", "Smoke workflow did not produce a valid JSON summary."),
-          )
-          server_url = os.environ.get("GITHUB_SERVER_URL", "")
-          repository = os.environ.get("GITHUB_REPOSITORY", "")
-          run_id = os.environ.get("GITHUB_RUN_ID", "")
-          run_url = f"{server_url}/{repository}/actions/runs/{run_id}" if server_url and repository and run_id else ""
-          summary = {
-              "ok": False,
-              "environment": os.environ.get("SMOKE_ENVIRONMENT", ""),
-              "requested_sdk_version": os.environ.get("SDK_VERSION", ""),
-              "sdk_version": "",
-              "phase": phase,
-              "failure_kind": "setup" if phase != "harness" else "harness",
-              "error": error,
-              "github_run_id": run_id,
-              "github_run_url": run_url,
-              "session_name": os.environ.get("EYEPOP_SESSION_NAME", ""),
-              "session_uuid": "",
-              "session_uuid_short": "",
-              "prediction_count": None,
-              "matching_object_count": None,
-              "cleanup": {"ok": False, "result": "not_started"},
-              "duration_seconds": 0.0,
-          }
-          with open(sys.argv[1], "w") as summary_file:
-              json.dump(summary, summary_file, indent=2, sort_keys=True)
-              summary_file.write("\n")
-          print(json.dumps(summary, indent=2, sort_keys=True))
-          PY
-          fi
+          python "$GITHUB_WORKSPACE/.github/workflows/scripts/ensure_session_smoke_summary.py" \
+            --summary-json "$summary_path" \
+            --environment "$SMOKE_ENVIRONMENT" \
+            --requested-sdk-version "$SDK_VERSION" \
+            --session-name "$EYEPOP_SESSION_NAME" \
+            --resolved-sdk-version-file "$RUNNER_TEMP/session-smoke-sdk-version" \
+            --started-at-file "$RUNNER_TEMP/session-smoke-started-at" \
+            --step "checkout=$CHECKOUT_CONCLUSION" \
+            --step "setup_uv=$SETUP_UV_CONCLUSION" \
+            --step "install_sdk=$INSTALL_SDK_CONCLUSION" \
+            --step "resolve_sdk=$RESOLVE_SDK_CONCLUSION" \
+            --step "smoke=$SMOKE_CONCLUSION"
 
       - name: Write summary
         if: always()
