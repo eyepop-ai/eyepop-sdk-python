@@ -38,13 +38,20 @@ jobs:
       SUMMARY_JSON: session-smoke-summary.json
     steps:
       - uses: actions/checkout@v7
+        id: checkout
         with:
           persist-credentials: false
 
+      - name: Initialize smoke summary state
+        if: always()
+        run: date +%s > "$RUNNER_TEMP/session-smoke-started-at"
+
       - name: Install uv
+        id: setup_uv
         uses: astral-sh/setup-uv@v9.0.0
 
       - name: Install SDK under test
+        id: install_sdk
         run: |
           set -euo pipefail
           if [[ "$SDK_VERSION" == "source" ]]; then
@@ -67,6 +74,18 @@ jobs:
             fi
           fi
 
+      - name: Resolve installed SDK version
+        id: resolve_sdk
+        run: |
+          set -euo pipefail
+          if [[ "$SDK_VERSION" == "source" ]]; then
+            uv run python -c 'from eyepop import __version__; print(__version__)' \
+              > "$RUNNER_TEMP/session-smoke-sdk-version"
+          else
+            "$GITHUB_WORKSPACE/.venv/bin/python" -c 'from eyepop import __version__; print(__version__)' \
+              > "$RUNNER_TEMP/session-smoke-sdk-version"
+          fi
+
       - name: Run SDK session smoke
         id: smoke
         env:
@@ -86,6 +105,84 @@ jobs:
               --summary-json "$GITHUB_WORKSPACE/$SUMMARY_JSON"
           fi
 
+      - name: Ensure smoke JSON summary
+        if: always()
+        env:
+          CHECKOUT_CONCLUSION: ${{ steps.checkout.conclusion }}
+          SETUP_UV_CONCLUSION: ${{ steps.setup_uv.conclusion }}
+          INSTALL_SDK_CONCLUSION: ${{ steps.install_sdk.conclusion }}
+          RESOLVE_SDK_CONCLUSION: ${{ steps.resolve_sdk.conclusion }}
+          SMOKE_CONCLUSION: ${{ steps.smoke.conclusion }}
+        run: |
+          set -euo pipefail
+          summary_path="$GITHUB_WORKSPACE/$SUMMARY_JSON"
+          helper="$GITHUB_WORKSPACE/scripts/session_smoke_summary.py"
+
+          if [[ -f "$helper" ]]; then
+            python "$helper" \
+              --summary-json "$summary_path" \
+              --environment "$SMOKE_ENVIRONMENT" \
+              --requested-sdk-version "$SDK_VERSION" \
+              --session-name "$EYEPOP_SESSION_NAME" \
+              --resolved-sdk-version-file "$RUNNER_TEMP/session-smoke-sdk-version" \
+              --started-at-file "$RUNNER_TEMP/session-smoke-started-at" \
+              --step "checkout=$CHECKOUT_CONCLUSION" \
+              --step "setup_uv=$SETUP_UV_CONCLUSION" \
+              --step "install_sdk=$INSTALL_SDK_CONCLUSION" \
+              --step "resolve_sdk=$RESOLVE_SDK_CONCLUSION" \
+              --step "smoke=$SMOKE_CONCLUSION"
+          else
+            python - "$summary_path" <<'PY'
+          import json
+          import os
+          import sys
+          import time
+
+          steps = (
+              ("checkout", "checkout", "Repository checkout failed before the smoke harness started."),
+              ("setup_uv", "setup", "Smoke runner setup failed before the SDK was installed."),
+              ("install_sdk", "sdk_install", "SDK installation failed before the smoke harness started."),
+              ("resolve_sdk", "sdk_resolution", "Installed SDK version resolution failed before the smoke harness started."),
+          )
+          conclusions = {
+              "checkout": os.environ.get("CHECKOUT_CONCLUSION", ""),
+              "setup_uv": os.environ.get("SETUP_UV_CONCLUSION", ""),
+              "install_sdk": os.environ.get("INSTALL_SDK_CONCLUSION", ""),
+              "resolve_sdk": os.environ.get("RESOLVE_SDK_CONCLUSION", ""),
+          }
+          phase, error = next(
+              ((phase, error) for step, phase, error in steps if conclusions[step] in {"failure", "cancelled", "timed_out"}),
+              ("harness", "Smoke workflow did not produce a valid JSON summary."),
+          )
+          server_url = os.environ.get("GITHUB_SERVER_URL", "")
+          repository = os.environ.get("GITHUB_REPOSITORY", "")
+          run_id = os.environ.get("GITHUB_RUN_ID", "")
+          run_url = f"{server_url}/{repository}/actions/runs/{run_id}" if server_url and repository and run_id else ""
+          summary = {
+              "ok": False,
+              "environment": os.environ.get("SMOKE_ENVIRONMENT", ""),
+              "requested_sdk_version": os.environ.get("SDK_VERSION", ""),
+              "sdk_version": "",
+              "phase": phase,
+              "failure_kind": "setup" if phase != "harness" else "harness",
+              "error": error,
+              "github_run_id": run_id,
+              "github_run_url": run_url,
+              "session_name": os.environ.get("EYEPOP_SESSION_NAME", ""),
+              "session_uuid": "",
+              "session_uuid_short": "",
+              "prediction_count": None,
+              "matching_object_count": None,
+              "cleanup": {"ok": False, "result": "not_started"},
+              "duration_seconds": 0.0,
+          }
+          with open(sys.argv[1], "w") as summary_file:
+              json.dump(summary, summary_file, indent=2, sort_keys=True)
+              summary_file.write("\n")
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+          fi
+
       - name: Write summary
         if: always()
         run: |
@@ -100,6 +197,8 @@ jobs:
               jq -r '
                 "- ok: \((.ok // false)|tostring)",
                 "- sdk_version: \(.sdk_version // "n/a")",
+                "- phase: \(.phase // "harness")",
+                "- failure_kind: \(.failure_kind // "harness")",
                 "- session_name: \(.session_name // "n/a")",
                 "- session_uuid: \(.session_uuid_short // "n/a")",
                 "- ability: \(.ability // "n/a")",
@@ -110,7 +209,7 @@ jobs:
                 if .error then "- error: \(.error)" else empty end
               ' "$SUMMARY_JSON"
             else
-              echo "- result: no JSON summary captured"
+              echo "- result: summary handler failed; inspect this run"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -120,7 +219,7 @@ jobs:
         with:
           name: sessions-smoke-summary-${{ env.SMOKE_ENVIRONMENT }}
           path: ${{ env.SUMMARY_JSON }}
-          if-no-files-found: ignore
+          if-no-files-found: error
 
       - name: Notify Slack
         if: ${{ failure() }}
@@ -143,10 +242,14 @@ jobs:
           cleanup="n/a"
           duration="n/a"
           actual_sdk="n/a"
-          reason="Smoke workflow failed before a JSON summary was captured."
+          phase="harness"
+          failure_kind="harness"
+          reason="Smoke summary handler failed; inspect the GitHub run."
 
           if [[ -f "$SUMMARY_JSON" ]] && jq -e . "$SUMMARY_JSON" >/dev/null 2>&1; then
             actual_sdk="$(jq -r '.sdk_version // "n/a"' "$SUMMARY_JSON")"
+            phase="$(jq -r '.phase // "harness"' "$SUMMARY_JSON")"
+            failure_kind="$(jq -r '.failure_kind // "harness"' "$SUMMARY_JSON")"
             session_name="$(jq -r '.session_name // "n/a"' "$SUMMARY_JSON")"
             session_uuid="$(jq -r '.session_uuid_short // "n/a"' "$SUMMARY_JSON")"
             predictions="$(jq -r '(.prediction_count // "n/a")|tostring' "$SUMMARY_JSON")"
@@ -154,12 +257,10 @@ jobs:
             cleanup="$(jq -r '.cleanup.result // "n/a"' "$SUMMARY_JSON")"
             duration="$(jq -r '(.duration_seconds // "n/a")|tostring' "$SUMMARY_JSON")"
             reason="$(jq -r '.error // ""' "$SUMMARY_JSON")"
-          else
-            reason="No JSON summary captured."
           fi
 
           if [[ -z "$reason" ]]; then
-            reason="Smoke step concluded with ${SMOKE_CONCLUSION}."
+            reason="${failure_kind^} failure during ${phase}."
           fi
 
           title="Production sessions smoke"
@@ -176,6 +277,8 @@ jobs:
             --arg environment "$SMOKE_ENVIRONMENT" \
             --arg requested_sdk "$SDK_VERSION" \
             --arg actual_sdk "$actual_sdk" \
+            --arg phase "$phase" \
+            --arg failure_kind "$failure_kind" \
             --arg session_name "$session_name" \
             --arg session_uuid "$session_uuid" \
             --arg predictions "$predictions" \
@@ -205,6 +308,7 @@ jobs:
                   fields: [
                     {type: "mrkdwn", text: ("*Environment:*\n" + $environment)},
                     {type: "mrkdwn", text: ("*SDK:*\n" + $actual_sdk + " (requested: " + $requested_sdk + ")")},
+                    {type: "mrkdwn", text: ("*Failure:*\n" + $failure_kind + " / " + $phase)},
                     {type: "mrkdwn", text: ("*Session name:*\n" + $session_name)},
                     {type: "mrkdwn", text: ("*Session:*\n" + $session_uuid)},
                     {type: "mrkdwn", text: ("*Predictions:*\n" + $predictions)},
