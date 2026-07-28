@@ -16,6 +16,11 @@ from eyepop import EyePopSdk, __version__
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_types import DynamicComponent, InferenceComponent, Pop
 
+if __package__:
+    from .session_smoke_summary import finalize_summary, new_summary, record_failure, write_summary
+else:
+    from session_smoke_summary import finalize_summary, new_summary, record_failure, write_summary
+
 DEFAULT_IMAGE = Path("tests/test.jpg")
 DESCRIPTION = "Run a deterministic SDK transient-session smoke test."
 ENV_URLS = {
@@ -213,40 +218,43 @@ async def delete_transient_session(api_key: str, eyepop_url: str, session_uuid: 
             }
 
 
-async def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
-    require_inputs(args)
-
+async def run_smoke(args: argparse.Namespace, summary: dict[str, Any]) -> dict[str, Any]:
     eyepop_url = args.eyepop_url or ENV_URLS[args.environment]
-    worker_kwargs, session_name_supported = async_worker_kwargs(args, eyepop_url)
-    started = time.monotonic()
     session_uuid = ""
-    summary: dict[str, Any] = {
-        "ok": False,
-        "environment": args.environment,
-        "sdk_version": __version__,
-        "eyepop_url": eyepop_url,
-        "image": str(args.image),
-        "ability": args.ability,
-        "expected_class": args.expected_class,
-        "min_objects": args.min_objects,
-        "min_confidence": args.min_confidence,
-        "session_name": args.session_name or "",
-        "session_name_supported": session_name_supported,
-        "session_name_applied": "session_name" in worker_kwargs,
-        "session_uuid": "",
-        "session_uuid_short": "",
-        "cleanup": {"ok": True, "result": "not_started"},
-    }
+    worker_kwargs: dict[str, Any] = {}
 
     try:
+        summary["phase"] = "validation"
+        require_inputs(args)
+        worker_kwargs, session_name_supported = async_worker_kwargs(args, eyepop_url)
+        summary.update(
+            {
+                "environment": args.environment,
+                "sdk_version": __version__,
+                "eyepop_url": eyepop_url,
+                "image": str(args.image),
+                "ability": args.ability,
+                "expected_class": args.expected_class,
+                "min_objects": args.min_objects,
+                "min_confidence": args.min_confidence,
+                "session_name": args.session_name or "",
+                "session_name_supported": session_name_supported,
+                "session_name_applied": "session_name" in worker_kwargs,
+            }
+        )
+
+        summary["phase"] = "session_creation"
         async with EyePopSdk.async_worker(**worker_kwargs) as raw_endpoint:
             endpoint = cast(WorkerEndpoint, raw_endpoint)
-            await endpoint.set_pop(build_pop(args))
             compute_ctx = getattr(endpoint, "compute_ctx", None)
             session_uuid = getattr(compute_ctx, "session_uuid", "") or ""
             summary["session_uuid"] = session_uuid
             summary["session_uuid_short"] = session_uuid[:8] if session_uuid else ""
 
+            summary["phase"] = "session_setup"
+            await endpoint.set_pop(build_pop(args))
+
+            summary["phase"] = "prediction"
             job = await endpoint.upload(str(args.image))
             predictions: list[dict[str, Any]] = []
             while result := await job.predict():
@@ -265,13 +273,15 @@ async def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 and prediction_summary["matching_object_count"] >= args.min_objects
             )
             if not smoke_ok:
-                summary["error"] = (
+                record_failure(
+                    summary,
+                    "assertion",
                     f"Expected at least {args.min_objects} {args.expected_class!r} objects "
                     f"with confidence >= {args.min_confidence}; got "
-                    f"{prediction_summary['matching_object_count']}"
+                    f"{prediction_summary['matching_object_count']}",
                 )
     except Exception as exc:
-        summary["error"] = f"{type(exc).__name__}: {exc}"
+        record_failure(summary, str(summary.get("phase", "harness")), f"{type(exc).__name__}: {exc}")
     finally:
         if session_uuid and not args.no_cleanup:
             try:
@@ -289,32 +299,50 @@ async def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         elif args.no_cleanup:
             summary["cleanup"] = {"ok": True, "result": "skipped"}
         else:
-            summary["cleanup"] = {"ok": False, "result": "missing_session_uuid"}
+            summary["cleanup"] = {"ok": True, "result": "not_required"}
 
-    summary["duration_seconds"] = round(time.monotonic() - started, 3)
-    summary["ok"] = "error" not in summary and bool(summary.get("cleanup", {}).get("ok", False))
     return summary
 
 
-def write_summary(path: Path, summary: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+def summary_path_from_argv(argv: list[str]) -> Path:
+    for index, argument in enumerate(argv):
+        if argument == "--summary-json" and index + 1 < len(argv):
+            return Path(argv[index + 1])
+        if argument.startswith("--summary-json="):
+            return Path(argument.split("=", 1)[1])
+    return Path(os.getenv("EYEPOP_SMOKE_SUMMARY_JSON", "session-smoke-summary.json"))
 
 
 async def main() -> int:
-    args = parse_args()
-    summary: dict[str, Any]
+    started = time.monotonic()
+    summary_path = summary_path_from_argv(sys.argv[1:])
+    summary = new_summary(
+        environment=os.getenv("EYEPOP_ENV", "production"),
+        requested_sdk_version=os.getenv("SDK_VERSION", ""),
+        sdk_version=__version__,
+        session_name=os.getenv("EYEPOP_SESSION_NAME", ""),
+    )
     try:
-        summary = await asyncio.wait_for(run_smoke(args), timeout=args.timeout_seconds)
+        summary["phase"] = "validation"
+        args = parse_args()
+        summary_path = args.summary_json
+        summary.update(
+            {
+                "environment": args.environment,
+                "session_name": args.session_name or "",
+            }
+        )
+        summary = await asyncio.wait_for(run_smoke(args, summary), timeout=args.timeout_seconds)
+    except SystemExit as exc:
+        record_failure(summary, "validation", f"Argument parsing failed with exit code {exc.code}")
     except Exception as exc:
-        summary = {
-            "ok": False,
-            "environment": args.environment,
-            "session_name": args.session_name or "",
-            "error": f"{type(exc).__name__}: {exc}",
-        }
+        record_failure(summary, str(summary.get("phase", "harness")), f"{type(exc).__name__}: {exc}")
 
-    write_summary(args.summary_json, summary)
+    finalize_summary(summary, started)
+    try:
+        write_summary(summary_path, summary)
+    except OSError as exc:
+        record_failure(summary, "harness", f"Unable to write JSON summary: {type(exc).__name__}: {exc}")
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0 if summary.get("ok") else 1
 
