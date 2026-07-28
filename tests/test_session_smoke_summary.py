@@ -7,7 +7,7 @@ from argparse import Namespace
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, AsyncIterator
 
 import pytest
 
@@ -51,7 +51,7 @@ def smoke_args(image: Path, **overrides: Any) -> Namespace:
 
 
 @asynccontextmanager
-async def failing_worker() -> Any:
+async def failing_worker() -> AsyncIterator[Any]:
     raise RuntimeError("token exchange unavailable")
     yield
 
@@ -76,7 +76,7 @@ class Endpoint:
 
 
 @asynccontextmanager
-async def worker(endpoint: Endpoint) -> Any:
+async def worker(endpoint: Endpoint) -> AsyncIterator[Endpoint]:
     yield endpoint
 
 
