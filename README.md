@@ -23,7 +23,7 @@ with EyePopSdk.sync_worker() as endpoint:
 Set `EYEPOP_API_KEY` in your environment (get one at [dashboard.eyepop.ai](https://dashboard.eyepop.ai)), or pass `api_key=...` to `sync_worker()`:
 
 ```python
-endpoint = EyePopSdk.sync_worker(api_key='my-api-key', pop_id='my-pop-id')
+endpoint = EyePopSdk.sync_worker(api_key='my-api-key')
 ```
 
 ## Configuration
@@ -34,6 +34,7 @@ Credentials are read from environment variables. Set **one** auth method:
 |---|---|
 | `EYEPOP_API_KEY` | API key from your dashboard. |
 | `EYEPOP_ACCESS_TOKEN` | Pre-issued OAuth access token. |
+| `EYEPOP_SECRET_KEY` | Secret key for a named pop. |
 
 Optional:
 
@@ -220,8 +221,7 @@ pop = Pop(components=[
         params={'prompts': [{'prompt': 'person'}]},
         forward=CropForward(targets=[
             InferenceComponent(
-                ability='eyepop.image-contents:latest',
-                params={'prompts': [{'prompt': 'hair color?'}]},
+                ability='my-company.describe-hair-color:latest',
             ),
         ]),
     ),
