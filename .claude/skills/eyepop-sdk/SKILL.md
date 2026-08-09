@@ -148,6 +148,32 @@ from eyepop.data.data_types import (
 )
 ```
 
+## Model Artifact Variants
+
+A model can carry multiple artifact variants per export format, keyed by an open
+attribute dict (well-known values: `Quantization`, `TargetRuntime` enums). Upload:
+
+```python
+from eyepop.data.data_types import ModelExportFormat, Quantization, TargetRuntime
+
+# List values expand to the cartesian product: one binary, two variant rows.
+variant = {"quantization": Quantization.int8,
+           "target_runtime": [TargetRuntime.cuda_cc_86, TargetRuntime.cuda_cc_87]}
+endpoint.upload_model_artifact(model_uuid, ModelExportFormat.ONNX, "model.onnx", stream, variant=variant)
+# Uploading model.json/ability.json with the IDENTICAL variant dict is the one-shot
+# commit that flips all rows of the set to finished. Finished exports are immutable (409).
+endpoint.upload_model_artifact(model_uuid, ModelExportFormat.ONNX, "model.json", manifest, variant=variant)
+```
+
+Fetch (exactly one combination; strict equality, falls back to the default variant):
+
+```python
+urls = endpoint.export_model_urls([model_uuid], [ModelExportFormat.ONNX],
+                                  variant={"quantization": "int8", "target_runtime": "cuda_cc_87"})
+```
+
+`device_name` on the fetch methods is deprecated — use `variant={"qualcomm_device_name": ...}`.
+
 ## Examples Directory
 
 Located at `~/Code/eyepop/eyepop-sdk-python/examples/`

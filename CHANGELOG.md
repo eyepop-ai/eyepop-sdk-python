@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Model artifact variant support on the Data API (OPA-75): `upload_model_artifact()` accepts `exported_by` and a `variant` attribute dict (list values expand to the cartesian product, registering one binary for multiple variants); `export_model_urls()` / `export_model_artifacts()` accept a single-combination `variant` for exact-match selection with default-variant fallback; `ModelExport` exposes `variant`; new `Quantization` and `TargetRuntime` enums carry the well-known variant values.
+
+### Deprecated
+- `device_name` on `export_model_urls()` / `export_model_artifacts()` — use `variant={"qualcomm_device_name": ...}` instead.
 - Scheduled sessions smoke workflow for validating transient SDK inference against production with optional Slack status alerts and selectable SDK package versions.
 - `session_name` support on worker session creation, also configurable via `EYEPOP_SESSION_NAME`.
 - `pop` support on worker session creation so transient compute sessions can be scheduled before starting a worker pipeline.
