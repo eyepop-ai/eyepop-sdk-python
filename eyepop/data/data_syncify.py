@@ -27,6 +27,7 @@ from eyepop.data.data_types import (
     EvaluateRequest,
     EvaluateResponse,
     EventHandler,
+    ExportedBy,
     ExportedUrlResponse,
     InferRequest,
     InferRunInfo,
@@ -537,8 +538,10 @@ class SyncDataEndpoint(SyncEndpoint):
         return run_coro_thread_save(self.event_loop, self.endpoint.create_model(model=model, account_uuid=account_uuid)) # type: ignore [no-any-return]
 
     def upload_model_artifact(self, model_uuid: str, model_format: ModelExportFormat, artifact_name: str,
-                                    stream: BinaryIO, mime_type: str = 'application/octet-stream'):
-        run_coro_thread_save(self.event_loop, self.endpoint.upload_model_artifact(model_uuid, model_format, artifact_name, stream, mime_type))
+                                    stream: BinaryIO, mime_type: str = 'application/octet-stream',
+                                    exported_by: ExportedBy = ExportedBy.eyepop,
+                                    variant: dict[str, str | list[str]] | None = None):
+        run_coro_thread_save(self.event_loop, self.endpoint.upload_model_artifact(model_uuid, model_format, artifact_name, stream, mime_type, exported_by, variant))
 
     def create_model_from_dataset(self, dataset_uuid: str, dataset_version: int, model: ModelCreate, start_training: bool = True) -> Model:
         return run_coro_thread_save(self.event_loop, self.endpoint.create_model_from_dataset(dataset_uuid, dataset_version, model, start_training)) # type: ignore [no-any-return]
@@ -655,7 +658,8 @@ class SyncDataEndpoint(SyncEndpoint):
             self,
             model_uuids: list[str],
             model_formats: list[ModelExportFormat],
-            device_name: str | None
+            device_name: str | None = None,
+            variant: dict[str, str] | None = None
     ) -> list[ExportedUrlResponse]:
         return run_coro_thread_save( # type: ignore [no-any-return]
             self.event_loop,
@@ -663,6 +667,7 @@ class SyncDataEndpoint(SyncEndpoint):
                 model_uuids=model_uuids,
                 model_formats=model_formats,
                 device_name=device_name,
+                variant=variant,
             )
         )
 
@@ -670,8 +675,9 @@ class SyncDataEndpoint(SyncEndpoint):
             self,
             model_uuids: list[str],
             model_formats: list[ModelExportFormat],
-            device_name: str | None,
-            artifact_type: ArtifactType | None
+            device_name: str | None = None,
+            artifact_type: ArtifactType | None = None,
+            variant: dict[str, str] | None = None
     ) -> typing.BinaryIO:
         async_stream_reader = run_coro_thread_save(
             self.event_loop,
@@ -680,6 +686,7 @@ class SyncDataEndpoint(SyncEndpoint):
                 model_formats=model_formats,
                 device_name=device_name,
                 artifact_type=artifact_type,
+                variant=variant,
             )
         )
         sync_io = self._async_reader_to_sync_binary_io(async_stream_reader)

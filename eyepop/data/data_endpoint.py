@@ -1,7 +1,8 @@
 import asyncio
 import json
+import warnings
 from asyncio import StreamReader
-from typing import Any, AsyncIterable, BinaryIO, Callable, Sequence
+from typing import Any, AsyncIterable, BinaryIO, Callable, Mapping, Sequence
 from urllib.parse import quote_plus, urlencode, urljoin
 
 import aiohttp
@@ -37,6 +38,7 @@ from eyepop.data.data_types import (
     DownloadResponse,
     EvaluateRequest,
     EventHandler,
+    ExportedBy,
     ExportedUrlResponse,
     InferRequest,
     ListWorkflowItem,
@@ -68,6 +70,16 @@ from eyepop.settings import settings
 
 WS_INITIAL_RECONNECT_DELAY = 1.0
 WS_MAX_RECONNECT_DELAY = 60.0
+
+
+def _variant_query(variant: Mapping[str, str | list[str]] | None) -> str:
+    if not variant:
+        return ""
+    return "&".join(
+        f"variant={quote_plus(f'{key}={value}')}"
+        for key, values in variant.items()
+        for value in (values if isinstance(values, list) else [values])
+    )
 
 
 class DataClientSession(ClientSession):
@@ -797,8 +809,21 @@ class DataEndpoint(Endpoint):
             return parse_obj_as(Model, await resp.json()) # type: ignore [no-any-return]
 
     async def upload_model_artifact(self, model_uuid: str, model_format: ModelExportFormat, artifact_name: str,
-                                    stream: BinaryIO, mime_type: str = 'application/octet-stream') -> None:
-        put_url = f'{await self.data_base_url()}/models/{model_uuid}/exports/eyepop/formats/{model_format}/artifacts/{artifact_name}'
+                                    stream: BinaryIO, mime_type: str = 'application/octet-stream',
+                                    exported_by: ExportedBy = ExportedBy.eyepop,
+                                    variant: dict[str, str | list[str]] | None = None) -> None:
+        """Upload a model artifact, optionally registering it for one or more export variants.
+
+        A list value in `variant` expands to the cartesian product of all given attributes
+        (server-enforced limit of 256 combinations): the binary is stored once and registered
+        for every combination. The upload of `model.json`/`ability.json` is the one-shot commit
+        that flips all export rows of the variant set to `finished` — it must be called with the
+        identical `variant` as the preceding artifact uploads.
+        """
+        variant_query = _variant_query(variant)
+        put_url = (f'{await self.data_base_url()}/models/{model_uuid}/exports/{exported_by}'
+                   f'/formats/{model_format}/artifacts/{artifact_name}'
+                   f'{f"?{variant_query}" if variant_query else ""}')
         async with await self.request_with_retry("PUT", put_url, data=stream, content_type=mime_type,
                                                  timeout=aiohttp.ClientTimeout(total=None, sock_read=600)):
             return
@@ -990,7 +1015,16 @@ class DataEndpoint(Endpoint):
             return TypeAdapter(list[ModelTrainingAuditRecord]).validate_python(await resp.json()) # type: ignore [no-any-return]
 
 
-    async def export_model_urls(self, model_uuids: list[str], model_formats: list[ModelExportFormat], device_name: str | None) -> list[ExportedUrlResponse]:
+    async def export_model_urls(self, model_uuids: list[str], model_formats: list[ModelExportFormat], device_name: str | None = None,
+                                variant: dict[str, str] | None = None) -> list[ExportedUrlResponse]:
+        """Fetch export URLs, optionally for a single specific variant.
+
+        Exports are matched by strict variant equality, falling back to the default variant
+        (the export without variant attributes) when no export matches exactly.
+        """
+        if device_name is not None:
+            warnings.warn("device_name is deprecated, use variant={'qualcomm_device_name': ...} instead",
+                          DeprecationWarning, stacklevel=2)
         model_uuid_query = ""
         for model_uuid in model_uuids:
             model_uuid_query += f"model_uuid={model_uuid}&"
@@ -998,7 +1032,8 @@ class DataEndpoint(Endpoint):
         for model_format in model_formats:
             model_format_query += f"model_format={model_format}&"
         device_name_query = f"device_name={quote_plus(device_name)}&" if device_name is not None else ""
-        get_url = f'{await self.data_base_url()}/exports/model_urls?{model_uuid_query}{model_format_query}{device_name_query}'
+        variant_query = _variant_query(variant)
+        get_url = f'{await self.data_base_url()}/exports/model_urls?{model_uuid_query}{model_format_query}{device_name_query}{variant_query}'
         async with await self.request_with_retry("GET", get_url) as resp:
             return TypeAdapter(list[ExportedUrlResponse]).validate_python(await resp.json()) # type: ignore [no-any-return]
 
@@ -1010,7 +1045,17 @@ class DataEndpoint(Endpoint):
         async with await self.request_with_retry("GET", get_url) as resp:
             return TypeAdapter(list[AliasResolution]).validate_python(await resp.json()) # type: ignore [no-any-return]
 
-    async def export_model_artifacts(self, model_uuids: list[str], model_formats: list[ModelExportFormat], device_name: str | None, artifact_type: ArtifactType | None) -> StreamReader:
+    async def export_model_artifacts(self, model_uuids: list[str], model_formats: list[ModelExportFormat], device_name: str | None = None,
+                                     artifact_type: ArtifactType | None = None,
+                                     variant: dict[str, str] | None = None) -> StreamReader:
+        """Fetch export artifacts, optionally for a single specific variant.
+
+        Exports are matched by strict variant equality, falling back to the default variant
+        (the export without variant attributes) when no export matches exactly.
+        """
+        if device_name is not None:
+            warnings.warn("device_name is deprecated, use variant={'qualcomm_device_name': ...} instead",
+                          DeprecationWarning, stacklevel=2)
         model_uuid_query = ""
         for model_uuid in model_uuids:
             model_uuid_query += f"model_uuid={model_uuid}&"
@@ -1019,8 +1064,9 @@ class DataEndpoint(Endpoint):
             model_format_query += f"model_format={model_format}&"
         device_name_query = f"device_name={quote_plus(device_name)}&" if device_name is not None else ""
         type_query = f"artifact_type={artifact_type}&" if artifact_type is not None else ""
+        variant_query = _variant_query(variant)
 
-        get_url = f'{await self.data_base_url()}/exports/model_artifacts?{model_uuid_query}{model_format_query}{device_name_query}{type_query}'
+        get_url = f'{await self.data_base_url()}/exports/model_artifacts?{model_uuid_query}{model_format_query}{device_name_query}{type_query}{variant_query}'
         resp = await self.request_with_retry("GET", get_url)
         return resp.content  # type: ignore [no-any-return]
 

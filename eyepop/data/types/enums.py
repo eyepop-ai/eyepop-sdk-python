@@ -83,6 +83,32 @@ class ExportedBy(enum.StrEnum):
     qc_ai_hub = enum.auto()
 
 
+class Quantization(enum.StrEnum):
+    """Well-known values for the 'quantization' model export variant attribute."""
+    int8 = enum.auto()
+    uint8 = enum.auto()
+    fp16 = enum.auto()
+    fp32 = enum.auto()
+
+
+class TargetRuntime(enum.StrEnum):
+    """Well-known values for the 'target_runtime' model export variant attribute."""
+    cuda_cc_75 = enum.auto()
+    cuda_cc_80 = enum.auto()
+    cuda_cc_86 = enum.auto()
+    cuda_cc_87 = enum.auto()
+    cuda_cc_89 = enum.auto()
+    cuda_cc_90 = enum.auto()
+    cuda_cc_110 = enum.auto()
+    cuda_cc_120 = enum.auto()
+    qnn_dsp = enum.auto()
+    qnn_htp = enum.auto()
+    qnn_hta = enum.auto()
+    qnn_lpai = enum.auto()
+    qnn_cpu = enum.auto()
+    qnn_gpu = enum.auto()
+
+
 class ModelTask(enum.StrEnum):
     object_detection = enum.auto()
     image_classification = enum.auto()
