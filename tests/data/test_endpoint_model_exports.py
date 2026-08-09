@@ -1,6 +1,7 @@
 import io
 import json
 import unittest
+from urllib.parse import unquote_plus
 
 from aioresponses import aioresponses
 from yarl import URL
@@ -30,6 +31,10 @@ class TestEndpointModelExports(BaseEndpointTest):
 
     def requested_urls(self, mock: aioresponses, path: str) -> list[URL]:
         return [key[1] for key in mock.requests.keys() if key[1].path == path]
+
+    def requested_variants(self, url: URL) -> list[str]:
+        # yarl versions differ in whether query values are returned percent-decoded.
+        return [unquote_plus(v) for v in url.query.getall('variant')]
 
     @aioresponses()
     def test_upload_model_artifact_default_variant(self, mock: aioresponses):
@@ -71,7 +76,7 @@ class TestEndpointModelExports(BaseEndpointTest):
         requested = self.requested_urls(mock, expected_path)
         self.assertEqual(len(requested), 1)
         self.assertEqual(
-            requested[0].query.getall('variant'),
+            self.requested_variants(requested[0]),
             ['quantization=int8', 'target_runtime=cuda_cc_86', 'target_runtime=cuda_cc_87'],
         )
 
@@ -100,7 +105,7 @@ class TestEndpointModelExports(BaseEndpointTest):
         requested = self.requested_urls(mock, '/exports/model_urls')
         self.assertEqual(len(requested), 1)
         self.assertEqual(
-            requested[0].query.getall('variant'),
+            self.requested_variants(requested[0]),
             ['quantization=int8', 'target_runtime=cuda_cc_87'],
         )
         self.assertNotIn('device_name', requested[0].query)
@@ -139,7 +144,7 @@ class TestEndpointModelExports(BaseEndpointTest):
 
         requested = self.requested_urls(mock, '/exports/model_artifacts')
         self.assertEqual(len(requested), 1)
-        self.assertEqual(requested[0].query.getall('variant'), ['quantization=int8'])
+        self.assertEqual(self.requested_variants(requested[0]), ['quantization=int8'])
         self.assertNotIn('device_name', requested[0].query)
 
     @aioresponses()
