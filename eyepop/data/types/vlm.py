@@ -2,6 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal, Sequence
 
+from openapi_pydantic import Schema
 from pydantic import BaseModel, Field
 
 from eyepop.data.types.asset import Area
@@ -79,6 +80,26 @@ class InferRequest(BaseModel):
     transform_into: TransformInto | None = Field(
         default=None,
         description="Optional instructions to transform the raw VLM text output",
+    )
+    response_schema: Schema | None = Field(
+        default=None,
+        description=(
+            "Schema to constrain the output. When set, guarantees "
+            "structured object matching this Open API schema. The parsed "
+            "object is returned on each prediction's `details` attribute."
+        ),
+        examples=[
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["label"],
+                "properties": {
+                    "label": {"enum": ["dog", "cat", "other"]},
+                    "count": {"type": "integer"},
+                    "notes": {"type": "string"},
+                },
+            }
+        ],
     )
 
 
@@ -210,6 +231,26 @@ class AutoPromptConfig(BaseModel):
         description="InferConfig for VLM inference. The transform_into.classes field "
         "specifies the possible labels for classification.",
     )
+    response_schema: Schema | None = Field(
+        default=None,
+        description=(
+            "Schema to constrain the output. When set, guarantees "
+            "structured object matching this Open API schema. The parsed "
+            "object is returned on each prediction's `details` attribute."
+        ),
+        examples=[
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["label"],
+                "properties": {
+                    "label": {"enum": ["dog", "cat", "other"]},
+                    "count": {"type": "integer"},
+                    "notes": {"type": "string"},
+                },
+            }
+        ],
+    )
     evaluate: EvaluateConfig = Field(
         description="EvaluateConfig for VLM evaluation.",
     )
@@ -276,6 +317,26 @@ class VlmAbilityCreate(BaseModel):
         default_factory=TransformInto,
         description="Optional transform instruction of the text result into structured response, e.g. classes.",
     )
+    response_schema: Schema | None = Field(
+        default=None,
+        description=(
+            "Schema to constrain the output. When set, guarantees "
+            "structured object matching this Open API schema. The parsed "
+            "object is returned on each prediction's `details` attribute."
+        ),
+        examples=[
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["label"],
+                "properties": {
+                    "label": {"enum": ["dog", "cat", "other"]},
+                    "count": {"type": "integer"},
+                    "notes": {"type": "string"},
+                },
+            }
+        ],
+    )
     config: InferRuntimeConfig = Field(
         default_factory=InferRuntimeConfig,
         description="Optional inference configuration for VLM inference of this ability.",
@@ -318,6 +379,26 @@ class VlmAbilityUpdate(BaseModel):
     transform_into: TransformInto | None = Field(
         default=None,
         description="Optional transform instruction of the text result into structured response, e.g. classes.",
+    )
+    response_schema: Schema | None = Field(
+        default=None,
+        description=(
+            "Schema to constrain the output. When set, guarantees "
+            "structured object matching this Open API schema. The parsed "
+            "object is returned on each prediction's `details` attribute."
+        ),
+        examples=[
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["label"],
+                "properties": {
+                    "label": {"enum": ["dog", "cat", "other"]},
+                    "count": {"type": "integer"},
+                    "notes": {"type": "string"},
+                },
+            }
+        ],
     )
     config: InferRuntimeConfig | None = Field(
         default=None,
@@ -381,6 +462,26 @@ class VlmAbilityResponse(BaseModel):
     transform_into: TransformInto | None = Field(
         default=None,
         description="Optional transform instruction of the text result into structured response, e.g. classes.",
+    )
+    response_schema: Schema | None = Field(
+        default=None,
+        description=(
+            "Schema to constrain the output. When set, guarantees "
+            "structured object matching this Open API schema. The parsed "
+            "object is returned on each prediction's `details` attribute."
+        ),
+        examples=[
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["label"],
+                "properties": {
+                    "label": {"enum": ["dog", "cat", "other"]},
+                    "count": {"type": "integer"},
+                    "notes": {"type": "string"},
+                },
+            }
+        ],
     )
     config: InferRuntimeConfig | None = Field(
         default=None,
