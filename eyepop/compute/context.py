@@ -55,7 +55,10 @@ class ComputeContext(BaseModel):
 def first_pipeline_id(pipelines: list[dict]) -> str:
     if not pipelines:
         return ""
-    return pipelines[0].get("pipeline_id", "")
+    pipeline_id = pipelines[0].get("pipeline_id", "")
+    if not pipeline_id:
+        pipeline_id = pipelines[0].get("id", "")
+    return pipeline_id
 
 
 class PipelineStatus(str, Enum):

@@ -16,13 +16,18 @@ log = logging.getLogger("eyepop.compute")
 async def fetch_session_endpoint(
     compute_ctx: ComputeContext,
     client_session: aiohttp.ClientSession,
-    permanent_session_uuid: str | None
+    permanent_session_uuid: str | None,
+    is_local_mode: bool = False,
 ) -> ComputeContext:
     """Fetch or create a compute API session, then poll until ready."""
     if permanent_session_uuid is None:
         compute_context = await fetch_new_compute_session(compute_ctx, client_session)
 
-        got_session = await wait_for_session(compute_context, client_session)
+        if not is_local_mode:
+            got_session = await wait_for_session(compute_context, client_session)
+        else:
+            got_session = True
+
         if got_session:
             return compute_context
     else:
