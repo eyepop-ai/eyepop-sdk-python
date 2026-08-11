@@ -68,6 +68,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             pipeline_version: str | None = None,
             session_name: str | None = None,
             pop: Pop | dict[str, Any] | None = None,
+            is_local_mode: bool = False
     ):
         super().__init__(
             secret_key=secret_key,
@@ -78,6 +79,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             api_key=api_key,
             session_uuid=session_uuid,
         )
+        self.is_local_mode = is_local_mode
         self.pop_id = pop_id
         self.auto_start = auto_start
         self.stop_jobs = stop_jobs
@@ -169,6 +171,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                     compute_ctx=self.compute_ctx,
                     client_session=self.client_session,
                     permanent_session_uuid=self.permanent_session_uuid,
+                    is_local_mode=self.is_local_mode,
                 )
                 self.eyepop_url = self.compute_ctx.session_endpoint
                 log_requests.debug(f"Compute session ready: {self.compute_ctx.session_endpoint}")
@@ -305,6 +308,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         self.eyepop_url = self.compute_ctx.session_endpoint
 
         pipeline_id = self.compute_ctx.pipeline_id if self.compute_ctx.pipeline_owned else ""
+
         if self.worker_config is None:
             self.worker_config = {
                 "session_endpoint": self.compute_ctx.session_endpoint,
