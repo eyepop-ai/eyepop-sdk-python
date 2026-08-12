@@ -38,7 +38,6 @@ from eyepop.data.types.common import (
 
 from eyepop.data.types.prediction import (
     PredictedClass,
-    PredictedDetails,
     PredictedEmbedding,
     PredictedKeyPoint,
     PredictedKeyPoints,
@@ -167,7 +166,6 @@ __all__ = [
     "Point2d",
     "Point3d",
     "PredictedClass",
-    "PredictedDetails",
     "PredictedEmbedding",
     "PredictedKeyPoint",
     "PredictedKeyPoints",
