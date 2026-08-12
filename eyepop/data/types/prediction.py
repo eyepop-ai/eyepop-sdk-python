@@ -62,6 +62,7 @@ class PredictedObject(PredictedClass):
     texts: List[PredictedText] | None = None
     meshs: List[PredictedMesh] | None = None
     keyPoints: List[PredictedKeyPoints] | None = None
+    details: List[dict[str, Any]] | None = None
 
 
 class PredictedMotion(BaseModel):
@@ -116,5 +117,5 @@ class Prediction(BaseModel):
     meshs: List[PredictedMesh] | None = None
     keyPoints: List[PredictedKeyPoints] | None = None
     embeddings: List[PredictedEmbedding] | None = None
-    motions: List[PredictedMotion] | None = None
     details: List[dict[str, Any]] | None = None
+    motions: List[PredictedMotion] | None = None
