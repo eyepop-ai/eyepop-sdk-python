@@ -69,10 +69,6 @@ class PredictedMotion(BaseModel):
     finished_timestamp: int | None = None
 
 
-class PredictedDetails(BaseModel):
-    data: dict[str, Any] | None = None
-
-
 class Prediction(BaseModel):
     """Represents a prediction for an asset or a chunk of an asset."""
 
@@ -121,4 +117,4 @@ class Prediction(BaseModel):
     keyPoints: List[PredictedKeyPoints] | None = None
     embeddings: List[PredictedEmbedding] | None = None
     motions: List[PredictedMotion] | None = None
-    details: List[PredictedDetails] | None = None
+    details: List[dict[str, Any]] | None = None
