@@ -107,6 +107,9 @@ class TargetRuntime(enum.StrEnum):
     qnn_lpai = enum.auto()
     qnn_cpu = enum.auto()
     qnn_gpu = enum.auto()
+    openvino_cpu = enum.auto()
+    openvino_gpu = enum.auto()
+    openvino_npu = enum.auto()
 
 
 class ModelTask(enum.StrEnum):
