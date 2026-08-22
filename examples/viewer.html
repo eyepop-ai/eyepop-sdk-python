@@ -16,6 +16,8 @@
                 const context = resultOverlay.getContext('2d');
                 context.clearRect(0,0,resultOverlay.width, resultOverlay.height);
                 const renderer = Render2d.renderer(context,[
+                  // renderDepth ships with @eyepop.ai/eyepop-render-2d >= 3.19.0
+                  ...(Render2d.renderDepth ? [Render2d.renderDepth()] : []),
                   Render2d.renderMask(),
                   Render2d.renderContour(),
                   Render2d.renderPose(),

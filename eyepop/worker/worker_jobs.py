@@ -23,6 +23,26 @@ from eyepop.worker.worker_types import (
 log_requests = logging.getLogger('eyepop.requests')
 
 
+async def _iter_lines(content: aiohttp.StreamReader) -> AsyncIterable[bytes]:
+    """Yield the newline delimited lines of a response body.
+
+    aiohttp's `readline()` raises ValueError('Chunk too big') for lines longer
+    than the session's read_bufsize (64kb by default). Predictions can carry
+    large binary members - a single depth map is ~1mb of base64 per frame - so
+    lines are accumulated here instead, without a size limit.
+    """
+    buffer = bytearray()
+    async for chunk in content.iter_any():
+        buffer.extend(chunk)
+        start = 0
+        while (index := buffer.find(b'\n', start)) >= 0:
+            yield bytes(buffer[start:index + 1])
+            start = index + 1
+        del buffer[:start]
+    if buffer:
+        yield bytes(buffer)
+
+
 class WorkerJob(Job):
     """Abstract Job submitted to an EyePop.ai WorkerEndpoint."""
     _component_params: list[ComponentParams] | None
@@ -78,7 +98,7 @@ class WorkerJob(Job):
             response = self._response
             try:
                 self._callback.first_result(self)
-                while line := await response.content.readline():
+                async for line in _iter_lines(response.content):
                     # TODO aiohttp should do do this internally
                     for trace in response._traces:
                         await trace.send_response_chunk_received(

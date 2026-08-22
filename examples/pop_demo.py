@@ -217,6 +217,12 @@ pop_examples = {
             ability='eyepop.localize-objects:latest',
         )
     ]),
+    "depth": Pop(components=[
+        InferenceComponent(
+            id=1,
+            ability='eyepop.depth.large:latest',
+        )
+    ]),
     "localize-objects-plus": Pop(components=[
         InferenceComponent(
             id=1,
@@ -290,6 +296,24 @@ def rectangle_roi(arg: str) -> Area:
         width=roi[2],
         height=roi[3],
     )
+
+
+def replace_binary_members(value):
+    """Summarize large binary members (depth values, mask bitmaps).
+
+    Replaces base64 payloads with a short description instead of dumping
+    megabytes of base64 to the console.
+    """
+    if isinstance(value, dict):
+        replaced = {k: replace_binary_members(v) for k, v in value.items()}
+        if isinstance(replaced.get("values"), str) and "width" in replaced and "height" in replaced:
+            replaced["values"] = f"<{replaced['width']}x{replaced['height']} base64 float32, {len(value['values'])} chars>"
+        if isinstance(replaced.get("bitmap"), str) and "width" in replaced and "height" in replaced:
+            replaced["bitmap"] = f"<{replaced['width']}x{replaced['height']} base64 bitmap, {len(value['bitmap'])} chars>"
+        return replaced
+    if isinstance(value, list):
+        return [replace_binary_members(v) for v in value]
+    return value
 
 
 def add_optional_tracking_to_component(component: ForwardComponent, tracking_args: Namespace):
@@ -544,7 +568,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                     visualize_prediction = result
                     visualize_path = path
                     if args.output:
-                        print(path, json.dumps(result, indent=2))
+                        print(path, json.dumps(replace_binary_members(result), indent=2))
             for local_file in local_files:
                 job = await endpoint.upload(
                     local_file,
@@ -573,7 +597,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:
-                    print(json.dumps(result, indent=2))
+                    print(json.dumps(replace_binary_members(result), indent=2))
             if args.visualize:
                 example_image_src = args.url
         elif args.proxy_url:
@@ -588,7 +612,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                 ):
                     visualize_prediction = result
                     if args.output:
-                        print(json.dumps(result, indent=2))
+                        print(json.dumps(replace_binary_members(result), indent=2))
                 if args.visualize:
                     example_image_src = args.url
             elif args.proxy_url.startswith("rtsp:"):
@@ -602,7 +626,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                 ):
                     visualize_prediction = result
                     if args.output:
-                        print(json.dumps(result, indent=2))
+                        print(json.dumps(replace_binary_members(result), indent=2))
                 if args.visualize:
                     example_image_src = args.url
             else:
@@ -621,7 +645,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:
-                    print(json.dumps(result, indent=2))
+                    print(json.dumps(replace_binary_members(result), indent=2))
             if args.visualize:
                 async with EyePopSdk.dataEndpoint(is_async=True) as dataEndpoint:
                     buffer = await dataEndpoint.download_asset(

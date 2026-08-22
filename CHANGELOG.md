@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Frame-level `depth` prediction member (`Depth` type) as produced by depth estimation abilities (e.g. `eyepop.depth.*`): base64 little-endian float32 map with the source frame's aspect ratio, sky pixels as `+Infinity`. New `eyepop.DepthMap` decodes it lazily to a numpy array with sky mask, finite min/max, and proportional source-coordinate sampling; `EyePopPlot.depth()` overlays it as a turbo heatmap. `pop_demo.py` gains a `depth` example and summarizes depth/mask binaries instead of dumping base64; the webui2 viewer renders depth via `Render2d.renderDepth()` where available. numpy is now a declared dependency (it was already required transitively).
+
+### Fixed
+- Predictions larger than the HTTP read buffer (64kb) no longer fail with `ValueError: Chunk too big`. Worker result lines are now accumulated without a size limit instead of relying on `aiohttp`'s `readline()`, which any prediction carrying a depth map exceeds (~1mb of base64 per frame).
+
+### Changed
+- `filter_prediction_top_k` preserves all prediction members (timestamp, depth, embeddings, details, motions, ...) instead of dropping everything but objects/classes/texts/meshs/keyPoints.
 - Model artifact variant support on the Data API (OPA-75): `upload_model_artifact()` accepts `exported_by` and a `variant` attribute dict (list values expand to the cartesian product, registering one binary for multiple variants); `export_model_urls()` / `export_model_artifacts()` accept a single-combination `variant` for exact-match selection with default-variant fallback; `ModelExport` exposes `variant`; new `Quantization` and `TargetRuntime` enums carry the well-known variant values.
 
 ### Deprecated
