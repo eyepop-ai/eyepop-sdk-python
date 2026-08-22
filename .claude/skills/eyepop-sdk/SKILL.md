@@ -184,6 +184,7 @@ Located at `~/Code/eyepop/eyepop-sdk-python/examples/`
 |------|---------|-------------|
 | `pop_demo.py` | Composable pops (main demo) | `python pop_demo.py --pop person -l example.jpg -o` |
 | `caption_demo.py` | VLM caption generation | `python caption_demo.py -c eyepop.vlm.preview:latest -l example.jpg` |
+| `pop_demo.py --pop depth` | Metric depth map (decode with `eyepop.DepthMap`) | `python pop_demo.py --pop depth -l example.jpg -o` |
 | `infer_demo.py` | VLM inference via data API | `python infer_demo.py -m qwen3-instruct -p "describe this" -a <uuid>` |
 | `upload_image_timing.py` | Upload benchmarks (4 strategies) | `python upload_image_timing.py example.jpg 10` |
 | `upload_streaming.py` | Stream upload | `python upload_streaming.py example.jpg` |

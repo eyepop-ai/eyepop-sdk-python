@@ -1,7 +1,10 @@
 import matplotlib.patches as patches
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.axes import Axes
+
+from eyepop.depth_map import DepthMap
 
 
 class EyePopPlot:
@@ -11,10 +14,33 @@ class EyePopPlot:
     def prediction(self, prediction: dict):
         if prediction is None:
             return
+        self.depth(prediction)
         objects = prediction.get('objects', None)
         if objects is not None:
             for obj in objects:
                 self.object(obj)
+
+    def depth(self, prediction: dict, opacity: float = 0.5):
+        """Overlay the prediction's frame-level depth map as a turbo heatmap:
+        near = warm (red/yellow), far = cool (blue), sky (+inf) transparent."""
+        depth_map = DepthMap.from_prediction(prediction)
+        if depth_map is None:
+            return
+        values = depth_map.array
+        sky = np.isinf(values)
+        finite = values[~sky]
+        if finite.size:
+            lo, hi = float(finite.min()), float(finite.max())
+            span = (hi - lo) or 1.0
+            normalized = np.clip((np.where(sky, hi, values) - lo) / span, 0.0, 1.0)
+        else:
+            normalized = np.zeros_like(values)
+        # near = warm end of turbo, far = cool end; sky masked -> transparent
+        colored = plt.get_cmap('turbo')(1.0 - normalized)
+        colored[..., 3] = np.where(sky, 0.0, opacity)
+        extent = (0, prediction.get('source_width', depth_map.width),
+                  prediction.get('source_height', depth_map.height), 0)
+        self.axes.imshow(colored, extent=extent, interpolation='nearest')
 
     def object(self, obj: dict):
         label = self._label(obj)

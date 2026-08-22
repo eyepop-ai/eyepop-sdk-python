@@ -1,23 +1,26 @@
 import heapq
+from typing import TypeVar
 
 from eyepop.data.data_types import PredictedClass, Prediction
 
+_ClassT = TypeVar("_ClassT", bound=PredictedClass)
 
-def _top_k(classes: list[PredictedClass], k: int) -> list[PredictedClass]:
+
+def _top_k(classes: list[_ClassT], k: int) -> list[_ClassT]:
     """Find k classes with the top confidence."""
 
     if len(classes) <= k:
         return classes
 
     # extract (comparison value, value) as heapifyalbe items, using i asa tiebreaker if confidences are equal
-    classes = [((clazz.confidence if clazz.confidence is not None else -1.0), i, clazz) for i, clazz in enumerate(classes)]
+    ranked = [((clazz.confidence if clazz.confidence is not None else -1.0), i, clazz) for i, clazz in enumerate(classes)]
 
     # Create a min-heap with the first k elements
-    min_heap = classes[:k]
+    min_heap = ranked[:k]
     heapq.heapify(min_heap)
 
     # Traverse the rest of the array
-    for x in classes[k:]:
+    for x in ranked[k:]:
         if x[0] > min_heap[0][0]:
             heapq.heappushpop(min_heap, x)
 
@@ -39,12 +42,10 @@ def filter_prediction_top_k(prediction: Prediction, k: int) -> Prediction:
     classes = prediction.classes
     if (objects is None or len(objects) <= k) and (classes is None or len(classes) <= k):
         return prediction
-    return Prediction(
-        source_width=prediction.source_width,
-        source_height=prediction.source_height,
-        objects=_top_k(objects, k) if objects is not None else None,
-        classes=_top_k(classes, k) if classes is not None else None,
-        texts=prediction.texts,
-        meshs=prediction.meshs,
-        keyPoints=prediction.keyPoints,
+    # copy so every other member (timestamp, depth, embeddings, details, ...) is preserved
+    return prediction.model_copy(
+        update={
+            "objects": _top_k(objects, k) if objects is not None else None,
+            "classes": _top_k(classes, k) if classes is not None else None,
+        }
     )
