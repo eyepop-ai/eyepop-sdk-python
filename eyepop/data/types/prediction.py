@@ -2,7 +2,7 @@ from typing import Any, List
 
 from pydantic import BaseModel, Field
 
-from eyepop.data.types.common import Contour, Mask, Point2d, Point3d
+from eyepop.data.types.common import Contour, Depth, Mask, Point2d, Point3d
 
 
 class PredictedClass(BaseModel):
@@ -119,3 +119,4 @@ class Prediction(BaseModel):
     embeddings: List[PredictedEmbedding] | None = None
     details: List[dict[str, Any]] | None = None
     motions: List[PredictedMotion] | None = None
+    depth: Depth | None = None

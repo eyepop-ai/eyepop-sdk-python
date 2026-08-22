@@ -48,6 +48,7 @@ Every example with CLI flags accepts `-h` / `--help`.
 | `load_video_from_http.py` | Process a video by URL. |
 | `live_rtmp_stream.py` | Process a live RTMP stream. |
 | `visualize_on_image.py` | Overlay predictions on an image with matplotlib. |
+| `pop_demo.py --pop depth` | Metric depth maps (`eyepop.depth.*`), summarized output and heatmap overlay. |
 | `visualize_with_webui2.py` | Interactive web viewer for predictions. |
 | `import_dataset.py` | Import local assets into a dataset. |
 | `auth_session.py` | Browser-based OAuth session. |

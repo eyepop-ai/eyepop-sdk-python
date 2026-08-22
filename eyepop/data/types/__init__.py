@@ -31,6 +31,7 @@ from eyepop.data.types.enums import (
 from eyepop.data.types.common import (
     Box,
     Contour,
+    Depth,
     Mask,
     Point2d,
     Point3d,
@@ -162,6 +163,7 @@ __all__ = [
     "MIME_TYPE_APACHE_ARROW_FILE",
     "Box",
     "Contour",
+    "Depth",
     "Mask",
     "Point2d",
     "Point3d",
