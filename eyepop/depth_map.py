@@ -80,9 +80,11 @@ class DepthMap:
         return float(finite.max()) if finite.size else None
 
     def at(self, x: float, y: float, source_width: int | None = None, source_height: int | None = None) -> float:
-        """The depth value at map pixel (x, y), or - when source_width/source_height
-        are given - at source frame coordinate (x, y) mapped proportionally.
-        Returns +inf for sky pixels."""
+        """The depth value at map pixel (x, y), returning +inf for sky pixels.
+
+        When source_width/source_height are given, (x, y) is a source frame
+        coordinate and is mapped to the depth map proportionally.
+        """
         if source_width and source_height:
             x = x * self.width / source_width
             y = y * self.height / source_height

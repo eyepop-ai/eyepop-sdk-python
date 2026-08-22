@@ -299,8 +299,11 @@ def rectangle_roi(arg: str) -> Area:
 
 
 def replace_binary_members(value):
-    """Summarize large binary members (depth values, mask bitmaps) instead of
-    dumping megabytes of base64 to the console."""
+    """Summarize large binary members (depth values, mask bitmaps).
+
+    Replaces base64 payloads with a short description instead of dumping
+    megabytes of base64 to the console.
+    """
     if isinstance(value, dict):
         replaced = {k: replace_binary_members(v) for k, v in value.items()}
         if isinstance(replaced.get("values"), str) and "width" in replaced and "height" in replaced:

@@ -21,8 +21,10 @@ class EyePopPlot:
                 self.object(obj)
 
     def depth(self, prediction: dict, opacity: float = 0.5):
-        """Overlay the prediction's frame-level depth map as a turbo heatmap:
-        near = warm (red/yellow), far = cool (blue), sky (+inf) transparent."""
+        """Overlay the prediction's frame-level depth map as a turbo heatmap.
+
+        Near = warm (red/yellow), far = cool (blue), sky (+inf) transparent.
+        """
         depth_map = DepthMap.from_prediction(prediction)
         if depth_map is None:
             return
