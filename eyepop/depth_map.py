@@ -59,7 +59,15 @@ class DepthMap:
                 raise ValueError(
                     f"depth 'values' holds {len(raw)} bytes, expected {expected} for {self.width}x{self.height} float32"
                 )
-            self._array = np.frombuffer(raw, dtype="<f4").reshape(self.height, self.width)
+            array = np.frombuffer(raw, dtype="<f4").reshape(self.height, self.width)
+            # the wire contract reserves +inf for sky; NaN or -inf indicate a broken payload
+            invalid = ~(np.isfinite(array) | np.isposinf(array))
+            if invalid.any():
+                raise ValueError(
+                    f"depth 'values' contains {int(invalid.sum())} NaN or -Infinity values, "
+                    "only finite values and +Infinity (sky) are allowed"
+                )
+            self._array = array
         return self._array
 
     @property
@@ -79,7 +87,7 @@ class DepthMap:
         finite = self.array[np.isfinite(self.array)]
         return float(finite.max()) if finite.size else None
 
-    def at(self, x: float, y: float, source_width: int | None = None, source_height: int | None = None) -> float:
+    def at(self, x: float, y: float, source_width: float | None = None, source_height: float | None = None) -> float:
         """The depth value at map pixel (x, y), returning +inf for sky pixels.
 
         When source_width/source_height are given, (x, y) is a source frame
@@ -92,5 +100,5 @@ class DepthMap:
         row = min(max(int(y), 0), self.height - 1)
         return float(self.array[row, column])
 
-    def is_sky(self, x: float, y: float, source_width: int | None = None, source_height: int | None = None) -> bool:
+    def is_sky(self, x: float, y: float, source_width: float | None = None, source_height: float | None = None) -> bool:
         return math.isinf(self.at(x, y, source_width, source_height))

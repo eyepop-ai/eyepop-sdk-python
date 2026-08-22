@@ -75,6 +75,15 @@ def test_truncated_payload_raises_value_error():
         _ = depth_map.array
 
 
+@pytest.mark.parametrize("invalid_value", [math.nan, -math.inf])
+def test_noncanonical_non_finite_values_raise_value_error(invalid_value):
+    values = base64.b64encode(struct.pack("<2f", 1.0, invalid_value)).decode()
+    depth_map = DepthMap.from_prediction({"depth": {"width": 2, "height": 1, "values": values}})
+    assert depth_map is not None
+    with pytest.raises(ValueError):
+        _ = depth_map.array
+
+
 def test_top_k_preserves_depth_and_other_members():
     prediction = Prediction(
         source_width=1280,
