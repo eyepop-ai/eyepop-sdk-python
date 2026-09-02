@@ -226,12 +226,16 @@ class EyePopWorldPlot:
     order, since depth reads as distance from the viewer in both frames. See
     AXIS_ORDER; the coordinates themselves are never altered.
 
-    Which frame the metres are in depends on the source's calibration and is not
-    recoverable from the prediction: with extrinsics they are world coordinates,
-    Z up with the ground at Z = 0; without them they are camera coordinates in
-    the OpenCV convention, X right, Y **down**, Z forward. So the vertical axis
-    is not flipped to match either one - guessing wrong would silently turn the
-    scene upside down - and a camera frame plot has Y growing downwards.
+    Which frame the metres are in is not recoverable from the prediction. With
+    extrinsics they are world coordinates, Z up with the ground at Z = 0;
+    without them they are camera coordinates in the OpenCV convention, X right,
+    Y **down**, Z forward.
+
+    `invert_y` flips the vertical axis so that a camera frame scene stands the
+    right way up: Y grows downwards there, so drawn as-is a figure's feet sit
+    above its head. It defaults to on because a source that supplies no
+    extrinsics - or identity ones - gets the camera frame, which is the common
+    case. Pass `invert_y=False` for coordinates already in a Z-up world frame.
     """
 
     # A mask is one point per pixel, so a few objects at a few hundred pixels
@@ -253,8 +257,9 @@ class EyePopWorldPlot:
     AXIS_ORDER = (0, 2, 1)
     AXIS_LABELS = ("X (m)", "Z (m)", "Y (m)")
 
-    def __init__(self, axes: Axes3D):
+    def __init__(self, axes: Axes3D, invert_y: bool = True):
         self.axes = axes
+        self.invert_y = invert_y
         self._plotted = 0
         self._bounds: np.ndarray | None = None
 
@@ -324,6 +329,12 @@ class EyePopWorldPlot:
         self.axes.set_zlabel(self.AXIS_LABELS[2])
         if title is not None:
             self.axes.set_title(title)
+        if self.invert_y and self._bounds is not None:
+            # set from the current limits rather than toggled with invert_zaxis,
+            # so calling finish twice does not undo it
+            low, high = self.axes.get_zlim()
+            if low < high:
+                self.axes.set_zlim(high, low)
         if self._bounds is not None:
             extents = self._bounds[1] - self._bounds[0]
             # a flat axis would make the box zero thick, which matplotlib rejects

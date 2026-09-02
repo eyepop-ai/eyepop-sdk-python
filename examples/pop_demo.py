@@ -621,12 +621,12 @@ elif main_args.model_uuid_sam1:
             forward=CropForward(
                 targets=[InferenceComponent(
                     ability='eyepop.sam.small:latest',
-                    forward=FullForward(
-                        targets=[ContourFinderComponent(
-                            contourType=ContourType.POLYGON,
-                            areaThreshold=0.005
-                        )]
-                    )
+                    # forward=FullForward(
+                    #     targets=[ContourFinderComponent(
+                    #         contourType=ContourType.POLYGON,
+                    #         areaThreshold=0.005
+                    #     )]
+                    # )
                 )]
             )
         )
@@ -642,12 +642,12 @@ elif main_args.model_uuid_sam2:
                     forward=CropForward(
                         targets=[InferenceComponent(
                             ability='eyepop.sam2.decoder:latest',
-                            forward=FullForward(
-                                targets=[ContourFinderComponent(
-                                    contourType=ContourType.POLYGON,
-                                    areaThreshold=0.005
-                                )]
-                            )
+                            # forward=FullForward(
+                            #     targets=[ContourFinderComponent(
+                            #         contourType=ContourType.POLYGON,
+                            #         areaThreshold=0.005
+                            #     )]
+                            # )
                         )]
                     )
                 )]
@@ -721,9 +721,9 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, list[tuple[str,
     motion_detect = MotionDetectConfig(motionGap=1) if args.motion_detect else None
 
     if args.dump and pop:
-        print("Pop:", pop.model_dump_json(indent=2))
+        print("Pop:", pop.model_dump_json(exclude_none=True, indent=2))
         if params:
-            print("Params:", TypeAdapter(list[ComponentParams]).dump_json(params, indent=2).decode("utf-8"))
+            print("Params:", TypeAdapter(list[ComponentParams]).dump_json(params, exclude_none=True, indent=2).decode("utf-8"))
 
     async with EyePopSdk.async_worker(dataset_uuid=args.dataset_uuid, session_uuid=args.session) as endpoint:
         if pop:

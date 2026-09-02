@@ -127,7 +127,8 @@ def test_the_drawn_axes_swap_y_and_z(axes):
     plot.points([np.array([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]], dtype="float32")])
     plot.finish()
 
-    spans = [round(high - low) for low, high in
+    # magnitudes, since the vertical axis is deliberately inverted
+    spans = [round(abs(high - low)) for low, high in
              (axes.get_xlim(), axes.get_ylim(), axes.get_zlim())]
     assert spans == [1, 3, 2]
 
@@ -141,3 +142,33 @@ def test_finish_survives_an_axis_with_no_extent(axes):
 
 def test_finish_without_any_points_does_not_raise(axes):
     EyePopWorldPlot(axes).finish()
+
+
+def test_the_vertical_axis_is_inverted_so_a_camera_frame_scene_stands_upright(axes):
+    # camera frame Y grows downwards, so drawn as-is a figure's feet sit above
+    # its head; the axis is flipped rather than the coordinates
+    plot = EyePopWorldPlot(axes)
+    plot.points([np.array([[0.0, 0.2, 3.0], [0.0, 1.8, 3.0]], dtype="float32")])
+    plot.finish()
+
+    low, high = axes.get_zlim()
+    assert low > high
+
+
+def test_inversion_is_idempotent(axes):
+    plot = EyePopWorldPlot(axes)
+    plot.points([np.array([[0.0, 0.2, 3.0], [0.0, 1.8, 3.0]], dtype="float32")])
+    plot.finish()
+    first = axes.get_zlim()
+    plot.finish()
+
+    assert axes.get_zlim() == first
+
+
+def test_a_z_up_world_frame_keeps_the_axis_as_it_is(axes):
+    plot = EyePopWorldPlot(axes, invert_y=False)
+    plot.points([np.array([[0.0, 0.2, 3.0], [0.0, 1.8, 3.0]], dtype="float32")])
+    plot.finish()
+
+    low, high = axes.get_zlim()
+    assert low < high

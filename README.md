@@ -315,10 +315,11 @@ Z is drawn into the scene and Y up the page, rather than in component order, sin
 is what reads as distance from the viewer in either frame. The coordinates themselves are
 never altered.
 
-The vertical axis is not flipped, though: with extrinsics the metres are world
-coordinates with Z up, and without them they are camera coordinates with Y **down**.
-Which one a prediction holds is not recoverable from it, so a camera-frame plot has Y
-growing downwards rather than being silently turned upside down.
+The vertical axis is also flipped, so a camera-frame scene stands the right way up. Y
+grows **downwards** in the OpenCV camera frame, so drawn as-is a figure's feet sit above
+its head. That is the default because a source supplying no extrinsics — or identity
+ones — gets the camera frame. For coordinates already in a Z-up world frame, pass
+`EyePopWorldPlot(axes, invert_y=False)`.
 
 ### Camera calibration
 
