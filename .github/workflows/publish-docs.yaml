@@ -28,7 +28,16 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: eyepop-ai/eyepop-actions/publish-docs@v1
+      # This repository is public and eyepop-actions is private, so the action
+      # is checked out and used from a local path rather than by owner/repo ref.
+      - uses: actions/checkout@v7
+        with:
+          repository: eyepop-ai/eyepop-actions
+          ref: v1
+          token: ${{ secrets.GH_TOKEN }}
+          path: .github/eyepop-actions
+
+      - uses: ./.github/eyepop-actions/publish-docs
         with:
           sources: |
             docs/gitbook/:sdks/python
