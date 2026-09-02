@@ -292,18 +292,24 @@ if cloud is not None:
 not a single value like `DepthMap.from_prediction`, because a depth map is frame-level
 while a cloud belongs to one object's mask.
 
-To see them, scatter them into a 3D axes:
+To see the world coordinates — not just the clouds, but key points, outlines and contours
+too — scatter them into a 3D axes:
 
 ```python
 import matplotlib.pyplot as plt
-from eyepop.visualize import EyePopPointCloudPlot
+from eyepop.visualize import EyePopWorldPlot
 
 axes = plt.figure().add_subplot(projection='3d')
-plot = EyePopPointCloudPlot(axes)
+plot = EyePopWorldPlot(axes)
 plot.prediction(prediction)
 plot.finish()
 plt.show()
 ```
+
+Each carrier is its own colour and legend entry. The point budget is shared across them,
+so adding objects thins the scatter rather than multiplying it — but sparse series are
+exempt, so a 17-point skeleton survives beside a 40,000-point mask cloud instead of being
+thinned away to save a fraction of it.
 
 The axes are labelled but not reoriented: with extrinsics the metres are world
 coordinates, Z up; without them they are camera coordinates, Y **down**. Which one you

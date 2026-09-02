@@ -137,38 +137,89 @@ class EyePopPlot:
         return label
 
 
-def labelled_point_clouds(prediction: dict) -> list[tuple[str, PointCloud]]:
-    """Every point cloud in a prediction, paired with a label for a legend.
+def _world_points(points) -> np.ndarray:
+    """The placed points of a point list, as an (N, 3) array in metres.
 
-    Labelled by class, numbered when a class appears more than once, so a plot
-    of several objects can be read. Nested objects are included, in the same
-    outermost-first order PointCloud.from_prediction uses.
+    A point the worker could not place carries no world members at all - never a
+    zero, an Infinity or a NaN - so absence is the only test, and all three
+    arrive together.
     """
-    labelled: list[tuple[str, PointCloud]] = []
+    placed = []
+    for point in points or []:
+        if not isinstance(point, dict):
+            point = {"worldX": getattr(point, "worldX", None),
+                     "worldY": getattr(point, "worldY", None),
+                     "worldZ": getattr(point, "worldZ", None)}
+        x, y, z = point.get("worldX"), point.get("worldY"), point.get("worldZ")
+        if x is not None and y is not None and z is not None:
+            placed.append((float(x), float(y), float(z)))
+    return np.array(placed, dtype="float32").reshape(-1, 3)
+
+
+def labelled_world_points(prediction: dict) -> list[tuple[str, np.ndarray]]:
+    """Every set of world coordinates in a prediction, labelled for a legend.
+
+    Covers all four carriers the worker enriches - key points, outlines,
+    contours (cutouts included) and mask point clouds - rather than only the
+    clouds, so a pop that produces no masks still has something to show.
+
+    Each entry is an (N, 3) array of metres. Labelled by class and carrier, and
+    numbered when a class appears more than once, so a plot of several objects
+    can be read. Nested objects are included.
+    """
+    labelled: list[tuple[str, np.ndarray]] = []
     seen: dict[str, int] = {}
 
-    def walk(objects) -> None:
+    def add(name: str, carrier: str, points: np.ndarray) -> None:
+        if points.size:
+            labelled.append((f"{name} {carrier}", points))
+
+    def member(obj, key: str):
+        return obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
+
+    def walk(objects, depth: int) -> None:
         for index, obj in enumerate(objects or []):
+            name = member(obj, "classLabel") or f"object {index}"
+            seen[name] = seen.get(name, 0) + 1
+            if seen[name] > 1:
+                name = f"{name} {seen[name]}"
+
+            for group in member(obj, "keyPoints") or []:
+                add(name, "keypoints", _world_points(member(group, "points")))
+            add(name, "outline", _world_points(member(obj, "outline")))
+            for contour in member(obj, "contours") or []:
+                add(name, "contour", _world_points(member(contour, "points")))
+                for cutout in member(contour, "cutouts") or []:
+                    add(name, "cutout", _world_points(cutout))
             cloud = PointCloud.from_object(obj)
             if cloud is not None:
-                name = (obj.get("classLabel") if isinstance(obj, dict)
-                        else getattr(obj, "classLabel", None)) or f"object {index}"
-                seen[name] = seen.get(name, 0) + 1
-                labelled.append((f"{name} {seen[name]}" if seen[name] > 1 else name, cloud))
-            walk(obj.get("objects") if isinstance(obj, dict) else getattr(obj, "objects", None))
+                add(name, "mask", cloud.placed_points)
+
+            walk(member(obj, "objects"), depth + 1)
 
     if prediction is None:
         return labelled
+
+    # a prediction carries key point groups of its own, for the abilities that
+    # produce them without an enclosing object
+    for group in (prediction.get("keyPoints") if isinstance(prediction, dict)
+                  else getattr(prediction, "keyPoints", None)) or []:
+        points = _world_points(group.get("points") if isinstance(group, dict)
+                               else getattr(group, "points", None))
+        if points.size:
+            labelled.append(("keypoints", points))
+
     walk(prediction.get("objects") if isinstance(prediction, dict)
-         else getattr(prediction, "objects", None))
+         else getattr(prediction, "objects", None), 0)
     return labelled
 
 
-class EyePopPointCloudPlot:
-    """Scatter of per-object mask point clouds, in metres.
+class EyePopWorldPlot:
+    """Scatter of everything in a prediction that carries world coordinates.
 
-    Needs a 3D axes - `plt.figure().add_subplot(projection='3d')` - because the
-    points are a real 3D cloud rather than an overlay on the frame, which is
+    Key points, outlines, contours and mask point clouds alike, in metres.
+    Needs a 3D axes - `plt.figure().add_subplot(projection='3d')` - because
+    these are real 3D positions rather than an overlay on the frame, which is
     what separates this from EyePopPlot.
 
     Which frame the metres are in depends on the source's calibration and is not
@@ -182,49 +233,64 @@ class EyePopPointCloudPlot:
     # square is already more than a scatter can draw usefully or quickly.
     DEFAULT_MAX_POINTS = 20000
 
+    # Below this a series is drawn whole, however tight the budget. A skeleton
+    # of 17 key points and a 40,000 point mask cloud are both series here, and a
+    # budget shared evenly between them would thin the skeleton to nothing to
+    # save a fraction of the cloud.
+    SPARSE_SERIES = 512
+
     def __init__(self, axes: Axes3D):
         self.axes = axes
         self._plotted = 0
         self._bounds: np.ndarray | None = None
 
     def prediction(self, prediction: dict, max_points: int = DEFAULT_MAX_POINTS) -> int:
-        """Plot every point cloud in one prediction. Returns the points drawn."""
-        labelled = labelled_point_clouds(prediction)
-        return self.point_clouds([cloud for _, cloud in labelled],
-                                 labels=[label for label, _ in labelled],
-                                 max_points=max_points)
+        """Plot everything in one prediction that has world coordinates.
+
+        Returns the number of points drawn.
+        """
+        labelled = labelled_world_points(prediction)
+        return self.points([points for _, points in labelled],
+                           labels=[label for label, _ in labelled],
+                           max_points=max_points)
 
     def point_clouds(self, clouds: list[PointCloud], labels: list[str] | None = None,
                      max_points: int = DEFAULT_MAX_POINTS) -> int:
-        """Plot several clouds, one colour each, sharing a single point budget.
+        """Plot mask point clouds only, one colour each."""
+        return self.points([cloud.placed_points for cloud in clouds], labels, max_points)
 
-        The budget is shared rather than per cloud so that adding objects thins
-        the scatter instead of multiplying it.
-        """
-        placed = [cloud.placed_points for cloud in clouds]
-        return self.points([points for points in placed if points.size], labels, max_points)
-
-    def points(self, clouds: list[np.ndarray], labels: list[str] | None = None,
+    def points(self, series: list[np.ndarray], labels: list[str] | None = None,
                max_points: int = DEFAULT_MAX_POINTS) -> int:
-        """Plot (N, 3) arrays of already placed points, one colour each."""
-        clouds = [points for points in clouds if points.size]
-        if not clouds:
+        """Plot (N, 3) arrays of world points, one colour each.
+
+        The budget is shared across series rather than applied to each, so
+        adding objects thins the scatter instead of multiplying it - but sparse
+        series are exempt, so key points survive alongside a dense mask.
+        """
+        drawn = [(index, points) for index, points in enumerate(series) if points.size]
+        if not drawn:
             return 0
 
-        total = sum(len(points) for points in clouds)
+        sparse = sum(len(points) for _, points in drawn if len(points) <= self.SPARSE_SERIES)
+        dense = sum(len(points) for _, points in drawn if len(points) > self.SPARSE_SERIES)
+        budget = max(max_points - sparse, 1) if max_points > 0 else dense
         # strided rather than random so the same call draws the same picture
-        stride = max(1, -(-total // max_points)) if max_points > 0 else 1
+        stride = max(1, -(-dense // budget)) if dense else 1
 
-        for index, points in enumerate(clouds):
-            sampled = points[::stride]
+        for index, points in drawn:
+            is_sparse = len(points) <= self.SPARSE_SERIES
+            sampled = points if is_sparse else points[::stride]
             if not sampled.size:
                 continue
             label = labels[index] if labels is not None and index < len(labels) else None
+            # a handful of key points would be invisible at the size a mask
+            # cloud has to be drawn at
             # matplotlib's stub types zs as int; it takes array-like, which is
-            # the only shape a cloud can be drawn from
+            # the only shape these can be drawn from
             self.axes.scatter(sampled[:, 0], sampled[:, 1],
                               zs=sampled[:, 2],  # pyright: ignore[reportArgumentType]
-                              s=1, alpha=0.5, label=label)
+                              s=12 if is_sparse else 1,
+                              alpha=0.9 if is_sparse else 0.5, label=label)
             self._plotted += len(sampled)
             extent = np.stack([sampled.min(axis=0), sampled.max(axis=0)])
             self._bounds = extent if self._bounds is None else np.stack(
@@ -249,4 +315,9 @@ class EyePopPointCloudPlot:
             extents = np.where(extents > 0, extents, 1.0)
             self.axes.set_box_aspect(tuple(extents))
         if legend and self.axes.get_legend_handles_labels()[0]:
-            self.axes.legend(loc="upper right", fontsize="small", markerscale=8)
+            drawn_legend = self.axes.legend(loc="upper right", fontsize="small")
+            # one readable size for every entry: a scale factor would blow the
+            # sparse series up as far as it lifts the mask dots out of invisibility
+            for handle in drawn_legend.legend_handles:
+                if handle is not None:
+                    handle.set_sizes([24])  # pyright: ignore[reportAttributeAccessIssue]
