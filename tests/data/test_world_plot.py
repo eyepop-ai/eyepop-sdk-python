@@ -113,10 +113,23 @@ def test_finish_labels_the_axes_in_metres(axes):
     plot.prediction(_prediction())
     plot.finish(title="world")
 
+    # Z into the scene and Y up the page, not component order
     assert axes.get_xlabel() == "X (m)"
-    assert axes.get_ylabel() == "Y (m)"
-    assert axes.get_zlabel() == "Z (m)"
+    assert axes.get_ylabel() == "Z (m)"
+    assert axes.get_zlabel() == "Y (m)"
     assert axes.get_title() == "world"
+
+
+def test_the_drawn_axes_swap_y_and_z(axes):
+    # X spans 1, Y spans 2 and Z spans 3, so whichever screen axis spans 3 is
+    # the one Z was drawn against
+    plot = EyePopWorldPlot(axes)
+    plot.points([np.array([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]], dtype="float32")])
+    plot.finish()
+
+    spans = [round(high - low) for low, high in
+             (axes.get_xlim(), axes.get_ylim(), axes.get_zlim())]
+    assert spans == [1, 3, 2]
 
 
 def test_finish_survives_an_axis_with_no_extent(axes):

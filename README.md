@@ -311,9 +311,14 @@ so adding objects thins the scatter rather than multiplying it — but sparse se
 exempt, so a 17-point skeleton survives beside a 40,000-point mask cloud instead of being
 thinned away to save a fraction of it.
 
-The axes are labelled but not reoriented: with extrinsics the metres are world
-coordinates, Z up; without them they are camera coordinates, Y **down**. Which one you
-have is not recoverable from the prediction, and guessing would silently flip the scene.
+Z is drawn into the scene and Y up the page, rather than in component order, since depth
+is what reads as distance from the viewer in either frame. The coordinates themselves are
+never altered.
+
+The vertical axis is not flipped, though: with extrinsics the metres are world
+coordinates with Z up, and without them they are camera coordinates with Y **down**.
+Which one a prediction holds is not recoverable from it, so a camera-frame plot has Y
+growing downwards rather than being silently turned upside down.
 
 ### Camera calibration
 

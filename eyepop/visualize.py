@@ -222,11 +222,16 @@ class EyePopWorldPlot:
     these are real 3D positions rather than an overlay on the frame, which is
     what separates this from EyePopPlot.
 
+    Drawn with Z into the scene and Y up the page rather than in component
+    order, since depth reads as distance from the viewer in both frames. See
+    AXIS_ORDER; the coordinates themselves are never altered.
+
     Which frame the metres are in depends on the source's calibration and is not
     recoverable from the prediction: with extrinsics they are world coordinates,
     Z up with the ground at Z = 0; without them they are camera coordinates in
-    the OpenCV convention, X right, Y **down**, Z forward. The axes are labelled
-    but not reoriented, since guessing wrong would silently flip the scene.
+    the OpenCV convention, X right, Y **down**, Z forward. So the vertical axis
+    is not flipped to match either one - guessing wrong would silently turn the
+    scene upside down - and a camera frame plot has Y growing downwards.
     """
 
     # A mask is one point per pixel, so a few objects at a few hundred pixels
@@ -238,6 +243,15 @@ class EyePopWorldPlot:
     # budget shared evenly between them would thin the skeleton to nothing to
     # save a fraction of the cloud.
     SPARSE_SERIES = 512
+
+    # Which metre component goes on which screen axis: X across, Z into the
+    # scene, Y up the page. Matplotlib puts its third axis vertical, and depth
+    # is the one component that reads as distance from the viewer in both
+    # frames - forward from the camera, or horizontal ground distance under
+    # extrinsics - so it belongs in the scene rather than up the page. The data
+    # is untouched; only which axis each component is drawn against.
+    AXIS_ORDER = (0, 2, 1)
+    AXIS_LABELS = ("X (m)", "Z (m)", "Y (m)")
 
     def __init__(self, axes: Axes3D):
         self.axes = axes
@@ -282,6 +296,7 @@ class EyePopWorldPlot:
             sampled = points if is_sparse else points[::stride]
             if not sampled.size:
                 continue
+            sampled = sampled[:, self.AXIS_ORDER]
             label = labels[index] if labels is not None and index < len(labels) else None
             # a handful of key points would be invisible at the size a mask
             # cloud has to be drawn at
@@ -304,9 +319,9 @@ class EyePopWorldPlot:
         Metres on every axis, so an unequal box would misrepresent the geometry
         the coordinates exist to measure.
         """
-        self.axes.set_xlabel("X (m)")
-        self.axes.set_ylabel("Y (m)")
-        self.axes.set_zlabel("Z (m)")
+        self.axes.set_xlabel(self.AXIS_LABELS[0])
+        self.axes.set_ylabel(self.AXIS_LABELS[1])
+        self.axes.set_zlabel(self.AXIS_LABELS[2])
         if title is not None:
             self.axes.set_title(title)
         if self._bounds is not None:
