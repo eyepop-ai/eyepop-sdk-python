@@ -228,6 +228,99 @@ pop = Pop(components=[
 ])
 ```
 
+## World coordinates
+
+Predictions can carry a 3D position in **metres** alongside their 2D one, back-projected
+through a depth map. Two things have to be true: the Pop must name a depth ability, and
+the components whose predictions should be translated must opt in.
+
+```python
+from eyepop.worker.worker_types import Pop, InferenceComponent, SourceDefaults
+from eyepop.worker.camera import Camera
+
+pop = Pop(
+    components=[
+        InferenceComponent(ability='eyepop.person:latest', translateToWorld=True),
+    ],
+    depthMapAbility='eyepop.depth.anything-3:latest',
+    defaults=SourceDefaults(camera=Camera(hfovDegrees=72.0)),
+)
+```
+
+Use a **metric** depth ability. A `relative` one is accepted and silently produces no
+world coordinates at all: relative depth is scale- *and* shift-invariant, so a cloud
+recovered from it would be distorted rather than merely unscaled.
+
+`translateToWorld` only means something on a component that runs its own inference —
+inference and tracking. A contour finder's points do get enriched, but they belong to the
+object that fed it, so the request goes on the inference component upstream.
+
+### Reading the coordinates
+
+`worldX`, `worldY` and `worldZ` appear on key points, outline points and contour points
+(including cutouts). They are **prediction v2 only**. A point the worker could not place —
+sky, outside the depth map, no usable map — carries none of the three, so test for `None`
+rather than for a sentinel value:
+
+```python
+for keypoints in prediction['keyPoints']:
+    for point in keypoints['points']:
+        if point.get('worldZ') is not None:
+            print(point['worldX'], point['worldY'], point['worldZ'])
+```
+
+`z` and `worldZ` are unrelated: `z` is model-relative depth in whatever convention the
+model uses, `worldZ` is metres. Bounding boxes are not enriched — a box is not a point,
+and any single anchor choice would be arbitrary.
+
+An object with a segmentation mask also carries a dense point cloud, one xyz triple per
+mask pixel, which `eyepop.PointCloud` decodes:
+
+```python
+from eyepop import PointCloud
+
+cloud = PointCloud.from_object(obj)
+if cloud is not None:
+    print(cloud.array.shape)        # (height, width, 3), float32, NaN where unplaced
+    print(cloud.at(0, 0))           # by mask pixel, or None
+    print(cloud.at_source(x, y))    # by source coordinate inside the object's box
+```
+
+### Camera calibration
+
+Without a calibration the worker falls back to an assumed 60° horizontal field of view.
+That is a development scaffold, not something to ship: for canonical metric depth the
+guess cancels out of X and Y and survives only in Z, so lateral measurements stay exact
+while every distance along the optical axis is wrong by however wrong the guess was.
+
+Supply a `camera` per source, or once for every source through the Pop's `defaults`:
+
+```python
+from eyepop.worker.camera import Camera, CameraIntrinsics, CameraExtrinsics, Vector3d
+
+camera = Camera(
+    intrinsics=CameraIntrinsics(fx=0.9, fy=1.6, cx=0.5, cy=0.5),
+    extrinsics=CameraExtrinsics(translation=Vector3d(z=3.0)),
+)
+endpoint.load_from(url, camera=camera)
+```
+
+Exactly one of `intrinsics` and `hfovDegrees` describes the lens. Both is rejected rather
+than resolved by precedence, and neither is rejected too, since defaulting a focal length
+would be inventing a lens.
+
+**Intrinsics are normalised to the frame, not given in pixels** — `fx`/`fy` as a fraction
+of the frame's width and height — so one calibration survives a resolution change.
+
+**Extrinsics are camera to world**: `P_world = R * P_camera + t`, so `t` is where the
+camera sits. This is the inverse of what `cv2.solvePnP` returns; a caller holding its
+`rvec`/`tvec` must invert both halves, and `tvec` is *not* the camera position. With
+extrinsics, coordinates are in the world frame those define — Z up, ground at Z = 0.
+Without them, they are in the camera frame, OpenCV convention: X right, Y down, Z forward.
+
+Defaults merge per field, so a source giving its own `roi` but no `camera` keeps its roi
+and takes the default camera.
+
 ## Data Endpoint
 
 Dataset management, VLM inference, and evaluation workflows.

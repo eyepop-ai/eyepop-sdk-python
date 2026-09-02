@@ -17,6 +17,7 @@ from eyepop.exceptions import (
     PopNotStartedException,
 )
 from eyepop.settings import settings
+from eyepop.worker.camera import Camera
 from eyepop.worker.load_balancer import EndpointLoadBalancer
 from eyepop.worker.worker_client_session import WorkerClientSession
 from eyepop.worker.worker_jobs import (
@@ -351,6 +352,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
@@ -361,6 +363,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,
+            camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             session=self, on_ready=on_ready,
@@ -379,6 +382,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
@@ -392,6 +396,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,
+            camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             session=self,
@@ -407,6 +412,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             mime_types: list[str] | None = None,
             params: list[ComponentParams] | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             media_cache_seconds: int | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob:
@@ -423,6 +429,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             mime_types=mime_types,
             component_params=params,
             roi=roi,
+            camera=camera,
             media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
@@ -436,6 +443,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             locations: list[str],
             params: list[ComponentParams] | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             media_cache_seconds: int | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob:
@@ -450,6 +458,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             locations=locations,
             component_params=params,
             roi=roi,
+            camera=camera,
             media_cache_seconds=media_cache_seconds,
             session=self, on_ready=on_ready,
             callback=self.metrics_collector
@@ -463,6 +472,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
@@ -472,6 +482,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,
+            camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             session=self,
@@ -486,6 +497,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             locations: list[str],
             params: list[ComponentParams] | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             media_cache_seconds: int | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob:
@@ -501,6 +513,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             component_params=params,
             motion_detect=None,
             roi=roi,
+            camera=camera,
             fps=None,
             media_cache_seconds=media_cache_seconds,
             session=self,
@@ -516,6 +529,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
@@ -525,6 +539,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,
+            camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             session=self,

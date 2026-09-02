@@ -3,6 +3,7 @@ import typing
 
 from eyepop.data.types.asset import Area
 from eyepop.syncify import SyncEndpoint, run_coro_thread_save
+from eyepop.worker.camera import Camera
 from eyepop.worker.worker_jobs import WorkerJob
 from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, Pop, VideoMode
 
@@ -38,6 +39,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
             on_ready: typing.Callable[[WorkerJob], None] | None = None
@@ -52,6 +54,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             params=params,
             motion_detect=motion_detect,
             roi=roi,
+            camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             on_ready=None
@@ -66,6 +69,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
             on_ready: typing.Callable[[WorkerJob], None] | None = None
@@ -81,6 +85,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             params=params,
             motion_detect=motion_detect,
             roi=roi,
+            camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             on_ready=None
@@ -93,6 +98,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             mime_types: list[str] | None = None,
             params: list[ComponentParams] | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             media_cache_seconds: int | None = None,
             on_ready: typing.Callable[[WorkerJob], None] | None = None
     ) -> SyncWorkerJob:
@@ -105,6 +111,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             mime_types=mime_types,
             params=params,
             roi=roi,
+            camera=camera,
             media_cache_seconds=media_cache_seconds,
             on_ready=None
         ))
@@ -115,6 +122,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             locations: list[str],
             params: list[ComponentParams] | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             media_cache_seconds: int | None = None,
             on_ready: typing.Callable[[WorkerJob], None] | None = None
     ) -> SyncWorkerJob:
@@ -126,6 +134,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             locations=locations,
             params=params,
             roi=roi,
+            camera=camera,
             media_cache_seconds=media_cache_seconds,
             on_ready=None
         ))
@@ -137,6 +146,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
             on_ready: typing.Callable[[WorkerJob], None] | None = None
@@ -150,6 +160,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             params=params,
             motion_detect=motion_detect,
             roi=roi,
+            camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             on_ready=None
@@ -161,6 +172,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             locations: list[str],
             params: list[ComponentParams] | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             media_cache_seconds: int | None = None,
             on_ready: typing.Callable[[WorkerJob], None] | None = None
     ) -> SyncWorkerJob:
@@ -172,6 +184,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             locations=locations,
             params=params,
             roi=roi,
+            camera=camera,
             media_cache_seconds=media_cache_seconds,
             on_ready=None
         ))
@@ -183,6 +196,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
+            camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
             on_ready: typing.Callable[[WorkerJob], None] | None = None
@@ -196,6 +210,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             params=params,
             motion_detect=motion_detect,
             roi=roi,
+            camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             on_ready=None
