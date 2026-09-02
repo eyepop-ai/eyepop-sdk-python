@@ -50,6 +50,7 @@ Every example with CLI flags accepts `-h` / `--help`.
 | `visualize_on_image.py` | Overlay predictions on an image with matplotlib. |
 | `pop_demo.py --pop depth` | Metric depth maps (`eyepop.depth.*`), summarized output and heatmap overlay. |
 | `pop_demo.py -w` | World coordinates in metres. Adds a depth ability and `translateToWorld` to any of the pops above. |
+| `pop_demo.py -w -vp` | Scatter the resulting mask point clouds into a 3D plot, in metres. |
 | `visualize_with_webui2.py` | Interactive web viewer for predictions. |
 | `import_dataset.py` | Import local assets into a dataset. |
 | `auth_session.py` | Browser-based OAuth session. |

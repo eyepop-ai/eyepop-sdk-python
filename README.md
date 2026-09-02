@@ -284,7 +284,30 @@ if cloud is not None:
     print(cloud.array.shape)        # (height, width, 3), float32, NaN where unplaced
     print(cloud.at(0, 0))           # by mask pixel, or None
     print(cloud.at_source(x, y))    # by source coordinate inside the object's box
+    print(cloud.placed_points)      # (N, 3), just the points that were placed
+    print(cloud.bounds)             # per-axis (min, max) in metres, or None
 ```
+
+`PointCloud.from_prediction(prediction)` returns every cloud in one prediction — a list,
+not a single value like `DepthMap.from_prediction`, because a depth map is frame-level
+while a cloud belongs to one object's mask.
+
+To see them, scatter them into a 3D axes:
+
+```python
+import matplotlib.pyplot as plt
+from eyepop.visualize import EyePopPointCloudPlot
+
+axes = plt.figure().add_subplot(projection='3d')
+plot = EyePopPointCloudPlot(axes)
+plot.prediction(prediction)
+plot.finish()
+plt.show()
+```
+
+The axes are labelled but not reoriented: with extrinsics the metres are world
+coordinates, Z up; without them they are camera coordinates, Y **down**. Which one you
+have is not recoverable from the prediction, and guessing would silently flip the scene.
 
 ### Camera calibration
 

@@ -3,8 +3,10 @@ import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
+from mpl_toolkits.mplot3d import Axes3D
 
 from eyepop.depth_map import DepthMap
+from eyepop.point_cloud import PointCloud
 
 
 class EyePopPlot:
@@ -133,3 +135,118 @@ class EyePopPlot:
                                     else:
                                         label = label + "\n" + c['classLabel'] + f" {c['confidence'] * 100:.0f}%" + ""
         return label
+
+
+def labelled_point_clouds(prediction: dict) -> list[tuple[str, PointCloud]]:
+    """Every point cloud in a prediction, paired with a label for a legend.
+
+    Labelled by class, numbered when a class appears more than once, so a plot
+    of several objects can be read. Nested objects are included, in the same
+    outermost-first order PointCloud.from_prediction uses.
+    """
+    labelled: list[tuple[str, PointCloud]] = []
+    seen: dict[str, int] = {}
+
+    def walk(objects) -> None:
+        for index, obj in enumerate(objects or []):
+            cloud = PointCloud.from_object(obj)
+            if cloud is not None:
+                name = (obj.get("classLabel") if isinstance(obj, dict)
+                        else getattr(obj, "classLabel", None)) or f"object {index}"
+                seen[name] = seen.get(name, 0) + 1
+                labelled.append((f"{name} {seen[name]}" if seen[name] > 1 else name, cloud))
+            walk(obj.get("objects") if isinstance(obj, dict) else getattr(obj, "objects", None))
+
+    if prediction is None:
+        return labelled
+    walk(prediction.get("objects") if isinstance(prediction, dict)
+         else getattr(prediction, "objects", None))
+    return labelled
+
+
+class EyePopPointCloudPlot:
+    """Scatter of per-object mask point clouds, in metres.
+
+    Needs a 3D axes - `plt.figure().add_subplot(projection='3d')` - because the
+    points are a real 3D cloud rather than an overlay on the frame, which is
+    what separates this from EyePopPlot.
+
+    Which frame the metres are in depends on the source's calibration and is not
+    recoverable from the prediction: with extrinsics they are world coordinates,
+    Z up with the ground at Z = 0; without them they are camera coordinates in
+    the OpenCV convention, X right, Y **down**, Z forward. The axes are labelled
+    but not reoriented, since guessing wrong would silently flip the scene.
+    """
+
+    # A mask is one point per pixel, so a few objects at a few hundred pixels
+    # square is already more than a scatter can draw usefully or quickly.
+    DEFAULT_MAX_POINTS = 20000
+
+    def __init__(self, axes: Axes3D):
+        self.axes = axes
+        self._plotted = 0
+        self._bounds: np.ndarray | None = None
+
+    def prediction(self, prediction: dict, max_points: int = DEFAULT_MAX_POINTS) -> int:
+        """Plot every point cloud in one prediction. Returns the points drawn."""
+        labelled = labelled_point_clouds(prediction)
+        return self.point_clouds([cloud for _, cloud in labelled],
+                                 labels=[label for label, _ in labelled],
+                                 max_points=max_points)
+
+    def point_clouds(self, clouds: list[PointCloud], labels: list[str] | None = None,
+                     max_points: int = DEFAULT_MAX_POINTS) -> int:
+        """Plot several clouds, one colour each, sharing a single point budget.
+
+        The budget is shared rather than per cloud so that adding objects thins
+        the scatter instead of multiplying it.
+        """
+        placed = [cloud.placed_points for cloud in clouds]
+        return self.points([points for points in placed if points.size], labels, max_points)
+
+    def points(self, clouds: list[np.ndarray], labels: list[str] | None = None,
+               max_points: int = DEFAULT_MAX_POINTS) -> int:
+        """Plot (N, 3) arrays of already placed points, one colour each."""
+        clouds = [points for points in clouds if points.size]
+        if not clouds:
+            return 0
+
+        total = sum(len(points) for points in clouds)
+        # strided rather than random so the same call draws the same picture
+        stride = max(1, -(-total // max_points)) if max_points > 0 else 1
+
+        for index, points in enumerate(clouds):
+            sampled = points[::stride]
+            if not sampled.size:
+                continue
+            label = labels[index] if labels is not None and index < len(labels) else None
+            # matplotlib's stub types zs as int; it takes array-like, which is
+            # the only shape a cloud can be drawn from
+            self.axes.scatter(sampled[:, 0], sampled[:, 1],
+                              zs=sampled[:, 2],  # pyright: ignore[reportArgumentType]
+                              s=1, alpha=0.5, label=label)
+            self._plotted += len(sampled)
+            extent = np.stack([sampled.min(axis=0), sampled.max(axis=0)])
+            self._bounds = extent if self._bounds is None else np.stack(
+                [np.minimum(self._bounds[0], extent[0]), np.maximum(self._bounds[1], extent[1])])
+
+        return self._plotted
+
+    def finish(self, title: str | None = None, legend: bool = True) -> None:
+        """Label the axes and give the box the data's own proportions.
+
+        Metres on every axis, so an unequal box would misrepresent the geometry
+        the coordinates exist to measure.
+        """
+        self.axes.set_xlabel("X (m)")
+        self.axes.set_ylabel("Y (m)")
+        self.axes.set_zlabel("Z (m)")
+        if title is not None:
+            self.axes.set_title(title)
+        if self._bounds is not None:
+            extents = self._bounds[1] - self._bounds[0]
+            # a flat axis would make the box zero thick, which matplotlib rejects
+            extents = np.where(extents > 0, extents, 1.0)
+            self.axes.set_box_aspect(tuple(extents))
+        if legend and self.axes.get_legend_handles_labels()[0]:
+            self.axes.legend(loc="upper right", fontsize="small", markerscale=8)

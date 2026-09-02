@@ -20,6 +20,7 @@ from webui import webui
 from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
 from eyepop.data.types.asset import Area, RectangleArea
+from eyepop.visualize import EyePopPointCloudPlot, labelled_point_clouds
 from eyepop.worker.camera import Camera, CameraIntrinsics
 from eyepop.worker.worker_types import (
     BaseComponent,
@@ -418,6 +419,21 @@ def summarize_world_coordinates(prediction: dict[str, Any]) -> str | None:
     return f"world coordinates: {placed} point(s) placed, {unplaced} not"
 
 
+def collect_point_clouds(prediction: dict[str, Any], into: list[tuple[str, Any]]) -> None:
+    """Accumulate every placed cloud in a prediction, labelled for the legend.
+
+    Only the placed points are kept: a mask covers its object's whole bounding
+    box, so a cloud is mostly NaN holes for anything that is not rectangular,
+    and holding the full grids across a video would cost far more than the
+    scatter can draw.
+    """
+    for label, cloud in labelled_point_clouds(prediction):
+        points = cloud.placed_points
+        if points.size:
+            into.append((label, points))
+
+
+
 def replace_binary_members(value):
     """Summarize large binary members (depth values, mask bitmaps).
 
@@ -519,6 +535,12 @@ parser.add_argument('--camera-hfov-degrees', required=False, type=float, default
 parser.add_argument('--camera-intrinsics', required=False, type=camera_intrinsics, default=None,
                     help="Source's normalized intrinsics as (fx, fy, cx, cy), fractions of the frame "
                          "rather than pixels. Mutually exclusive with --camera-hfov-degrees")
+parser.add_argument('-vp', '--visualize-point-cloud', required=False, default=False, action="store_true",
+                    help="Scatter every point cloud in the results into a 3D plot, in metres. Needs a "
+                         "pop that produces masks and --translate-to-world to fill them")
+parser.add_argument('--point-cloud-max-points', required=False, type=int,
+                    default=EyePopPointCloudPlot.DEFAULT_MAX_POINTS,
+                    help="Point budget for --visualize-point-cloud, shared across every cloud")
 
 # Optional caching media for post-processing on the worker
 parser.add_argument('-mc', '--media-cache-seconds', required=False, type=int, help="Cache most recent X seconds of media for post-processing on the worker", default=None)
@@ -692,10 +714,11 @@ elif main_args.single_prompt is not None:
         })
     ]
 
-async def main(args) -> tuple[dict[str, Any] | None, str | None]:
+async def main(args) -> tuple[dict[str, Any] | None, str | None, list[tuple[str, Any]]]:
     visualize_prediction = None
     visualize_path = None
     example_image_src = None
+    point_clouds: list[tuple[str, Any]] = []
     motion_detect = MotionDetectConfig(motionGap=1) if args.motion_detect else None
 
     if args.dump and pop:
@@ -728,6 +751,8 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                 nonlocal visualize_path
                 while result := await job.predict():
                     visualize_prediction = result
+                    if args.visualize_point_cloud:
+                        collect_point_clouds(result, point_clouds)
                     visualize_path = path
                     if args.output:
                         print(path, json.dumps(replace_binary_members(result), indent=2))
@@ -762,6 +787,8 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
             )
             while result := await job.predict():
                 visualize_prediction = result
+                if args.visualize_point_cloud:
+                    collect_point_clouds(result, point_clouds)
                 if args.output:
                     print(json.dumps(replace_binary_members(result), indent=2))
                     if (world := summarize_world_coordinates(result)) is not None:
@@ -780,6 +807,8 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                         camera=camera,
                 ):
                     visualize_prediction = result
+                    if args.visualize_point_cloud:
+                        collect_point_clouds(result, point_clouds)
                     if args.output:
                         print(json.dumps(replace_binary_members(result), indent=2))
                         if (world := summarize_world_coordinates(result)) is not None:
@@ -797,6 +826,8 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                         camera=camera,
                 ):
                     visualize_prediction = result
+                    if args.visualize_point_cloud:
+                        collect_point_clouds(result, point_clouds)
                     if args.output:
                         print(json.dumps(replace_binary_members(result), indent=2))
                         if (world := summarize_world_coordinates(result)) is not None:
@@ -819,6 +850,8 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
             )
             while result := await job.predict():
                 visualize_prediction = result
+                if args.visualize_point_cloud:
+                    collect_point_clouds(result, point_clouds)
                 if args.output:
                     print(json.dumps(replace_binary_members(result), indent=2))
                     if (world := summarize_world_coordinates(result)) is not None:
@@ -830,9 +863,26 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                         transcode_mode=TranscodeMode.image_original_size
                     ).read()
                     example_image_src = f"data:image/jpeg;base64, {base64.b64encode(buffer).decode()}"
-    return visualize_prediction, example_image_src
+    return visualize_prediction, example_image_src, point_clouds
 
-visualize_result, example_image_src = asyncio.run(main(main_args))
+visualize_result, example_image_src, result_point_clouds = asyncio.run(main(main_args))
+
+if main_args.visualize_point_cloud:
+    if not result_point_clouds:
+        print("no point clouds in the results: --visualize-point-cloud needs a pop that produces "
+              "masks, and --translate-to-world to fill them with world coordinates")
+    else:
+        import matplotlib.pyplot as plt
+
+        cloud_axes = plt.figure(figsize=(9, 8)).add_subplot(projection='3d')
+        cloud_plot = EyePopPointCloudPlot(cloud_axes)
+        drawn = cloud_plot.points([points for _, points in result_point_clouds],
+                                  labels=[label for label, _ in result_point_clouds],
+                                  max_points=main_args.point_cloud_max_points)
+        total = sum(len(points) for _, points in result_point_clouds)
+        cloud_plot.finish(title=f"{len(result_point_clouds)} point cloud(s), "
+                                f"{drawn} of {total} points")
+        plt.show()
 if main_args.visualize:
     with open(os.path.join(script_dir, 'viewer.html')) as file:
         compiler = Compiler()

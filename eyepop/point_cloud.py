@@ -77,6 +77,29 @@ class PointCloud:
         return PointCloud._build(mask, (float(x), float(y), float(width), float(height)))
 
     @staticmethod
+    def from_prediction(prediction: dict[str, Any] | Any) -> list["PointCloud"]:
+        """Every point cloud in a prediction, outermost object first.
+
+        A list rather than DepthMap's single value because a depth map is
+        frame level while a cloud belongs to one object's mask, so a prediction
+        carries as many as it has masked objects. Nested objects are included.
+        """
+        clouds: list[PointCloud] = []
+
+        def walk(objects: Any) -> None:
+            for obj in objects or []:
+                cloud = PointCloud.from_object(obj)
+                if cloud is not None:
+                    clouds.append(cloud)
+                walk(obj.get("objects") if isinstance(obj, dict) else getattr(obj, "objects", None))
+
+        if prediction is None:
+            return clouds
+        walk(prediction.get("objects") if isinstance(prediction, dict)
+             else getattr(prediction, "objects", None))
+        return clouds
+
+    @staticmethod
     def _build(mask: dict[str, Any] | Mask | None,
                box: tuple[float, float, float, float] | None) -> "PointCloud | None":
         if mask is None:
@@ -116,6 +139,32 @@ class PointCloud:
     def placed_mask(self) -> np.ndarray:
         """Boolean array of shape (height, width), True where the worker placed a point."""
         return np.asarray(~np.isnan(self.array).any(axis=2))
+
+    @property
+    def placed_points(self) -> np.ndarray:
+        """Just the points the worker placed, as an (N, 3) float32 array.
+
+        The shape a scatter plot or an export wants: the (height, width, 3) grid
+        with the NaN holes dropped, and no mask to apply first.
+        """
+        points = self.array.reshape(-1, _VALUES_PER_POINT)
+        return points[~np.isnan(points).any(axis=1)]
+
+    @property
+    def bounds(self) -> tuple[tuple[float, float], tuple[float, float], tuple[float, float]] | None:
+        """Per axis (min, max) in metres over the placed points, or None if none were placed.
+
+        The counterpart to DepthMap's finite_min/finite_max, which are one axis
+        because a depth map has one value per pixel.
+        """
+        points = self.placed_points
+        if points.size == 0:
+            return None
+        low = points.min(axis=0)
+        high = points.max(axis=0)
+        return ((float(low[0]), float(high[0])),
+                (float(low[1]), float(high[1])),
+                (float(low[2]), float(high[2])))
 
     def at(self, i: int, j: int) -> tuple[float, float, float] | None:
         """The world point for mask pixel (i, j), or None where the worker placed none.

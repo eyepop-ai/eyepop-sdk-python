@@ -200,3 +200,45 @@ def test_prediction_with_a_mask_cloud_deserialises():
     assert mask is not None and mask.world == _CLOUD_B64
     assert prediction.depth is not None and prediction.depth.semantic == "metric"
     assert math.isnan(PointCloud.from_object(prediction.objects[0]).array[1, 0, 0])  # type: ignore[union-attr]
+
+
+def test_from_prediction_returns_every_cloud_including_nested():
+    # a depth map is frame level and singular; a cloud belongs to one object's
+    # mask, so a prediction carries as many as it has masked objects
+    prediction = {
+        "objects": [
+            {"classLabel": "person", "x": 0, "y": 0, "width": 2, "height": 2, "mask": _mask_dict(),
+             "objects": [{"classLabel": "bag", "x": 0, "y": 0, "width": 1, "height": 1,
+                          "mask": _mask_dict()}]},
+            {"classLabel": "car", "x": 0, "y": 0, "width": 2, "height": 2},
+        ]
+    }
+    clouds = PointCloud.from_prediction(prediction)
+    assert len(clouds) == 2
+    assert all(cloud.at(0, 0) == (1.0, 2.0, 3.0) for cloud in clouds)
+
+
+def test_from_prediction_without_clouds_is_empty():
+    assert PointCloud.from_prediction({"objects": [{"classLabel": "car"}]}) == []
+    assert PointCloud.from_prediction({}) == []
+
+
+def test_placed_points_drops_the_holes():
+    cloud = PointCloud.from_mask(_mask_dict())
+    assert cloud is not None
+    points = cloud.placed_points
+    assert points.shape == (3, 3)
+    assert not bool(np.isnan(points).any())
+
+
+def test_placed_points_of_an_entirely_unplaced_cloud_is_empty():
+    values = base64.b64encode(struct.pack("<3f", _NAN, _NAN, _NAN)).decode()
+    cloud = PointCloud(1, 1, values)
+    assert cloud.placed_points.size == 0
+    assert cloud.bounds is None
+
+
+def test_bounds_are_per_axis_minima_and_maxima():
+    cloud = PointCloud.from_mask(_mask_dict())
+    assert cloud is not None
+    assert cloud.bounds == ((1.0, 7.0), (2.0, 8.0), (3.0, 9.0))
