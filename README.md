@@ -306,10 +306,16 @@ plot.finish()
 plt.show()
 ```
 
-Each carrier is its own colour and legend entry. The point budget is shared across them,
-so adding objects thins the scatter rather than multiplying it — but sparse series are
-exempt, so a 17-point skeleton survives beside a 40,000-point mask cloud instead of being
-thinned away to save a fraction of it.
+Each carrier is its own colour and legend entry, and the ones with a defined order are
+connected: contours, outlines and cutouts by their own point order, closed; key points by
+the pose skeleton, matched on class label from the same table the 2D renderer uses. An
+unplaced point breaks the path rather than being bridged over, and a key point group whose
+category is not a known pose gets no lines at all rather than points joined in arrival
+order. A mask point cloud is a grid rather than a path, so it stays unconnected.
+
+The point budget is shared across series, so adding objects thins the scatter rather than
+multiplying it — but sparse series are exempt, so a 17-point skeleton survives beside a
+40,000-point mask cloud instead of being thinned away to save a fraction of it.
 
 Z is drawn into the scene and Y up the page, rather than in component order, since depth
 is what reads as distance from the viewer in either frame. The coordinates themselves are

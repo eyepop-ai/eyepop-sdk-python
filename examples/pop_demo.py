@@ -419,7 +419,7 @@ def summarize_world_coordinates(prediction: dict[str, Any]) -> str | None:
     return f"world coordinates: {placed} point(s) placed, {unplaced} not"
 
 
-def collect_world_points(prediction: dict[str, Any], into: list[tuple[str, Any]]) -> None:
+def collect_world_points(prediction: dict[str, Any], into: list[Any]) -> None:
     """Accumulate everything in a prediction that carries world coordinates.
 
     Key points, outlines, contours and mask clouds alike. Only the placed points
@@ -642,12 +642,12 @@ elif main_args.model_uuid_sam2:
                     forward=CropForward(
                         targets=[InferenceComponent(
                             ability='eyepop.sam2.decoder:latest',
-                            # forward=FullForward(
-                            #     targets=[ContourFinderComponent(
-                            #         contourType=ContourType.POLYGON,
-                            #         areaThreshold=0.005
-                            #     )]
-                            # )
+                            forward=FullForward(
+                                targets=[ContourFinderComponent(
+                                    contourType=ContourType.POLYGON,
+                                    areaThreshold=0.005
+                                )]
+                            )
                         )]
                     )
                 )]
@@ -713,11 +713,11 @@ elif main_args.single_prompt is not None:
         })
     ]
 
-async def main(args) -> tuple[dict[str, Any] | None, str | None, list[tuple[str, Any]]]:
+async def main(args) -> tuple[dict[str, Any] | None, str | None, list[Any]]:
     visualize_prediction = None
     visualize_path = None
     example_image_src = None
-    world_points: list[tuple[str, Any]] = []
+    world_points: list[Any] = []
     motion_detect = MotionDetectConfig(motionGap=1) if args.motion_detect else None
 
     if args.dump and pop:
@@ -876,10 +876,8 @@ if main_args.visualize_world:
 
         world_axes = plt.figure(figsize=(9, 8)).add_subplot(projection='3d')
         world_plot = EyePopWorldPlot(world_axes)
-        drawn = world_plot.points([points for _, points in result_world_points],
-                                  labels=[label for label, _ in result_world_points],
-                                  max_points=main_args.world_max_points)
-        total = sum(len(points) for _, points in result_world_points)
+        drawn = world_plot.series(result_world_points, max_points=main_args.world_max_points)
+        total = sum(len(entry.points) for entry in result_world_points)
         world_plot.finish(title=f"{len(result_world_points)} series, {drawn} of {total} points")
         plt.show()
 if main_args.visualize:

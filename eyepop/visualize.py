@@ -1,9 +1,12 @@
+from dataclasses import dataclass, field
+
 import matplotlib.patches as patches
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 from eyepop.depth_map import DepthMap
 from eyepop.point_cloud import PointCloud
@@ -137,81 +140,217 @@ class EyePopPlot:
         return label
 
 
-def _world_points(points) -> np.ndarray:
-    """The placed points of a point list, as an (N, 3) array in metres.
+# The pose skeletons, mirrored from the Node SDK's eyepop-render-2d/render-pose.ts
+# so the 3D plot connects the same joints the 2D renderer does. Keyed on the key
+# point group's category and matched by class label, not by index, because the
+# label is what identifies a joint across models.
+POSE_2D_CATEGORY = "2d-body-points"
+POSE_3D_CATEGORY = "3d-body-points"
+
+POSE_2D_CONNECTIONS = (
+    ("left shoulder", "right shoulder"),
+    ("left hip", "right hip"),
+    ("left shoulder", "left elbow"),
+    ("left elbow", "left wrist"),
+    ("left shoulder", "right hip"),
+    ("left hip", "left knee"),
+    ("left knee", "left ankle"),
+    ("right shoulder", "right elbow"),
+    ("right elbow", "right wrist"),
+    ("right shoulder", "left hip"),
+    ("right hip", "right knee"),
+    ("right knee", "right ankle"),
+)
+
+POSE_3D_CONNECTIONS = (
+    ("mouth (right)", "mouth (left)"),
+    ("right ear", "right eye (outer)"),
+    ("right eye (outer)", "right eye"),
+    ("right eye", "right eye (inner)"),
+    ("right eye (inner)", "nose"),
+    ("nose", "left eye (inner)"),
+    ("left eye (inner)", "left eye"),
+    ("left eye", "left eye (outer)"),
+    ("left eye (outer)", "left ear"),
+    ("right shoulder", "left shoulder"),
+    ("left shoulder", "right hip"),
+    ("left hip", "right hip"),
+    ("left hip", "right shoulder"),
+    ("right shoulder", "right elbow"),
+    ("right elbow", "right wrist"),
+    ("right wrist", "right thumb"),
+    ("right wrist", "right pinky"),
+    ("right wrist", "right index"),
+    ("right pinky", "right index"),
+    ("left shoulder", "left elbow"),
+    ("left elbow", "left wrist"),
+    ("left wrist", "left thumb"),
+    ("left wrist", "left pinky"),
+    ("left wrist", "left index"),
+    ("left pinky", "left index"),
+    ("right hip", "right knee"),
+    ("right knee", "right ankle"),
+    ("right ankle", "right foot index"),
+    ("right ankle", "right heel"),
+    ("right heel", "right foot index"),
+    ("left hip", "left knee"),
+    ("left knee", "left ankle"),
+    ("left ankle", "left foot index"),
+    ("left ankle", "left heel"),
+    ("left heel", "left foot index"),
+)
+
+POSE_CONNECTIONS = {
+    POSE_2D_CATEGORY: POSE_2D_CONNECTIONS,
+    POSE_3D_CATEGORY: POSE_3D_CONNECTIONS,
+}
+
+_NO_POINTS = np.empty((0, 3), dtype="float32")
+_NO_SEGMENTS = np.empty((0, 2, 3), dtype="float32")
+
+
+@dataclass(frozen=True)
+class WorldSeries:
+    """One set of world coordinates from a prediction, ready to draw.
+
+    `points` are the placed ones, in metres. `segments` are the lines between
+    them - a contour's own order, or the pose skeleton for a key point group -
+    and are empty for a carrier with no defined connectivity, such as a mask
+    point cloud, whose points are a grid rather than a path.
+    """
+
+    label: str
+    points: np.ndarray
+    # a factory because a dataclass refuses an array as a default: it is
+    # mutable, even though this one is shared and never written to
+    segments: np.ndarray = field(default_factory=lambda: _NO_SEGMENTS)
+
+
+def _member(obj, key: str):
+    return obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
+
+
+def _indexed_points(points) -> np.ndarray:
+    """An (N, 3) array of world coordinates, NaN where the worker placed none.
+
+    Index preserving, unlike the placed-only view, because a contour's
+    connectivity is its own ordering: dropping an unplaced point first would
+    join its neighbours across a gap that is not there.
 
     A point the worker could not place carries no world members at all - never a
     zero, an Infinity or a NaN - so absence is the only test, and all three
     arrive together.
     """
-    placed = []
+    rows = []
     for point in points or []:
-        if not isinstance(point, dict):
-            point = {"worldX": getattr(point, "worldX", None),
-                     "worldY": getattr(point, "worldY", None),
-                     "worldZ": getattr(point, "worldZ", None)}
-        x, y, z = point.get("worldX"), point.get("worldY"), point.get("worldZ")
-        if x is not None and y is not None and z is not None:
-            placed.append((float(x), float(y), float(z)))
-    return np.array(placed, dtype="float32").reshape(-1, 3)
+        x, y, z = _member(point, "worldX"), _member(point, "worldY"), _member(point, "worldZ")
+        if x is None or y is None or z is None:
+            rows.append((float("nan"),) * 3)
+        else:
+            rows.append((float(x), float(y), float(z)))
+    return np.array(rows, dtype="float32").reshape(-1, 3)
 
 
-def labelled_world_points(prediction: dict) -> list[tuple[str, np.ndarray]]:
-    """Every set of world coordinates in a prediction, labelled for a legend.
+def _placed(indexed: np.ndarray) -> np.ndarray:
+    return indexed[~np.isnan(indexed).any(axis=1)]
+
+
+def _path_segments(indexed: np.ndarray, closed: bool = True) -> np.ndarray:
+    """Segments joining consecutive points, skipping any pair with a hole in it.
+
+    An unplaced point breaks the path rather than being bridged over, which is
+    what keeps a partially placed contour honest.
+    """
+    count = len(indexed)
+    if count < 2:
+        return _NO_SEGMENTS
+    starts = range(count if closed else count - 1)
+    pairs = [(indexed[i], indexed[(i + 1) % count]) for i in starts]
+    kept = [pair for pair in pairs if not (np.isnan(pair[0]).any() or np.isnan(pair[1]).any())]
+    return np.array(kept, dtype="float32").reshape(-1, 2, 3)
+
+
+def _pose_segments(group, indexed: np.ndarray) -> np.ndarray:
+    """Skeleton segments for a key point group, or none for an unknown category.
+
+    Matched by class label rather than index, mirroring the 2D renderer: the
+    label is what identifies a joint, and an unrecognised category gets no lines
+    at all rather than points joined in whatever order they arrived.
+    """
+    category = _member(group, "category")
+    connections = POSE_CONNECTIONS.get(category) if isinstance(category, str) else None
+    if not connections:
+        return _NO_SEGMENTS
+
+    by_label: dict[str, np.ndarray] = {}
+    for point, coordinates in zip(_member(group, "points") or [], indexed, strict=True):
+        label = _member(point, "classLabel")
+        if label is not None and not np.isnan(coordinates).any():
+            by_label[label] = coordinates
+
+    kept = [(by_label[a], by_label[b]) for a, b in connections if a in by_label and b in by_label]
+    return np.array(kept, dtype="float32").reshape(-1, 2, 3)
+
+
+def labelled_world_points(prediction: dict) -> list[WorldSeries]:
+    """Every set of world coordinates in a prediction, labelled and connected.
 
     Covers all four carriers the worker enriches - key points, outlines,
     contours (cutouts included) and mask point clouds - rather than only the
     clouds, so a pop that produces no masks still has something to show.
 
-    Each entry is an (N, 3) array of metres. Labelled by class and carrier, and
-    numbered when a class appears more than once, so a plot of several objects
-    can be read. Nested objects are included.
+    Labelled by class and carrier, and numbered when a class appears more than
+    once, so a plot of several objects can be read. Nested objects are included.
     """
-    labelled: list[tuple[str, np.ndarray]] = []
+    series: list[WorldSeries] = []
     seen: dict[str, int] = {}
 
-    def add(name: str, carrier: str, points: np.ndarray) -> None:
-        if points.size:
-            labelled.append((f"{name} {carrier}", points))
+    def add(name: str, carrier: str, indexed: np.ndarray, segments: np.ndarray) -> None:
+        placed = _placed(indexed)
+        if placed.size:
+            series.append(WorldSeries(f"{name} {carrier}", placed, segments))
 
-    def member(obj, key: str):
-        return obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
+    def add_group(name: str, group) -> None:
+        indexed = _indexed_points(_member(group, "points"))
+        add(name, "keypoints", indexed, _pose_segments(group, indexed))
 
-    def walk(objects, depth: int) -> None:
+    def walk(objects) -> None:
         for index, obj in enumerate(objects or []):
-            name = member(obj, "classLabel") or f"object {index}"
+            name = _member(obj, "classLabel") or f"object {index}"
             seen[name] = seen.get(name, 0) + 1
             if seen[name] > 1:
                 name = f"{name} {seen[name]}"
 
-            for group in member(obj, "keyPoints") or []:
-                add(name, "keypoints", _world_points(member(group, "points")))
-            add(name, "outline", _world_points(member(obj, "outline")))
-            for contour in member(obj, "contours") or []:
-                add(name, "contour", _world_points(member(contour, "points")))
-                for cutout in member(contour, "cutouts") or []:
-                    add(name, "cutout", _world_points(cutout))
+            for group in _member(obj, "keyPoints") or []:
+                add_group(name, group)
+            outline = _indexed_points(_member(obj, "outline"))
+            add(name, "outline", outline, _path_segments(outline))
+            for contour in _member(obj, "contours") or []:
+                points = _indexed_points(_member(contour, "points"))
+                add(name, "contour", points, _path_segments(points))
+                for cutout in _member(contour, "cutouts") or []:
+                    hole = _indexed_points(cutout)
+                    add(name, "cutout", hole, _path_segments(hole))
             cloud = PointCloud.from_object(obj)
             if cloud is not None:
-                add(name, "mask", cloud.placed_points)
+                # a grid rather than a path, so there is nothing to connect
+                add(name, "mask", cloud.placed_points, _NO_SEGMENTS)
 
-            walk(member(obj, "objects"), depth + 1)
+            walk(_member(obj, "objects"))
 
     if prediction is None:
-        return labelled
+        return series
 
     # a prediction carries key point groups of its own, for the abilities that
     # produce them without an enclosing object
-    for group in (prediction.get("keyPoints") if isinstance(prediction, dict)
-                  else getattr(prediction, "keyPoints", None)) or []:
-        points = _world_points(group.get("points") if isinstance(group, dict)
-                               else getattr(group, "points", None))
-        if points.size:
-            labelled.append(("keypoints", points))
+    for group in _member(prediction, "keyPoints") or []:
+        indexed = _indexed_points(_member(group, "points"))
+        placed = _placed(indexed)
+        if placed.size:
+            series.append(WorldSeries("keypoints", placed, _pose_segments(group, indexed)))
 
-    walk(prediction.get("objects") if isinstance(prediction, dict)
-         else getattr(prediction, "objects", None), 0)
-    return labelled
+    walk(_member(prediction, "objects"))
+    return series
 
 
 class EyePopWorldPlot:
@@ -268,10 +407,7 @@ class EyePopWorldPlot:
 
         Returns the number of points drawn.
         """
-        labelled = labelled_world_points(prediction)
-        return self.points([points for _, points in labelled],
-                           labels=[label for label, _ in labelled],
-                           max_points=max_points)
+        return self.series(labelled_world_points(prediction), max_points)
 
     def point_clouds(self, clouds: list[PointCloud], labels: list[str] | None = None,
                      max_points: int = DEFAULT_MAX_POINTS) -> int:
@@ -280,43 +416,65 @@ class EyePopWorldPlot:
 
     def points(self, series: list[np.ndarray], labels: list[str] | None = None,
                max_points: int = DEFAULT_MAX_POINTS) -> int:
-        """Plot (N, 3) arrays of world points, one colour each.
+        """Plot (N, 3) arrays of world points, one colour each and unconnected."""
+        return self.series(
+            [WorldSeries(labels[index] if labels is not None and index < len(labels) else "",
+                         points)
+             for index, points in enumerate(series)],
+            max_points)
+
+    def series(self, series: list[WorldSeries], max_points: int = DEFAULT_MAX_POINTS) -> int:
+        """Plot labelled series, drawing each one's connections where it has any.
 
         The budget is shared across series rather than applied to each, so
         adding objects thins the scatter instead of multiplying it - but sparse
         series are exempt, so key points survive alongside a dense mask.
         """
-        drawn = [(index, points) for index, points in enumerate(series) if points.size]
+        drawn = [entry for entry in series if entry.points.size]
         if not drawn:
             return 0
 
-        sparse = sum(len(points) for _, points in drawn if len(points) <= self.SPARSE_SERIES)
-        dense = sum(len(points) for _, points in drawn if len(points) > self.SPARSE_SERIES)
+        sparse = sum(len(entry.points) for entry in drawn if self._is_sparse(entry))
+        dense = sum(len(entry.points) for entry in drawn if not self._is_sparse(entry))
         budget = max(max_points - sparse, 1) if max_points > 0 else dense
         # strided rather than random so the same call draws the same picture
         stride = max(1, -(-dense // budget)) if dense else 1
 
-        for index, points in drawn:
-            is_sparse = len(points) <= self.SPARSE_SERIES
-            sampled = points if is_sparse else points[::stride]
+        for entry in drawn:
+            is_sparse = self._is_sparse(entry)
+            sampled = entry.points if is_sparse else entry.points[::stride]
             if not sampled.size:
                 continue
             sampled = sampled[:, self.AXIS_ORDER]
-            label = labels[index] if labels is not None and index < len(labels) else None
             # a handful of key points would be invisible at the size a mask
             # cloud has to be drawn at
             # matplotlib's stub types zs as int; it takes array-like, which is
             # the only shape these can be drawn from
-            self.axes.scatter(sampled[:, 0], sampled[:, 1],
-                              zs=sampled[:, 2],  # pyright: ignore[reportArgumentType]
-                              s=12 if is_sparse else 1,
-                              alpha=0.9 if is_sparse else 0.5, label=label)
+            drawn_points = self.axes.scatter(
+                sampled[:, 0], sampled[:, 1],
+                zs=sampled[:, 2],  # pyright: ignore[reportArgumentType]
+                s=12 if is_sparse else 1,
+                alpha=0.9 if is_sparse else 0.5, label=entry.label or None)
             self._plotted += len(sampled)
-            extent = np.stack([sampled.min(axis=0), sampled.max(axis=0)])
-            self._bounds = extent if self._bounds is None else np.stack(
-                [np.minimum(self._bounds[0], extent[0]), np.maximum(self._bounds[1], extent[1])])
+            self._extend_bounds(sampled)
+
+            # only for a series drawn whole: a strided one has had points removed
+            # from under its own connectivity, so its lines would join the wrong
+            # pairs. Nothing dense defines any today, so nothing is lost.
+            if is_sparse and entry.segments.size:
+                self.axes.add_collection3d(Line3DCollection(
+                    entry.segments[:, :, self.AXIS_ORDER],
+                    colors=drawn_points.get_facecolor(), linewidths=1.5, alpha=0.8))
 
         return self._plotted
+
+    def _is_sparse(self, entry: "WorldSeries") -> bool:
+        return len(entry.points) <= self.SPARSE_SERIES
+
+    def _extend_bounds(self, sampled: np.ndarray) -> None:
+        extent = np.stack([sampled.min(axis=0), sampled.max(axis=0)])
+        self._bounds = extent if self._bounds is None else np.stack(
+            [np.minimum(self._bounds[0], extent[0]), np.maximum(self._bounds[1], extent[1])])
 
     def finish(self, title: str | None = None, legend: bool = True) -> None:
         """Label the axes and give the box the data's own proportions.
