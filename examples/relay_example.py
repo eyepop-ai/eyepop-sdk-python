@@ -7,6 +7,7 @@ import av
 import httpx
 
 from eyepop.data.types.asset import Area
+from eyepop.worker.camera import Camera
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, VideoMode
 
@@ -17,7 +18,8 @@ async def relay_http_source(
         params: list[ComponentParams] | None = None,
         motion_detect: MotionDetectConfig | None = None,
         roi: Area | None = None,
-        fps: str | None = None
+        fps: str | None = None,
+        camera: Camera | None = None
 ) -> AsyncGenerator[dict, None]:
     async with httpx.AsyncClient() as http_client:
         async with http_client.stream("GET", source_url) as response:
@@ -28,7 +30,8 @@ async def relay_http_source(
                 params=params,
                 motion_detect=motion_detect,
                 roi=roi,
-                fps=fps
+                fps=fps,
+                camera=camera
             )
             while result := await job.predict():
                 yield result
@@ -39,7 +42,8 @@ async def relay_rtsp_source(
         params: list[ComponentParams] | None = None,
         motion_detect: MotionDetectConfig | None = None,
         roi: Area | None = None,
-        fps: str | None = None
+        fps: str | None = None,
+        camera: Camera | None = None
 ) -> AsyncGenerator[dict, None]:
     container = av.open(source_url, 'r', options={
         'rtsp_transport': 'tcp',
@@ -73,6 +77,7 @@ async def relay_rtsp_source(
         motion_detect=motion_detect,
         roi=roi,
         fps=fps,
+        camera=camera,
     )
     while result := await job.predict():
         yield result

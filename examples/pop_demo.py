@@ -20,7 +20,9 @@ from webui import webui
 from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
 from eyepop.data.types.asset import Area, RectangleArea
+from eyepop.worker.camera import Camera, CameraIntrinsics
 from eyepop.worker.worker_types import (
+    BaseComponent,
     ComponentParams,
     ContourFinderComponent,
     ContourType,
@@ -33,6 +35,12 @@ from eyepop.worker.worker_types import (
     Pop,
     TrackingComponent,
 )
+
+# The depth ability used when --translate-to-world is asked for on its own. Must
+# be a metric one: a 'relative' map is accepted and silently yields no
+# coordinates, because relative depth is scale- AND shift-invariant, so a cloud
+# recovered from it would be distorted rather than merely unscaled.
+DEFAULT_DEPTH_ABILITY = 'eyepop.depth.large:latest'
 
 load_dotenv()
 
@@ -298,6 +306,118 @@ def rectangle_roi(arg: str) -> Area:
     )
 
 
+def camera_intrinsics(arg: str) -> CameraIntrinsics:
+    fx, fy, cx, cy = ast.literal_eval(arg)
+
+    return CameraIntrinsics(fx=fx, fy=fy, cx=cx, cy=cy)
+
+
+def camera_from_args(camera_args: Namespace) -> Camera | None:
+    """The source calibration, or None to let the worker assume a field of view.
+
+    Assuming one is a development scaffold: for canonical metric depth the guess
+    cancels out of X and Y and survives only in Z, so lateral measurements stay
+    exact while every distance along the optical axis is wrong by however wrong
+    the guess was.
+    """
+    if camera_args.camera_intrinsics is not None:
+        return Camera(intrinsics=camera_args.camera_intrinsics)
+    if camera_args.camera_hfov_degrees is not None:
+        return Camera(hfovDegrees=camera_args.camera_hfov_degrees)
+    return None
+
+
+def request_world_coordinates(components: list[BaseComponent]) -> int:
+    """Opt every component that can be enriched into world coordinates.
+
+    Returns how many were opted in, walking nested forward targets so this works
+    with the deeply composed examples as well as the flat ones.
+
+    Only a component that runs its own inference can honour it, which is what
+    gives it an id for the worker to select on; the converter rejects it on the
+    others. A hidden component is skipped rather than rejected - its predictions
+    never reach the response, so back-projecting them would be paid for and
+    thrown away - but its forward targets are still walked, which is what an
+    encoder-then-detector composition needs.
+    """
+    count = 0
+    for component in components:
+        if isinstance(component, (InferenceComponent, TrackingComponent)):
+            if not (isinstance(component, InferenceComponent) and component.hidden):
+                component.translateToWorld = True
+                count += 1
+        if component.forward is not None and component.forward.targets:
+            count += request_world_coordinates(component.forward.targets)
+    return count
+
+
+def add_world_coordinates_to_pop(original: Pop, world_args: Namespace) -> Pop:
+    """Return a copy of the pop that asks for world coordinates.
+
+    Copied rather than mutated because the examples are shared module level
+    objects, and a demo that edits one in place would be a trap for the next
+    reader.
+    """
+    if not world_args.translate_to_world:
+        return original
+
+    pop = original.model_copy(deep=True)
+    if world_args.depth_map_ability_uuid:
+        pop.depthMapAbilityUuid = world_args.depth_map_ability_uuid
+    else:
+        pop.depthMapAbility = world_args.depth_map_ability or DEFAULT_DEPTH_ABILITY
+
+    enriched = request_world_coordinates(pop.components)
+    if enriched == 0:
+        # the converter rejects this rather than silently doing nothing, so say
+        # so here where the reason is obvious
+        log.warning("no component in this pop can carry world coordinates, so the depth "
+                    "ability has nothing to enrich")
+    else:
+        log.info("requesting world coordinates for %d component(s) via %s", enriched,
+                 pop.depthMapAbilityUuid or pop.depthMapAbility)
+    return pop
+
+
+def summarize_world_coordinates(prediction: dict[str, Any]) -> str | None:
+    """One line on how many points came back placed, or None if none did.
+
+    A point the worker could not place carries no world members at all - sky,
+    outside the depth map, no usable map - so counting them is what tells a
+    calibration that worked from one that quietly did not.
+    """
+    placed = 0
+    unplaced = 0
+
+    def count_points(points: list[dict[str, Any]]) -> None:
+        nonlocal placed, unplaced
+        for point in points:
+            if point.get("worldZ") is not None:
+                placed += 1
+            else:
+                unplaced += 1
+
+    def walk(obj: dict[str, Any]) -> None:
+        for keypoints in obj.get("keyPoints") or []:
+            count_points(keypoints.get("points") or [])
+        count_points(obj.get("outline") or [])
+        for contour in obj.get("contours") or []:
+            count_points(contour.get("points") or [])
+            for cutout in contour.get("cutouts") or []:
+                count_points(cutout)
+        for nested in obj.get("objects") or []:
+            walk(nested)
+
+    # a prediction carries the same point bearing members an object does, so one
+    # walk from the root covers both; walking its objects again would count the
+    # whole tree twice
+    walk(prediction)
+
+    if placed == 0 and unplaced == 0:
+        return None
+    return f"world coordinates: {placed} point(s) placed, {unplaced} not"
+
+
 def replace_binary_members(value):
     """Summarize large binary members (depth values, mask bitmaps).
 
@@ -310,6 +430,8 @@ def replace_binary_members(value):
             replaced["values"] = f"<{replaced['width']}x{replaced['height']} base64 float32, {len(value['values'])} chars>"
         if isinstance(replaced.get("bitmap"), str) and "width" in replaced and "height" in replaced:
             replaced["bitmap"] = f"<{replaced['width']}x{replaced['height']} base64 bitmap, {len(value['bitmap'])} chars>"
+        if isinstance(replaced.get("world"), str) and "width" in replaced and "height" in replaced:
+            replaced["world"] = f"<{replaced['width']}x{replaced['height']} base64 xyz float32, {len(value['world'])} chars>"
         return replaced
     if isinstance(value, list):
         return [replace_binary_members(v) for v in value]
@@ -380,6 +502,23 @@ parser.add_argument('--motion-detect', required=False, help="Skip video frames w
 
 # Optional global ROI parameters
 parser.add_argument('--roi', required=False, type=rectangle_roi, help="Rectangular ROI as (x, y, width, height)")
+
+parser.add_argument('-w', '--translate-to-world', required=False, default=False, action="store_true",
+                    help="Translate this pop's point based predictions into world coordinates in metres, "
+                         "back-projected through a depth map. Works with any of the example pops")
+parser.add_argument('--depth-map-ability', required=False, type=str, default=None,
+                    help=f"Depth ability supplying the map to back-project through, default "
+                         f"'{DEFAULT_DEPTH_ABILITY}'. Must be a metric one; a 'relative' ability is "
+                         f"accepted and silently yields no coordinates")
+parser.add_argument('--depth-map-ability-uuid', required=False, type=str, default=None,
+                    help="Depth ability by uuid, instead of --depth-map-ability")
+parser.add_argument('--camera-hfov-degrees', required=False, type=float, default=None,
+                    help="Source's horizontal field of view in (0, 180). Without a calibration the "
+                         "worker assumes 60 degrees, which stretches world coordinates along the "
+                         "optical axis by however wrong that guess is")
+parser.add_argument('--camera-intrinsics', required=False, type=camera_intrinsics, default=None,
+                    help="Source's normalized intrinsics as (fx, fy, cx, cy), fractions of the frame "
+                         "rather than pixels. Mutually exclusive with --camera-hfov-degrees")
 
 # Optional caching media for post-processing on the worker
 parser.add_argument('-mc', '--media-cache-seconds', required=False, type=int, help="Cache most recent X seconds of media for post-processing on the worker", default=None)
@@ -499,6 +638,29 @@ elif main_args.session:
 else:
     raise ValueError("pop or model required (or a preconfigured session)")
 
+if main_args.camera_intrinsics is not None and main_args.camera_hfov_degrees is not None:
+    # rejected rather than resolved by precedence: two descriptions of one lens
+    # that disagree have no right answer
+    print("Pass either --camera-intrinsics or --camera-hfov-degrees, not both")
+    sys.exit(1)
+
+if (main_args.depth_map_ability or main_args.depth_map_ability_uuid) and not main_args.translate_to_world:
+    print("--depth-map-ability needs --translate-to-world; a depth ability no component asked to use "
+          "is rejected as a bad pop rather than silently doing nothing")
+    sys.exit(1)
+
+if main_args.translate_to_world:
+    if pop is None:
+        print("--translate-to-world needs a pop to enrich; it cannot be added to a preconfigured session")
+        sys.exit(1)
+    pop = add_world_coordinates_to_pop(pop, main_args)
+
+camera = camera_from_args(main_args)
+if main_args.translate_to_world and camera is None:
+    log.warning("no camera calibration supplied, so the worker assumes a 60 degree horizontal field "
+                "of view; lateral measurements are exact but depth is only as right as that guess. "
+                "Pass --camera-hfov-degrees to turn the guess into a measurement")
+
 params = None
 if main_args.points:
     params = [
@@ -569,6 +731,8 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                     visualize_path = path
                     if args.output:
                         print(path, json.dumps(replace_binary_members(result), indent=2))
+                        if (world := summarize_world_coordinates(result)) is not None:
+                            print(path, world)
             for local_file in local_files:
                 job = await endpoint.upload(
                     local_file,
@@ -576,6 +740,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                     motion_detect=motion_detect,
                     roi=args.roi,
                     fps=args.fps,
+                    camera=camera,
                     media_cache_seconds=args.media_cache_seconds
                 )
                 jobs.append(on_ready(job, local_file))
@@ -592,12 +757,15 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                 motion_detect=motion_detect,
                 roi=args.roi,
                 fps=args.fps,
+                camera=camera,
                 media_cache_seconds=args.media_cache_seconds
             )
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:
                     print(json.dumps(replace_binary_members(result), indent=2))
+                    if (world := summarize_world_coordinates(result)) is not None:
+                        print(world)
             if args.visualize:
                 example_image_src = args.url
         elif args.proxy_url:
@@ -609,10 +777,13 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                         motion_detect=motion_detect,
                         roi=args.roi,
                         fps=args.fps,
+                        camera=camera,
                 ):
                     visualize_prediction = result
                     if args.output:
                         print(json.dumps(replace_binary_members(result), indent=2))
+                        if (world := summarize_world_coordinates(result)) is not None:
+                            print(world)
                 if args.visualize:
                     example_image_src = args.url
             elif args.proxy_url.startswith("rtsp:"):
@@ -623,10 +794,13 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                         motion_detect=motion_detect,
                         roi=args.roi,
                         fps=args.fps,
+                        camera=camera,
                 ):
                     visualize_prediction = result
                     if args.output:
                         print(json.dumps(replace_binary_members(result), indent=2))
+                        if (world := summarize_world_coordinates(result)) is not None:
+                            print(world)
                 if args.visualize:
                     example_image_src = args.url
             else:
@@ -640,12 +814,15 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None]:
                 motion_detect=motion_detect,
                 roi=args.roi,
                 fps=args.fps,
+                camera=camera,
                 media_cache_seconds=args.media_cache_seconds
             )
             while result := await job.predict():
                 visualize_prediction = result
                 if args.output:
                     print(json.dumps(replace_binary_members(result), indent=2))
+                    if (world := summarize_world_coordinates(result)) is not None:
+                        print(world)
             if args.visualize:
                 async with EyePopSdk.dataEndpoint(is_async=True) as dataEndpoint:
                     buffer = await dataEndpoint.download_asset(
