@@ -2,6 +2,8 @@
 
 Python SDK for EyePop.ai's inference and data APIs.
 
+Full documentation: [docs/gitbook](docs/gitbook/README.md), published at [docs.eyepop.ai](https://docs.eyepop.ai).
+
 ```shell
 pip install eyepop
 ```

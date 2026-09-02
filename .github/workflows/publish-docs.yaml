@@ -1,0 +1,35 @@
+name: Publish docs
+
+# docs/gitbook is the customer documentation for this repository. The docs site
+# is one GitBook space, so the pages are mirrored into eyepop-docs-external
+# under sdks/python rather than published as a separate space.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/gitbook/**'
+      - '.github/workflows/publish-docs.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-docs
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Mirror docs to the docs site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: eyepop-ai/eyepop-actions/publish-docs@v1
+        with:
+          sources: |
+            docs/gitbook/:sdks/python
+          token: ${{ secrets.GH_TOKEN }}
