@@ -21,7 +21,13 @@ from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
 from eyepop.data.types.asset import Area, RectangleArea
 from eyepop.visualize import EyePopWorldPlot, labelled_world_points
-from eyepop.worker.camera import Camera, CameraIntrinsics
+from eyepop.worker.camera import (
+    Camera,
+    CameraExtrinsics,
+    CameraIntrinsics,
+    Quaternion,
+    Vector3d,
+)
 from eyepop.worker.worker_types import (
     BaseComponent,
     ComponentParams,
@@ -314,6 +320,18 @@ def camera_intrinsics(arg: str) -> CameraIntrinsics:
     return CameraIntrinsics(fx=fx, fy=fy, cx=cx, cy=cy)
 
 
+def camera_rotation(arg: str) -> Quaternion:
+    w, x, y, z = ast.literal_eval(arg)
+
+    return Quaternion(w=w, x=x, y=y, z=z)
+
+
+def camera_translation(arg: str) -> Vector3d:
+    x, y, z = ast.literal_eval(arg)
+
+    return Vector3d(x=x, y=y, z=z)
+
+
 def camera_from_args(camera_args: Namespace) -> Camera | None:
     """The source calibration, or None to let the worker assume a field of view.
 
@@ -322,10 +340,17 @@ def camera_from_args(camera_args: Namespace) -> Camera | None:
     exact while every distance along the optical axis is wrong by however wrong
     the guess was.
     """
+    extrinsics = None
+    if camera_args.camera_rotation is not None or camera_args.camera_translation is not None:
+        # either half alone is meaningful: a rotation with no translation is a
+        # camera at the world origin, a translation with no rotation is one
+        # looking along the world axes
+        extrinsics = CameraExtrinsics(rotation=camera_args.camera_rotation,
+                                      translation=camera_args.camera_translation)
     if camera_args.camera_intrinsics is not None:
-        return Camera(intrinsics=camera_args.camera_intrinsics)
+        return Camera(intrinsics=camera_args.camera_intrinsics, extrinsics=extrinsics)
     if camera_args.camera_hfov_degrees is not None:
-        return Camera(hfovDegrees=camera_args.camera_hfov_degrees)
+        return Camera(hfovDegrees=camera_args.camera_hfov_degrees, extrinsics=extrinsics)
     return None
 
 
@@ -542,6 +567,15 @@ parser.add_argument('--camera-hfov-degrees', required=False, type=float, default
 parser.add_argument('--camera-intrinsics', required=False, type=camera_intrinsics, default=None,
                     help="Source's normalized intrinsics as (fx, fy, cx, cy), fractions of the frame "
                          "rather than pixels. Mutually exclusive with --camera-hfov-degrees")
+parser.add_argument('--camera-rotation', required=False, type=camera_rotation, default=None,
+                    help="Source's camera-to-world rotation as a unit quaternion (w, x, y, z). With "
+                         "extrinsics, world coordinates come back in the world frame - Z up, ground "
+                         "at Z = 0 - instead of the camera frame. Note this is the inverse of what "
+                         "cv2.solvePnP returns")
+parser.add_argument('--camera-translation', required=False, type=camera_translation, default=None,
+                    help="Where the camera itself sits in the world, as (x, y, z) in metres. A camera "
+                         "declared 5 m up reports its scene 5 m up. Not solvePnP's tvec, which is "
+                         "not the camera position")
 parser.add_argument('-vw', '--visualize-world', required=False, default=False, action="store_true",
                     help="Scatter everything in the results that carries world coordinates - key "
                          "points, outlines, contours, mask point clouds and the scene cloud - into "
@@ -682,6 +716,14 @@ if main_args.camera_intrinsics is not None and main_args.camera_hfov_degrees is 
     # rejected rather than resolved by precedence: two descriptions of one lens
     # that disagree have no right answer
     print("Pass either --camera-intrinsics or --camera-hfov-degrees, not both")
+    sys.exit(1)
+
+if ((main_args.camera_rotation is not None or main_args.camera_translation is not None)
+        and main_args.camera_intrinsics is None and main_args.camera_hfov_degrees is None):
+    # a pose says where the camera is, not what it sees; the worker rejects a
+    # calibration that describes no lens, so say so here where the fix is obvious
+    print("--camera-rotation and --camera-translation describe a pose, not a lens; pass "
+          "--camera-intrinsics or --camera-hfov-degrees as well")
     sys.exit(1)
 
 if ((main_args.depth_map_ability or main_args.depth_map_ability_uuid)
