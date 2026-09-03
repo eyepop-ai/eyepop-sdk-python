@@ -378,8 +378,9 @@ def add_world_coordinates_to_pop(original: Pop, world_args: Namespace) -> Pop:
         log.warning("no component in this pop can carry world coordinates, so the depth "
                     "ability has nothing to enrich")
     else:
-        log.info("requesting world coordinates for %d component(s)%s via %s", enriched,
-                 " and the whole scene" if world_args.depth_map_to_world else "",
+        asked_for = ([f"{enriched} component(s)"] if enriched else []) + \
+                    (["the whole scene"] if world_args.depth_map_to_world else [])
+        log.info("requesting world coordinates for %s via %s", " and ".join(asked_for),
                  depth_map.abilityUuid or depth_map.ability)
     return pop
 
@@ -566,9 +567,13 @@ if (not main_args.pop
         and not main_args.model_alias
         and not main_args.model_uuid_sam1
         and not main_args.model_uuid_sam2
-        and not main_args.session):
+        and not main_args.session
+        # a scene cloud is a whole request on its own: the depth map is the only
+        # consumer, so there is no model to name and nothing to run it on
+        and not main_args.depth_map_to_world):
     print("Need something do do, pass either --pop or --model-uuid or --model-alias or --model-uuid-sam1 "
-          "or --model-uuid-sam2 (or start with a preconfigured session with --session)")
+          "or --model-uuid-sam2 or --depth-map-to-world (or start with a preconfigured session with "
+          "--session)")
     parser.print_help()
     sys.exit(1)
 
