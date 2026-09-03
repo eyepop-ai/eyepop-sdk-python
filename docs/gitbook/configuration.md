@@ -30,9 +30,9 @@ If your backend already holds a short-lived token, pass it as `access_token=` in
 
 ### Transient and persistent sessions
 
-With no session UUID the SDK creates a new **transient** session each time it connects, and deletes the pipeline it created on exit — the right default for building and testing. It does not delete the session itself.
+With no session UUID and a `pop` — the flow every example here uses — the SDK creates a new **transient** session each time it connects, and deletes the pipeline it created on exit. It does not delete the session itself. This is the right default for building and testing.
 
-Connecting without a `pop` behaves differently: the SDK attaches to an existing non-persistent session and leaves both the session and its pipeline untouched on exit.
+With no `pop`, the SDK reuses an existing non-persistent session when one is available, and leaves both it and its pipeline untouched on exit.
 
 To run against a persistent Deployment, pass its session UUID. The Pop is fixed when the Deployment is created, so you do not pass one:
 
