@@ -665,8 +665,13 @@ elif main_args.model_uuid_sam2:
     ])
 elif main_args.session:
     pop = None
+elif main_args.depth_map_to_world:
+    # a complete pop on its own: the depth map is the only consumer, so there is
+    # nothing for a component to do and none has to be named
+    pop = Pop(components=[])
 else:
-    raise ValueError("pop or model required (or a preconfigured session)")
+    raise ValueError("pop or model required (or a preconfigured session, "
+                     "or --depth-map-to-world for the scene alone)")
 
 if main_args.camera_intrinsics is not None and main_args.camera_hfov_degrees is not None:
     # rejected rather than resolved by precedence: two descriptions of one lens
@@ -682,7 +687,7 @@ if ((main_args.depth_map_ability or main_args.depth_map_ability_uuid)
 
 if main_args.to_world or main_args.depth_map_to_world:
     if pop is None:
-        print("--to-world needs a pop to enrich; it cannot be added to a preconfigured session")
+        print("world coordinates cannot be added to a preconfigured session; pass a pop or a model")
         sys.exit(1)
     pop = add_world_coordinates_to_pop(pop, main_args)
 
