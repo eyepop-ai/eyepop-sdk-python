@@ -235,14 +235,14 @@ through a depth map. Two things have to be true: the Pop must name a depth abili
 the components whose predictions should be translated must opt in.
 
 ```python
-from eyepop.worker.worker_types import Pop, InferenceComponent, SourceDefaults
+from eyepop.worker.worker_types import Pop, PopDepthMap, InferenceComponent, SourceDefaults
 from eyepop.worker.camera import Camera
 
 pop = Pop(
     components=[
-        InferenceComponent(ability='eyepop.person:latest', translateToWorld=True),
+        InferenceComponent(ability='eyepop.person:latest', toWorld=True),
     ],
-    depthMapAbility='eyepop.depth.anything-3:latest',
+    depthMap=PopDepthMap(ability='eyepop.depth.anything-3:latest'),
     defaults=SourceDefaults(camera=Camera(hfovDegrees=72.0)),
 )
 ```
@@ -251,9 +251,29 @@ Use a **metric** depth ability. A `relative` one is accepted and silently produc
 world coordinates at all: relative depth is scale- *and* shift-invariant, so a cloud
 recovered from it would be distorted rather than merely unscaled.
 
-`translateToWorld` only means something on a component that runs its own inference —
+`toWorld` only means something on a component that runs its own inference —
 inference and tracking. A contour finder's points do get enriched, but they belong to the
 object that fed it, so the request goes on the inference component upstream.
+
+### The whole scene
+
+`PopDepthMap(toWorld=True)` back-projects the depth map itself, so the results carry a
+point cloud of the entire scene rather than one per segmented object. It is also what
+reveals the map: without it the depth branch the Pop builds stays out of the response.
+It stands on its own — a Pop with nothing but a `depthMap` asking for `toWorld` is
+complete, no component needs to opt in.
+
+```python
+pop = Pop(
+    components=[InferenceComponent(ability='eyepop.person:latest')],
+    depthMap=PopDepthMap(ability='eyepop.depth.anything-3:latest', toWorld=True),
+)
+```
+
+The scene cloud arrives as `depth.world`, indexed exactly like `depth.values`: same grid,
+same order, so the point for a pixel and the depth it came from share an index. Both are
+sent, because a `NaN` point says only that the pixel could not be placed while the value
+at that index says why — `+Infinity` for sky, or a reading that is not a distance at all.
 
 ### Reading the coordinates
 
@@ -288,9 +308,13 @@ if cloud is not None:
     print(cloud.bounds)             # per-axis (min, max) in metres, or None
 ```
 
+`PointCloud.from_depth(depth, source_width, source_height)` reads the scene cloud the same
+way; there `.at(i, j)` indexes the depth map's own grid, and the frame is the box that
+`.at_source(x, y)` maps into.
+
 `PointCloud.from_prediction(prediction)` returns every cloud in one prediction — a list,
-not a single value like `DepthMap.from_prediction`, because a depth map is frame-level
-while a cloud belongs to one object's mask.
+not a single value like `DepthMap.from_prediction`, because a cloud belongs to one object's
+mask. The scene cloud, if there is one, comes last.
 
 To see the world coordinates — not just the clouds, but key points, outlines and contours
 too — scatter them into a 3D axes:

@@ -295,3 +295,38 @@ def test_the_skeleton_table_matches_the_2d_renderer():
     assert ("left shoulder", "right shoulder") in POSE_2D_CONNECTIONS
     assert ("left knee", "left ankle") in POSE_2D_CONNECTIONS
     assert len(POSE_2D_CONNECTIONS) == 12
+
+
+# AIW-146: the scene cloud a depthMap.toWorld pop returns.
+
+def _depth(width: int = 4, height: int = 4) -> dict:
+    return {"width": width, "height": height, "values": "", "semantic": "metric",
+            "world": _cloud_b64(width, height)}
+
+
+def test_the_scene_cloud_is_collected_last():
+    # last so the objects a viewer came to look at are not buried under a cloud
+    # two orders of magnitude larger
+    prediction = _prediction()
+    prediction["depth"] = _depth()
+    labels = [entry.label for entry in labelled_world_points(prediction)]
+    assert labels[-1] == "scene"
+    assert labels[:-1] == [entry.label for entry in labelled_world_points(_prediction())]
+
+
+def test_a_depth_map_without_a_cloud_adds_no_series():
+    prediction = {"objects": [], "depth": {"width": 4, "height": 4, "values": ""}}
+    assert labelled_world_points(prediction) == []
+
+
+def test_the_scene_series_holds_only_the_placed_points():
+    # the diagonal of the fixture is unplaced, so a 4x4 map yields 12 points
+    labelled = {entry.label: entry for entry in labelled_world_points({"depth": _depth()})}
+    assert labelled["scene"].points.shape == (12, 3)
+
+
+def test_the_scene_cloud_is_scattered_rather_than_connected(axes):
+    # a grid has no point order, so there is nothing to join up
+    plot = EyePopWorldPlot(axes)
+    plot.prediction({"depth": _depth()})
+    assert not [child for child in axes.get_children() if isinstance(child, Line3DCollection)]

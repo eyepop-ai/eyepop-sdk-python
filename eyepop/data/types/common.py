@@ -7,8 +7,8 @@ class Point2d(BaseModel):
     """A point in source pixels, optionally placed in 3D.
 
     `worldX`/`worldY`/`worldZ` are metres, present only when the pipeline was
-    asked for world coordinates (a Pop with `depthMapAbility` and a component
-    with `translateToWorld`) and only in prediction v2. A point the worker could
+    asked for world coordinates (a Pop with `depthMap` and a component with
+    `toWorld`) and only in prediction v2. A point the worker could
     not place - sky, outside the depth map, no usable map - carries none of the
     three rather than a zero or a NaN, so test for None.
 
@@ -77,9 +77,18 @@ class Depth(BaseModel):
       is not. Not back-projectable: recovering a cloud from it yields a distorted
       scene rather than a scaled one
     * "unknown" - the ability declared nothing. Not back-projectable
+
+    `world` is the scene point cloud, present when the Pop asked for
+    `depthMap.toWorld`. Same encoding as `Mask.world` - base64, three
+    little-endian float32 per pixel, row-major - but on this map's own grid, so
+    the point for pixel (i, j) is at triple index j * width + i, exactly where
+    that pixel's value sits in `values`. Points the worker could not place are
+    NaN; the value at the same index is what says why, which is why both are
+    sent. Use eyepop.PointCloud.from_depth to decode it.
     """
 
     width: int
     height: int
     values: str
     semantic: str | None = None
+    world: str | None = None

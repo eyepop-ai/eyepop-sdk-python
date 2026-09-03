@@ -295,9 +295,10 @@ def _pose_segments(group, indexed: np.ndarray) -> np.ndarray:
 def labelled_world_points(prediction: dict) -> list[WorldSeries]:
     """Every set of world coordinates in a prediction, labelled and connected.
 
-    Covers all four carriers the worker enriches - key points, outlines,
-    contours (cutouts included) and mask point clouds - rather than only the
-    clouds, so a pop that produces no masks still has something to show.
+    Covers every carrier the worker enriches - key points, outlines, contours
+    (cutouts included), mask point clouds and the scene cloud a `depthMap.toWorld`
+    pop returns - rather than only the clouds, so a pop that produces no masks
+    still has something to show.
 
     Labelled by class and carrier, and numbered when a class appears more than
     once, so a plot of several objects can be read. Nested objects are included.
@@ -350,6 +351,14 @@ def labelled_world_points(prediction: dict) -> list[WorldSeries]:
             series.append(WorldSeries("keypoints", placed, _pose_segments(group, indexed)))
 
     walk(_member(prediction, "objects"))
+
+    # last, so the objects a viewer came to look at are not buried under a
+    # scene cloud two orders of magnitude larger
+    scene = PointCloud.from_depth(_member(prediction, "depth"))
+    if scene is not None:
+        placed = scene.placed_points
+        if placed.size:
+            series.append(WorldSeries("scene", placed, _NO_SEGMENTS))
     return series
 
 

@@ -34,10 +34,11 @@ from eyepop.worker.worker_types import (
     MotionDetectConfig,
     MotionModel,
     Pop,
+    PopDepthMap,
     TrackingComponent,
 )
 
-# The depth ability used when --translate-to-world is asked for on its own. Must
+# The depth ability used when --to-world is asked for on its own. Must
 # be a metric one: a 'relative' map is accepted and silently yields no
 # coordinates, because relative depth is scale- AND shift-invariant, so a cloud
 # recovered from it would be distorted rather than merely unscaled.
@@ -345,7 +346,7 @@ def request_world_coordinates(components: list[BaseComponent]) -> int:
     for component in components:
         if isinstance(component, (InferenceComponent, TrackingComponent)):
             if not (isinstance(component, InferenceComponent) and component.hidden):
-                component.translateToWorld = True
+                component.toWorld = True
                 count += 1
         if component.forward is not None and component.forward.targets:
             count += request_world_coordinates(component.forward.targets)
@@ -359,24 +360,27 @@ def add_world_coordinates_to_pop(original: Pop, world_args: Namespace) -> Pop:
     objects, and a demo that edits one in place would be a trap for the next
     reader.
     """
-    if not world_args.translate_to_world:
+    if not (world_args.to_world or world_args.depth_map_to_world):
         return original
 
     pop = original.model_copy(deep=True)
+    depth_map = PopDepthMap(toWorld=True if world_args.depth_map_to_world else None)
     if world_args.depth_map_ability_uuid:
-        pop.depthMapAbilityUuid = world_args.depth_map_ability_uuid
+        depth_map.abilityUuid = world_args.depth_map_ability_uuid
     else:
-        pop.depthMapAbility = world_args.depth_map_ability or DEFAULT_DEPTH_ABILITY
+        depth_map.ability = world_args.depth_map_ability or DEFAULT_DEPTH_ABILITY
+    pop.depthMap = depth_map
 
-    enriched = request_world_coordinates(pop.components)
-    if enriched == 0:
+    enriched = request_world_coordinates(pop.components) if world_args.to_world else 0
+    if enriched == 0 and not world_args.depth_map_to_world:
         # the converter rejects this rather than silently doing nothing, so say
         # so here where the reason is obvious
         log.warning("no component in this pop can carry world coordinates, so the depth "
                     "ability has nothing to enrich")
     else:
-        log.info("requesting world coordinates for %d component(s) via %s", enriched,
-                 pop.depthMapAbilityUuid or pop.depthMapAbility)
+        log.info("requesting world coordinates for %d component(s)%s via %s", enriched,
+                 " and the whole scene" if world_args.depth_map_to_world else "",
+                 depth_map.abilityUuid or depth_map.ability)
     return pop
 
 
@@ -516,9 +520,14 @@ parser.add_argument('--motion-detect', required=False, help="Skip video frames w
 # Optional global ROI parameters
 parser.add_argument('--roi', required=False, type=rectangle_roi, help="Rectangular ROI as (x, y, width, height)")
 
-parser.add_argument('-w', '--translate-to-world', required=False, default=False, action="store_true",
+parser.add_argument('-w', '--to-world', required=False, default=False, action="store_true",
                     help="Translate this pop's point based predictions into world coordinates in metres, "
                          "back-projected through a depth map. Works with any of the example pops")
+parser.add_argument('--depth-map-to-world', required=False, default=False, action="store_true",
+                    help="Back-project the depth map itself, so the results carry a point cloud of the "
+                         "whole scene rather than one per segmented object. Also what reveals the map: "
+                         "without it the depth branch stays out of the response. Stands on its own, "
+                         "with or without --to-world")
 parser.add_argument('--depth-map-ability', required=False, type=str, default=None,
                     help=f"Depth ability supplying the map to back-project through, default "
                          f"'{DEFAULT_DEPTH_ABILITY}'. Must be a metric one; a 'relative' ability is "
@@ -534,8 +543,8 @@ parser.add_argument('--camera-intrinsics', required=False, type=camera_intrinsic
                          "rather than pixels. Mutually exclusive with --camera-hfov-degrees")
 parser.add_argument('-vw', '--visualize-world', required=False, default=False, action="store_true",
                     help="Scatter everything in the results that carries world coordinates - key "
-                         "points, outlines, contours and mask point clouds - into a 3D plot, in "
-                         "metres. Needs --translate-to-world to fill them")
+                         "points, outlines, contours, mask point clouds and the scene cloud - into "
+                         "a 3D plot, in metres. Needs --to-world or --depth-map-to-world to fill them")
 parser.add_argument('--world-max-points', required=False, type=int,
                     default=EyePopWorldPlot.DEFAULT_MAX_POINTS,
                     help="Point budget for --visualize-world, shared across every series; sparse "
@@ -665,19 +674,20 @@ if main_args.camera_intrinsics is not None and main_args.camera_hfov_degrees is 
     print("Pass either --camera-intrinsics or --camera-hfov-degrees, not both")
     sys.exit(1)
 
-if (main_args.depth_map_ability or main_args.depth_map_ability_uuid) and not main_args.translate_to_world:
-    print("--depth-map-ability needs --translate-to-world; a depth ability no component asked to use "
-          "is rejected as a bad pop rather than silently doing nothing")
+if ((main_args.depth_map_ability or main_args.depth_map_ability_uuid)
+        and not (main_args.to_world or main_args.depth_map_to_world)):
+    print("--depth-map-ability needs --to-world or --depth-map-to-world; a depth ability nothing asked "
+          "to use is rejected as a bad pop rather than silently doing nothing")
     sys.exit(1)
 
-if main_args.translate_to_world:
+if main_args.to_world or main_args.depth_map_to_world:
     if pop is None:
-        print("--translate-to-world needs a pop to enrich; it cannot be added to a preconfigured session")
+        print("--to-world needs a pop to enrich; it cannot be added to a preconfigured session")
         sys.exit(1)
     pop = add_world_coordinates_to_pop(pop, main_args)
 
 camera = camera_from_args(main_args)
-if main_args.translate_to_world and camera is None:
+if (main_args.to_world or main_args.depth_map_to_world) and camera is None:
     log.warning("no camera calibration supplied, so the worker assumes a 60 degree horizontal field "
                 "of view; lateral measurements are exact but depth is only as right as that guess. "
                 "Pass --camera-hfov-degrees to turn the guess into a measurement")

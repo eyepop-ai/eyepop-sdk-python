@@ -17,6 +17,7 @@ from eyepop.worker.worker_types import (
     ContourType,
     InferenceComponent,
     Pop,
+    PopDepthMap,
     SourceDefaults,
 )
 
@@ -170,31 +171,43 @@ def test_pop_defaults_carry_roi_and_motion_settings():
 
 def test_pop_requests_world_coordinates():
     pop = Pop(
-        components=[InferenceComponent(ability="eyepop.person:latest", translateToWorld=True)],
-        depthMapAbility="eyepop.depth.anything-3:latest",
+        components=[InferenceComponent(ability="eyepop.person:latest", toWorld=True)],
+        depthMap=PopDepthMap(ability="eyepop.depth.anything-3:latest"),
     )
     dumped = pop.model_dump(exclude_none=True)
-    assert dumped["depthMapAbility"] == "eyepop.depth.anything-3:latest"
-    assert dumped["components"][0]["translateToWorld"] is True
+    assert dumped["depthMap"]["ability"] == "eyepop.depth.anything-3:latest"
+    assert dumped["components"][0]["toWorld"] is True
 
 
 def test_pop_by_ability_uuid():
     pop = Pop(components=[InferenceComponent(abilityUuid="a-uuid")],
-              depthMapAbilityUuid="depth-uuid")
-    assert pop.model_dump(exclude_none=True)["depthMapAbilityUuid"] == "depth-uuid"
+              depthMap=PopDepthMap(abilityUuid="depth-uuid"))
+    assert pop.model_dump(exclude_none=True)["depthMap"]["abilityUuid"] == "depth-uuid"
+
+
+def test_pop_can_ask_for_the_whole_scene():
+    # stands on its own: the map is a consumer in its own right, so no component
+    # has to opt in for the pop to be complete
+    pop = Pop(
+        components=[InferenceComponent(ability="eyepop.person:latest")],
+        depthMap=PopDepthMap(ability="eyepop.depth.anything-3:latest", toWorld=True),
+    )
+    dumped = pop.model_dump(exclude_none=True)
+    assert dumped["depthMap"]["toWorld"] is True
+    assert "toWorld" not in dumped["components"][0]
 
 
 def test_a_pop_that_wants_no_enrichment_carries_none_of_it():
     pop = Pop(components=[InferenceComponent(ability="eyepop.person:latest")])
     dumped = pop.model_dump(exclude_none=True)
-    assert "depthMapAbility" not in dumped
+    assert "depthMap" not in dumped
     assert "defaults" not in dumped
-    assert "translateToWorld" not in dumped["components"][0]
+    assert "toWorld" not in dumped["components"][0]
 
 
-def test_translate_to_world_is_accepted_on_every_component_type():
+def test_to_world_is_accepted_on_every_component_type():
     # declared on the shared base, matching the instance's single PopComponent.
     # A component that runs no inference has no id for the worker to select on,
     # and is rejected when the Pop is compiled rather than here.
-    component = ContourFinderComponent(contourType=ContourType.POLYGON, translateToWorld=True)
-    assert component.translateToWorld is True
+    component = ContourFinderComponent(contourType=ContourType.POLYGON, toWorld=True)
+    assert component.toWorld is True

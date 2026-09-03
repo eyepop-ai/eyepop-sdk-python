@@ -59,8 +59,8 @@ class PopForward(BaseModel):
 class BaseComponent(BaseModel):
     """The fields every Pop component shares.
 
-    `translateToWorld` enriches this component's point based predictions with
-    world coordinates, back-projected through the Pop's `depthMapAbility`. It is
+    `toWorld` enriches this component's point based predictions with world
+    coordinates, back-projected through the Pop's `depthMap`. It is
     declared here because the instance declares it on one shared PopComponent,
     but only a component that runs its own inference can honour it - inference
     and tracking - since that is what gives it an id for the worker to select
@@ -77,7 +77,7 @@ class BaseComponent(BaseModel):
     type: Literal[PopComponentType.BASE] = PopComponentType.BASE
     id: int | None = None
     forward: PopForward | None = None
-    translateToWorld: bool | None = None
+    toWorld: bool | None = None
     model_config = ConfigDict(extra='forbid')
 
 
@@ -214,25 +214,38 @@ class SourceDefaults(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
-class Pop(BaseModel):
-    """A Pop: the components to run and how to run them.
+class PopDepthMap(BaseModel):
+    """The depth ability whose frame level map feeds world coordinates.
 
-    `depthMapAbility` / `depthMapAbilityUuid` names the ability whose frame
-    level depth map feeds world coordinate enrichment. It is a scalar because
-    the worker back-projects every prediction through one map, so a second depth
-    source would have nowhere to go. Naming one makes the converter build the
-    depth branch itself and keep it out of the response - the caller asked for
-    coordinates, not for a megabyte of base64 depth per frame.
+    `ability` names it by alias and `abilityUuid` by uuid; give exactly one.
+    A Pop has one depth map because the worker back-projects every prediction
+    through it, so a second depth source would have nowhere to go. Naming one
+    makes the converter build the depth branch itself and keep it out of the
+    response - the caller asked for coordinates, not for a megabyte of base64
+    depth per frame.
+
+    `toWorld` back-projects the map itself, so the response carries a point
+    cloud of the whole scene rather than one per segmented object. It is also
+    what reveals the map: without it the injected branch stays out of the
+    response entirely. Read the result with `eyepop.PointCloud.from_depth`.
 
     Use a *metric* depth ability. A `relative` one is accepted and yields no
     world coordinates at all.
     """
 
+    ability: str | None = None
+    abilityUuid: str | None = None
+    toWorld: bool | None = None
+    model_config = ConfigDict(extra='forbid')
+
+
+class Pop(BaseModel):
+    """A Pop: the components to run and how to run them."""
+
     components: List[DynamicComponent]
     postTransform: str | None = None
     defaults: SourceDefaults | None = None
-    depthMapAbility: str | None = None
-    depthMapAbilityUuid: str | None = None
+    depthMap: PopDepthMap | None = None
     model_config = ConfigDict(extra='forbid')
 
 # Helper factories

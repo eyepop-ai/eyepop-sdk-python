@@ -242,3 +242,70 @@ def test_bounds_are_per_axis_minima_and_maxima():
     cloud = PointCloud.from_mask(_mask_dict())
     assert cloud is not None
     assert cloud.bounds == ((1.0, 7.0), (2.0, 8.0), (3.0, 9.0))
+
+
+# AIW-146: the scene cloud, on the depth map's own grid rather than a mask's.
+
+def _depth_dict(**overrides) -> dict:
+    depth = {"width": 2, "height": 2, "values": "", "semantic": "metric", "world": _CLOUD_B64}
+    depth.update(overrides)
+    return depth
+
+
+def test_scene_cloud_reads_the_depth_maps_grid():
+    cloud = PointCloud.from_depth(_depth_dict())
+    assert cloud is not None
+    assert (cloud.width, cloud.height) == (2, 2)
+    assert cloud.at(0, 0) == (1.0, 2.0, 3.0)
+    assert cloud.at(0, 1) is None
+
+
+def test_scene_cloud_accepts_the_pydantic_depth_model():
+    cloud = PointCloud.from_depth(Depth(**_depth_dict()))
+    assert cloud is not None
+    assert cloud.at(1, 1) == (7.0, 8.0, 9.0)
+
+
+def test_scene_cloud_maps_source_coordinates_through_the_frame():
+    # the frame is the box for a scene cloud, so the whole source maps onto the
+    # depth map's grid rather than onto an object's bounding box
+    cloud = PointCloud.from_depth(_depth_dict(), source_width=640, source_height=480)
+    assert cloud is not None
+    assert cloud.at_source(10.0, 10.0) == (1.0, 2.0, 3.0)
+    assert cloud.at_source(600.0, 400.0) == (7.0, 8.0, 9.0)
+
+
+def test_scene_cloud_without_the_frame_cannot_map_source_coordinates():
+    cloud = PointCloud.from_depth(_depth_dict())
+    assert cloud is not None
+    with pytest.raises(ValueError):
+        cloud.at_source(10.0, 10.0)
+
+
+def test_a_depth_map_that_was_not_back_projected_carries_no_cloud():
+    assert PointCloud.from_depth({"width": 2, "height": 2, "values": ""}) is None
+    assert PointCloud.from_depth(None) is None
+
+
+def test_from_prediction_appends_the_scene_cloud_last():
+    # last so an index into the object clouds keeps meaning what it did
+    prediction = {
+        "source_width": 640, "source_height": 480,
+        "objects": [{"classLabel": "car", "x": 0, "y": 0, "width": 2, "height": 2,
+                     "mask": _mask_dict()}],
+        "depth": _depth_dict(),
+    }
+    clouds = PointCloud.from_prediction(prediction)
+    assert len(clouds) == 2
+    # the scene cloud knows the frame, so it can answer a source coordinate the
+    # object's cloud could only answer inside its box
+    assert clouds[-1].at_source(600.0, 400.0) == (7.0, 8.0, 9.0)
+
+
+def test_from_prediction_without_a_scene_cloud_returns_only_the_masks():
+    prediction = {
+        "objects": [{"classLabel": "car", "x": 0, "y": 0, "width": 2, "height": 2,
+                     "mask": _mask_dict()}],
+        "depth": {"width": 2, "height": 2, "values": ""},
+    }
+    assert len(PointCloud.from_prediction(prediction)) == 1
