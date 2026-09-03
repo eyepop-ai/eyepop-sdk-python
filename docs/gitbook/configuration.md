@@ -30,7 +30,7 @@ If your backend already holds a short-lived token, pass it as `access_token=` in
 
 ### Transient and persistent sessions
 
-With no session UUID the SDK creates a **transient** session on connect and releases it on exit — the right default for building and testing.
+With no session UUID the SDK creates a **transient** session on the first connect and reuses it on later connects, tearing down only the pipeline it created on exit — the right default for building and testing. The session itself idles out server-side once you stop using it.
 
 To run against a persistent Deployment, pass its session UUID. The Pop is fixed when the Deployment is created, so you do not pass one:
 
