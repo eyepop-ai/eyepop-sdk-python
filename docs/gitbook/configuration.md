@@ -39,7 +39,37 @@ with EyePopSdk.sync_worker(session_uuid="<your-session-uuid>") as endpoint:
     result = endpoint.upload("photo.jpg").predict()
 ```
 
+### Local mode
+
+An [on-premise instance](https://docs.eyepop.ai/deploying/on-premise) serves the EyePop runtime on your own machine. **Local mode** points the SDK at `http://127.0.0.1:8080` instead of the cloud and sends no account credentials — the instance is already registered to your account, and reaching the loopback port is what authorizes the client.
+
+```python
+from eyepop import EyePopSdk
+from eyepop.worker.worker_types import InferenceComponent, Pop
+
+pop = Pop(components=[
+    InferenceComponent(ability="eyepop.person:latest")
+])
+
+with EyePopSdk.sync_worker(is_local_mode=True, pop=pop) as endpoint:
+    result = endpoint.upload("image.jpg").predict()
+    print(result)
+```
+
+`EYEPOP_LOCAL_MODE=true` in the environment selects it without the argument. Pass `eyepop_url` for an instance on another port or host:
+
+```python
+endpoint = EyePopSdk.sync_worker(
+    is_local_mode=True,
+    eyepop_url="http://127.0.0.1:9090",
+    pop=pop,
+)
+```
+
+Connecting creates a pipeline on the instance and disconnecting removes it, so keep the `with` block and reuse one connected endpoint for many images.
+
 ### Next steps
 
 * [Running Inference](inference.md) — process files, streams, URLs, and video
 * [Composable Pops](composable-pops.md) — chain models into a pipeline
+* [On-Premise](https://docs.eyepop.ai/deploying/on-premise) — create an instance to run local mode against
