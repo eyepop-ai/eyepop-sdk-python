@@ -13,6 +13,7 @@ from mpl_toolkits.mplot3d.art3d import Line3DCollection  # noqa: E402
 from eyepop.visualize import (  # noqa: E402
     POSE_2D_CONNECTIONS,
     EyePopWorldPlot,
+    WorldSeries,
     labelled_world_points,
 )
 
@@ -55,6 +56,12 @@ def _prediction() -> dict:
                       "mask": _mask(2, 2)}]},
         {"classLabel": "person", "x": 8, "y": 0, "width": 4, "height": 4, "mask": _mask()},
     ]}
+
+
+def _points_series(label: str, count: int) -> WorldSeries:
+    """A series of `count` placed points, sparse or dense by its size alone."""
+    points = np.arange(count * 3, dtype="float32").reshape(count, 3)
+    return WorldSeries(label, points, np.empty((0, 2, 3), dtype="float32"))
 
 
 @pytest.fixture
@@ -330,3 +337,19 @@ def test_the_scene_cloud_is_scattered_rather_than_connected(axes):
     plot = EyePopWorldPlot(axes)
     plot.prediction({"depth": _depth()})
     assert not [child for child in axes.get_children() if isinstance(child, Line3DCollection)]
+
+
+def test_the_budget_is_shared_across_dense_series(axes):
+    # striding alone lands within one point per series of the budget rather than
+    # on it, so two dense series would each contribute one at max_points=1
+    plot = EyePopWorldPlot(axes)
+    dense = [_points_series("a", 1000), _points_series("b", 1000)]
+
+    assert plot.series(dense, max_points=1) == 1
+
+
+def test_sparse_series_are_still_exempt_from_the_budget(axes):
+    plot = EyePopWorldPlot(axes)
+
+    # three key points plus one strided point from the mask
+    assert plot.series([_points_series("kp", 3), _points_series("mask", 1000)], max_points=1) == 4

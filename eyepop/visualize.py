@@ -449,9 +449,16 @@ class EyePopWorldPlot:
         # strided rather than random so the same call draws the same picture
         stride = max(1, -(-dense // budget)) if dense else 1
 
+        # striding alone lands within one point per series of the budget rather
+        # than on it, so what is left of the budget is carried across entries
+        remaining = budget
         for entry in drawn:
             is_sparse = self._is_sparse(entry)
-            sampled = entry.points if is_sparse else entry.points[::stride]
+            if is_sparse:
+                sampled = entry.points
+            else:
+                sampled = entry.points[::stride][:remaining]
+                remaining -= len(sampled)
             if not sampled.size:
                 continue
             sampled = sampled[:, self.AXIS_ORDER]

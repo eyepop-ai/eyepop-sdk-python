@@ -1,7 +1,7 @@
 import enum
 from typing import Annotated, Any, List, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from eyepop.data.types.asset import Area
 from eyepop.worker.camera import Camera
@@ -237,6 +237,15 @@ class PopDepthMap(BaseModel):
     abilityUuid: str | None = None
     toWorld: bool | None = None
     model_config = ConfigDict(extra='forbid')
+
+    @model_validator(mode='after')
+    def _validate(self) -> "PopDepthMap":
+        # checked here rather than left to the worker, which rejects both cases:
+        # naming no ability is a depth branch that cannot be built, and naming
+        # two is a Pop with no right answer
+        if (self.ability is None) == (self.abilityUuid is None):
+            raise ValueError("depthMap requires exactly one of ability or abilityUuid")
+        return self
 
 
 class Pop(BaseModel):

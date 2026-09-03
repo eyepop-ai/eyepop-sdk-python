@@ -211,3 +211,16 @@ def test_to_world_is_accepted_on_every_component_type():
     # and is rejected when the Pop is compiled rather than here.
     component = ContourFinderComponent(contourType=ContourType.POLYGON, toWorld=True)
     assert component.toWorld is True
+
+
+def test_depth_map_requires_exactly_one_selector():
+    # the worker rejects both cases - no ability is a depth branch that cannot be
+    # built, two is a pop with no right answer - so they are caught locally
+    for bad in ({}, {"toWorld": True}, {"ability": "a", "abilityUuid": "u"}):
+        with pytest.raises(ValidationError):
+            PopDepthMap(**bad)
+
+
+def test_depth_map_accepts_either_selector_alone():
+    assert PopDepthMap(ability="eyepop.depth.anything-3:latest").abilityUuid is None
+    assert PopDepthMap(abilityUuid="depth-uuid", toWorld=True).ability is None

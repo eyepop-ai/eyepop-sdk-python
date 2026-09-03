@@ -389,11 +389,12 @@ def add_world_coordinates_to_pop(original: Pop, world_args: Namespace) -> Pop:
         return original
 
     pop = original.model_copy(deep=True)
-    depth_map = PopDepthMap(toWorld=True if world_args.depth_map_to_world else None)
+    to_world = True if world_args.depth_map_to_world else None
     if world_args.depth_map_ability_uuid:
-        depth_map.abilityUuid = world_args.depth_map_ability_uuid
+        depth_map = PopDepthMap(abilityUuid=world_args.depth_map_ability_uuid, toWorld=to_world)
     else:
-        depth_map.ability = world_args.depth_map_ability or DEFAULT_DEPTH_ABILITY
+        depth_map = PopDepthMap(ability=world_args.depth_map_ability or DEFAULT_DEPTH_ABILITY,
+                                toWorld=to_world)
     pop.depthMap = depth_map
 
     enriched = request_world_coordinates(pop.components) if world_args.to_world else 0
@@ -449,15 +450,41 @@ def summarize_world_coordinates(prediction: dict[str, Any]) -> str | None:
     return f"world coordinates: {placed} point(s) placed, {unplaced} not"
 
 
-def collect_world_points(prediction: dict[str, Any], into: list[Any]) -> None:
-    """Accumulate everything in a prediction that carries world coordinates.
+class WorldPointCollector:
+    """Everything in the results that carries world coordinates, bounded.
 
-    Key points, outlines, contours and mask clouds alike. Only the placed points
-    are kept, and only as arrays: a mask covers its object's whole bounding box,
-    so a cloud is mostly holes for anything that is not rectangular, and holding
-    the raw results across a video would cost far more than the scatter can draw.
+    Key points, outlines, contours, mask clouds and the scene cloud alike. Only
+    the placed points are kept, and only as arrays: a mask covers its object's
+    whole bounding box, so a cloud is mostly holes for anything that is not
+    rectangular.
+
+    The bound is the point of this holding its own state rather than being a
+    function over a list. A single mask cloud runs to hundreds of thousands of
+    points, so a video or a live relay would exhaust memory long before anything
+    reached the plot - and the plot's budget cannot help, since it only applies
+    once every frame is already in hand.
+
+    Sparse series are always kept: a handful of key points costs nothing, and
+    dropping one would take its connected skeleton with it. Dense ones stop
+    being collected once the budget is reached, so a long clip is represented by
+    its opening rather than by a sample spread across it. Raise the budget to
+    see more of it.
     """
-    into.extend(labelled_world_points(prediction))
+
+    def __init__(self, budget: int):
+        self.budget = budget
+        self.series: list[Any] = []
+        self.dropped = 0
+        self._dense = 0
+
+    def collect(self, prediction: dict[str, Any]) -> None:
+        for entry in labelled_world_points(prediction):
+            if len(entry.points) > EyePopWorldPlot.SPARSE_SERIES:
+                if self._dense >= self.budget:
+                    self.dropped += 1
+                    continue
+                self._dense += len(entry.points)
+            self.series.append(entry)
 
 
 
@@ -775,11 +802,11 @@ elif main_args.single_prompt is not None:
         })
     ]
 
-async def main(args) -> tuple[dict[str, Any] | None, str | None, list[Any]]:
+async def main(args) -> tuple[dict[str, Any] | None, str | None, WorldPointCollector]:
     visualize_prediction = None
     visualize_path = None
     example_image_src = None
-    world_points: list[Any] = []
+    world_points = WorldPointCollector(args.world_max_points)
     motion_detect = MotionDetectConfig(motionGap=1) if args.motion_detect else None
 
     if args.dump and pop:
@@ -813,7 +840,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, list[Any]]:
                 while result := await job.predict():
                     visualize_prediction = result
                     if args.visualize_world:
-                        collect_world_points(result, world_points)
+                        world_points.collect(result)
                     visualize_path = path
                     if args.output:
                         print(path, json.dumps(replace_binary_members(result), indent=2))
@@ -849,7 +876,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, list[Any]]:
             while result := await job.predict():
                 visualize_prediction = result
                 if args.visualize_world:
-                    collect_world_points(result, world_points)
+                    world_points.collect(result)
                 if args.output:
                     print(json.dumps(replace_binary_members(result), indent=2))
                     if (world := summarize_world_coordinates(result)) is not None:
@@ -869,7 +896,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, list[Any]]:
                 ):
                     visualize_prediction = result
                     if args.visualize_world:
-                        collect_world_points(result, world_points)
+                        world_points.collect(result)
                     if args.output:
                         print(json.dumps(replace_binary_members(result), indent=2))
                         if (world := summarize_world_coordinates(result)) is not None:
@@ -888,7 +915,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, list[Any]]:
                 ):
                     visualize_prediction = result
                     if args.visualize_world:
-                        collect_world_points(result, world_points)
+                        world_points.collect(result)
                     if args.output:
                         print(json.dumps(replace_binary_members(result), indent=2))
                         if (world := summarize_world_coordinates(result)) is not None:
@@ -912,7 +939,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, list[Any]]:
             while result := await job.predict():
                 visualize_prediction = result
                 if args.visualize_world:
-                    collect_world_points(result, world_points)
+                    world_points.collect(result)
                 if args.output:
                     print(json.dumps(replace_binary_members(result), indent=2))
                     if (world := summarize_world_coordinates(result)) is not None:
@@ -929,18 +956,23 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, list[Any]]:
 visualize_result, example_image_src, result_world_points = asyncio.run(main(main_args))
 
 if main_args.visualize_world:
-    if not result_world_points:
+    if not result_world_points.series:
         print("nothing in the results carries world coordinates: --visualize-world needs "
-              "--translate-to-world, a metric depth ability, and a pop whose predictions have "
-              "points to place")
+              "--to-world or --depth-map-to-world, a metric depth ability, and a pop whose "
+              "predictions have points to place")
     else:
         import matplotlib.pyplot as plt
 
         world_axes = plt.figure(figsize=(9, 8)).add_subplot(projection='3d')
         world_plot = EyePopWorldPlot(world_axes)
-        drawn = world_plot.series(result_world_points, max_points=main_args.world_max_points)
-        total = sum(len(entry.points) for entry in result_world_points)
-        world_plot.finish(title=f"{len(result_world_points)} series, {drawn} of {total} points")
+        if result_world_points.dropped:
+            log.info("stopped collecting dense points at the --world-max-points budget; %d later "
+                     "series were dropped, so this shows the start of the run rather than all of it",
+                     result_world_points.dropped)
+        drawn = world_plot.series(result_world_points.series, max_points=main_args.world_max_points)
+        total = sum(len(entry.points) for entry in result_world_points.series)
+        world_plot.finish(
+            title=f"{len(result_world_points.series)} series, {drawn} of {total} points")
         plt.show()
 if main_args.visualize:
     with open(os.path.join(script_dir, 'viewer.html')) as file:
