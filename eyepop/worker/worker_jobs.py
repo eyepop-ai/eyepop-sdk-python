@@ -11,6 +11,7 @@ from pydantic import TypeAdapter
 
 from eyepop.data.types.asset import Area
 from eyepop.jobs import Job, JobStateCallback
+from eyepop.worker.camera import Camera
 from eyepop.worker.worker_client_session import WorkerClientSession
 from eyepop.worker.worker_types import (
     DEFAULT_PREDICTION_VERSION,
@@ -49,6 +50,7 @@ class WorkerJob(Job):
     _motion_detect: MotionDetectConfig | None
     _roi: Area | None
     _fps: str | None
+    _camera: Camera | None
     _version: PredictionVersion
     _media_cache_seconds: int | None
 
@@ -59,6 +61,7 @@ class WorkerJob(Job):
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
             fps: str | None,
+            camera: Camera | None,
             media_cache_seconds: int | None,
             on_ready: Callable[["WorkerJob"], None] | None,
             callback: JobStateCallback | None = None,
@@ -69,6 +72,7 @@ class WorkerJob(Job):
         self._motion_detect = motion_detect
         self._roi = roi
         self._fps = fps
+        self._camera = camera
         self._media_cache_seconds = media_cache_seconds
         self._version = version
 
@@ -152,6 +156,7 @@ class _UploadJob(WorkerJob):
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
             fps: str | None,
+            camera: Camera | None,
             media_cache_seconds: int | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
@@ -164,6 +169,7 @@ class _UploadJob(WorkerJob):
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            camera=camera,
             media_cache_seconds=media_cache_seconds,
             on_ready=on_ready,
             callback=callback,
@@ -196,6 +202,9 @@ class _UploadJob(WorkerJob):
         if self._fps is not None:
             fps_part = mp_writer.append_json(self._fps)
             fps_part.set_content_disposition('form-data', name='fps', filename='blob')
+        if self._camera is not None:
+            camera_part = mp_writer.append_json(self._camera.model_dump(exclude_none=True))
+            camera_part.set_content_disposition('form-data', name='camera', filename='blob')
 
         for source in self.sources:
             if source.mime_type is not None:
@@ -226,7 +235,8 @@ class _UploadJob(WorkerJob):
         # A single item with no extra parts can stream its raw body; anything
         # else (extra parts, or a multi-item image group) is sent as multipart.
         single_source = self.sources[0] if len(self.sources) == 1 else None
-        no_extra_parts = self._component_params is None and self._roi is None and self._fps is None
+        no_extra_parts = (self._component_params is None and self._roi is None
+                          and self._fps is None and self._camera is None)
 
         if self.needs_full_duplex:
             self._response = await session.pipeline_post(
@@ -308,6 +318,7 @@ class _UploadFileJob(_UploadJob):
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
             fps: str | None,
+            camera: Camera | None,
             media_cache_seconds: int | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
@@ -326,6 +337,7 @@ class _UploadFileJob(_UploadJob):
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            camera=camera,
             media_cache_seconds=media_cache_seconds,
             session=session,
             on_ready=on_ready,
@@ -346,6 +358,7 @@ class _UploadStreamJob(_UploadJob):
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
             fps: str | None,
+            camera: Camera | None,
             media_cache_seconds: int | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
@@ -362,6 +375,7 @@ class _UploadStreamJob(_UploadJob):
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            camera=camera,
             media_cache_seconds=media_cache_seconds,
             session=session,
             on_ready=on_ready,
@@ -388,6 +402,7 @@ class _UploadFileGroupJob(_UploadJob):
             locations: list[str],
             component_params: list[ComponentParams] | None,
             roi: Area | None,
+            camera: Camera | None,
             media_cache_seconds: int | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
@@ -409,6 +424,7 @@ class _UploadFileGroupJob(_UploadJob):
             motion_detect=None,
             roi=roi,
             fps=None,
+            camera=camera,
             media_cache_seconds=media_cache_seconds,
             session=session,
             on_ready=on_ready,
@@ -432,6 +448,7 @@ class _UploadStreamGroupJob(_UploadJob):
             mime_types: list[str] | None,
             component_params: list[ComponentParams] | None,
             roi: Area | None,
+            camera: Camera | None,
             media_cache_seconds: int | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
@@ -448,6 +465,7 @@ class _UploadStreamGroupJob(_UploadJob):
             motion_detect=None,
             roi=roi,
             fps=None,
+            camera=camera,
             media_cache_seconds=media_cache_seconds,
             session=session,
             on_ready=on_ready,
@@ -479,6 +497,7 @@ class _LoadFromJob(WorkerJob):
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
             fps: str | None,
+            camera: Camera | None,
             media_cache_seconds: int | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
@@ -491,6 +510,7 @@ class _LoadFromJob(WorkerJob):
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            camera=camera,
             media_cache_seconds=media_cache_seconds,
             on_ready=on_ready,
             callback=callback,
@@ -515,6 +535,8 @@ class _LoadFromJob(WorkerJob):
                 self.body['roi'] = self._roi.model_dump(exclude_none=True)
             if self._fps is not None:
                 self.body['fps'] = self._fps
+            if self._camera is not None:
+                self.body['camera'] = self._camera.model_dump(exclude_none=True)
             if self._media_cache_seconds is not None:
                 self.body['mediaCacheSeconds'] = self._media_cache_seconds
         else:
@@ -528,6 +550,8 @@ class _LoadFromJob(WorkerJob):
                 self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
             if self._roi is not None:
                 self.body['roi'] = self._roi.model_dump(exclude_none=True)
+            if self._camera is not None:
+                self.body['camera'] = self._camera.model_dump(exclude_none=True)
             if self._media_cache_seconds is not None:
                 self.body['mediaCacheSeconds'] = self._media_cache_seconds
 
@@ -550,6 +574,7 @@ class _LoadFromAssetUuidJob(WorkerJob):
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
             fps: str | None,
+            camera: Camera | None,
             media_cache_seconds: int | None,
             session: WorkerClientSession,
             on_ready: Callable[[WorkerJob], None] | None = None,
@@ -562,6 +587,7 @@ class _LoadFromAssetUuidJob(WorkerJob):
             motion_detect=motion_detect,
             roi=roi,
             fps=fps,
+            camera=camera,
             media_cache_seconds=media_cache_seconds,
             on_ready=on_ready,
             callback=callback,
@@ -580,6 +606,8 @@ class _LoadFromAssetUuidJob(WorkerJob):
             self.body['roi'] = self._roi.model_dump(exclude_none=True)
         if self._component_params is not None:
             self.body['params'] = TypeAdapter(list[ComponentParams]).dump_python(self._component_params)
+        if self._camera is not None:
+            self.body['camera'] = self._camera.model_dump(exclude_none=True)
         if self._media_cache_seconds is not None:
             self.body['mediaCacheSeconds'] = self._media_cache_seconds
 

@@ -228,6 +228,164 @@ pop = Pop(components=[
 ])
 ```
 
+## World coordinates
+
+Predictions can carry a 3D position in **metres** alongside their 2D one, back-projected
+through a depth map. Two things have to be true: the Pop must name a depth ability, and
+the components whose predictions should be translated must opt in.
+
+```python
+from eyepop.worker.worker_types import Pop, PopDepthMap, InferenceComponent, SourceDefaults
+from eyepop.worker.camera import Camera
+
+pop = Pop(
+    components=[
+        InferenceComponent(ability='eyepop.person:latest', toWorld=True),
+    ],
+    depthMap=PopDepthMap(ability='eyepop.depth.anything-3:latest'),
+    defaults=SourceDefaults(camera=Camera(hfovDegrees=72.0)),
+)
+```
+
+Use a **metric** depth ability. A `relative` one is accepted and silently produces no
+world coordinates at all: relative depth is scale- *and* shift-invariant, so a cloud
+recovered from it would be distorted rather than merely unscaled.
+
+`toWorld` only means something on a component that runs its own inference —
+inference and tracking. A contour finder's points do get enriched, but they belong to the
+object that fed it, so the request goes on the inference component upstream.
+
+### The whole scene
+
+`PopDepthMap(toWorld=True)` back-projects the depth map itself, so the results carry a
+point cloud of the entire scene rather than one per segmented object. It is also what
+reveals the map: without it the depth branch the Pop builds stays out of the response.
+It stands on its own — a Pop with nothing but a `depthMap` asking for `toWorld` is
+complete, no component needs to opt in.
+
+```python
+pop = Pop(
+    components=[InferenceComponent(ability='eyepop.person:latest')],
+    depthMap=PopDepthMap(ability='eyepop.depth.anything-3:latest', toWorld=True),
+)
+```
+
+The scene cloud arrives as `depth.world`, indexed exactly like `depth.values`: same grid,
+same order, so the point for a pixel and the depth it came from share an index. Both are
+sent, because a `NaN` point says only that the pixel could not be placed while the value
+at that index says why — `+Infinity` for sky, or a reading that is not a distance at all.
+
+### Reading the coordinates
+
+`worldX`, `worldY` and `worldZ` appear on key points, outline points and contour points
+(including cutouts). They are **prediction v2 only**. A point the worker could not place —
+sky, outside the depth map, no usable map — carries none of the three, so test for `None`
+rather than for a sentinel value:
+
+```python
+for keypoints in prediction['keyPoints']:
+    for point in keypoints['points']:
+        if point.get('worldZ') is not None:
+            print(point['worldX'], point['worldY'], point['worldZ'])
+```
+
+`z` and `worldZ` are unrelated: `z` is model-relative depth in whatever convention the
+model uses, `worldZ` is metres. Bounding boxes are not enriched — a box is not a point,
+and any single anchor choice would be arbitrary.
+
+An object with a segmentation mask also carries a dense point cloud, one xyz triple per
+mask pixel, which `eyepop.PointCloud` decodes:
+
+```python
+from eyepop import PointCloud
+
+cloud = PointCloud.from_object(obj)
+if cloud is not None:
+    print(cloud.array.shape)        # (height, width, 3), float32, NaN where unplaced
+    print(cloud.at(0, 0))           # by mask pixel, or None
+    print(cloud.at_source(x, y))    # by source coordinate inside the object's box
+    print(cloud.placed_points)      # (N, 3), just the points that were placed
+    print(cloud.bounds)             # per-axis (min, max) in metres, or None
+```
+
+`PointCloud.from_depth(depth, source_width, source_height)` reads the scene cloud the same
+way; there `.at(i, j)` indexes the depth map's own grid, and the frame is the box that
+`.at_source(x, y)` maps into.
+
+`PointCloud.from_prediction(prediction)` returns every cloud in one prediction — a list,
+not a single value like `DepthMap.from_prediction`, because a cloud belongs to one object's
+mask. The scene cloud, if there is one, comes last.
+
+To see the world coordinates — not just the clouds, but key points, outlines and contours
+too — scatter them into a 3D axes:
+
+```python
+import matplotlib.pyplot as plt
+from eyepop.visualize import EyePopWorldPlot
+
+axes = plt.figure().add_subplot(projection='3d')
+plot = EyePopWorldPlot(axes)
+plot.prediction(prediction)
+plot.finish()
+plt.show()
+```
+
+Each carrier is its own colour and legend entry, and the ones with a defined order are
+connected: contours, outlines and cutouts by their own point order, closed; key points by
+the pose skeleton, matched on class label from the same table the 2D renderer uses. An
+unplaced point breaks the path rather than being bridged over, and a key point group whose
+category is not a known pose gets no lines at all rather than points joined in arrival
+order. A mask point cloud is a grid rather than a path, so it stays unconnected.
+
+The point budget is shared across series, so adding objects thins the scatter rather than
+multiplying it — but sparse series are exempt, so a 17-point skeleton survives beside a
+40,000-point mask cloud instead of being thinned away to save a fraction of it.
+
+Z is drawn into the scene and Y up the page, rather than in component order, since depth
+is what reads as distance from the viewer in either frame. The coordinates themselves are
+never altered.
+
+The vertical axis is also flipped, so a camera-frame scene stands the right way up. Y
+grows **downwards** in the OpenCV camera frame, so drawn as-is a figure's feet sit above
+its head. That is the default because a source supplying no extrinsics — or identity
+ones — gets the camera frame. For coordinates already in a Z-up world frame, pass
+`EyePopWorldPlot(axes, invert_y=False)`.
+
+### Camera calibration
+
+Without a calibration the worker falls back to an assumed 60° horizontal field of view.
+That is a development scaffold, not something to ship: for canonical metric depth the
+guess cancels out of X and Y and survives only in Z, so lateral measurements stay exact
+while every distance along the optical axis is wrong by however wrong the guess was.
+
+Supply a `camera` per source, or once for every source through the Pop's `defaults`:
+
+```python
+from eyepop.worker.camera import Camera, CameraIntrinsics, CameraExtrinsics, Vector3d
+
+camera = Camera(
+    intrinsics=CameraIntrinsics(fx=0.9, fy=1.6, cx=0.5, cy=0.5),
+    extrinsics=CameraExtrinsics(translation=Vector3d(z=3.0)),
+)
+endpoint.load_from(url, camera=camera)
+```
+
+Exactly one of `intrinsics` and `hfovDegrees` describes the lens. Both is rejected rather
+than resolved by precedence, and neither is rejected too, since defaulting a focal length
+would be inventing a lens.
+
+**Intrinsics are normalised to the frame, not given in pixels** — `fx`/`fy` as a fraction
+of the frame's width and height — so one calibration survives a resolution change.
+
+**Extrinsics are camera to world**: `P_world = R * P_camera + t`, so `t` is where the
+camera sits. This is the inverse of what `cv2.solvePnP` returns; a caller holding its
+`rvec`/`tvec` must invert both halves, and `tvec` is *not* the camera position. With
+extrinsics, coordinates are in the world frame those define — Z up, ground at Z = 0.
+Without them, they are in the camera frame, OpenCV convention: X right, Y down, Z forward.
+
+Defaults merge per field, so a source giving its own `roi` but no `camera` keeps its roi
+and takes the default camera.
+
 ## Data Endpoint
 
 Dataset management, VLM inference, and evaluation workflows.

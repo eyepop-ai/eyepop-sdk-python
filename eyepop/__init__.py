@@ -8,6 +8,7 @@ from eyepop import eyepopsdk
 from eyepop.worker import worker_jobs
 from eyepop import visualize
 from eyepop.depth_map import DepthMap
+from eyepop.point_cloud import PointCloud
 
 EyePopSdk = eyepopsdk.EyePopSdk
 Job = worker_jobs.WorkerJob
