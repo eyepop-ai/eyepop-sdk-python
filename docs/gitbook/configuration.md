@@ -17,16 +17,18 @@ You can pass it directly instead, though the environment variable keeps it out o
 endpoint = EyePopSdk.sync_worker(api_key="eyp_...")
 ```
 
-If your backend already holds a short-lived token, pass it as `access_token=` instead of an API key.
+If your backend already holds a short-lived token, pass it as `access_token=` instead of an API key. A token on its own targets `https://api.eyepop.ai`; to use it against the Compute API — and with `session_uuid` — set `eyepop_url="https://compute.eyepop.ai"` (or `EYEPOP_URL`) as well.
 
 ### Optional variables
 
 | Variable | Description |
 | --- | --- |
+| `EYEPOP_SECRET_KEY` | Secret key authentication. Required to run a named Pop; `EYEPOP_API_KEY` only works with transient Pops. |
+| `EYEPOP_POP_ID` | Named Pop to run. Defaults to `transient`. |
 | `EYEPOP_SESSION_UUID` | Attach to a persistent Deployment instead of creating a transient session. |
 | `EYEPOP_ACCOUNT_ID` | Required for some Data API calls. |
 | `EYEPOP_URL` | Override the API base URL. |
-| `EYEPOP_LOG_LEVEL` | Log verbosity for the `eyepop` logger. |
+| `EYEPOP_LOG_LEVEL` | Log verbosity for the `eyepop` logger. Unset, the SDK logs nothing; `LOG_LEVEL` is accepted as a fallback. |
 
 ### Transient and persistent sessions
 
