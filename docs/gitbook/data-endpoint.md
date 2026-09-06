@@ -22,7 +22,7 @@ asyncio.run(main())
 Some Data API calls need an account: set `EYEPOP_ACCOUNT_ID`. See [Configuration](configuration.md).
 
 {% hint style="warning" %}
-`infer_asset` and `evaluate_dataset` are experimental and may change without a major version bump.
+`infer_asset` and `evaluate_dataset` are marked experimental in the SDK and may change.
 {% endhint %}
 
 ### VLM inference on one asset
