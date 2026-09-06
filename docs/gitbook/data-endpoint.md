@@ -21,6 +21,10 @@ asyncio.run(main())
 
 Some Data API calls need an account: set `EYEPOP_ACCOUNT_ID`. See [Configuration](configuration.md).
 
+{% hint style="warning" %}
+`infer_asset` and `evaluate_dataset` are marked experimental in the SDK and may change.
+{% endhint %}
+
 ### VLM inference on one asset
 
 ```python
@@ -54,5 +58,5 @@ async with EyePopSdk.dataEndpoint(is_async=True, job_queue_length=4) as endpoint
 
 ### Next steps
 
-* [Composable Pops](composable-pops.md) — build the pipeline an evaluation runs
+* [Composable Pops](composable-pops.md) — chain models into an inference pipeline for the worker endpoint
 * [Running Inference](inference.md) — process media directly instead
