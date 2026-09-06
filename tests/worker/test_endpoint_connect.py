@@ -7,6 +7,7 @@ from types import MethodType
 import aiohttp
 from aiohttp import ClientResponseError
 from aioresponses import CallbackResult, aioresponses
+from yarl import URL
 
 from eyepop import EyePopSdk
 from eyepop.worker.worker_endpoint import WorkerEndpoint
@@ -77,6 +78,38 @@ class TestEndpointConnect(BaseEndpointTest):
             self.assertEqual(captured_session_body["pop"], pop.model_dump())
         finally:
             await endpoint.disconnect()
+
+    def test_local_mode_reaches_endpoint(self):
+        endpoint = EyePopSdk.async_worker(is_local_mode=True, pop=Pop(components=[]))
+
+        self.assertTrue(endpoint.is_local_mode)
+
+    @aioresponses()
+    async def test_local_mode_connect_skips_readiness_poll(self, mock: aioresponses):
+        local_url = "http://127.0.0.1:8080"
+        pipeline_id = "local-pipeline"
+
+        mock.post(f"{local_url}/v1/sessions?wait=true&transient=true", status=200, body=json.dumps({
+            "session_uuid": "session-456",
+            "session_endpoint": local_url,
+            "access_token": self.test_access_token,
+            "pipelines": [{"pipeline_id": pipeline_id}],
+            "session_status": "running",
+        }))
+        mock.patch(
+            f"{local_url}/pipelines/{pipeline_id}/source?mode=preempt&processing=sync",
+            status=204,
+        )
+        mock.delete(f"{local_url}/pipelines/{pipeline_id}", status=204)
+
+        endpoint = EyePopSdk.async_worker(is_local_mode=True, pop=Pop(components=[]))
+        try:
+            await endpoint.connect()
+        finally:
+            await endpoint.disconnect()
+
+        # /health is deliberately unmocked: local mode must never poll it
+        self.assertNotIn(("GET", URL(f"{local_url}/health")), mock.requests)
 
     async def test_ensure_pipeline_started_serializes_concurrent_creation(self):
         endpoint = object.__new__(WorkerEndpoint)
