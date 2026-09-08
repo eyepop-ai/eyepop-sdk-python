@@ -202,6 +202,7 @@ class EyePopSdk:
             pipeline_version=pipeline_version,
             session_name=session_name,
             pop=pop,
+            is_local_mode=is_local_mode,
         )
         return endpoint
 
