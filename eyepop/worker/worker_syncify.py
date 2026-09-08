@@ -68,15 +68,18 @@ class SyncWorkerEndpoint(SyncEndpoint):
             stream: typing.BinaryIO,
             mime_type: str,
             video_mode: VideoMode | None = None,
-            is_live: bool | None = None,
-            captured_at_offset_ns: int | None = None,
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
             camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
-            on_ready: typing.Callable[[WorkerJob], None] | None = None
+            on_ready: typing.Callable[[WorkerJob], None] | None = None,
+            # Keyword-only: this method published its positional order without
+            # them, and `params` must keep its slot.
+            *,
+            is_live: bool | None = None,
+            captured_at_offset_ns: int | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
