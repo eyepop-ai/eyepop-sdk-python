@@ -24,21 +24,28 @@ Some Data API calls need an account: set `EYEPOP_ACCOUNT_ID`. See [Configuration
 ### VLM inference on one asset
 
 ```python
+import asyncio
+
 from eyepop.data.data_types import InferRequest, TranscodeMode
 
-async with EyePopSdk.dataEndpoint(is_async=True) as endpoint:
-    job = await endpoint.infer_asset(
-        asset_uuid="your-asset-uuid",
-        infer_request=InferRequest(text_prompt="Describe this image."),
-        transcode_mode=TranscodeMode.image_cover_1024,
-    )
-    while result := await job.predict():
-        print(result)
+async def main():
+    async with EyePopSdk.dataEndpoint(is_async=True) as endpoint:
+        job = await endpoint.infer_asset(
+            asset_uuid="your-asset-uuid",
+            infer_request=InferRequest(text_prompt="Describe this image."),
+            transcode_mode=TranscodeMode.image_cover_1024,
+        )
+        while result := await job.predict():
+            print(result)
+
+asyncio.run(main())
 ```
 
 ### Batch dataset evaluation
 
 ```python
+import asyncio
+
 from eyepop.data.data_types import EvaluateRequest, InferRequest
 
 request = EvaluateRequest(
@@ -46,10 +53,13 @@ request = EvaluateRequest(
     infer=InferRequest(text_prompt="How many people are in this image?"),
 )
 
-async with EyePopSdk.dataEndpoint(is_async=True, job_queue_length=4) as endpoint:
-    job = await endpoint.evaluate_dataset(evaluate_request=request)
-    response = await job.response
-    print(response.model_dump_json(indent=2))
+async def main():
+    async with EyePopSdk.dataEndpoint(is_async=True, job_queue_length=4) as endpoint:
+        job = await endpoint.evaluate_dataset(evaluate_request=request)
+        response = await job.response
+        print(response.model_dump_json(indent=2))
+
+asyncio.run(main())
 ```
 
 ### Next steps
