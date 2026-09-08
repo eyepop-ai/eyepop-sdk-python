@@ -51,6 +51,8 @@ class SyncWorkerEndpoint(SyncEndpoint):
         job = run_coro_thread_save(self.event_loop, self.endpoint.upload(
             location=location,
             video_mode=video_mode,
+            is_live=is_live,
+            captured_at_offset_ns=captured_at_offset_ns,
             params=params,
             motion_detect=motion_detect,
             roi=roi,
@@ -72,7 +74,12 @@ class SyncWorkerEndpoint(SyncEndpoint):
             camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
-            on_ready: typing.Callable[[WorkerJob], None] | None = None
+            on_ready: typing.Callable[[WorkerJob], None] | None = None,
+            # Keyword-only: this method published its positional order without
+            # them, and `params` must keep its slot.
+            *,
+            is_live: bool | None = None,
+            captured_at_offset_ns: int | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -82,6 +89,8 @@ class SyncWorkerEndpoint(SyncEndpoint):
             stream=stream,
             mime_type=mime_type,
             video_mode=video_mode,
+            is_live=is_live,
+            captured_at_offset_ns=captured_at_offset_ns,
             params=params,
             motion_detect=motion_detect,
             roi=roi,

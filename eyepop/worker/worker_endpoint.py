@@ -355,11 +355,18 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
-            on_ready: Callable[[WorkerJob], None] | None = None
+            on_ready: Callable[[WorkerJob], None] | None = None,
+            # Keyword-only: this method published its positional order without
+            # them, and `params` must keep its slot.
+            *,
+            is_live: bool | None = None,
+            captured_at_offset_ns: int | None = None,
     ) -> WorkerJob:
         job = _UploadFileJob(
             location=location,
             video_mode=video_mode,
+            is_live=is_live,
+            captured_at_offset_ns=captured_at_offset_ns,
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Frame-level `depth` prediction member (`Depth` type) as produced by depth estimation abilities (e.g. `eyepop.depth.*`): base64 little-endian float32 map with the source frame's aspect ratio, sky pixels as `+Infinity`. New `eyepop.DepthMap` decodes it lazily to a numpy array with sky mask, finite min/max, and proportional source-coordinate sampling; `EyePopPlot.depth()` overlays it as a turbo heatmap. `pop_demo.py` gains a `depth` example and summarizes depth/mask binaries instead of dumping base64; the webui2 viewer renders depth via `Render2d.renderDepth()` where available. numpy is now a declared dependency (it was already required transitively).
 
 ### Fixed
+- `is_live` now reaches the worker from every upload path. `SyncWorkerEndpoint.upload()` declared `is_live` and `captured_at_offset_ns` and forwarded neither, `SyncWorkerEndpoint.upload_stream()` did not accept them at all, and the async `upload()` did not either — `_UploadFileJob` hardcoded both to `None`. Only the async `upload_stream()` ever sent them. A live source uploaded from the sync endpoint was therefore processed as buffered media, silently in the `upload()` case and with a `TypeError` in the others.
 - Predictions larger than the HTTP read buffer (64kb) no longer fail with `ValueError: Chunk too big`. Worker result lines are now accumulated without a size limit instead of relying on `aiohttp`'s `readline()`, which any prediction carrying a depth map exceeds (~1mb of base64 per frame).
 
 ### Changed
