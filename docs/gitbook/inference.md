@@ -117,5 +117,6 @@ plt.show()
 
 ### Next steps
 
+* [Sources and Options](../../platform/sources-and-options/README.md) — every source type and option, with Node side by side
 * [Composable Pops](composable-pops.md) — chain models into a pipeline
 * [Data Endpoint](data-endpoint.md) — datasets, VLM inference, and evaluation
