@@ -24,9 +24,6 @@ class PopComponentType(enum.StrEnum):
     BASE = "<invalid>"
     FORWARD = "forward"
     INFERENCE = "inference"
-    # backward compatibility for persisted Pops < 3.0.0
-    TRACING = "tracing"
-    # since 3.0.0, replaced 'tracing'
     TRACKING = "tracking"
     CONTOUR_FINDER = "contour_finder"
     COMPONENT_FINDER = "component_finder"
