@@ -1,32 +1,49 @@
 ---
-description: Chain models into a multi-stage inference pipeline
+description: Build a Pop with the Python types
 icon: diagram-project
 ---
 
 # Composable Pops
 
-A Pop chains models into a pipeline: detect, crop to each detection, and run another model on the crop. Pass it when you open the session.
+A Pop chains abilities into a pipeline: detect, crop to each detection, and run another ability on the crop. Pass it when you open the session.
 
-### Components
+This page is the Python construction API. Every component type, its attributes, and how components chain are covered once in the [Component Reference](../../platform/pop-reference.md), with worked pipelines in [Examples](../../platform/pop-examples.md).
 
-| Component | Purpose |
+### The types
+
+Import them from `eyepop.worker.worker_types`.
+
+| Type | Purpose |
 | --- | --- |
-| `InferenceComponent` | Run a model. Supports chunked video via `videoChunkLengthSeconds` and `videoChunkOverlap`. |
-| `TrackingComponent` | Track detected objects across frames. |
-| `ContourFinderComponent` | Extract contours from segmentation masks. |
-| `ComponentFinderComponent` | Extract connected components from masks. |
-| `ForwardComponent` | Route outputs between stages. |
+| `Pop` | The pipeline itself: `components`, and optionally `postTransform` and `defaults`. |
+| `InferenceComponent` | Run an ability. |
+| `TrackingComponent` | Track detected objects across video frames. |
+| `ContourFinderComponent` | Turn segmentation masks into contours. Requires `contourType`. |
+| `ComponentFinderComponent` | Split segmentation masks into sub-objects. |
+| `ForwardComponent` | Route output onward without analyzing it. |
+
+`InferenceType`, `MotionModel`, and `ContourType` are enums for the corresponding fields.
+
+The components are Pydantic models, so a Pop is validated as you build it rather than when the worker rejects it.
 
 ### Forwarding
 
-* `CropForward` — pass each detection crop to sub-components.
-* `FullForward` — pass the full image to sub-components.
-
-Both accept `includeClasses` to filter which detections are forwarded.
-
-### Vehicle to license plate to OCR
+`CropForward` and `FullForward` are helpers that build the forward operator for you:
 
 ```python
+CropForward(targets, maxItems=None, boxPadding=None,
+            orientationTargetAngle=None, includeClasses=None,
+            is_full_fallback=False)
+
+FullForward(targets, includeClasses=None)
+```
+
+`is_full_fallback=True` selects `crop_with_full_fallback`, which crops when the parent detected something and falls back to the whole frame when it did not.
+
+### Building a Pop
+
+```python
+from eyepop import EyePopSdk
 from eyepop.worker.worker_types import (
     Pop, InferenceComponent, TrackingComponent, CropForward, MotionModel,
 )
@@ -36,28 +53,35 @@ pop = Pop(components=[
         ability="eyepop.vehicle:latest",
         categoryName="vehicles",
         confidenceThreshold=0.8,
-        forward=CropForward(targets=[
-            TrackingComponent(
-                maxAgeSeconds=5.0,
-                motionModel=MotionModel.CONSTANT_VELOCITY,
-                agnostic=True,
-            ),
-            InferenceComponent(
-                ability="eyepop.vehicle.license-plate:latest",
-                topK=1,
-                forward=CropForward(targets=[
-                    InferenceComponent(
-                        ability="eyepop.text.recognize.landscape:latest",
-                        categoryName="license-plate",
-                    ),
-                ]),
-            ),
-        ]),
+        forward=CropForward(
+            includeClasses=["car", "truck"],
+            targets=[
+                TrackingComponent(
+                    maxAgeSeconds=5.0,
+                    motionModel=MotionModel.CONSTANT_VELOCITY,
+                ),
+                InferenceComponent(
+                    ability="eyepop.vehicle.license-plate:latest",
+                    topK=1,
+                    forward=CropForward(targets=[
+                        InferenceComponent(
+                            ability="eyepop.text.recognize.landscape:latest",
+                            categoryName="license-plate",
+                        ),
+                    ]),
+                ),
+            ],
+        ),
     ),
 ])
+
+with EyePopSdk.sync_worker(pop=pop) as endpoint:
+    result = endpoint.upload("street.jpg").predict()
 ```
 
-### VLM open-vocabulary detection
+### Prompting an ability
+
+Abilities backed by a vision-language model take their instruction through `params`:
 
 ```python
 from eyepop.worker.worker_types import Pop, InferenceComponent, CropForward
@@ -68,14 +92,21 @@ pop = Pop(components=[
         params={"prompts": [{"prompt": "person"}]},
         forward=CropForward(targets=[
             InferenceComponent(
-                ability="my-company.describe-hair-color:latest",
+                ability="eyepop.image-contents:latest",
+                params={"prompts": [{"prompt": "hair color?"}]},
             ),
         ]),
     ),
 ])
 ```
 
+{% hint style="info" %}
+`multiClass` is accepted by the platform but is not yet exposed on `InferenceComponent`. Everything else in the [Component Reference](../../platform/pop-reference.md) is available from Python.
+{% endhint %}
+
 ### Next steps
 
+* [Component Reference](../../platform/pop-reference.md) — every component type and attribute
+* [Examples](../../platform/pop-examples.md) — worked pipelines end to end
 * [Running Inference](inference.md) — submit media to the Pop you just built
 * [Data Endpoint](data-endpoint.md) — datasets, VLM inference, and evaluation
