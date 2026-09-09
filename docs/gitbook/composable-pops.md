@@ -18,7 +18,7 @@ Import them from `eyepop.worker.worker_types`.
 | `Pop` | The pipeline itself: `components`, and optionally `postTransform` and `defaults`. |
 | `InferenceComponent` | Run an ability. |
 | `TrackingComponent` | Track detected objects across video frames. |
-| `ContourFinderComponent` | Turn segmentation masks into contours. Requires `contourType`. |
+| `ContourFinderComponent` | Turn segmentation masks into contours. `contourType` is optional and defaults to `polygon`. |
 | `ComponentFinderComponent` | Split segmentation masks into sub-objects. |
 | `ForwardComponent` | Route output onward without analyzing it. |
 
