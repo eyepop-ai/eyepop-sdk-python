@@ -68,8 +68,7 @@ pop = Pop(components=[
         params={"prompts": [{"prompt": "person"}]},
         forward=CropForward(targets=[
             InferenceComponent(
-                ability="eyepop.image-contents:latest",
-                params={"prompts": [{"prompt": "hair color?"}]},
+                ability="my-company.describe-hair-color:latest",
             ),
         ]),
     ),

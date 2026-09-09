@@ -23,7 +23,7 @@ with EyePopSdk.sync_worker() as endpoint:
 Set `EYEPOP_API_KEY` in your environment (get one at [dashboard.eyepop.ai](https://dashboard.eyepop.ai)), or pass `api_key=...` to `sync_worker()`:
 
 ```python
-endpoint = EyePopSdk.sync_worker(api_key='my-api-key', pop_id='my-pop-id')
+endpoint = EyePopSdk.sync_worker(api_key='my-api-key')
 ```
 
 ## Configuration
@@ -34,6 +34,7 @@ Credentials are read from environment variables. Set **one** auth method:
 |---|---|
 | `EYEPOP_API_KEY` | API key from your dashboard. |
 | `EYEPOP_ACCESS_TOKEN` | Pre-issued OAuth access token. |
+| `EYEPOP_SECRET_KEY` | Secret key for a named pop. |
 
 Optional:
 
@@ -220,8 +221,7 @@ pop = Pop(components=[
         params={'prompts': [{'prompt': 'person'}]},
         forward=CropForward(targets=[
             InferenceComponent(
-                ability='eyepop.image-contents:latest',
-                params={'prompts': [{'prompt': 'hair color?'}]},
+                ability='my-company.describe-hair-color:latest',
             ),
         ]),
     ),
@@ -405,21 +405,28 @@ asyncio.run(main())
 ### VLM inference on a single asset
 
 ```python
+import asyncio
+
 from eyepop.data.data_types import InferRequest, TranscodeMode
 
-async with EyePopSdk.dataEndpoint(is_async=True) as endpoint:
-    job = await endpoint.infer_asset(
-        asset_uuid='your-asset-uuid',
-        infer_request=InferRequest(text_prompt='Describe this image.'),
-        transcode_mode=TranscodeMode.image_cover_1024,
-    )
-    while result := await job.predict():
-        print(result)
+async def main():
+    async with EyePopSdk.dataEndpoint(is_async=True) as endpoint:
+        job = await endpoint.infer_asset(
+            asset_uuid='your-asset-uuid',
+            infer_request=InferRequest(text_prompt='Describe this image.'),
+            transcode_mode=TranscodeMode.image_cover_1024,
+        )
+        while result := await job.predict():
+            print(result)
+
+asyncio.run(main())
 ```
 
 ### Batch dataset evaluation
 
 ```python
+import asyncio
+
 from eyepop.data.data_types import EvaluateRequest, InferRequest
 
 request = EvaluateRequest(
@@ -427,8 +434,11 @@ request = EvaluateRequest(
     infer=InferRequest(text_prompt='How many people are in this image?'),
 )
 
-async with EyePopSdk.dataEndpoint(is_async=True, job_queue_length=4) as endpoint:
-    job = await endpoint.evaluate_dataset(evaluate_request=request)
-    response = await job.response
-    print(response.model_dump_json(indent=2))
+async def main():
+    async with EyePopSdk.dataEndpoint(is_async=True, job_queue_length=4) as endpoint:
+        job = await endpoint.evaluate_dataset(evaluate_request=request)
+        response = await job.response
+        print(response.model_dump_json(indent=2))
+
+asyncio.run(main())
 ```

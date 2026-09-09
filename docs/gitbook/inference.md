@@ -7,6 +7,8 @@ icon: play
 
 Every example opens a session with a Pop, submits media, and reads predictions.
 
+This page is the Python call shapes. What a source is, every kind the platform accepts, and the options that shape how one is processed are covered once in [Sources and Options](../../platform/sources-and-options/README.md).
+
 ### A single image
 
 ```python
@@ -30,7 +32,7 @@ with EyePopSdk.sync_worker(pop=pop) as endpoint:
 
 ### URLs
 
-`load_from()` accepts HTTP, RTSP, and RTMP sources; the server fetches them.
+`load_from()` hands the platform a URL and lets it fetch, so nothing uploads from your application. [Source Types](../../platform/sources-and-options/sources.md) lists every scheme it accepts.
 
 ```python
 with EyePopSdk.sync_worker(pop=pop) as endpoint:
@@ -52,7 +54,7 @@ Cancel a job mid-stream with `job.cancel()`.
 
 ### Image groups
 
-A group is a **single** source processed **together** as one inference unit — a multi-image VLM prompt, for example. It returns one prediction for the whole set, unlike batching below, where each image is independent.
+A [group](../../platform/sources-and-options/sources.md#image-groups) is one source processed together as a single inference unit, returning one prediction for the whole set — unlike batching below, where each image is independent.
 
 ```python
 with EyePopSdk.sync_worker(pop=pop) as endpoint:
@@ -70,7 +72,7 @@ with EyePopSdk.sync_worker(pop=pop) as endpoint:
     ]).predict()
 ```
 
-Image order is preserved end to end. A group holds **up to 16 images**, enforced server-side. The Pop's ability must be multi-image capable; a single-image ability handed a group returns an error.
+[Image groups](../../platform/sources-and-options/sources.md#image-groups) covers the size limit, the ordering guarantee, and which abilities accept a group.
 
 ### Batching
 
@@ -117,6 +119,6 @@ plt.show()
 
 ### Next steps
 
-* [Sources and Options](../../platform/sources-and-options/README.md) — every source type and option, with Node side by side
+* [Sources and Options](../../platform/sources-and-options/README.md) — every source the platform accepts, and the options that shape processing
 * [Composable Pops](composable-pops.md) — chain models into a pipeline
 * [Data Endpoint](data-endpoint.md) — datasets, VLM inference, and evaluation
