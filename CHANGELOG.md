@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Running Inference links out to the docs site's Sources and Options reference, which covers every source type and per-source option next to the Node SDK's equivalents.
 - Frame-level `depth` prediction member (`Depth` type) as produced by depth estimation abilities (e.g. `eyepop.depth.*`): base64 little-endian float32 map with the source frame's aspect ratio, sky pixels as `+Infinity`. New `eyepop.DepthMap` decodes it lazily to a numpy array with sky mask, finite min/max, and proportional source-coordinate sampling; `EyePopPlot.depth()` overlays it as a turbo heatmap. `pop_demo.py` gains a `depth` example and summarizes depth/mask binaries instead of dumping base64; the webui2 viewer renders depth via `Render2d.renderDepth()` where available. numpy is now a declared dependency (it was already required transitively).
 
 ### Fixed
