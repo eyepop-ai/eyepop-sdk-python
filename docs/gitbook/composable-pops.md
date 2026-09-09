@@ -7,7 +7,7 @@ icon: diagram-project
 
 A Pop chains abilities into a pipeline: detect, crop to each detection, and run another ability on the crop. Pass it when you open the session.
 
-This page is the Python construction API. Every component type, its attributes, and how components chain are covered once in the [Component Reference](../../platform/pop-reference.md), with worked pipelines in [Examples](../../platform/pop-examples.md).
+This page is the Python construction API. Every component type and its attributes are covered once in [Components](../../platform/pop-components.md), how they chain in [Forwarding](../../platform/pop-forwarding.md), and worked pipelines in [Examples](../../platform/pop-examples.md).
 
 ### The types
 
@@ -101,12 +101,13 @@ pop = Pop(components=[
 ```
 
 {% hint style="info" %}
-`multiClass` is accepted by the platform but is not yet exposed on `InferenceComponent`. Everything else in the [Component Reference](../../platform/pop-reference.md) is available from Python.
+`multiClass` is accepted by the platform but is not yet exposed on `InferenceComponent`. Everything else in [Components](../../platform/pop-components.md) is available from Python.
 {% endhint %}
 
 ### Next steps
 
-* [Component Reference](../../platform/pop-reference.md) — every component type and attribute
+* [Components](../../platform/pop-components.md) — every component type and attribute
+* [Forwarding](../../platform/pop-forwarding.md) — how components chain
 * [Examples](../../platform/pop-examples.md) — worked pipelines end to end
 * [Running Inference](inference.md) — submit media to the Pop you just built
 * [Data Endpoint](data-endpoint.md) — datasets, VLM inference, and evaluation
