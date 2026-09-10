@@ -24,9 +24,6 @@ class PopComponentType(enum.StrEnum):
     BASE = "<invalid>"
     FORWARD = "forward"
     INFERENCE = "inference"
-    # backward compatibility for persisted Pops < 3.0.0
-    TRACING = "tracing"
-    # since 3.0.0, replaced 'tracing'
     TRACKING = "tracking"
     CONTOUR_FINDER = "contour_finder"
     COMPONENT_FINDER = "component_finder"
@@ -171,7 +168,10 @@ class ContourType(enum.StrEnum):
 
 class ContourFinderComponent(BaseComponent):
     type: Literal[PopComponentType.CONTOUR_FINDER] = PopComponentType.CONTOUR_FINDER  # pyright: ignore[reportIncompatibleVariableOverride]
-    contourType: ContourType
+    # Left unset the worker fits a polygon. Defaulted to None rather than to
+    # POLYGON so the default stays the worker's to change, the way every other
+    # optional component attribute here works.
+    contourType: ContourType | None = None
     areaThreshold: float | None = None
     model_config = ConfigDict(extra='forbid')
 
