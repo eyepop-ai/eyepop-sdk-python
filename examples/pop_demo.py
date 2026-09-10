@@ -48,7 +48,7 @@ from eyepop.worker.worker_types import (
 # be a metric one: a 'relative' map is accepted and silently yields no
 # coordinates, because relative depth is scale- AND shift-invariant, so a cloud
 # recovered from it would be distorted rather than merely unscaled.
-DEFAULT_DEPTH_ABILITY = 'eyepop.depth.large:latest'
+DEFAULT_DEPTH_ABILITY = 'eyepop.depth.metric.small:latest'
 
 load_dotenv()
 
@@ -236,7 +236,7 @@ pop_examples = {
     "depth": Pop(components=[
         InferenceComponent(
             id=1,
-            ability='eyepop.depth.large:latest',
+            ability='eyepop.depth.metric.small:latest',
         )
     ]),
     "localize-objects-plus": Pop(components=[

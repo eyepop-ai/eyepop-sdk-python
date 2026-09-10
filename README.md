@@ -242,7 +242,7 @@ pop = Pop(
     components=[
         InferenceComponent(ability='eyepop.person:latest', toWorld=True),
     ],
-    depthMap=PopDepthMap(ability='eyepop.depth.anything-3:latest'),
+    depthMap=PopDepthMap(ability='eyepop.depth.metric.small:latest'),
     defaults=SourceDefaults(camera=Camera(hfovDegrees=72.0)),
 )
 ```
@@ -250,6 +250,15 @@ pop = Pop(
 Use a **metric** depth ability. A `relative` one is accepted and silently produces no
 world coordinates at all: relative depth is scale- *and* shift-invariant, so a cloud
 recovered from it would be distorted rather than merely unscaled.
+
+The four metric depth abilities are `eyepop.depth.metric.small`,
+`eyepop.depth.metric.small-landscape`, `eyepop.depth.metric.large` and
+`eyepop.depth.metric.large-landscape`. A map keeps the source's aspect ratio; the
+ability sets the box it fits inside - 280x280 and 518x518 for the plain variants,
+504x280 and 924x518 for the `-landscape` ones. Landscape media is therefore much
+denser from a `-landscape` variant (1280x720 gives 518x291 against 921x518), while
+portrait and square media get the same grid either way. Smaller maps mean faster
+responses and higher throughput.
 
 `toWorld` only means something on a component that runs its own inference —
 inference and tracking. A contour finder's points do get enriched, but they belong to the
@@ -266,7 +275,7 @@ complete, no component needs to opt in.
 ```python
 pop = Pop(
     components=[InferenceComponent(ability='eyepop.person:latest')],
-    depthMap=PopDepthMap(ability='eyepop.depth.anything-3:latest', toWorld=True),
+    depthMap=PopDepthMap(ability='eyepop.depth.metric.small:latest', toWorld=True),
 )
 ```
 

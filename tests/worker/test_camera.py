@@ -172,10 +172,10 @@ def test_pop_defaults_carry_roi_and_motion_settings():
 def test_pop_requests_world_coordinates():
     pop = Pop(
         components=[InferenceComponent(ability="eyepop.person:latest", toWorld=True)],
-        depthMap=PopDepthMap(ability="eyepop.depth.anything-3:latest"),
+        depthMap=PopDepthMap(ability="eyepop.depth.metric.small:latest"),
     )
     dumped = pop.model_dump(exclude_none=True)
-    assert dumped["depthMap"]["ability"] == "eyepop.depth.anything-3:latest"
+    assert dumped["depthMap"]["ability"] == "eyepop.depth.metric.small:latest"
     assert dumped["components"][0]["toWorld"] is True
 
 
@@ -190,7 +190,7 @@ def test_pop_can_ask_for_the_whole_scene():
     # has to opt in for the pop to be complete
     pop = Pop(
         components=[InferenceComponent(ability="eyepop.person:latest")],
-        depthMap=PopDepthMap(ability="eyepop.depth.anything-3:latest", toWorld=True),
+        depthMap=PopDepthMap(ability="eyepop.depth.metric.small:latest", toWorld=True),
     )
     dumped = pop.model_dump(exclude_none=True)
     assert dumped["depthMap"]["toWorld"] is True
@@ -222,5 +222,5 @@ def test_depth_map_requires_exactly_one_selector():
 
 
 def test_depth_map_accepts_either_selector_alone():
-    assert PopDepthMap(ability="eyepop.depth.anything-3:latest").abilityUuid is None
+    assert PopDepthMap(ability="eyepop.depth.metric.small:latest").abilityUuid is None
     assert PopDepthMap(abilityUuid="depth-uuid", toWorld=True).ability is None
