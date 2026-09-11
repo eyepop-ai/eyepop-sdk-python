@@ -213,7 +213,7 @@ _NO_SEGMENTS = np.empty((0, 2, 3), dtype="float32")
 class WorldSeries:
     """One set of world coordinates from a prediction, ready to draw.
 
-    `points` are the placed ones, in metres. `segments` are the lines between
+    `points` are the placed ones, in meters. `segments` are the lines between
     them - a contour's own order, or the pose skeleton for a key point group -
     and are empty for a carrier with no defined connectivity, such as a mask
     point cloud, whose points are a grid rather than a path.
@@ -365,7 +365,7 @@ def labelled_world_points(prediction: dict) -> list[WorldSeries]:
 class EyePopWorldPlot:
     """Scatter of everything in a prediction that carries world coordinates.
 
-    Key points, outlines, contours and mask point clouds alike, in metres.
+    Key points, outlines, contours and mask point clouds alike, in meters.
     Needs a 3D axes - `plt.figure().add_subplot(projection='3d')` - because
     these are real 3D positions rather than an overlay on the frame, which is
     what separates this from EyePopPlot.
@@ -374,7 +374,7 @@ class EyePopWorldPlot:
     order, since depth reads as distance from the viewer in both frames. See
     AXIS_ORDER; the coordinates themselves are never altered.
 
-    Which frame the metres are in is not recoverable from the prediction. With
+    Which frame the meters are in is not recoverable from the prediction. With
     extrinsics they are world coordinates, Z up with the ground at Z = 0;
     without them they are camera coordinates in the OpenCV convention, X right,
     Y **down**, Z forward.
@@ -396,7 +396,7 @@ class EyePopWorldPlot:
     # save a fraction of the cloud.
     SPARSE_SERIES = 512
 
-    # Which metre component goes on which screen axis: X across, Z into the
+    # Which meter component goes on which screen axis: X across, Z into the
     # scene, Y up the page. Matplotlib puts its third axis vertical, and depth
     # is the one component that reads as distance from the viewer in both
     # frames - forward from the camera, or horizontal ground distance under
@@ -495,7 +495,7 @@ class EyePopWorldPlot:
     def finish(self, title: str | None = None, legend: bool = True) -> None:
         """Label the axes and give the box the data's own proportions.
 
-        Metres on every axis, so an unequal box would misrepresent the geometry
+        Meters on every axis, so an unequal box would misrepresent the geometry
         the coordinates exist to measure.
         """
         self.axes.set_xlabel(self.AXIS_LABELS[0])

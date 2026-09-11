@@ -230,7 +230,7 @@ pop = Pop(components=[
 
 ## World coordinates
 
-Predictions can carry a 3D position in **metres** alongside their 2D one, back-projected
+Predictions can carry a 3D position in **meters** alongside their 2D one, back-projected
 through a depth map. Two things have to be true: the Pop must name a depth ability, and
 the components whose predictions should be translated must opt in.
 
@@ -242,7 +242,7 @@ pop = Pop(
     components=[
         InferenceComponent(ability='eyepop.person:latest', toWorld=True),
     ],
-    depthMap=PopDepthMap(ability='eyepop.depth.anything-3:latest'),
+    depthMap=PopDepthMap(ability='eyepop.depth.metric.small:latest'),
     defaults=SourceDefaults(camera=Camera(hfovDegrees=72.0)),
 )
 ```
@@ -250,6 +250,15 @@ pop = Pop(
 Use a **metric** depth ability. A `relative` one is accepted and silently produces no
 world coordinates at all: relative depth is scale- *and* shift-invariant, so a cloud
 recovered from it would be distorted rather than merely unscaled.
+
+The four metric depth abilities are `eyepop.depth.metric.small`,
+`eyepop.depth.metric.small-landscape`, `eyepop.depth.metric.large` and
+`eyepop.depth.metric.large-landscape`. A map keeps the source's aspect ratio; the
+ability sets the box it fits inside - 280x280 and 518x518 for the plain variants,
+504x280 and 924x518 for the `-landscape` ones. Landscape media is therefore much
+denser from a `-landscape` variant (1280x720 gives 518x291 against 921x518), while
+portrait and square media get the same grid either way. Smaller maps mean faster
+responses and higher throughput.
 
 `toWorld` only means something on a component that runs its own inference —
 inference and tracking. A contour finder's points do get enriched, but they belong to the
@@ -266,7 +275,7 @@ complete, no component needs to opt in.
 ```python
 pop = Pop(
     components=[InferenceComponent(ability='eyepop.person:latest')],
-    depthMap=PopDepthMap(ability='eyepop.depth.anything-3:latest', toWorld=True),
+    depthMap=PopDepthMap(ability='eyepop.depth.metric.small:latest', toWorld=True),
 )
 ```
 
@@ -290,7 +299,7 @@ for keypoints in prediction['keyPoints']:
 ```
 
 `z` and `worldZ` are unrelated: `z` is model-relative depth in whatever convention the
-model uses, `worldZ` is metres. Bounding boxes are not enriched — a box is not a point,
+model uses, `worldZ` is meters. Bounding boxes are not enriched — a box is not a point,
 and any single anchor choice would be arbitrary.
 
 An object with a segmentation mask also carries a dense point cloud, one xyz triple per
@@ -305,7 +314,7 @@ if cloud is not None:
     print(cloud.at(0, 0))           # by mask pixel, or None
     print(cloud.at_source(x, y))    # by source coordinate inside the object's box
     print(cloud.placed_points)      # (N, 3), just the points that were placed
-    print(cloud.bounds)             # per-axis (min, max) in metres, or None
+    print(cloud.bounds)             # per-axis (min, max) in meters, or None
 ```
 
 `PointCloud.from_depth(depth, source_width, source_height)` reads the scene cloud the same

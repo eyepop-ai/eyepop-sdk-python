@@ -117,8 +117,23 @@ EyePopSdk.plot(plt.gca()).prediction(result)
 plt.show()
 ```
 
+### Camera calibration
+
+Every upload and load method takes a `camera`, which is what lets a [depth map](../../platform/depth-and-world-coordinates/depth-maps.md) become positions in meters:
+
+```python
+from eyepop.worker.camera import Camera
+
+job = endpoint.load_from("rtsp://camera.example.com/stream1", camera=Camera(hfovDegrees=72.0))
+```
+
+Set it once for every source with `Pop.defaults` instead — see [Composable Pops](composable-pops.md#world-coordinates).
+
+`EyePopPlot.depth(result)` overlays a frame's depth map as a heatmap, and `EyePopWorldPlot` scatters world coordinates into a 3D axes.
+
 ### Next steps
 
 * [Sources and Options](../../platform/sources-and-options/README.md) — every source the platform accepts, and the options that shape processing
 * [Composable Pops](composable-pops.md) — chain models into a pipeline
+* [Depth and World Coordinates](../../platform/depth-and-world-coordinates/README.md) — depth maps, calibration, and meters
 * [Data Endpoint](data-endpoint.md) — datasets, VLM inference, and evaluation

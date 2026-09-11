@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class Point2d(BaseModel):
     """A point in source pixels, optionally placed in 3D.
 
-    `worldX`/`worldY`/`worldZ` are metres, present only when the pipeline was
+    `worldX`/`worldY`/`worldZ` are meters, present only when the pipeline was
     asked for world coordinates (a Pop with `depthMap` and a component with
     `toWorld`) and only in prediction v2. A point the worker could
     not place - sky, outside the depth map, no usable map - carries none of the
@@ -70,9 +70,9 @@ class Depth(BaseModel):
     "unknown" included - so an absent member means a worker that predates the field
     rather than a map that declined to say:
 
-    * "canonical_metric" - metres = value * focal_px / 300, with focal_px scaled to
+    * "canonical_metric" - meters = value * focal_px / 300, with focal_px scaled to
       the map's own resolution
-    * "metric" - the value is already metres
+    * "metric" - the value is already meters
     * "relative" - scale- AND shift-invariant, so ordering is meaningful but distance
       is not. Not back-projectable: recovering a cloud from it yields a distorted
       scene rather than a scaled one

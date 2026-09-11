@@ -67,7 +67,7 @@ class Quaternion(BaseModel):
 
 
 class Vector3d(BaseModel):
-    """A translation in metres."""
+    """A translation in meters."""
 
     x: float = 0.0
     y: float = 0.0

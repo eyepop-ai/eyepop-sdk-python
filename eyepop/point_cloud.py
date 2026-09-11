@@ -36,7 +36,7 @@ class PointCloud:
     float32 array of shape (height, width, 3) via `.array`, or sample one point
     with `.at(i, j)`.
 
-    Coordinates are metres, in the frame the source's camera extrinsics define
+    Coordinates are meters, in the frame the source's camera extrinsics define
     (Z up, ground at Z = 0) or the OpenCV camera frame when it supplied none.
 
     The grid is whatever the cloud was made from: an object's mask, which spans
@@ -200,7 +200,7 @@ class PointCloud:
 
     @property
     def bounds(self) -> tuple[tuple[float, float], tuple[float, float], tuple[float, float]] | None:
-        """Per axis (min, max) in metres over the placed points, or None if none were placed.
+        """Per axis (min, max) in meters over the placed points, or None if none were placed.
 
         The counterpart to DepthMap's finite_min/finite_max, which are one axis
         because a depth map has one value per pixel.

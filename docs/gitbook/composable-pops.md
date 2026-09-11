@@ -15,7 +15,7 @@ Import them from `eyepop.worker.worker_types`.
 
 | Type | Purpose |
 | --- | --- |
-| `Pop` | The pipeline itself: `components`, and optionally `postTransform` and `defaults`. |
+| `Pop` | The pipeline itself: `components`, and optionally `postTransform`, `defaults` and `depthMap`. |
 | `InferenceComponent` | Run an ability. |
 | `TrackingComponent` | Track detected objects across video frames. |
 | `ContourFinderComponent` | Turn segmentation masks into contours. `contourType` is optional and defaults to `polygon`. |
@@ -79,6 +79,27 @@ with EyePopSdk.sync_worker(pop=pop) as endpoint:
     result = endpoint.upload("street.jpg").predict()
 ```
 
+### World coordinates
+
+`PopDepthMap` names the depth ability, and `toWorld` on a component asks for its point-based predictions in meters. `SourceDefaults` carries a `Camera` for every source the Pop processes.
+
+```python
+from eyepop.worker.camera import Camera
+from eyepop.worker.worker_types import (
+    InferenceComponent, Pop, PopDepthMap, SourceDefaults,
+)
+
+pop = Pop(
+    components=[InferenceComponent(ability="eyepop.person:latest", toWorld=True)],
+    depthMap=PopDepthMap(ability="eyepop.depth.metric.small:latest"),
+    defaults=SourceDefaults(camera=Camera(hfovDegrees=72.0)),
+)
+```
+
+`PopDepthMap` and `Camera` validate as you build them, so a Pop that cannot mean what it says fails here rather than as a `400` from the worker. Decode the results with `eyepop.DepthMap` and `eyepop.PointCloud`, and plot them with `eyepop.visualize.EyePopWorldPlot`.
+
+See [Depth and World Coordinates](../../platform/depth-and-world-coordinates/README.md) for the whole feature.
+
 ### Prompting an ability
 
 Abilities backed by a vision-language model take their instruction through `params`:
@@ -110,4 +131,5 @@ pop = Pop(components=[
 * [Forwarding](../../platform/pop-forwarding.md) — how components chain
 * [Examples](../../platform/pop-examples.md) — worked pipelines end to end
 * [Running Inference](inference.md) — submit media to the Pop you just built
+* [Depth and World Coordinates](../../platform/depth-and-world-coordinates/README.md) — predictions positioned in meters
 * [Data Endpoint](data-endpoint.md) — datasets, VLM inference, and evaluation
