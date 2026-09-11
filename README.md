@@ -230,7 +230,7 @@ pop = Pop(components=[
 
 ## World coordinates
 
-Predictions can carry a 3D position in **metres** alongside their 2D one, back-projected
+Predictions can carry a 3D position in **meters** alongside their 2D one, back-projected
 through a depth map. Two things have to be true: the Pop must name a depth ability, and
 the components whose predictions should be translated must opt in.
 
@@ -299,7 +299,7 @@ for keypoints in prediction['keyPoints']:
 ```
 
 `z` and `worldZ` are unrelated: `z` is model-relative depth in whatever convention the
-model uses, `worldZ` is metres. Bounding boxes are not enriched — a box is not a point,
+model uses, `worldZ` is meters. Bounding boxes are not enriched — a box is not a point,
 and any single anchor choice would be arbitrary.
 
 An object with a segmentation mask also carries a dense point cloud, one xyz triple per
@@ -314,7 +314,7 @@ if cloud is not None:
     print(cloud.at(0, 0))           # by mask pixel, or None
     print(cloud.at_source(x, y))    # by source coordinate inside the object's box
     print(cloud.placed_points)      # (N, 3), just the points that were placed
-    print(cloud.bounds)             # per-axis (min, max) in metres, or None
+    print(cloud.bounds)             # per-axis (min, max) in meters, or None
 ```
 
 `PointCloud.from_depth(depth, source_width, source_height)` reads the scene cloud the same

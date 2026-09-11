@@ -100,7 +100,7 @@ def test_points_without_world_members_are_left_out():
     assert labelled_world_points({}) == []
 
 
-def test_collected_series_are_metre_triples():
+def test_collected_series_are_meter_triples():
     labelled = {entry.label: entry for entry in labelled_world_points(_prediction())}
     assert labelled["person outline"].points.shape == (1, 3)
     # the unplaced third key point is dropped from the drawn points
@@ -130,7 +130,7 @@ def test_a_prediction_without_world_coordinates_draws_nothing(axes):
     assert EyePopWorldPlot(axes).prediction({"objects": [{"classLabel": "car"}]}) == 0
 
 
-def test_finish_labels_the_axes_in_metres(axes):
+def test_finish_labels_the_axes_in_meters(axes):
     plot = EyePopWorldPlot(axes)
     plot.prediction(_prediction())
     plot.finish(title="world")

@@ -574,7 +574,7 @@ parser.add_argument('--motion-detect', required=False, help="Skip video frames w
 parser.add_argument('--roi', required=False, type=rectangle_roi, help="Rectangular ROI as (x, y, width, height)")
 
 parser.add_argument('-w', '--to-world', required=False, default=False, action="store_true",
-                    help="Translate this pop's point based predictions into world coordinates in metres, "
+                    help="Translate this pop's point based predictions into world coordinates in meters, "
                          "back-projected through a depth map. Works with any of the example pops")
 parser.add_argument('--depth-map-to-world', required=False, default=False, action="store_true",
                     help="Back-project the depth map itself, so the results carry a point cloud of the "
@@ -600,13 +600,13 @@ parser.add_argument('--camera-rotation', required=False, type=camera_rotation, d
                          "at Z = 0 - instead of the camera frame. Note this is the inverse of what "
                          "cv2.solvePnP returns")
 parser.add_argument('--camera-translation', required=False, type=camera_translation, default=None,
-                    help="Where the camera itself sits in the world, as (x, y, z) in metres. A camera "
+                    help="Where the camera itself sits in the world, as (x, y, z) in meters. A camera "
                          "declared 5 m up reports its scene 5 m up. Not solvePnP's tvec, which is "
                          "not the camera position")
 parser.add_argument('-vw', '--visualize-world', required=False, default=False, action="store_true",
                     help="Scatter everything in the results that carries world coordinates - key "
                          "points, outlines, contours, mask point clouds and the scene cloud - into "
-                         "a 3D plot, in metres. Needs --to-world or --depth-map-to-world to fill them")
+                         "a 3D plot, in meters. Needs --to-world or --depth-map-to-world to fill them")
 parser.add_argument('--world-max-points', required=False, type=int,
                     default=EyePopWorldPlot.DEFAULT_MAX_POINTS,
                     help="Point budget for --visualize-world, shared across every series; sparse "

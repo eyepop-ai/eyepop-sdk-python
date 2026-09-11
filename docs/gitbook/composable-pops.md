@@ -81,7 +81,7 @@ with EyePopSdk.sync_worker(pop=pop) as endpoint:
 
 ### World coordinates
 
-`PopDepthMap` names the depth ability, and `toWorld` on a component asks for its point-based predictions in metres. `SourceDefaults` carries a `Camera` for every source the Pop processes.
+`PopDepthMap` names the depth ability, and `toWorld` on a component asks for its point-based predictions in meters. `SourceDefaults` carries a `Camera` for every source the Pop processes.
 
 ```python
 from eyepop.worker.camera import Camera
@@ -131,5 +131,5 @@ pop = Pop(components=[
 * [Forwarding](../../platform/pop-forwarding.md) — how components chain
 * [Examples](../../platform/pop-examples.md) — worked pipelines end to end
 * [Running Inference](inference.md) — submit media to the Pop you just built
-* [Depth and World Coordinates](../../platform/depth-and-world-coordinates/README.md) — predictions positioned in metres
+* [Depth and World Coordinates](../../platform/depth-and-world-coordinates/README.md) — predictions positioned in meters
 * [Data Endpoint](data-endpoint.md) — datasets, VLM inference, and evaluation

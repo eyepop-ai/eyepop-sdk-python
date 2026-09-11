@@ -119,7 +119,7 @@ plt.show()
 
 ### Camera calibration
 
-Every upload and load method takes a `camera`, which is what lets a [depth map](../../platform/depth-and-world-coordinates/depth-maps.md) become positions in metres:
+Every upload and load method takes a `camera`, which is what lets a [depth map](../../platform/depth-and-world-coordinates/depth-maps.md) become positions in meters:
 
 ```python
 from eyepop.worker.camera import Camera
@@ -135,5 +135,5 @@ Set it once for every source with `Pop.defaults` instead — see [Composable Pop
 
 * [Sources and Options](../../platform/sources-and-options/README.md) — every source the platform accepts, and the options that shape processing
 * [Composable Pops](composable-pops.md) — chain models into a pipeline
-* [Depth and World Coordinates](../../platform/depth-and-world-coordinates/README.md) — depth maps, calibration, and metres
+* [Depth and World Coordinates](../../platform/depth-and-world-coordinates/README.md) — depth maps, calibration, and meters
 * [Data Endpoint](data-endpoint.md) — datasets, VLM inference, and evaluation
