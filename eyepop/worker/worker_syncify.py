@@ -35,7 +35,6 @@ class SyncWorkerEndpoint(SyncEndpoint):
             location: str,
             video_mode: VideoMode | None = None,
             is_live: bool | None = None,
-            captured_at_offset_ns: int | None = None,
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
@@ -52,7 +51,6 @@ class SyncWorkerEndpoint(SyncEndpoint):
             location=location,
             video_mode=video_mode,
             is_live=is_live,
-            captured_at_offset_ns=captured_at_offset_ns,
             params=params,
             motion_detect=motion_detect,
             roi=roi,
@@ -79,7 +77,6 @@ class SyncWorkerEndpoint(SyncEndpoint):
             # them, and `params` must keep its slot.
             *,
             is_live: bool | None = None,
-            captured_at_offset_ns: int | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -90,7 +87,6 @@ class SyncWorkerEndpoint(SyncEndpoint):
             mime_type=mime_type,
             video_mode=video_mode,
             is_live=is_live,
-            captured_at_offset_ns=captured_at_offset_ns,
             params=params,
             motion_detect=motion_detect,
             roi=roi,

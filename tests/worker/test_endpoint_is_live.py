@@ -13,17 +13,16 @@ from tests.worker.base_endpoint_test import BaseEndpointTest
 
 
 class TestEndpointIsLive(BaseEndpointTest):
-    """is_live and captured_at_offset_ns have to reach the wire from both endpoints.
+    """is_live has to reach the wire from both endpoints.
 
-    Both endpoints declared the parameters long before they forwarded them, so
-    these assert the query string rather than the call succeeding. Both are
+    Both endpoints declared the parameter long before they forwarded it, so
+    these assert the query string rather than the call succeeding. It is
     keyword-only on upload() and the sync upload_stream(), which published
-    their positional order without them; test_positional_order_preserved
+    their positional order without it; test_positional_order_preserved
     guards that.
     """
     test_source_id = 'test_source_id'
     test_file = str(resources.files(tests) / 'test.jpg')
-    test_offset_ns = 1234567890
 
     def setup_pop_mock(self, mock: aioresponses):
         self.setup_base_mock(mock)
@@ -40,8 +39,7 @@ class TestEndpointIsLive(BaseEndpointTest):
 
         mock.post(
             f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}'
-            f'/source?mode=queue&processing=sync&isLive=True'
-            f'&capturedAtOffsetNs={self.test_offset_ns}&version=2',
+            f'/source?mode=queue&processing=sync&isLive=True&version=2',
             callback=on_post)
 
     @aioresponses()
@@ -56,12 +54,10 @@ class TestEndpointIsLive(BaseEndpointTest):
         ) as endpoint:
             with open(self.test_file, 'rb') as file:
                 job = endpoint.upload_stream(
-                    file, 'image/jpeg', is_live=True,
-                    captured_at_offset_ns=self.test_offset_ns)
+                    file, 'image/jpeg', is_live=True)
                 job.predict()
         self.assertEqual(len(seen), 1)
         self.assertIn('isLive=True', seen[0])
-        self.assertIn(f'capturedAtOffsetNs={self.test_offset_ns}', seen[0])
 
     @aioresponses()
     def test_sync_upload_sends_is_live(self, mock: aioresponses):
@@ -73,13 +69,10 @@ class TestEndpointIsLive(BaseEndpointTest):
                 secret_key=self.test_eyepop_secret_key,
                 pop_id=self.test_eyepop_pop_id,
         ) as endpoint:
-            job = endpoint.upload(
-                self.test_file, is_live=True,
-                captured_at_offset_ns=self.test_offset_ns)
+            job = endpoint.upload(self.test_file, is_live=True)
             job.predict()
         self.assertEqual(len(seen), 1)
         self.assertIn('isLive=True', seen[0])
-        self.assertIn(f'capturedAtOffsetNs={self.test_offset_ns}', seen[0])
 
     @aioresponses()
     @pytest.mark.asyncio
@@ -92,13 +85,10 @@ class TestEndpointIsLive(BaseEndpointTest):
                 secret_key=self.test_eyepop_secret_key,
                 pop_id=self.test_eyepop_pop_id,
         ) as endpoint:
-            job = await endpoint.upload(
-                self.test_file, is_live=True,
-                captured_at_offset_ns=self.test_offset_ns)
+            job = await endpoint.upload(self.test_file, is_live=True)
             await job.predict()
         self.assertEqual(len(seen), 1)
         self.assertIn('isLive=True', seen[0])
-        self.assertIn(f'capturedAtOffsetNs={self.test_offset_ns}', seen[0])
 
     @aioresponses()
     @pytest.mark.asyncio
@@ -113,15 +103,13 @@ class TestEndpointIsLive(BaseEndpointTest):
         ) as endpoint:
             with open(self.test_file, 'rb') as file:
                 job = await endpoint.upload_stream(
-                    file, 'image/jpeg', is_live=True,
-                    captured_at_offset_ns=self.test_offset_ns)
+                    file, 'image/jpeg', is_live=True)
                 await job.predict()
         self.assertEqual(len(seen), 1)
         self.assertIn('isLive=True', seen[0])
-        self.assertIn(f'capturedAtOffsetNs={self.test_offset_ns}', seen[0])
 
     def test_positional_order_preserved(self):
-        """The published positional order must survive adding these parameters.
+        """The published positional order must survive adding this parameter.
 
         A caller passing params positionally would otherwise bind it to
         is_live, dropping the component params and sending a list as isLive.
@@ -136,6 +124,5 @@ class TestEndpointIsLive(BaseEndpointTest):
         ]:
             spec = inspect.getfullargspec(func)
             self.assertEqual(spec.args[:len(expected)], expected)
-            for name in ('is_live', 'captured_at_offset_ns'):
-                self.assertIn(name, spec.kwonlyargs)
-                self.assertNotIn(name, spec.args)
+            self.assertIn('is_live', spec.kwonlyargs)
+            self.assertNotIn('is_live', spec.args)

@@ -72,7 +72,6 @@ async def relay_rtsp_source(
         mime_type="video/mpegts",
         is_live=True,
         video_mode=VideoMode.STREAM,
-        # TODO extract first frame camera provided NTP timestamp and send as "captured_at_offset_ns"
         params=params,
         motion_detect=motion_detect,
         roi=roi,
