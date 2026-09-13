@@ -360,13 +360,11 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             # them, and `params` must keep its slot.
             *,
             is_live: bool | None = None,
-            captured_at_offset_ns: int | None = None,
     ) -> WorkerJob:
         job = _UploadFileJob(
             location=location,
             video_mode=video_mode,
             is_live=is_live,
-            captured_at_offset_ns=captured_at_offset_ns,
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,
@@ -385,7 +383,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             mime_type: str,
             video_mode: VideoMode | None = None,
             is_live: bool | None = None,
-            captured_at_offset_ns: int | None = None,
             params: list[ComponentParams] | None = None,
             motion_detect: MotionDetectConfig | None = None,
             roi: Area | None = None,
@@ -399,7 +396,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             mime_type=mime_type,
             video_mode=video_mode,
             is_live=is_live,
-            captured_at_offset_ns=captured_at_offset_ns,
             component_params=params,
             motion_detect=motion_detect,
             roi=roi,

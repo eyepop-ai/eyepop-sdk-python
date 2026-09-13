@@ -143,7 +143,6 @@ class _UploadJob(WorkerJob):
     sources: list[_UploadSource]
     video_mode: VideoMode | None
     is_live: bool | None
-    captured_at_offset_ns: int | None
     needs_full_duplex: bool
 
     def __init__(
@@ -151,7 +150,6 @@ class _UploadJob(WorkerJob):
             sources: list[_UploadSource],
             video_mode: VideoMode | None,
             is_live: bool | None,
-            captured_at_offset_ns: int | None,
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
@@ -180,7 +178,6 @@ class _UploadJob(WorkerJob):
         self.sources = sources
         self.video_mode = video_mode
         self.is_live = is_live
-        self.captured_at_offset_ns = captured_at_offset_ns
         # Full duplex is only used for a single video upload; an image group is
         # always posted as one sync multipart request.
         self.needs_full_duplex = (
@@ -223,8 +220,6 @@ class _UploadJob(WorkerJob):
             query_params['videoMode'] = self.video_mode.value
         if self.is_live is not None:
             query_params["isLive"] = self.is_live
-        if self.captured_at_offset_ns is not None:
-            query_params['capturedAtOffsetNs'] = self.captured_at_offset_ns
         if self._version is not None:
             query_params['version'] = self._version
         if self._motion_detect is not None:
@@ -315,7 +310,6 @@ class _UploadFileJob(_UploadJob):
             location: str,
             video_mode: VideoMode | None,
             is_live: bool | None,
-            captured_at_offset_ns: int | None,
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
@@ -334,7 +328,6 @@ class _UploadFileJob(_UploadJob):
                 _guess_mime_type_from_location(location) or 'application/octet-stream')],
             video_mode=video_mode,
             is_live=is_live,
-            captured_at_offset_ns=captured_at_offset_ns,
             component_params=component_params,
             motion_detect=motion_detect,
             roi=roi,
@@ -355,7 +348,6 @@ class _UploadStreamJob(_UploadJob):
             mime_type: str,
             video_mode: VideoMode | None,
             is_live: bool | None,
-            captured_at_offset_ns: int | None,
             component_params: list[ComponentParams] | None,
             motion_detect: MotionDetectConfig | None,
             roi: Area | None,
@@ -372,7 +364,6 @@ class _UploadStreamJob(_UploadJob):
             sources=[_UploadSource(self._get_opened_stream, mime_type)],
             video_mode=video_mode,
             is_live=is_live,
-            captured_at_offset_ns=captured_at_offset_ns,
             component_params=component_params,
             motion_detect=motion_detect,
             roi=roi,
@@ -421,7 +412,6 @@ class _UploadFileGroupJob(_UploadJob):
             sources=sources,
             video_mode=None,
             is_live=None,
-            captured_at_offset_ns=None,
             component_params=component_params,
             motion_detect=None,
             roi=roi,
@@ -462,7 +452,6 @@ class _UploadStreamGroupJob(_UploadJob):
             sources=sources,
             video_mode=None,
             is_live=None,
-            captured_at_offset_ns=None,
             component_params=component_params,
             motion_detect=None,
             roi=roi,
