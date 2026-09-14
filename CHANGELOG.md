@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- The RTSP relay example survives a camera that drops. It opened the camera once and died with it; it now reconnects with a capped backoff, and each reconnect is a new upload because one MPEG-TS cannot carry two RTSP sessions without renumbering the timestamps the capture times depend on. A caller that stops consuming no longer leaves a thread reading the camera forever, and a camera that goes silent without closing the connection surfaces as a reconnect rather than a hang. Failures now say which side broke - camera, mux, or upload - because a camera drop reaching the upload as a truncated stream used to be indistinguishable from a worker refusing it, and only one of those is worth retrying.
+- `httpx` is declared. `relay_example.relay_http_source` imported it without it appearing in any extra, so the example could not run from a clean install.
+
 ### Added
 - `load_from(..., rtsp_force_non_compliant_url=True)` for RTSP servers that only answer the pre-RFC-2326 SETUP URL. The worker builds the compliant URL by default, which is what a camera advertising an absolute control attribute needs; leave the option unset unless a camera will not open without it. Unset is not sent at all, so the worker decides.
 
