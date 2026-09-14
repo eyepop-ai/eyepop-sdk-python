@@ -62,6 +62,11 @@ log = logging.getLogger(__name__)
 INITIAL_BACKOFF_S = 1.0
 MAX_BACKOFF_S = 30.0
 
+#: How long to wait for the camera to send something before treating the
+#: session as dead. Long enough not to trip on a slow keyframe interval, short
+#: enough that a camera pulled off the network is noticed rather than waited on.
+READ_TIMEOUT_S = 10.0
+
 
 class RelayError(Exception):
     """Base for the three ways a relay session can fail.
@@ -185,6 +190,11 @@ async def _relay_one_session(
         # to compare.
         container = av.open(source_url, 'r', options={
             'rtsp_transport': 'tcp',
+            # Without a read timeout a camera that stops sending without
+            # closing the connection - powered off, cable pulled - leaves the
+            # demux blocked in C forever, which no stop flag can reach. With
+            # one it surfaces as a demux error, which is a reconnect.
+            'timeout': str(int(READ_TIMEOUT_S * 1_000_000)),
         })
     except av.FFmpegError as error:
         raise CameraError(f"could not open {source_url}: {error}") from error
@@ -274,9 +284,13 @@ async def _relay_one_session(
         # Reached on a clean end, on an error, and when the caller stops
         # consuming the generator. The demux thread cannot be cancelled - it is
         # blocked in C - so it is asked to stop and then waited for.
+        #
+        # Order matters: the thread owns the container while it runs, and
+        # closing it first pulls the input out from under a demux already in
+        # progress, which hangs rather than returning.
         stop.set()
-        container.close()
         await asyncio.gather(task, return_exceptions=True)
+        container.close()
 
     # Raised after the generator body, so the caller sees why the stream ended
     # rather than an ordinary end of iteration. relay_rtsp_source turns a
