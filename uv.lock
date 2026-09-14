@@ -678,6 +678,9 @@ example = [
     { name = "python-dotenv" },
     { name = "webui2" },
 ]
+relay = [
+    { name = "av" },
+]
 test = [
     { name = "aioresponses" },
     { name = "codecov" },
@@ -696,12 +699,13 @@ requires-dist = [
     { name = "aioresponses", marker = "extra == 'test'", specifier = ">=0.7.8" },
     { name = "auth0-python", marker = "extra == 'example'", specifier = ">=4.13.0" },
     { name = "av", marker = "extra == 'example'", specifier = "~=17.1.0" },
+    { name = "av", marker = "extra == 'relay'", specifier = "~=17.1.0" },
     { name = "ay", marker = "extra == 'example'", specifier = "~=0.1.1" },
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.0.0,<2.0.0" },
     { name = "codecov", marker = "extra == 'test'" },
     { name = "cryptography", specifier = ">=42.0.0,<47.0.0" },
     { name = "deprecated", specifier = ">=1.2.0,<2.0.0" },
-    { name = "eyepop", extras = ["dev", "doc", "example", "test"], marker = "extra == 'all'" },
+    { name = "eyepop", extras = ["dev", "doc", "example", "relay", "test"], marker = "extra == 'all'" },
     { name = "flatbuffers", specifier = ">=24.0.0,<26.0.0" },
     { name = "matplotlib", specifier = ">=3.8.0,<4.0.0" },
     { name = "mkdocs", marker = "extra == 'doc'" },
@@ -732,7 +736,7 @@ requires-dist = [
     { name = "websockets", specifier = ">=13.0.0,<16.0.0" },
     { name = "webui2", marker = "extra == 'example'", specifier = "~=2.5.8" },
 ]
-provides-extras = ["test", "doc", "example", "dev", "all"]
+provides-extras = ["test", "doc", "example", "relay", "dev", "all"]
 
 [[package]]
 name = "filelock"

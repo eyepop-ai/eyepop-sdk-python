@@ -70,6 +70,13 @@ example = [
     "av~=17.1.0",
     "webui2~=2.5.8"
 ]
+relay = [
+    # Pinned wheels rather than a host ffmpeg: rtcp_sr side data is a recent
+    # FFmpeg addition, and PyAV bundles its own build. A system ffmpeg may be
+    # older, or - as in the dev container - have no RTSP protocol compiled in
+    # at all.
+    "av~=17.1.0",
+]
 dev = [
     "build>=1.0.0,<2.0.0",
     "mypy>=1.8.0,<2.0.0",
@@ -77,7 +84,7 @@ dev = [
     "types-aiofiles",
     "types-Pillow",
 ]
-all = ["eyepop[test,doc,example,dev]"]
+all = ["eyepop[test,doc,example,relay,dev]"]
 
 [tool.pytest.ini_options]
 addopts = [
