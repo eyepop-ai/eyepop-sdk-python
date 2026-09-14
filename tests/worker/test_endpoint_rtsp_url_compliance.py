@@ -87,8 +87,11 @@ class TestEndpointRtspUrlCompliance(BaseEndpointTest):
 
     @aioresponses()
     def test_load_from_sends_an_explicit_false(self, mock: aioresponses):
-        """Explicit false is not the same as unset: it pins the compliant
-        construction against a worker whose default might differ."""
+        """Explicit false is not the same as unset.
+
+        It pins the compliant construction against a worker whose default might
+        differ.
+        """
         self._setup_worker(mock)
         with EyePopSdk.sync_worker(
                 eyepop_url=self.test_eyepop_url,
