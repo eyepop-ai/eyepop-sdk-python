@@ -62,17 +62,24 @@ async def relay_rtsp_source(
     def pipe_through():
         started = time.monotonic()
         has_key_frame = False
-        for packet in container.demux(relay.in_video_stream):
-            if packet.dts is None:
-                continue
-            if not has_key_frame:
-                has_key_frame = packet.is_keyframe
-            if not has_key_frame:
-                continue
-            # Uploading starts now, not once a capture time is available. The
-            # leading frames go out unstamped, which is what the direct RTSP
-            # path does too while it waits for its first sender report.
-            relay.relay(time.monotonic() - started, packet)
+        try:
+            for packet in container.demux(relay.in_video_stream):
+                if packet.dts is None:
+                    continue
+                if not has_key_frame:
+                    has_key_frame = packet.is_keyframe
+                if not has_key_frame:
+                    continue
+                # Uploading starts now, not once a capture time is available.
+                # The leading frames go out unstamped, which is what the direct
+                # RTSP path does too while it waits for its first sender report.
+                relay.relay(time.monotonic() - started, packet)
+        finally:
+            # A camera that disconnects, a finite source that ends, or anything
+            # raised above all land here. Without it the reader blocks forever
+            # on an empty queue and the upload never sees the end of the stream.
+            mpegts_muxer.close()
+            pipe.signal_eof()
 
     task = asyncio.create_task(asyncio.to_thread(pipe_through))
 
@@ -94,9 +101,19 @@ async def relay_rtsp_source(
 
 
 class PipeBuffer(io.RawIOBase):
+    """A blocking queue the muxer writes and the uploader reads.
+
+    The two run on different threads, so the writer has to say when it is done:
+    the reader blocks indefinitely otherwise and never reports the end of the
+    stream.
+    """
+
+    _EOF = object()
+
     def __init__(self):
         self.queue = queue.Queue()
         self.buffer = b""
+        self._at_eof = False
 
     def writable(self):
         return True
@@ -107,14 +124,21 @@ class PipeBuffer(io.RawIOBase):
         self.queue.put(b)
         return len(b)
 
+    def signal_eof(self):
+        """No more writes are coming. Reads drain what is queued, then end."""
+        self.queue.put(self._EOF)
+
     def read(self, n=-1):
         # Fetch chunks from queue if our internal buffer is empty
         if not self.buffer:
-            try:
-                # Blocks until data is available
-                self.buffer = self.queue.get(block=True, timeout=None)
-            except queue.Empty:
-                return b""  # EOF
+            if self._at_eof:
+                return b""
+            # Blocks until data is available
+            chunk = self.queue.get(block=True, timeout=None)
+            if chunk is self._EOF:
+                self._at_eof = True
+                return b""
+            self.buffer = chunk
 
         # If n is negative, read everything available
         if n < 0:

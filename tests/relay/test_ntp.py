@@ -19,8 +19,12 @@ CAPTURE_SECONDS = CAPTURE_US // 1_000_000
 
 
 def prft_payload(unix_us: int) -> bytes:
-    """``{int64 wallclock_us; int32 flags}``, host byte order."""
-    return struct.pack("=qi", unix_us, 0)
+    """``{int64 wallclock_us; int32 flags}``, host byte order.
+
+    Real payloads observed over RTSP are 16 bytes; the struct itself is 12 and
+    that is what the decoder requires.
+    """
+    return struct.pack("=qi", unix_us, 0) + bytes(4)
 
 
 def rtcp_sr_payload(unix_seconds: int, fraction: int = 0) -> bytes:
@@ -52,6 +56,42 @@ def test_rtcp_sr_read_big_endian_is_rejected_rather_than_believed():
 def test_short_payloads_are_refused_rather_than_guessed_at():
     assert decode_prft(b"\x00" * 4) is None
     assert decode_rtcp_sr(b"\x00" * 8) is None
+
+
+def test_a_prft_payload_truncated_after_the_wallclock_is_refused():
+    """Eight plausible bytes are not a payload; they are half of one.
+
+    Accepting them would take a different FFmpeg build's struct and read a
+    capture time out of it.
+    """
+    whole = prft_payload(CAPTURE_US)
+    assert decode_prft(whole) == CAPTURE_US
+    assert decode_prft(whole[:8]) is None
+    assert decode_prft(whole[:11]) is None
+
+
+def test_the_ntp_fraction_converts_without_a_rounding_error():
+    """Exact integer conversion, not epoch-scale floating point.
+
+    One ULP of binary64 at 1.79e9 seconds is 0.238us, so adding the fraction to
+    the seconds before scaling lands a microsecond either side of the real
+    value. These fractions were found by searching for that disagreement.
+    """
+    for fraction_raw, expected in [
+        (0xC9E9C616, 1789316993788723),
+        (0x0741C7A8, 1789316993028347),
+        (0x442E3D43, 1789316993266331),
+        (0x9755D4C1, 1789316993591153),
+    ]:
+        assert decode_rtcp_sr(rtcp_sr_payload(CAPTURE_SECONDS, fraction_raw)) == expected
+
+
+def test_a_whole_second_fraction_is_not_rounded_away():
+    assert decode_rtcp_sr(rtcp_sr_payload(CAPTURE_SECONDS, 0)) == CAPTURE_SECONDS * 1_000_000
+    assert (
+        decode_rtcp_sr(rtcp_sr_payload(CAPTURE_SECONDS, 1 << 31))
+        == CAPTURE_SECONDS * 1_000_000 + 500_000
+    )
 
 
 def test_a_zero_ntp_stamp_is_not_an_anchor():
@@ -138,6 +178,20 @@ def test_an_anchor_arriving_late_prevents_the_absence_warning(caplog):
         clock.note(prft_payload(CAPTURE_US), None, 0.8)
         for frame in range(100):
             clock.note(None, None, 1.0 + frame * 0.04)
+    assert caplog.records == []
+
+
+def test_a_usable_sender_report_silences_the_picture_timing_complaint(caplog):
+    """The fallback is the point of having two sources.
+
+    Warning that the stream has no capture times, on the way to reading one, is
+    worse than not warning at all.
+    """
+    clock = CaptureClock()
+    with caplog.at_level(logging.WARNING):
+        capture = clock.note(prft_payload(1), rtcp_sr_payload(CAPTURE_SECONDS), 0.0)
+    assert capture is not None
+    assert capture.source == "rtcp_sr"
     assert caplog.records == []
 
 

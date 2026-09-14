@@ -28,6 +28,14 @@ __all__ = [
 #: Seconds between 1900-01-01 and 1970-01-01.
 NTP_UNIX_OFFSET_SECONDS = 2_208_988_800
 
+#: ``{int64 wallclock_us; int32 flags}``. Payloads observed on real RTSP are
+#: larger than this; anything smaller is a different shape, not this one.
+PRFT_PAYLOAD_SIZE = 12
+
+#: FFmpeg's reception wallclock, then the 64-bit NTP stamp at offset 8.
+RTCP_SR_NTP_OFFSET = 8
+RTCP_SR_MIN_SIZE = RTCP_SR_NTP_OFFSET + 8
+
 # Both payloads are written in HOST byte order, not network order. Reading
 # rtcp_sr big-endian yields 1992-07-30 for a 2026 capture - wrong, but plausible
 # enough to survive a casual look, which is why _is_plausible exists below.
@@ -68,11 +76,12 @@ def _implausible(unix_us: int) -> bool:
 def decode_prft(payload: bytes) -> int | None:
     """Unix microseconds from an ``AV_PKT_DATA_PRFT`` payload.
 
-    Layout is ``{int64 wallclock_us; int32 flags}``. Only the wallclock is read;
-    a shorter payload is a different FFmpeg build's shape and is refused rather
-    than guessed at.
+    Layout is ``{int64 wallclock_us; int32 flags}``. Only the wallclock is read,
+    but the whole struct has to be there: a payload truncated after the
+    wallclock is a different FFmpeg build's shape, and accepting it would turn
+    eight plausible-looking bytes into a capture time for the stream.
     """
-    if len(payload) < 8:
+    if len(payload) < PRFT_PAYLOAD_SIZE:
         return None
     (wallclock_us,) = struct.unpack_from(f"{_HOST}q", payload, 0)
     if wallclock_us <= 0 or _implausible(wallclock_us):
@@ -86,16 +95,19 @@ def decode_rtcp_sr(payload: bytes) -> int | None:
     The 64-bit NTP timestamp sits at offset 8, not at the start: the first eight
     bytes are FFmpeg's own reception wallclock.
     """
-    if len(payload) < 16:
+    if len(payload) < RTCP_SR_MIN_SIZE:
         return None
-    (ntp,) = struct.unpack_from(f"{_HOST}Q", payload, 8)
+    (ntp,) = struct.unpack_from(f"{_HOST}Q", payload, RTCP_SR_NTP_OFFSET)
     if ntp == 0:
         return None
     seconds = (ntp >> 32) - NTP_UNIX_OFFSET_SECONDS
-    fraction = (ntp & 0xFFFFFFFF) / 2**32
     if seconds < 0:
         return None
-    unix_us = int(round((seconds + fraction) * 1_000_000))
+    # Integer throughout. Adding the fraction to epoch-scale seconds in binary64
+    # first would round to about a quarter of a microsecond - one ULP at 1.8e9
+    # is 0.238us - and land a microsecond either side of the real value.
+    fraction_raw = ntp & 0xFFFFFFFF
+    unix_us = seconds * 1_000_000 + ((fraction_raw * 1_000_000 + (1 << 31)) >> 32)
     if _implausible(unix_us):
         return None
     return unix_us
@@ -146,19 +158,26 @@ class CaptureClock:
 
     def _decode(self, prft: bytes | None, rtcp_sr: bytes | None) -> CaptureTime | None:
         # PRFT first: it arrives on most packets, where a sender report arrives
-        # once per interval.
+        # once per interval. The fallback is the point of having two, so nothing
+        # is concluded about the stream until both have had their turn - a
+        # warning that the stream has no capture times, logged on the way to
+        # reading one, is worse than no warning.
+        undecodable: list[tuple[int, str]] = []
+
         if prft is not None:
             unix_us = decode_prft(prft)
             if unix_us is not None:
                 return CaptureTime(unix_us, "prft")
-            self._note_implausible(len(prft), "prft")
+            undecodable.append((len(prft), "prft"))
 
         if rtcp_sr is not None:
             unix_us = decode_rtcp_sr(rtcp_sr)
             if unix_us is not None:
                 return CaptureTime(unix_us, "rtcp_sr")
-            self._note_implausible(len(rtcp_sr), "rtcp_sr")
+            undecodable.append((len(rtcp_sr), "rtcp_sr"))
 
+        for size, source in undecodable:
+            self._note_implausible(size, source)
         return None
 
     def _note_implausible(self, size: int, source: str) -> None:
