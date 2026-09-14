@@ -23,6 +23,9 @@ class PipeBuffer(io.RawIOBase):
         self.buffer: bytes = b""
         self._at_eof = False
 
+    def readable(self) -> bool:
+        return True
+
     def writable(self) -> bool:
         return True
 
@@ -40,21 +43,31 @@ class PipeBuffer(io.RawIOBase):
         """
         self.queue.put(self._EOF)
 
-    def read(self, n: int = -1) -> bytes:
+    def readinto(self, b) -> int:
+        """Fill ``b`` from the queue, blocking until there is something to give.
+
+        ``readinto`` rather than ``read``, so ``RawIOBase`` derives ``read`` and
+        ``readall`` from it and they behave the way the io contract says: a
+        zero-length read returns immediately instead of waiting for data that
+        was never asked for, and a read of everything keeps going past chunk
+        boundaries to the end of the stream rather than stopping at the first.
+        Writing ``read`` by hand gets one of those wrong, which is how both were
+        wrong here.
+        """
+        if len(b) == 0:
+            return 0
+
         if not self.buffer:
             if self._at_eof:
-                return b""
+                return 0
             # Blocks until data is available.
             chunk = self.queue.get(block=True, timeout=None)
             if chunk is self._EOF:
                 self._at_eof = True
-                return b""
+                return 0
             self.buffer = chunk
 
-        if n < 0:
-            res, self.buffer = self.buffer, b""
-            return res
-
-        res = self.buffer[:n]
-        self.buffer = self.buffer[n:]
-        return res
+        taken = min(len(b), len(self.buffer))
+        b[:taken] = self.buffer[:taken]
+        self.buffer = self.buffer[taken:]
+        return taken

@@ -55,3 +55,72 @@ def test_a_blocked_reader_is_released_by_the_writer_finishing():
 
     assert not reader.is_alive(), "reader never woke: this is the indefinite upload hang"
     assert result == [b""]
+
+
+def test_a_zero_length_read_returns_at_once_instead_of_waiting():
+    """The io contract, and a deadlock if it is not honoured.
+
+    A caller asking for nothing is not asking to be blocked until somebody
+    writes something.
+    """
+    pipe = PipeBuffer()
+    finished: list[bytes] = []
+
+    reader = threading.Thread(target=lambda: finished.append(pipe.read(0)))
+    reader.start()
+    reader.join(timeout=5)
+
+    assert not reader.is_alive(), "read(0) blocked waiting for data it did not ask for"
+    assert finished == [b""]
+
+
+def test_reading_everything_crosses_chunk_boundaries():
+    """`read(-1)` means to the end of the stream, not to the end of one write.
+
+    Stopping at the first chunk truncates silently for any caller using the
+    default size, which is every caller that does not happen to pass one.
+    """
+    pipe = PipeBuffer()
+    pipe.write(b"one")
+    pipe.write(b"two")
+    pipe.write(b"three")
+    pipe.signal_eof()
+
+    assert pipe.read(-1) == b"onetwothree"
+    assert pipe.read(-1) == b""
+
+
+def test_readall_matches_reading_everything():
+    pipe = PipeBuffer()
+    pipe.write(b"alpha")
+    pipe.write(b"beta")
+    pipe.signal_eof()
+
+    assert pipe.readall() == b"alphabeta"
+
+
+def test_a_sized_read_never_returns_more_than_asked_for():
+    pipe = PipeBuffer()
+    pipe.write(b"abcdef")
+    pipe.signal_eof()
+
+    assert pipe.read(3) == b"abc"
+    assert pipe.read(3) == b"def"
+    assert pipe.read(3) == b""
+
+
+def test_a_sized_read_is_satisfied_from_one_chunk_at_a_time():
+    """Short reads are allowed; what matters is that nothing is dropped."""
+    pipe = PipeBuffer()
+    pipe.write(b"ab")
+    pipe.write(b"cd")
+    pipe.signal_eof()
+
+    collected = b""
+    while chunk := pipe.read(16):
+        collected += chunk
+    assert collected == b"abcd"
+
+
+def test_the_buffer_reports_itself_readable():
+    assert PipeBuffer().readable()
