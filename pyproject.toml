@@ -101,6 +101,13 @@ addopts = [
 testpaths = [
     "tests",
 ]
+# The repo root, so tests can import `examples`. `uv run pytest` runs the
+# console script, which - unlike `python -m pytest` - does not put the working
+# directory on sys.path, so without this the relay example's tests collect
+# locally and fail in CI.
+pythonpath = [
+    ".",
+]
 markers = [
     "integration: marks tests as integration tests (require API keys)",
 ]
