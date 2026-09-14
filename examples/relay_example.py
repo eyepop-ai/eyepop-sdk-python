@@ -1,6 +1,4 @@
 import asyncio
-import io
-import queue
 import time
 from typing import AsyncGenerator
 
@@ -9,6 +7,7 @@ import httpx
 
 from eyepop.data.types.asset import Area
 from eyepop.relay.mux import KlvRelay
+from eyepop.relay.pipe import PipeBuffer
 from eyepop.relay.st0601 import PlatformOrientation, SensorPosition
 from eyepop.worker.camera import Camera
 from eyepop.worker.worker_endpoint import WorkerEndpoint
@@ -99,53 +98,3 @@ async def relay_rtsp_source(
 
     await asyncio.gather(task)
 
-
-class PipeBuffer(io.RawIOBase):
-    """A blocking queue the muxer writes and the uploader reads.
-
-    The two run on different threads, so the writer has to say when it is done:
-    the reader blocks indefinitely otherwise and never reports the end of the
-    stream.
-    """
-
-    _EOF = object()
-
-    def __init__(self):
-        self.queue = queue.Queue()
-        self.buffer = b""
-        self._at_eof = False
-
-    def writable(self):
-        return True
-
-    def write(self, b):
-        if isinstance(b, str):
-            b = b.encode('utf-8')
-        self.queue.put(b)
-        return len(b)
-
-    def signal_eof(self):
-        """No more writes are coming. Reads drain what is queued, then end."""
-        self.queue.put(self._EOF)
-
-    def read(self, n=-1):
-        # Fetch chunks from queue if our internal buffer is empty
-        if not self.buffer:
-            if self._at_eof:
-                return b""
-            # Blocks until data is available
-            chunk = self.queue.get(block=True, timeout=None)
-            if chunk is self._EOF:
-                self._at_eof = True
-                return b""
-            self.buffer = chunk
-
-        # If n is negative, read everything available
-        if n < 0:
-            res, self.buffer = self.buffer, b""
-            return res
-
-        # Otherwise, slice out the exact number of bytes requested
-        res = self.buffer[:n]
-        self.buffer = self.buffer[n:]
-        return res

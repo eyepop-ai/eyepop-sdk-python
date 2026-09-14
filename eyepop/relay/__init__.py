@@ -10,6 +10,7 @@ Nothing here decodes or re-encodes video: packets are copied, and the metadata
 rides beside them.
 """
 
+from eyepop.relay.pipe import PipeBuffer
 from eyepop.relay.st0601 import (
     UAS_LDS_UNIVERSAL_LABEL,
     PlatformOrientation,
@@ -18,6 +19,7 @@ from eyepop.relay.st0601 import (
 )
 
 __all__ = [
+    "PipeBuffer",
     "UAS_LDS_UNIVERSAL_LABEL",
     "PlatformOrientation",
     "SensorPosition",
