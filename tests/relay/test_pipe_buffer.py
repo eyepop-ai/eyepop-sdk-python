@@ -124,3 +124,38 @@ def test_a_sized_read_is_satisfied_from_one_chunk_at_a_time():
 
 def test_the_buffer_reports_itself_readable():
     assert PipeBuffer().readable()
+
+
+def test_an_empty_write_does_not_end_the_stream():
+    """A zero-length write is legitimate; a muxer flushing nothing produces one.
+
+    Treating it as end-of-stream discards everything written afterwards, and
+    does so silently - the read simply returns short and the caller has no way
+    to tell that from a stream that really ended.
+    """
+    pipe = PipeBuffer()
+    pipe.write(b"before")
+    pipe.write(b"")
+    pipe.write(b"after")
+    pipe.signal_eof()
+
+    assert pipe.readall() == b"beforeafter"
+
+
+def test_an_empty_write_before_any_data_is_skipped():
+    pipe = PipeBuffer()
+    pipe.write(b"")
+    pipe.write(b"data")
+    pipe.signal_eof()
+
+    assert pipe.read(-1) == b"data"
+
+
+def test_consecutive_empty_writes_are_skipped():
+    pipe = PipeBuffer()
+    pipe.write(b"")
+    pipe.write(b"")
+    pipe.write(b"payload")
+    pipe.signal_eof()
+
+    assert pipe.read(16) == b"payload"

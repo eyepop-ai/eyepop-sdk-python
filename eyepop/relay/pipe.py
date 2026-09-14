@@ -57,7 +57,11 @@ class PipeBuffer(io.RawIOBase):
         if len(b) == 0:
             return 0
 
-        if not self.buffer:
+        # Loops rather than tests once: a zero-length write is legitimate - a
+        # muxer flushing nothing produces one - and returning 0 for it tells
+        # RawIOBase.readall that the stream ended, silently discarding
+        # everything written afterwards.
+        while not self.buffer:
             if self._at_eof:
                 return 0
             # Blocks until data is available.
