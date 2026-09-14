@@ -494,6 +494,7 @@ class _LoadFromJob(WorkerJob):
             on_ready: Callable[[WorkerJob], None] | None = None,
             callback: JobStateCallback | None = None,
             version: PredictionVersion = DEFAULT_PREDICTION_VERSION,
+            rtsp_force_non_compliant_url: bool | None = None,
     ):
         super().__init__(
             session=session,
@@ -507,6 +508,7 @@ class _LoadFromJob(WorkerJob):
             callback=callback,
             version=version
         )
+        self._rtsp_force_non_compliant_url = rtsp_force_non_compliant_url
         if not locations:
             raise ValueError("load_from requires at least one url")
         self.locations = list(locations)
@@ -530,6 +532,8 @@ class _LoadFromJob(WorkerJob):
                 self.body['camera'] = self._camera.model_dump(exclude_none=True)
             if self._media_cache_seconds is not None:
                 self.body['mediaCacheSeconds'] = self._media_cache_seconds
+            if self._rtsp_force_non_compliant_url is not None:
+                self.body['rtspForceNonCompliantUrl'] = self._rtsp_force_non_compliant_url
         else:
             # Two or more URLs: one image group (no video/motion/fps).
             self.body = {

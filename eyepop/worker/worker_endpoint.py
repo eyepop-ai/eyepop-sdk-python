@@ -478,8 +478,17 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
+            rtsp_force_non_compliant_url: bool | None = None,
             on_ready: Callable[[WorkerJob], None] | None = None
     ) -> WorkerJob:
+        """Loads a server-fetched URL as a single source.
+
+        `rtsp_force_non_compliant_url` applies to an `rtsp:` location only, and
+        only for servers that require the pre-RFC-2326 SETUP URL. Leave it unset
+        unless a camera fails to open without it: the compliant construction is
+        what a camera advertising an absolute control URL needs, and forcing the
+        old one makes such a camera answer 404.
+        """
         job = _LoadFromJob(
             locations=[location],
             component_params=params,
@@ -488,6 +497,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
+            rtsp_force_non_compliant_url=rtsp_force_non_compliant_url,
             session=self,
             on_ready=on_ready,
             callback=self.metrics_collector

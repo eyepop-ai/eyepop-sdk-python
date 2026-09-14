@@ -154,6 +154,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
+            rtsp_force_non_compliant_url: bool | None = None,
             on_ready: typing.Callable[[WorkerJob], None] | None = None
     ) -> SyncWorkerJob:
         if on_ready is not None:
@@ -168,6 +169,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
+            rtsp_force_non_compliant_url=rtsp_force_non_compliant_url,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
