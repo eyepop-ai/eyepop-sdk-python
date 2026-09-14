@@ -97,6 +97,10 @@ addopts = [
     # whole suite takes seconds, so this only ever catches a runaway - one of
     # which reached 30 GiB resident before it was noticed.
     "--timeout=60",
+    # The default signal method does not interrupt a tight asyncio loop, which
+    # is the shape every runaway here has taken. Checked: a loop awaiting a
+    # negative sleep runs past a signal timeout and is stopped by this one.
+    "--timeout-method=thread",
 ]
 testpaths = [
     "tests",

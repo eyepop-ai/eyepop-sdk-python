@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import threading
 import time
 from typing import AsyncGenerator
@@ -144,7 +145,14 @@ async def relay_rtsp_source(
     sessions without renumbering them, which is the one thing that would break
     the capture times this relay exists to deliver.
     """
-    backoff = INITIAL_BACKOFF_S
+    if not math.isfinite(max_backoff_s) or max_backoff_s < 0:
+        raise ValueError(f"max_backoff_s must be finite and non-negative, got {max_backoff_s!r}")
+
+    # A ceiling below the opening delay would otherwise be ignored for the
+    # first retry and again after every success, so the cap is applied to the
+    # starting value rather than only to the doubling.
+    initial_backoff = min(INITIAL_BACKOFF_S, max_backoff_s)
+    backoff = initial_backoff
 
     while True:
         try:
@@ -157,7 +165,7 @@ async def relay_rtsp_source(
                 # reset-on-success: a camera that accepts the connection and
                 # then fails without delivering anything never reaches here and
                 # keeps backing off instead of being retried in a tight loop.
-                backoff = INITIAL_BACKOFF_S
+                backoff = initial_backoff
                 yield result
         except CameraError as error:
             if not reconnect:
@@ -246,7 +254,15 @@ async def _relay_one_session(
             try:
                 mpegts_muxer.close()
             except Exception as error:
-                log.debug("closing the muxer after the stream ended: %s", error)
+                # close() flushes what is still buffered, so a failure here
+                # means the upload is truncated. EOF is signalled either way -
+                # the reader must not be left blocked - and without recording
+                # this the truncated stream ends and reads as a clean finish.
+                log.warning("closing the MPEG-TS output failed: %s", error)
+                if not failure:
+                    # Never over an earlier failure: a camera that dropped is
+                    # why the close failed, and it is the more useful answer.
+                    failure.append(MuxError(f"closing the MPEG-TS output failed: {error}"))
             pipe.signal_eof()
 
     task = asyncio.create_task(asyncio.to_thread(pipe_through))

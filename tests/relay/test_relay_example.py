@@ -9,12 +9,17 @@ reachable from a happy-path run against a real stream.
 from __future__ import annotations
 
 import asyncio
+from fractions import Fraction
 
+import av
+import numpy as np
 import pytest
 
 from examples.relay_example import (
     CameraError,
+    MuxError,
     UploadError,
+    _relay_one_session,
     relay_rtsp_source,
 )
 
@@ -185,3 +190,99 @@ async def test_backoff_resets_once_a_session_delivers(session_recorder, monkeypa
     # 1s, 2s while nothing was delivered; back to 1s after a session produced a
     # prediction.
     assert slept == [1.0, 2.0, 1.0], slept
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid", [-1.0, float("nan"), float("inf")])
+async def test_an_unusable_backoff_ceiling_is_rejected(invalid):
+    """An unusable ceiling is rejected at the call.
+
+    A negative ceiling makes every sleep negative, and asyncio.sleep returns
+    immediately for those - an unthrottled retry loop against a camera that is
+    down, discovered as a busy process rather than as an error.
+    """
+    with pytest.raises(ValueError):
+        await drain(relay_rtsp_source("rtsp://camera.invalid/s", FakeEndpoint(), max_backoff_s=invalid))
+
+
+@pytest.mark.asyncio
+async def test_a_ceiling_below_the_opening_delay_still_applies(session_recorder, monkeypatch):
+    # The opening delay is a constant, so a caller asking for a ceiling under
+    # it would otherwise wait longer than they allowed, on the first retry and
+    # again after every success.
+    slept: list[float] = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+        if len(slept) >= 3:
+            raise StopRetrying
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    session_recorder([{"error": CameraError("down")}])
+
+    with pytest.raises(StopRetrying):
+        await drain(relay_rtsp_source(
+            "rtsp://camera.invalid/s", FakeEndpoint(), max_backoff_s=0.25,
+        ))
+
+    assert slept == [0.25, 0.25, 0.25], slept
+
+
+@pytest.fixture
+def h264_file(tmp_path):
+    """A short H.264 file, so the muxing path runs for real."""
+    path = tmp_path / "source.mp4"
+    container = av.open(str(path), mode="w")
+    stream = container.add_stream("libx264", rate=25)
+    stream.width, stream.height = 160, 120
+    stream.pix_fmt = "yuv420p"
+    stream.options = {"preset": "ultrafast", "g": "25"}
+    for index in range(25):
+        image = np.full((120, 160, 3), index * 8 % 256, dtype=np.uint8)
+        frame = av.VideoFrame.from_ndarray(image, format="rgb24").reformat(format="yuv420p")
+        frame.pts = index
+        frame.time_base = Fraction(1, 25)
+        for packet in stream.encode(frame):
+            container.mux(packet)
+    for packet in stream.encode():
+        container.mux(packet)
+    container.close()
+    return path
+
+
+@pytest.mark.asyncio
+async def test_a_failed_mux_close_is_reported_rather_than_read_as_a_clean_end(
+    h264_file, monkeypatch
+):
+    """close() flushes what is still buffered, so a failure truncates the upload.
+
+    Everything here is real except close(): the file is demuxed, remuxed to
+    MPEG-TS and read back. Only the final flush is made to fail, which is the
+    one path that used to end the stream silently.
+    """
+    real_open = av.open
+
+    def open_with_failing_close(*args, **kwargs):
+        output = real_open(*args, **kwargs)
+        if kwargs.get("mode") == "w":
+            class FlushFails:
+                def __getattr__(self, name):
+                    return getattr(output, name)
+
+                def close(self):
+                    raise RuntimeError("no space left on device")
+
+            return FlushFails()
+        return output
+
+    monkeypatch.setattr(av, "open", open_with_failing_close)
+
+    class DrainEndpoint:
+        async def upload_stream(self, pipe, **kwargs):
+            class Job:
+                async def predict(self):
+                    return None if not await asyncio.to_thread(pipe.read, 65536) else {}
+            return Job()
+
+    with pytest.raises(MuxError):
+        await drain(_relay_one_session(str(h264_file), DrainEndpoint()))
