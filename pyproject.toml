@@ -68,7 +68,10 @@ example = [
     "auth0-python>=4.13.0",
     "ay~=0.1.1",
     "av~=17.1.0",
-    "webui2~=2.5.8"
+    "webui2~=2.5.8",
+    # relay_example.relay_http_source uses it. Undeclared until now, so the
+    # example could not be run from a clean install of this extra.
+    "httpx>=0.27",
 ]
 relay = [
     # Pinned wheels rather than a host ffmpeg: rtcp_sr side data is a recent
@@ -90,6 +93,10 @@ all = ["eyepop[test,doc,example,relay,dev]"]
 addopts = [
     "--import-mode=importlib",
     "--ignore=tests/integration",
+    # A test that hangs should fail, not run until something is killed. The
+    # whole suite takes seconds, so this only ever catches a runaway - one of
+    # which reached 30 GiB resident before it was noticed.
+    "--timeout=60",
 ]
 testpaths = [
     "tests",
