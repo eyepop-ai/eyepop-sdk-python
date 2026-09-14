@@ -193,3 +193,42 @@ def test_a_source_with_no_anchors_at_all_still_relays_video(h264_source):
     assert relay.stats.video_packets > 0
     assert relay.stats.klv_packets == 0
     assert klv_payloads(data, UAS_LDS_UNIVERSAL_LABEL) == []
+
+
+def test_only_the_startup_window_counts_as_before_the_first_anchor(h264_source):
+    """Picture timing arrives on roughly half of packets on a real camera.
+
+    Counting every later unstamped frame as startup would report most of a
+    healthy stream as blind, which is exactly backwards: those frames are the
+    ordinary gaps the server side interpolates across.
+    """
+    STARTUP_FRAMES = 5
+    buffer = io.BytesIO()
+    source = av.open(str(h264_source))
+    output = av.open(buffer, mode="w", format="mpegts")
+
+    counter = {"n": 0}
+
+    def intermittent(_packet):
+        index = counter["n"]
+        counter["n"] += 1
+        if index < STARTUP_FRAMES:
+            return None, None
+        # From the first anchor on, every other packet carries nothing - roughly
+        # what a real camera does, where picture timing reaches about half.
+        if (index - STARTUP_FRAMES) % 2:
+            return None, None
+        return prft(BASE_CAPTURE_US + index * FRAME_US), None
+
+    relay = KlvRelay(source, output, side_data=intermittent)
+    for index, packet in enumerate(source.demux(relay.in_video_stream)):
+        if packet.dts is None:
+            continue
+        relay.relay(index / FPS, packet)
+    output.close()
+    source.close()
+
+    assert relay.stats.frames_before_first_anchor == STARTUP_FRAMES
+    # The gaps after startup are real gaps, not startup.
+    assert relay.stats.klv_packets < relay.stats.video_packets
+    assert relay.stats.klv_packets > 0

@@ -113,7 +113,12 @@ class KlvRelay:
             # unstamped is deliberate, and it matches what the direct RTSP path
             # does: it has the same blind window while it waits for its first
             # sender report.
-            self.stats.frames_before_first_anchor += 1
+            #
+            # Only while that window is still open. Picture timing arrives on
+            # roughly half of packets, so counting every later unstamped frame
+            # here would report most of a healthy stream as startup.
+            if self._clock.anchor_count == 0:
+                self.stats.frames_before_first_anchor += 1
             return
 
         # Never before the video packet above. A KLV packet muxed first leaves

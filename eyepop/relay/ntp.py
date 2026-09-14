@@ -127,12 +127,18 @@ class CaptureClock:
         self._first_seen_at: float | None = None
         self._anchors = 0
         self._implausible_payloads = 0
+        self._saw_side_data = False
         self._warned_absent = False
         self._warned_implausible = False
 
     @property
     def anchor_count(self) -> int:
         return self._anchors
+
+    @property
+    def saw_side_data(self) -> bool:
+        """Whether any capture-time side data arrived, decodable or not."""
+        return self._saw_side_data
 
     def note(
         self,
@@ -147,6 +153,8 @@ class CaptureClock:
         """
         if self._first_seen_at is None:
             self._first_seen_at = elapsed_s
+        if prft is not None or rtcp_sr is not None:
+            self._saw_side_data = True
 
         capture = self._decode(prft, rtcp_sr)
         if capture is not None:
@@ -198,6 +206,12 @@ class CaptureClock:
 
     def _warn_if_absent(self, elapsed_s: float) -> None:
         if self._warned_absent or self._anchors > 0:
+            return
+        # Side data that arrived and would not decode has already been reported,
+        # with the right cause. Blaming the camera for sending no sender reports
+        # after it sent forty of them points at the wrong end of the system, and
+        # two warnings where one is wrong is worse than one.
+        if self._saw_side_data:
             return
         if self._first_seen_at is None or elapsed_s - self._first_seen_at < self._absence_timeout_s:
             return

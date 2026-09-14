@@ -207,3 +207,34 @@ def test_undecodable_side_data_warns_differently_from_absent_side_data(caplog):
     assert len(caplog.records) == 1
     assert "implausible" in caplog.records[0].message
     assert "RTCP sender reports" not in caplog.records[0].message
+
+
+def test_side_data_that_arrived_is_not_reported_as_never_sent(caplog):
+    """Two warnings where one is wrong is worse than one.
+
+    An unusable payload has already been reported with the right cause. Going on
+    to blame the camera for sending no sender reports, after it sent forty,
+    points whoever is debugging it at the wrong end of the system.
+    """
+    unusable = rtcp_sr_payload(CAPTURE_SECONDS) [:8] + struct.pack("=Q", 0) + bytes(16)
+    clock = CaptureClock(absence_timeout_s=0.5)
+    with caplog.at_level(logging.WARNING):
+        for frame in range(40):
+            clock.note(None, unusable, frame * 0.04)
+
+    assert clock.saw_side_data
+    messages = [record.message for record in caplog.records]
+    assert len(messages) == 1
+    assert "RTCP sender reports" not in messages[0]
+
+
+def test_a_camera_sending_nothing_at_all_is_still_reported(caplog):
+    """The absence warning must survive the suppression above."""
+    clock = CaptureClock(absence_timeout_s=0.5)
+    with caplog.at_level(logging.WARNING):
+        for frame in range(40):
+            clock.note(None, None, frame * 0.04)
+
+    assert not clock.saw_side_data
+    assert len(caplog.records) == 1
+    assert "no RTCP sender reports" in caplog.records[0].message
