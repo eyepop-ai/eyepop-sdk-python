@@ -159,3 +159,72 @@ def test_consecutive_empty_writes_are_skipped():
     pipe.signal_eof()
 
     assert pipe.read(16) == b"payload"
+
+
+def test_pending_bytes_counts_what_has_not_been_read():
+    """The measure the relay loop sheds load against, so it has to be exact.
+
+    Under-reporting leaves the backlog unbounded, which is the whole defect;
+    over-reporting drops frames from a stream that was keeping up.
+    """
+    pipe = PipeBuffer()
+    assert pipe.pending_bytes == 0
+
+    pipe.write(b"12345")
+    assert pipe.pending_bytes == 5
+
+    pipe.write(b"678")
+    assert pipe.pending_bytes == 8
+
+    assert pipe.read(5) == b"12345"
+    assert pipe.pending_bytes == 3
+
+    assert pipe.read(3) == b"678"
+    assert pipe.pending_bytes == 0
+
+
+def test_a_partly_read_chunk_still_counts_as_pending():
+    """What the reader is holding is memory too, and the queue no longer knows.
+
+    Counting only the queue would report a backlog of zero while a large chunk
+    sat half-consumed in the reader's hand.
+    """
+    pipe = PipeBuffer()
+    pipe.write(b"abcdefgh")
+
+    assert pipe.read(3) == b"abc"
+    assert pipe.pending_bytes == 5
+
+
+def test_signalling_the_end_of_stream_is_not_counted_as_data():
+    pipe = PipeBuffer()
+    pipe.write(b"data")
+    pipe.signal_eof()
+
+    assert pipe.pending_bytes == 4
+    assert pipe.readall() == b"data"
+    assert pipe.pending_bytes == 0
+
+
+def test_writes_never_block_however_far_behind_the_reader_is():
+    """The property the relay loop depends on for its shutdown to be safe.
+
+    The muxer writes from inside a C callback that no stop flag can reach, so a
+    write that could block is a shutdown that could hang - holding the RTSP
+    socket open behind it. Load is shed upstream instead.
+    """
+    pipe = PipeBuffer()
+    written: list[int] = []
+
+    def write_a_lot():
+        for _ in range(1000):
+            pipe.write(b"x" * 1024)
+        written.append(1)
+
+    writer = threading.Thread(target=write_a_lot)
+    writer.start()
+    writer.join(timeout=5)
+
+    assert not writer.is_alive(), "write() blocked with no reader draining it"
+    assert written == [1]
+    assert pipe.pending_bytes == 1000 * 1024
