@@ -9,10 +9,8 @@ reachable from a happy-path run against a real stream.
 from __future__ import annotations
 
 import asyncio
-from fractions import Fraction
 
 import av
-import numpy as np
 import pytest
 
 from examples.relay_example import (

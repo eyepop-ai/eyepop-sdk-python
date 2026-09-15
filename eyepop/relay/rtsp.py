@@ -24,6 +24,8 @@ import time
 from collections.abc import AsyncIterator
 
 import av
+from av.container import InputContainer, OutputContainer
+from av.error import FFmpegError
 
 from eyepop.relay.mux import KlvRelay
 from eyepop.relay.pipe import PipeBuffer
@@ -104,9 +106,9 @@ class RtspRelayStream:
     def __init__(
         self,
         source_url: str,
-        container: av.container.InputContainer,
+        container: InputContainer,
         pipe: PipeBuffer,
-        mpegts_muxer: av.container.OutputContainer,
+        mpegts_muxer: OutputContainer,
         relay: KlvRelay,
     ) -> None:
         self._source_url = source_url
@@ -231,7 +233,7 @@ class RtspRelayStream:
                 # shutdown rather than an error.
                 if not self._stop.is_set():
                     self._ended_at_eof.append(True)
-        except av.FFmpegError as error:
+        except FFmpegError as error:
             # The camera going away arrives here as a demux error. It is the
             # expected end of a live session, not a defect.
             self._failure.append(
@@ -294,7 +296,7 @@ def create_rtsp_relay_stream(
             # one it surfaces as a demux error, which the caller can retry.
             "timeout": str(int(read_timeout_s * 1_000_000)),
         })
-    except av.FFmpegError as error:
+    except FFmpegError as error:
         raise CameraError(f"could not open {source_url}: {error}") from error
 
     pipe = PipeBuffer()
