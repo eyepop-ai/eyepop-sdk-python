@@ -22,11 +22,19 @@ the value the direct path would have produced.
 
 ## `captured_at` is missing at first, and that is expected
 
-The relay starts uploading immediately rather than waiting for the camera's
-first clock reference, so the first few seconds of predictions carry no
-`captured_at`. A worker reading the camera directly behaves the same way - it
-is waiting for the same sender report - and measured against a real camera the
-window is around 2 seconds.
+The relay starts uploading as soon as it has a stream to upload, rather than
+waiting for the camera's first clock reference, so a frame that goes out ahead
+of that reference carries no `captured_at`. A worker reading the camera
+directly behaves the same way, waiting on the same sender report.
+
+In practice that window is often empty. Opening the source costs about 2.4s
+before the first frame is ever relayed - roughly 1.2s of stream probing, then
+the wait for a keyframe - and the camera's clock reference usually arrives
+inside it. Measured against a real Axis camera (AWSU-258), every prediction of
+11807 carried a `captured_at` while the direct path spent its first 1.05s
+without one. Those opening seconds are not analysed at all on the relay path,
+rather than analysed without a capture time. A camera slower to send its first
+sender report would shift that balance back.
 
 A reconnect starts a new RTSP session, so a fresh window follows each one. The
 relay does not extrapolate across the gap: a timestamp that is missing is
@@ -140,6 +148,13 @@ async def relay_rtsp_source(
     predictions continue from the caller's point of view. Pass
     ``reconnect=False`` to let a camera failure surface instead.
 
+    A camera that stops sending counts as a drop even when it closes the
+    connection politely, because that is what a drop actually looks like: the
+    demux ends without an error rather than raising one. The consequence is
+    that a *finite* RTSP source - a recording served over RTSP, rather than a
+    camera - would be relayed again each time it ends. Relay one of those with
+    ``reconnect=False``.
+
     Each reconnect is a new RTSP session and therefore a new upload: the
     camera's timestamps restart, and one MPEG-TS stream cannot carry two
     sessions without renumbering them, which is the one thing that would break
@@ -175,8 +190,9 @@ async def relay_rtsp_source(
             backoff = min(backoff * 2, max_backoff_s)
             continue
 
-        # The source ended on its own terms rather than failing. A finite
-        # stream is done; reconnecting to it would replay it forever.
+        # The session ended without the camera failing - the worker closed the
+        # prediction stream, or the caller stopped consuming. A camera that
+        # stops sending does not reach here: that is a CameraError above.
         return
 
 
@@ -212,6 +228,9 @@ async def _relay_one_session(
     # Set by the muxing thread and read by this one after it finishes. The
     # thread cannot raise into the coroutine that started it.
     failure: list[RelayError] = []
+    # Set when the demux ended of its own accord while the caller still wanted
+    # frames. Kept apart from `failure` so a concrete error always wins.
+    ended_at_eof: list[bool] = []
 
     try:
         mpegts_muxer = av.open(pipe, format='mpegts', mode='w')
@@ -241,6 +260,27 @@ async def _relay_one_session(
                 # The leading frames go out unstamped, which is what the direct
                 # RTSP path does too while it waits for its first sender report.
                 relay.relay(time.monotonic() - started, packet)
+            else:
+                # The demux ended without raising. On a live camera that is a
+                # drop, not a stream finishing: measured against a real camera
+                # (AWSU-258), severing an RTSP-over-TCP connection ends the
+                # demux generator *normally* and raises nothing at all.
+                #
+                # Without this, a dropped camera is indistinguishable from a
+                # finite file running out, relay_rtsp_source takes its "ended
+                # on its own terms" path, and `reconnect=True` is silently
+                # inert for the one failure it exists to handle.
+                #
+                # Recorded as a flag rather than straight into `failure`: this
+                # is an inference from silence, so anything concrete - a demux
+                # error, or a close() that failed and truncated the upload -
+                # must outrank it. It is turned into a CameraError below, only
+                # if nothing better was found.
+                #
+                # Guarded on `stop` so a caller walking away stays a clean
+                # shutdown rather than an error.
+                if not stop.is_set():
+                    ended_at_eof.append(True)
         except av.FFmpegError as error:
             # The camera going away arrives here as a demux error. It is the
             # expected end of a live session, not a defect.
@@ -307,6 +347,15 @@ async def _relay_one_session(
         stop.set()
         await asyncio.gather(task, return_exceptions=True)
         container.close()
+
+    # Last resort, once the thread has joined and had its say: a live source
+    # that simply stopped has dropped. Only when nothing more specific was
+    # recorded - a truncated upload is the better answer when there is one.
+    if not failure and ended_at_eof:
+        failure.append(CameraError(
+            f"stream from {source_url} ended without an error; "
+            f"a live source that stops sending has dropped"
+        ))
 
     # Raised after the generator body, so the caller sees why the stream ended
     # rather than an ordinary end of iteration. relay_rtsp_source turns a
