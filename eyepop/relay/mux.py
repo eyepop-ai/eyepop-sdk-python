@@ -104,7 +104,13 @@ class KlvRelay:
         if new_episode:
             self.stats.drop_episodes += 1
 
-    def _klv_packet(self, video_packet: Packet, capture: CaptureTime) -> Packet:
+    def _klv_packet(self, pts: int | None, dts: int | None, capture: CaptureTime) -> Packet:
+        """One anchor, carrying the timestamps of the frame it describes.
+
+        Takes the timestamps rather than the packet they came from, because by
+        the time this is called that packet no longer holds them - see the note
+        in :meth:`relay`.
+        """
         payload = encode_st0601(capture.unix_us, self._platform, self._sensor)
         packet = av.Packet(payload)
         packet.stream = self._out_klv
@@ -114,14 +120,22 @@ class KlvRelay:
         # fails once B-frames make PTS non-monotonic, and it fails partway into
         # the stream rather than on the first packet, so a short run will not
         # catch it.
-        packet.pts = video_packet.pts
-        packet.dts = video_packet.dts
+        packet.pts = pts
+        packet.dts = dts
         return packet
 
     def relay(self, elapsed_s: float, packet: Packet) -> None:
         """Copy one demuxed video packet through, with its anchor beside it."""
         prft, rtcp = self._side_data(packet)
         capture = self._clock.note(prft, rtcp, elapsed_s)
+
+        # Read before muxing, because mux() rewrites pts and dts in place,
+        # rescaling them from the packet's time base into the output stream's.
+        # An anchor built from the packet afterwards copies timestamps the
+        # packet no longer carries the units for, and muxing scales them a
+        # second time - by 90000/source time base, so it is the identity on a
+        # live RTSP source and silently wrong on anything else.
+        pts, dts = packet.pts, packet.dts
 
         packet.stream = self._out_video
         self._output.mux(packet)
@@ -143,5 +157,5 @@ class KlvRelay:
         # Never before the video packet above. A KLV packet muxed first leaves
         # the muxer with no established stream to interleave against and the
         # write fails outright.
-        self._output.mux(self._klv_packet(packet, capture))
+        self._output.mux(self._klv_packet(pts, dts, capture))
         self.stats.klv_packets += 1

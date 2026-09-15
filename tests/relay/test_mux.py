@@ -159,23 +159,82 @@ def test_video_is_copied_not_decoded(h264_source):
     source.close()
 
 
+def stream_timestamps(data: bytes, kind: str, field: str = "pts") -> list[int]:
+    """One stream's timestamps, read back out of the bytes."""
+    container = av.open(io.BytesIO(data), format="mpegts")
+    try:
+        stream = next(s for s in container.streams if s.type == kind)
+        values = (getattr(p, field) for p in container.demux(stream))
+        return [value for value in values if value is not None]
+    finally:
+        container.close()
+
+
 def test_klv_dts_is_monotonic_even_though_pts_is_not(h264_source):
     """The trap that fails partway into a stream rather than at its start."""
     data, _ = relay_to_bytes(h264_source)
     container = av.open(io.BytesIO(data), format="mpegts")
     klv_stream = next(s for s in container.streams if s.type == "data")
 
-    last_dts = None
-    seen = 0
-    for packet in container.demux(klv_stream):
-        if packet.dts is None:
-            continue
-        seen += 1
-        if last_dts is not None:
-            assert packet.dts >= last_dts
-        last_dts = packet.dts
+    dts_values = [p.dts for p in container.demux(klv_stream) if p.dts is not None]
     container.close()
-    assert seen > 0
+
+    assert dts_values
+    assert dts_values == sorted(dts_values)
+    # Monotonicity alone is too weak to be worth asserting on its own: it
+    # survives any uniform rescaling of the timestamps, so it held while every
+    # anchor after the first pointed at the wrong frame (SDK-21). Tying the
+    # values to the video stream's own DTS is what makes this test able to
+    # fail. Against PTS it could not: this fixture has B-frames, which is the
+    # whole reason DTS is carried separately.
+    assert sorted(dts_values) == sorted(stream_timestamps(data, "video", "dts"))
+
+
+def test_anchor_timestamps_match_their_frames_exactly(h264_source):
+    """Each anchor lands on a frame that is in the stream, not near one.
+
+    The whole basis of matching an anchor to a frame on the far side. An anchor
+    that misses attaches its capture time to whichever frame is nearest, so the
+    value looks plausible and is wrong - worse than no value at all.
+    """
+    data, relay = relay_to_bytes(h264_source)
+
+    video_pts = sorted(stream_timestamps(data, "video"))
+    klv_pts = sorted(stream_timestamps(data, "data"))
+
+    assert len(klv_pts) == relay.stats.klv_packets
+    assert klv_pts == video_pts
+
+
+def test_anchors_align_when_the_source_time_base_is_not_90khz(h264_source):
+    """The regression guard for SDK-21.
+
+    MPEG-TS always writes 90 kHz, so a source that reports anything else has
+    its timestamps rescaled on the way out. Reading a video packet's PTS after
+    muxing it - which rescales in place - and then labelling the anchor with
+    the source time base scaled them a second time, by exactly
+    90000/source. On a live RTSP source that factor is 1, which is why the
+    defect was invisible on the only path anyone runs.
+
+    This fixture is an mp4 and reports 1/12800, so the factor here is 7.03125
+    and a regression shows up immediately.
+    """
+    container = av.open(str(h264_source))
+    source_time_base = container.streams.video[0].time_base
+    container.close()
+    assert source_time_base != Fraction(1, 90000), (
+        "this test is only meaningful on a source that is not already 90 kHz"
+    )
+
+    data, _ = relay_to_bytes(h264_source)
+
+    video_pts = sorted(stream_timestamps(data, "video"))
+    klv_pts = sorted(stream_timestamps(data, "data"))
+
+    assert klv_pts == video_pts, (
+        f"anchors at {sorted(set(klv_pts) - set(video_pts))[:5]} describe frames "
+        f"that are not in the stream"
+    )
 
 
 def test_frames_before_the_first_anchor_are_relayed_unstamped(h264_source):
