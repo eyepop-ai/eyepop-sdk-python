@@ -10,7 +10,20 @@ Nothing here decodes or re-encodes video: packets are copied, and the metadata
 rides beside them.
 """
 
+from eyepop.relay.mux import KlvRelay
+from eyepop.relay.ntp import CaptureClock
 from eyepop.relay.pipe import PipeBuffer
+from eyepop.relay.rtsp import (
+    INITIAL_BACKOFF_S,
+    MAX_BACKOFF_S,
+    READ_TIMEOUT_S,
+    CameraError,
+    MuxError,
+    RelayError,
+    RtspRelayStream,
+    UploadError,
+    create_rtsp_relay_stream,
+)
 from eyepop.relay.st0601 import (
     UAS_LDS_UNIVERSAL_LABEL,
     PlatformOrientation,
@@ -19,9 +32,20 @@ from eyepop.relay.st0601 import (
 )
 
 __all__ = [
-    "PipeBuffer",
+    "INITIAL_BACKOFF_S",
+    "MAX_BACKOFF_S",
+    "READ_TIMEOUT_S",
     "UAS_LDS_UNIVERSAL_LABEL",
+    "CameraError",
+    "CaptureClock",
+    "KlvRelay",
+    "MuxError",
+    "PipeBuffer",
     "PlatformOrientation",
+    "RelayError",
+    "RtspRelayStream",
     "SensorPosition",
+    "UploadError",
+    "create_rtsp_relay_stream",
     "encode_st0601",
 ]

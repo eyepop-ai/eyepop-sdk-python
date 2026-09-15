@@ -52,6 +52,28 @@ class FakeEndpoint:
         return self._jobs.pop(0) if self._jobs else FakeJob()
 
 
+class _DrainEndpoint:
+    """Consumes the relay's byte stream the way a real upload does.
+
+    `upload_stream` takes `BinaryIO | AsyncIterable[bytes]`, and the relay now
+    hands it the async side, so a fake that calls `.read()` tests a contract
+    nothing uses.
+    """
+
+    async def upload_stream(self, stream, **kwargs):
+        chunks = stream.__aiter__()
+
+        class Job:
+            async def predict(self):
+                try:
+                    await chunks.__anext__()
+                except StopAsyncIteration:
+                    return None
+                return {}
+
+        return Job()
+
+
 @pytest.fixture
 def session_recorder(monkeypatch):
     """Replaces one RTSP session with a scripted outcome.
@@ -228,28 +250,6 @@ async def test_a_ceiling_below_the_opening_delay_still_applies(session_recorder,
     assert slept == [0.25, 0.25, 0.25], slept
 
 
-@pytest.fixture
-def h264_file(tmp_path):
-    """A short H.264 file, so the muxing path runs for real."""
-    path = tmp_path / "source.mp4"
-    container = av.open(str(path), mode="w")
-    stream = container.add_stream("libx264", rate=25)
-    stream.width, stream.height = 160, 120
-    stream.pix_fmt = "yuv420p"
-    stream.options = {"preset": "ultrafast", "g": "25"}
-    for index in range(25):
-        image = np.full((120, 160, 3), index * 8 % 256, dtype=np.uint8)
-        frame = av.VideoFrame.from_ndarray(image, format="rgb24").reformat(format="yuv420p")
-        frame.pts = index
-        frame.time_base = Fraction(1, 25)
-        for packet in stream.encode(frame):
-            container.mux(packet)
-    for packet in stream.encode():
-        container.mux(packet)
-    container.close()
-    return path
-
-
 @pytest.mark.asyncio
 async def test_a_failed_mux_close_is_reported_rather_than_read_as_a_clean_end(
     h264_file, monkeypatch
@@ -277,12 +277,8 @@ async def test_a_failed_mux_close_is_reported_rather_than_read_as_a_clean_end(
 
     monkeypatch.setattr(av, "open", open_with_failing_close)
 
-    class DrainEndpoint:
-        async def upload_stream(self, pipe, **kwargs):
-            class Job:
-                async def predict(self):
-                    return None if not await asyncio.to_thread(pipe.read, 65536) else {}
-            return Job()
+    class DrainEndpoint(_DrainEndpoint):
+        pass
 
     with pytest.raises(MuxError):
         await drain(_relay_one_session(str(h264_file), DrainEndpoint()))
@@ -300,12 +296,8 @@ async def test_a_live_source_ending_without_an_error_is_a_drop(h264_file):
     Without this, the drop is read as a finite stream finishing and
     `relay_rtsp_source` returns instead of reconnecting.
     """
-    class DrainEndpoint:
-        async def upload_stream(self, pipe, **kwargs):
-            class Job:
-                async def predict(self):
-                    return None if not await asyncio.to_thread(pipe.read, 65536) else {}
-            return Job()
+    class DrainEndpoint(_DrainEndpoint):
+        pass
 
     with pytest.raises(CameraError):
         await drain(_relay_one_session(str(h264_file), DrainEndpoint()))
@@ -321,13 +313,10 @@ async def test_a_source_that_ends_is_retried_rather_than_ending_the_relay(h264_f
     """
     attempts: list[int] = []
 
-    class DrainEndpoint:
-        async def upload_stream(self, pipe, **kwargs):
+    class DrainEndpoint(_DrainEndpoint):
+        async def upload_stream(self, stream, **kwargs):
             attempts.append(len(attempts))
-            class Job:
-                async def predict(self):
-                    return None if not await asyncio.to_thread(pipe.read, 65536) else {}
-            return Job()
+            return await super().upload_stream(stream, **kwargs)
 
     async def fake_sleep(seconds):
         if len(attempts) >= 3:
@@ -358,11 +347,16 @@ async def test_a_caller_walking_away_is_not_reported_as_a_drop(h264_file):
     cheap correctness, not as something this test pins.
     """
     class SlowEndpoint:
-        async def upload_stream(self, pipe, **kwargs):
+        """Reads one chunk per prediction and never ends on its own."""
+
+        async def upload_stream(self, stream, **kwargs):
+            chunks = stream.__aiter__()
+
             class Job:
                 async def predict(self):
-                    await asyncio.to_thread(pipe.read, 1024)
+                    await chunks.__anext__()
                     return {"seq": 1}
+
             return Job()
 
     generator = _relay_one_session(str(h264_file), SlowEndpoint())

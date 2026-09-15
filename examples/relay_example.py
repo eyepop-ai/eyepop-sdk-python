@@ -49,15 +49,19 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
-import threading
-import time
 from typing import AsyncGenerator
 
-import av
-
 from eyepop.data.types.asset import Area
-from eyepop.relay.mux import KlvRelay
-from eyepop.relay.pipe import PipeBuffer
+from eyepop.relay.rtsp import (
+    INITIAL_BACKOFF_S,
+    MAX_BACKOFF_S,
+    READ_TIMEOUT_S,
+    CameraError,
+    MuxError,
+    RelayError,
+    UploadError,
+    create_rtsp_relay_stream,
+)
 from eyepop.relay.st0601 import PlatformOrientation, SensorPosition
 from eyepop.worker.camera import Camera
 from eyepop.worker.worker_endpoint import WorkerEndpoint
@@ -65,37 +69,20 @@ from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, Vide
 
 log = logging.getLogger(__name__)
 
-#: How long to wait before the first reconnect attempt, and the ceiling the
-#: backoff doubles towards. A camera rebooting takes tens of seconds, so
-#: retrying faster than this only fills the log.
-INITIAL_BACKOFF_S = 1.0
-MAX_BACKOFF_S = 30.0
-
-#: How long to wait for the camera to send something before treating the
-#: session as dead. Long enough not to trip on a slow keyframe interval, short
-#: enough that a camera pulled off the network is noticed rather than waited on.
-READ_TIMEOUT_S = 10.0
-
-
-class RelayError(Exception):
-    """Base for the three ways a relay session can fail.
-
-    Separated because the fix differs completely: the camera is yours to
-    restart, the upload is a question for EyePop, and a mux failure is a bug
-    here. A single opaque error leaves the user guessing which.
-    """
-
-
-class CameraError(RelayError):
-    """The camera could not be opened or stopped delivering."""
-
-
-class MuxError(RelayError):
-    """The stream could not be remuxed. Unexpected - likely a defect."""
-
-
-class UploadError(RelayError):
-    """The worker rejected the stream or the connection to it failed."""
+# Re-exported so copies of this file keep working unchanged: the muxing, the
+# capture times and the error taxonomy all live in `eyepop.relay` now, and the
+# only thing left here is the part that knows about a worker.
+__all__ = [
+    "INITIAL_BACKOFF_S",
+    "MAX_BACKOFF_S",
+    "READ_TIMEOUT_S",
+    "CameraError",
+    "MuxError",
+    "RelayError",
+    "UploadError",
+    "relay_http_source",
+    "relay_rtsp_source",
+]
 
 
 async def relay_http_source(
@@ -207,110 +194,18 @@ async def _relay_one_session(
         platform: PlatformOrientation | None = None,
         sensor: SensorPosition | None = None,
 ) -> AsyncGenerator[dict, None]:
-    """One RTSP session, from opening the camera to the end of its stream."""
-    try:
-        # TCP to match the direct path: gst-ep-source forces protocols=TCP
-        # there, and the two have to see the same stream for their timestamps
-        # to compare.
-        container = av.open(source_url, 'r', options={
-            'rtsp_transport': 'tcp',
-            # Without a read timeout a camera that stops sending without
-            # closing the connection - powered off, cable pulled - leaves the
-            # demux blocked in C forever, which no stop flag can reach. With
-            # one it surfaces as a demux error, which is a reconnect.
-            'timeout': str(int(READ_TIMEOUT_S * 1_000_000)),
-        })
-    except av.FFmpegError as error:
-        raise CameraError(f"could not open {source_url}: {error}") from error
+    """One RTSP session: relay its bytes to the worker and yield predictions.
 
-    pipe = PipeBuffer()
-    stop = threading.Event()
-    # Set by the muxing thread and read by this one after it finishes. The
-    # thread cannot raise into the coroutine that started it.
-    failure: list[RelayError] = []
-    # Set when the demux ended of its own accord while the caller still wanted
-    # frames. Kept apart from `failure` so a concrete error always wins.
-    ended_at_eof: list[bool] = []
-
-    try:
-        mpegts_muxer = av.open(pipe, format='mpegts', mode='w')
-        relay = KlvRelay(container, mpegts_muxer, platform=platform, sensor=sensor)
-    except Exception as error:
-        container.close()
-        raise MuxError(f"could not set up the MPEG-TS output: {error}") from error
-
-    def pipe_through():
-        started = time.monotonic()
-        has_key_frame = False
-        try:
-            for packet in container.demux(relay.in_video_stream):
-                # Checked every packet rather than only on error: this is the
-                # only way the thread ends early, and without it a camera that
-                # keeps delivering keeps this thread alive after the caller has
-                # stopped listening.
-                if stop.is_set():
-                    break
-                if packet.dts is None:
-                    continue
-                if not has_key_frame:
-                    has_key_frame = packet.is_keyframe
-                if not has_key_frame:
-                    continue
-                # Uploading starts now, not once a capture time is available.
-                # The leading frames go out unstamped, which is what the direct
-                # RTSP path does too while it waits for its first sender report.
-                relay.relay(time.monotonic() - started, packet)
-            else:
-                # The demux ended without raising. On a live camera that is a
-                # drop, not a stream finishing: measured against a real camera
-                # (AWSU-258), severing an RTSP-over-TCP connection ends the
-                # demux generator *normally* and raises nothing at all.
-                #
-                # Without this, a dropped camera is indistinguishable from a
-                # finite file running out, relay_rtsp_source takes its "ended
-                # on its own terms" path, and `reconnect=True` is silently
-                # inert for the one failure it exists to handle.
-                #
-                # Recorded as a flag rather than straight into `failure`: this
-                # is an inference from silence, so anything concrete - a demux
-                # error, or a close() that failed and truncated the upload -
-                # must outrank it. It is turned into a CameraError below, only
-                # if nothing better was found.
-                #
-                # Guarded on `stop` so a caller walking away stays a clean
-                # shutdown rather than an error.
-                if not stop.is_set():
-                    ended_at_eof.append(True)
-        except av.FFmpegError as error:
-            # The camera going away arrives here as a demux error. It is the
-            # expected end of a live session, not a defect.
-            failure.append(CameraError(f"stream from {source_url} ended: {error}"))
-        except Exception as error:
-            failure.append(MuxError(f"remuxing failed: {error}"))
-        finally:
-            # A camera that disconnects, a finite source that ends, or anything
-            # raised above all land here. Without it the reader blocks forever
-            # on an empty queue and the upload never sees the end of the stream.
-            try:
-                mpegts_muxer.close()
-            except Exception as error:
-                # close() flushes what is still buffered, so a failure here
-                # means the upload is truncated. EOF is signalled either way -
-                # the reader must not be left blocked - and without recording
-                # this the truncated stream ends and reads as a clean finish.
-                log.warning("closing the MPEG-TS output failed: %s", error)
-                if not failure:
-                    # Never over an earlier failure: a camera that dropped is
-                    # why the close failed, and it is the more useful answer.
-                    failure.append(MuxError(f"closing the MPEG-TS output failed: {error}"))
-            pipe.signal_eof()
-
-    task = asyncio.create_task(asyncio.to_thread(pipe_through))
+    Everything about reading the camera and muxing its capture times lives in
+    `eyepop.relay`. What is left here is the half that knows about a worker,
+    which is the half you would replace to send the stream somewhere else.
+    """
+    stream = create_rtsp_relay_stream(source_url, platform=platform, sensor=sensor)
 
     try:
         try:
             job = await endpoint.upload_stream(
-                pipe,
+                stream,
                 mime_type="video/mpegts",
                 is_live=True,
                 video_mode=VideoMode.STREAM,
@@ -328,37 +223,22 @@ async def _relay_one_session(
                 result = await job.predict()
             except Exception as error:
                 # A camera failure shows up here too, as the upload running out
-                # of stream. Report the camera failure the thread recorded
-                # rather than the symptom the upload saw.
-                if failure:
-                    raise failure[0] from error
+                # of stream. Report the camera failure the relay recorded rather
+                # than the symptom the upload saw.
+                if stream.failure:
+                    raise stream.failure from error
                 raise UploadError(f"prediction stream failed: {error}") from error
             if result is None:
                 break
             yield result
     finally:
-        # Reached on a clean end, on an error, and when the caller stops
-        # consuming the generator. The demux thread cannot be cancelled - it is
-        # blocked in C - so it is asked to stop and then waited for.
-        #
-        # Order matters: the thread owns the container while it runs, and
-        # closing it first pulls the input out from under a demux already in
-        # progress, which hangs rather than returning.
-        stop.set()
-        await asyncio.gather(task, return_exceptions=True)
-        container.close()
-
-    # Last resort, once the thread has joined and had its say: a live source
-    # that simply stopped has dropped. Only when nothing more specific was
-    # recorded - a truncated upload is the better answer when there is one.
-    if not failure and ended_at_eof:
-        failure.append(CameraError(
-            f"stream from {source_url} ended without an error; "
-            f"a live source that stops sending has dropped"
-        ))
+        # A no-op once the upload has read the stream to its end, which cleans
+        # up as it goes. It matters when the upload was refused before reading
+        # anything: the camera is open and nothing else would close it.
+        await stream.aclose()
 
     # Raised after the generator body, so the caller sees why the stream ended
     # rather than an ordinary end of iteration. relay_rtsp_source turns a
     # CameraError into a reconnect.
-    if failure:
-        raise failure[0]
+    if stream.failure:
+        raise stream.failure
