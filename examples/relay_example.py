@@ -60,7 +60,7 @@ from eyepop.relay.rtsp import (
     MuxError,
     RelayError,
     UploadError,
-    create_rtsp_relay_stream,
+    rtsp_relay_stream,
 )
 from eyepop.relay.st0601 import PlatformOrientation, SensorPosition
 from eyepop.worker.camera import Camera
@@ -200,7 +200,7 @@ async def _relay_one_session(
     `eyepop.relay`. What is left here is the half that knows about a worker,
     which is the half you would replace to send the stream somewhere else.
     """
-    stream = create_rtsp_relay_stream(source_url, platform=platform, sensor=sensor)
+    stream = await rtsp_relay_stream(source_url, platform=platform, sensor=sensor)
 
     try:
         try:

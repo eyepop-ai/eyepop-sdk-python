@@ -22,7 +22,7 @@ from eyepop.relay.rtsp import (
     RelayError,
     RtspRelayStream,
     UploadError,
-    create_rtsp_relay_stream,
+    rtsp_relay_stream,
 )
 from eyepop.relay.st0601 import (
     UAS_LDS_UNIVERSAL_LABEL,
@@ -46,6 +46,6 @@ __all__ = [
     "RtspRelayStream",
     "SensorPosition",
     "UploadError",
-    "create_rtsp_relay_stream",
+    "rtsp_relay_stream",
     "encode_st0601",
 ]

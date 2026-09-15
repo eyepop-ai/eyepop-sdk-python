@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import threading
 import time
 from collections.abc import AsyncIterator
@@ -40,7 +41,7 @@ __all__ = [
     "RelayError",
     "RtspRelayStream",
     "UploadError",
-    "create_rtsp_relay_stream",
+    "rtsp_relay_stream",
 ]
 
 log = logging.getLogger(__name__)
@@ -213,7 +214,16 @@ class RtspRelayStream:
                 # Relaying starts now, not once a capture time is available.
                 # The leading frames go out unstamped, which is what the direct
                 # RTSP path does too while it waits for its first sender report.
-                self._relay.relay(time.monotonic() - started, packet)
+                try:
+                    self._relay.relay(time.monotonic() - started, packet)
+                except FFmpegError as error:
+                    # Scoped tightly to the muxing call, because demux and mux
+                    # raise the same type and the handler below cannot tell
+                    # them apart. Without this a mux defect is recorded as a
+                    # camera drop, and a caller with reconnect enabled retries
+                    # a bug forever instead of surfacing it.
+                    self._failure.append(MuxError(f"remuxing failed: {error}"))
+                    break
             else:
                 # The demux ended without raising. On a live camera that is a
                 # drop, not a stream finishing: measured against a real camera
@@ -262,7 +272,7 @@ class RtspRelayStream:
             self._pipe.signal_eof()
 
 
-def create_rtsp_relay_stream(
+async def rtsp_relay_stream(
     source_url: str,
     platform: PlatformOrientation | None = None,
     sensor: SensorPosition | None = None,
@@ -280,10 +290,36 @@ def create_rtsp_relay_stream(
     :attr:`RtspRelayStream.failure` once the stream ends to find out whether it
     ended or broke.
 
-    Raises ``CameraError`` if the camera cannot be opened, and ``MuxError`` if
-    the MPEG-TS output cannot be set up. Opening is synchronous and talks to
-    the camera, so it can take up to ``read_timeout_s``.
+    Awaitable because opening talks to the camera and can take up to
+    ``read_timeout_s``: the work happens on a worker thread so a camera that is
+    slow to answer - or not there at all - does not stall the event loop and
+    block cancellation along with it.
+
+    Raises ``CameraError`` if the camera cannot be opened, ``MuxError`` if the
+    MPEG-TS output cannot be set up, and ``ValueError`` for an unusable
+    ``read_timeout_s``.
     """
+    # A timeout of zero or less is not a shorter timeout: ffmpeg reads it as no
+    # socket timeout at all, which removes the only bound on a camera that
+    # stops sending without closing the connection. NaN and infinity would
+    # otherwise fail later and inconsistently, inside int().
+    if not math.isfinite(read_timeout_s) or read_timeout_s <= 0:
+        raise ValueError(
+            f"read_timeout_s must be finite and positive, got {read_timeout_s!r}"
+        )
+
+    return await asyncio.to_thread(
+        _open_stream, source_url, platform, sensor, read_timeout_s
+    )
+
+
+def _open_stream(
+    source_url: str,
+    platform: PlatformOrientation | None,
+    sensor: SensorPosition | None,
+    read_timeout_s: float,
+) -> RtspRelayStream:
+    """The blocking half of opening a camera, for a worker thread."""
     try:
         # TCP to match the direct path: gst-ep-source forces protocols=TCP
         # there, and the two have to see the same stream for their timestamps
