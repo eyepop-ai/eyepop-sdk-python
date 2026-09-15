@@ -34,3 +34,30 @@ def h264_file(tmp_path):
         container.mux(packet)
     container.close()
     return path
+
+
+@pytest.fixture
+def h264_multi_gop_file(tmp_path):
+    """Several groups of pictures, so a drop has somewhere to resume.
+
+    `h264_file` holds one keyframe, which cannot show the property that matters
+    when the relay sheds load: that it stops at a group boundary and starts
+    again at the next one rather than punching a hole in a group.
+    """
+    path = tmp_path / "multi-gop.mp4"
+    container = av.open(str(path), mode="w")
+    stream = container.add_stream("libx264", rate=25)
+    stream.width, stream.height = 160, 120
+    stream.pix_fmt = "yuv420p"
+    stream.options = {"preset": "ultrafast", "g": "10"}
+    for index in range(120):
+        image = np.full((120, 160, 3), index * 2 % 256, dtype=np.uint8)
+        frame = av.VideoFrame.from_ndarray(image, format="rgb24").reformat(format="yuv420p")
+        frame.pts = index
+        frame.time_base = Fraction(1, 25)
+        for packet in stream.encode(frame):
+            container.mux(packet)
+    for packet in stream.encode():
+        container.mux(packet)
+    container.close()
+    return path

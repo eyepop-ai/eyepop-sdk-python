@@ -55,7 +55,10 @@ from eyepop.data.types.asset import Area
 from eyepop.relay.rtsp import (
     INITIAL_BACKOFF_S,
     MAX_BACKOFF_S,
+    MAX_PENDING_BYTES,
+    MAX_STALL_S,
     READ_TIMEOUT_S,
+    BackpressureError,
     CameraError,
     MuxError,
     RelayError,
@@ -75,7 +78,10 @@ log = logging.getLogger(__name__)
 __all__ = [
     "INITIAL_BACKOFF_S",
     "MAX_BACKOFF_S",
+    "MAX_PENDING_BYTES",
+    "MAX_STALL_S",
     "READ_TIMEOUT_S",
+    "BackpressureError",
     "CameraError",
     "MuxError",
     "RelayError",
@@ -127,6 +133,8 @@ async def relay_rtsp_source(
         sensor: SensorPosition | None = None,
         reconnect: bool = True,
         max_backoff_s: float = MAX_BACKOFF_S,
+        max_pending_bytes: int = MAX_PENDING_BYTES,
+        max_stall_s: float = MAX_STALL_S,
 ) -> AsyncGenerator[dict, None]:
     """Relay an RTSP camera, yielding predictions until the source ends.
 
@@ -134,6 +142,11 @@ async def relay_rtsp_source(
     restarted - so by default the relay reconnects and keeps going, and the
     predictions continue from the caller's point of view. Pass
     ``reconnect=False`` to let a camera failure surface instead.
+
+    An upload that cannot keep up with the camera is reconnected the same way.
+    The relay first sheds frames to stay current - see ``rtsp_relay_stream`` -
+    and only gives up once it has been dropping for ``max_stall_s``, at which
+    point a fresh session recovers where waiting would not.
 
     A camera that stops sending counts as a drop even when it closes the
     connection politely, because that is what a drop actually looks like: the
@@ -162,6 +175,7 @@ async def relay_rtsp_source(
                     source_url, endpoint,
                     params=params, motion_detect=motion_detect, roi=roi, fps=fps,
                     camera=camera, platform=platform, sensor=sensor,
+                    max_pending_bytes=max_pending_bytes, max_stall_s=max_stall_s,
             ):
                 # This runs only when a session yields, so it is already a
                 # reset-on-success: a camera that accepts the connection and
@@ -169,7 +183,10 @@ async def relay_rtsp_source(
                 # keeps backing off instead of being retried in a tight loop.
                 backoff = initial_backoff
                 yield result
-        except CameraError as error:
+        except (BackpressureError, CameraError) as error:
+            # Both mean "this session is over, another one would work". A
+            # refused upload does not: UploadError is deliberately not caught
+            # here, because retrying sends the same stream to the same refusal.
             if not reconnect:
                 raise
             log.warning("camera %s: %s - reconnecting in %.1fs", source_url, error, backoff)
@@ -177,9 +194,10 @@ async def relay_rtsp_source(
             backoff = min(backoff * 2, max_backoff_s)
             continue
 
-        # The session ended without the camera failing - the worker closed the
-        # prediction stream, or the caller stopped consuming. A camera that
-        # stops sending does not reach here: that is a CameraError above.
+        # The session ended without the camera failing and without the upload
+        # falling behind - the worker closed the prediction stream, or the
+        # caller stopped consuming. A camera that stops sending and an upload
+        # that stalled both go to the handler above instead.
         return
 
 
@@ -193,6 +211,8 @@ async def _relay_one_session(
         camera: Camera | None = None,
         platform: PlatformOrientation | None = None,
         sensor: SensorPosition | None = None,
+        max_pending_bytes: int = MAX_PENDING_BYTES,
+        max_stall_s: float = MAX_STALL_S,
 ) -> AsyncGenerator[dict, None]:
     """One RTSP session: relay its bytes to the worker and yield predictions.
 
@@ -200,7 +220,10 @@ async def _relay_one_session(
     `eyepop.relay`. What is left here is the half that knows about a worker,
     which is the half you would replace to send the stream somewhere else.
     """
-    stream = await rtsp_relay_stream(source_url, platform=platform, sensor=sensor)
+    stream = await rtsp_relay_stream(
+        source_url, platform=platform, sensor=sensor,
+        max_pending_bytes=max_pending_bytes, max_stall_s=max_stall_s,
+    )
 
     try:
         try:

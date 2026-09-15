@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `eyepop.relay.BackpressureError`, raised when an upload stays too far behind the camera for too long. Its own type rather than an `UploadError` because the two want opposite responses: an upload that was refused should not be retried, an upload that fell behind should. `relay_example.relay_rtsp_source()` reconnects on it alongside `CameraError`.
+- `RtspRelayStream.stats`, live while the session runs, so a caller can watch `dropped_packets` climb rather than only learn about a stall once the session has ended. `RelayStats` gains `dropped_packets` and `drop_episodes` - one long stall and fifty brief ones need different fixes - and is now exported from `eyepop.relay`.
+- `max_pending_bytes` and `max_stall_s` on `rtsp_relay_stream()` and on `relay_example.relay_rtsp_source()`, with module constants `MAX_PENDING_BYTES` (4 MiB) and `MAX_STALL_S` (15s). Rejected when not positive: a bound of zero would shed every packet and relay nothing.
+- `PipeBuffer.pending_bytes`, the backlog the relay sheds load against.
+
+### Fixed
+- An upload that stalls no longer buffers MPEG-TS without limit. `PipeBuffer` used an unbounded queue, so a stalled upload queued roughly 7.7 MB per minute of stall on a 1 Mbps camera and about 30 MB per minute on a 4 Mbps one - per camera, against a documented default of one session per camera.
+
+  The bound is enforced above the muxer, by dropping demuxed packets before they are relayed, rather than by bounding the queue. A bounded queue would block the muxer's write, and that write happens inside a C callback no stop flag can reach - so the shutdown that joins the muxing thread would hang and hold the RTSP socket open behind it. Writes therefore still never block.
+
+  Whole groups of pictures are dropped and relaying resumes at the next keyframe, so the far side never decodes against a reference frame that was never sent. Capture times survive intact: an anchor is built from the packet it describes, so a dropped packet takes its anchor with it and none is left pointing at a frame that never went.
+
+  Dropping rides out a stall rather than replacing the stream. An upload that stays behind for `max_stall_s` ends the session with a `BackpressureError` so that a caller reconnects, instead of shedding every frame forever and looking alive while delivering nothing.
+- The MPEG-TS muxer no longer holds up to ten seconds of video out of the relay's sight. FFmpeg's default `max_interleave_delta` buffers a packet while it waits for the other stream to catch up, and on a camera that sends no capture times the KLV stream produces nothing to wait for - so video accumulated inside FFmpeg, where the backlog the relay measures could not see it. Capped at one second when the muxer is opened. Nothing here needs the interleaving: an anchor is muxed immediately after the packet it describes and carries that packet's timestamps, so the order is already right on arrival.
+
 ## [3.21.1] - 2026-09-15
 
 ### Added

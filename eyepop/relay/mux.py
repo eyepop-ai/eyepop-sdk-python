@@ -43,6 +43,13 @@ class RelayStats:
     #: Frames relayed before the first capture time was available. Expected to be
     #: non-zero on a healthy camera: the relay does not wait.
     frames_before_first_anchor: int = 0
+    #: Packets shed because the upload fell behind. Never relayed, so they carry
+    #: no anchor either - an anchor is made from the packet it describes, so a
+    #: packet that is dropped takes its capture time with it.
+    dropped_packets: int = 0
+    #: How many times the relay entered that state, as distinct from how many
+    #: packets it cost. One long stall and fifty brief ones need different fixes.
+    drop_episodes: int = 0
 
 
 class KlvRelay:
@@ -84,6 +91,18 @@ class KlvRelay:
         self._time_base = time_base
 
         self.stats = RelayStats()
+
+    def note_dropped(self, new_episode: bool = False) -> None:
+        """Record a packet the caller shed rather than relayed.
+
+        Lives here rather than on the relay loop so that everything a caller
+        wants to know about a run is on one object, even though the decision to
+        drop is made upstream - this class only ever sees the packets that
+        survived it.
+        """
+        self.stats.dropped_packets += 1
+        if new_episode:
+            self.stats.drop_episodes += 1
 
     def _klv_packet(self, video_packet: Packet, capture: CaptureTime) -> Packet:
         payload = encode_st0601(capture.unix_us, self._platform, self._sensor)

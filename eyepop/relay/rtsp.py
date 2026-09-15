@@ -28,14 +28,17 @@ import av
 from av.container import InputContainer, OutputContainer
 from av.error import FFmpegError
 
-from eyepop.relay.mux import KlvRelay
+from eyepop.relay.mux import KlvRelay, RelayStats
 from eyepop.relay.pipe import PipeBuffer
 from eyepop.relay.st0601 import PlatformOrientation, SensorPosition
 
 __all__ = [
+    "BackpressureError",
     "CameraError",
     "INITIAL_BACKOFF_S",
     "MAX_BACKOFF_S",
+    "MAX_PENDING_BYTES",
+    "MAX_STALL_S",
     "MuxError",
     "READ_TIMEOUT_S",
     "RelayError",
@@ -63,6 +66,28 @@ READ_TIMEOUT_S = 10.0
 #: one await per TS packet.
 _CHUNK_BYTES = 65536
 
+#: How far the upload may fall behind before the relay starts shedding frames.
+#: Roughly thirty seconds of a 1 Mbps camera, eight of a 4 Mbps one - generous
+#: enough that an ordinary network hiccup costs nothing, small enough that a
+#: host running one session per camera does not grow without limit when several
+#: stall at once.
+MAX_PENDING_BYTES = 4 * 1024 * 1024
+
+#: The fraction of :data:`MAX_PENDING_BYTES` the backlog has to fall back to
+#: before relaying resumes. Resuming the moment it dips under the ceiling would
+#: refill it on the next packet and shed a frame here and there across every
+#: group of pictures, which is the one way of dropping that corrupts rather
+#: than thins - so the gap is wide enough to be worth reopening.
+_RESUME_FRACTION = 0.5
+
+#: How long the relay may shed every frame before it gives up on the upload.
+#: Dropping is meant to ride out a stall, not to replace the stream: past this
+#: the upload is not slow, it is gone, and a new session recovers where waiting
+#: does not. Counted only while the backlog is above the resume mark, so time
+#: spent waiting for the next keyframe on a recovered upload does not end a
+#: session that is about to be fine.
+MAX_STALL_S = 15.0
+
 
 class RelayError(Exception):
     """Base for the three ways a relay session can fail.
@@ -87,6 +112,21 @@ class UploadError(RelayError):
     Never raised here - nothing in this module uploads anything. It lives here
     so that a caller catches one taxonomy rather than importing half of it from
     an example.
+
+    Distinct from :class:`BackpressureError`, and the distinction is the point:
+    this one means the worker will not take the stream, so retrying sends the
+    same stream to the same refusal.
+    """
+
+
+class BackpressureError(RelayError):
+    """The upload stayed too far behind the camera for too long.
+
+    Its own type rather than an :class:`UploadError` because the two want
+    opposite responses. An upload that was refused should not be retried; an
+    upload that fell behind should, and a fresh session is how it recovers -
+    it starts at a keyframe with its own timestamps, where the stalled one
+    would have to push a backlog of stale video before catching up.
     """
 
 
@@ -111,12 +151,19 @@ class RtspRelayStream:
         pipe: PipeBuffer,
         mpegts_muxer: OutputContainer,
         relay: KlvRelay,
+        max_pending_bytes: int = MAX_PENDING_BYTES,
+        max_stall_s: float = MAX_STALL_S,
     ) -> None:
         self._source_url = source_url
         self._container = container
         self._pipe = pipe
         self._mpegts_muxer = mpegts_muxer
         self._relay = relay
+        self._max_pending_bytes = max_pending_bytes
+        self._max_stall_s = max_stall_s
+        # Rounded up, so a bound small enough that half of it is zero still
+        # asks for some room to be made rather than resuming on an empty queue.
+        self._resume_bytes = max(1, int(max_pending_bytes * _RESUME_FRACTION))
         self._stop = threading.Event()
         # Written by the muxing thread and read by the event loop once it has
         # finished. The thread cannot raise into the coroutine that started it.
@@ -127,6 +174,16 @@ class RtspRelayStream:
         self._eof_failure: RelayError | None = None
         self._started = False
         self._closed = False
+
+    @property
+    def stats(self) -> RelayStats:
+        """What this session relayed, and what it shed.
+
+        Live while the session runs - the muxing thread updates it in place -
+        so a caller can watch ``dropped_packets`` climb rather than only learn
+        about a stall once the session has ended.
+        """
+        return self._relay.stats
 
     @property
     def failure(self) -> RelayError | None:
@@ -197,6 +254,12 @@ class RtspRelayStream:
     def _pipe_through(self) -> None:
         started = time.monotonic()
         has_key_frame = False
+        # Set while the relay is shedding packets, and separately while the
+        # backlog is above the resume mark. The two come apart on the way back:
+        # once the upload has caught up the relay is still dropping, because it
+        # cannot resume until a keyframe, and that wait must not count as stall.
+        dropping = False
+        stalled_since: float | None = None
         try:
             for packet in self._container.demux(self._relay.in_video_stream):
                 # Checked every packet rather than only on error: this is the
@@ -207,6 +270,57 @@ class RtspRelayStream:
                     break
                 if packet.dts is None:
                     continue
+
+                # Measured before relaying rather than bounding the queue the
+                # muxer writes into: a bounded queue blocks the write, and the
+                # write happens inside a C callback this thread cannot be woken
+                # out of. Shedding here instead keeps every write non-blocking,
+                # and overshoots the bound by at most the one packet below.
+                pending = self._pipe.pending_bytes
+                if pending >= self._max_pending_bytes:
+                    if stalled_since is None:
+                        stalled_since = time.monotonic()
+                    if not dropping:
+                        dropping = True
+                        # Redundant with the resume condition below, which only
+                        # fires on a keyframe, and kept because it states the
+                        # invariant: nothing relayed after a gap until an IDR.
+                        has_key_frame = False
+                        self._relay.note_dropped(new_episode=True)
+                        log.warning(
+                            "upload of %s is %d bytes behind; dropping until it catches up",
+                            self._source_url, pending,
+                        )
+                        continue
+                elif pending <= self._resume_bytes:
+                    stalled_since = None
+
+                if dropping:
+                    if stalled_since is None and packet.is_keyframe:
+                        dropping = False
+                        log.info(
+                            "upload of %s caught up; resuming (%d packets dropped so far)",
+                            self._source_url, self._relay.stats.dropped_packets,
+                        )
+                    elif (
+                        stalled_since is not None
+                        and time.monotonic() - stalled_since >= self._max_stall_s
+                    ):
+                        # Ending the session beats dropping forever. A relay
+                        # that sheds every frame is alive and useless, and only
+                        # a new session recovers: this one would have to push a
+                        # backlog of stale video before it caught up.
+                        self._failure.append(BackpressureError(
+                            f"upload of {self._source_url} stayed more than "
+                            f"{self._resume_bytes} bytes behind for "
+                            f"{self._max_stall_s:.0f}s"
+                        ))
+                        break
+
+                if dropping:
+                    self._relay.note_dropped()
+                    continue
+
                 if not has_key_frame:
                     has_key_frame = packet.is_keyframe
                 if not has_key_frame:
@@ -277,6 +391,8 @@ async def rtsp_relay_stream(
     platform: PlatformOrientation | None = None,
     sensor: SensorPosition | None = None,
     read_timeout_s: float = READ_TIMEOUT_S,
+    max_pending_bytes: int = MAX_PENDING_BYTES,
+    max_stall_s: float = MAX_STALL_S,
 ) -> RtspRelayStream:
     """Open an RTSP camera and return its stream as MPEG-TS bytes.
 
@@ -295,9 +411,22 @@ async def rtsp_relay_stream(
     slow to answer - or not there at all - does not stall the event loop and
     block cancellation along with it.
 
+    An upload slower than the camera is shed rather than buffered. Once more
+    than ``max_pending_bytes`` is waiting to go out, whole groups of pictures
+    are dropped until the upload catches up and the next keyframe arrives - the
+    stream thins and stays current instead of growing without limit and falling
+    permanently behind real time. Surviving frames keep their capture times:
+    an anchor is built from the packet it describes, so a dropped packet takes
+    its anchor with it and nothing is left pointing at a frame that never went.
+    Watch :attr:`RtspRelayStream.stats` to see what it cost.
+
+    Dropping is for riding out a stall, not for replacing the stream. An upload
+    that stays behind for ``max_stall_s`` ends the session with a
+    ``BackpressureError``, which a caller should treat as a reconnect.
+
     Raises ``CameraError`` if the camera cannot be opened, ``MuxError`` if the
     MPEG-TS output cannot be set up, and ``ValueError`` for an unusable
-    ``read_timeout_s``.
+    ``read_timeout_s``, ``max_pending_bytes`` or ``max_stall_s``.
     """
     # A timeout of zero or less is not a shorter timeout: ffmpeg reads it as no
     # socket timeout at all, which removes the only bound on a camera that
@@ -308,8 +437,22 @@ async def rtsp_relay_stream(
             f"read_timeout_s must be finite and positive, got {read_timeout_s!r}"
         )
 
+    # A bound of zero or less would drop every packet forever, and a stall
+    # window of zero would end the session the first time a chunk was in
+    # flight. Both are caught here rather than surfacing as a relay that runs
+    # and produces nothing.
+    if max_pending_bytes <= 0:
+        raise ValueError(
+            f"max_pending_bytes must be positive, got {max_pending_bytes!r}"
+        )
+    if not math.isfinite(max_stall_s) or max_stall_s <= 0:
+        raise ValueError(
+            f"max_stall_s must be finite and positive, got {max_stall_s!r}"
+        )
+
     return await asyncio.to_thread(
-        _open_stream, source_url, platform, sensor, read_timeout_s
+        _open_stream, source_url, platform, sensor, read_timeout_s,
+        max_pending_bytes, max_stall_s,
     )
 
 
@@ -318,6 +461,8 @@ def _open_stream(
     platform: PlatformOrientation | None,
     sensor: SensorPosition | None,
     read_timeout_s: float,
+    max_pending_bytes: int,
+    max_stall_s: float,
 ) -> RtspRelayStream:
     """The blocking half of opening a camera, for a worker thread."""
     try:
@@ -337,10 +482,26 @@ def _open_stream(
 
     pipe = PipeBuffer()
     try:
-        mpegts_muxer = av.open(pipe, format="mpegts", mode="w")
+        mpegts_muxer = av.open(pipe, format="mpegts", mode="w", options={
+            # How long FFmpeg may hold a packet waiting for the other stream to
+            # catch up, so that it can interleave the two. The default is ten
+            # seconds, and on a camera that sends no capture times the KLV
+            # stream produces nothing to interleave against - so ten seconds of
+            # video accumulates inside FFmpeg, where the backlog the relay
+            # measures cannot see it and the bound above never fires. Nothing
+            # here needs the interleaving: an anchor is muxed immediately after
+            # the packet it describes and carries that packet's timestamps, so
+            # the order is already right when it arrives.
+            #
+            # Not zero: FFmpeg reads zero as unlimited, which is the opposite.
+            "max_interleave_delta": "1000000",
+        })
         relay = KlvRelay(container, mpegts_muxer, platform=platform, sensor=sensor)
     except Exception as error:
         container.close()
         raise MuxError(f"could not set up the MPEG-TS output: {error}") from error
 
-    return RtspRelayStream(source_url, container, pipe, mpegts_muxer, relay)
+    return RtspRelayStream(
+        source_url, container, pipe, mpegts_muxer, relay,
+        max_pending_bytes=max_pending_bytes, max_stall_s=max_stall_s,
+    )
