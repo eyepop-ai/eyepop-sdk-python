@@ -7,12 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- KLV capture-time anchors no longer drift from the frames they describe when the source video time base is not 90 kHz. `OutputContainer.mux()` rescales a packet's timestamps in place, and `KlvRelay.relay()` built each anchor from the video packet *after* muxing it — so the anchor copied a timestamp already converted to the output's 90 kHz, labelled it with the source time base, and had it converted a second time. The error scaled by 90000/source and accumulated across the stream, leaving every anchor after the first pointing at a frame that was not there.
-
-  On a live RTSP source that factor is 1, so the supported path was never affected and no released version mis-stamped a camera relay. A source reporting anything else — an mp4 at 1/12800, for instance — was silently mis-stamped throughout.
-
-  `eyepop.relay` is documented for RTSP sources; relaying anything else was not and still is not supported.
+## [3.21.2] - 2026-09-15
 
 ### Added
 - `eyepop.relay.BackpressureError`, raised when an upload stays too far behind the camera for too long. Its own type rather than an `UploadError` because the two want opposite responses: an upload that was refused should not be retried, an upload that fell behind should. `relay_example.relay_rtsp_source()` reconnects on it alongside `CameraError`.
@@ -29,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Dropping rides out a stall rather than replacing the stream. An upload that stays behind for `max_stall_s` ends the session with a `BackpressureError` so that a caller reconnects, instead of shedding every frame forever and looking alive while delivering nothing.
 - The MPEG-TS muxer no longer holds up to ten seconds of video out of the relay's sight. FFmpeg's default `max_interleave_delta` buffers a packet while it waits for the other stream to catch up, and on a camera that sends no capture times the KLV stream produces nothing to wait for - so video accumulated inside FFmpeg, where the backlog the relay measures could not see it. Capped at one second when the muxer is opened. Nothing here needs the interleaving: an anchor is muxed immediately after the packet it describes and carries that packet's timestamps, so the order is already right on arrival.
+- KLV capture-time anchors no longer drift from the frames they describe when the source video time base is not 90 kHz. `OutputContainer.mux()` rescales a packet's timestamps in place, and `KlvRelay.relay()` built each anchor from the video packet *after* muxing it — so the anchor copied a timestamp already converted to the output's 90 kHz, labelled it with the source time base, and had it converted a second time. The error scaled by 90000/source and accumulated across the stream, leaving every anchor after the first pointing at a frame that was not there.
+
+  On a live RTSP source that factor is 1, so the supported path was never affected and no released version mis-stamped a camera relay. A source reporting anything else — an mp4 at 1/12800, for instance — was silently mis-stamped throughout.
+
+  `eyepop.relay` is documented for RTSP sources; relaying anything else was not and still is not supported.
 
 ## [3.21.1] - 2026-09-15
 
