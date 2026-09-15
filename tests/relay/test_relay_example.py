@@ -286,3 +286,87 @@ async def test_a_failed_mux_close_is_reported_rather_than_read_as_a_clean_end(
 
     with pytest.raises(MuxError):
         await drain(_relay_one_session(str(h264_file), DrainEndpoint()))
+
+
+@pytest.mark.asyncio
+async def test_a_live_source_ending_without_an_error_is_a_drop(h264_file):
+    """A camera that stops sending raises rather than ending quietly.
+
+    Measured against a real camera (AWSU-258): severing an RTSP-over-TCP
+    connection ends PyAV's demux generator normally and raises nothing. A file
+    running out reaches `_relay_one_session` the same way, which is what makes
+    it usable here - so this drives the exact code path a dropped camera takes.
+
+    Without this, the drop is read as a finite stream finishing and
+    `relay_rtsp_source` returns instead of reconnecting.
+    """
+    class DrainEndpoint:
+        async def upload_stream(self, pipe, **kwargs):
+            class Job:
+                async def predict(self):
+                    return None if not await asyncio.to_thread(pipe.read, 65536) else {}
+            return Job()
+
+    with pytest.raises(CameraError):
+        await drain(_relay_one_session(str(h264_file), DrainEndpoint()))
+
+
+@pytest.mark.asyncio
+async def test_a_source_that_ends_is_retried_rather_than_ending_the_relay(h264_file, monkeypatch):
+    """The end-to-end consequence: the relay tries again instead of stopping.
+
+    The test above pins the raise; this pins that `reconnect=True` acts on it.
+    Driven through the real session so the two cannot drift apart - a
+    CameraError raised but not acted on would pass the first test alone.
+    """
+    attempts: list[int] = []
+
+    class DrainEndpoint:
+        async def upload_stream(self, pipe, **kwargs):
+            attempts.append(len(attempts))
+            class Job:
+                async def predict(self):
+                    return None if not await asyncio.to_thread(pipe.read, 65536) else {}
+            return Job()
+
+    async def fake_sleep(seconds):
+        if len(attempts) >= 3:
+            raise StopRetrying
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(StopRetrying):
+        await drain(relay_rtsp_source(str(h264_file), DrainEndpoint()))
+
+    assert len(attempts) >= 3, attempts
+
+
+@pytest.mark.asyncio
+async def test_a_caller_walking_away_is_not_reported_as_a_drop(h264_file):
+    """Abandoning the generator stays a clean shutdown, not a reported drop.
+
+    Treating every quiet end as a drop would turn ordinary teardown into an
+    error. The usual path is already safe without the stop flag: a thread that
+    sees `stop` breaks out of the demux loop, so the end-of-stream branch never
+    runs, and a closed generator does not execute the code after its `finally`
+    anyway.
+
+    The `not stop.is_set()` guard covers only the narrow race where the source
+    ends *after* the final stop check of the last iteration. Mutation testing
+    confirms no test here fails without that guard, and reproducing the race
+    deterministically would mean adding a seam to an example. It is kept as
+    cheap correctness, not as something this test pins.
+    """
+    class SlowEndpoint:
+        async def upload_stream(self, pipe, **kwargs):
+            class Job:
+                async def predict(self):
+                    await asyncio.to_thread(pipe.read, 1024)
+                    return {"seq": 1}
+            return Job()
+
+    generator = _relay_one_session(str(h264_file), SlowEndpoint())
+    assert await drain(generator, limit=1) == [{"seq": 1}]
+    # No CameraError escapes the close; a stop the caller asked for is not a
+    # failure to report.
+    await generator.aclose()
