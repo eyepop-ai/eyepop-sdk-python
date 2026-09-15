@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.21.1] - 2026-09-15
+
+### Added
+- `eyepop.relay.rtsp_relay_stream()`, so relaying a camera no longer means copying an example next to your own code. It opens an RTSP camera and returns its stream as MPEG-TS bytes carrying the camera's own capture times, which is what `upload_stream()` already accepts:
+
+  ```python
+  stream = await rtsp_relay_stream("rtsp://camera/stream1")
+  job = await endpoint.upload_stream(stream, mime_type="video/mpegts", is_live=True)
+  ```
+
+  The reading and muxing had lived in `examples/relay_example.py`, so a fix reached only people who copied the file again, and the documentation had to tell readers to download it before anything would import. Returning bytes rather than predictions is what keeps `eyepop.relay` free of any dependency on the client half of the SDK.
+
+  One call is one RTSP session. Reconnecting stays the caller's policy, because each reconnect has to become a new upload: one MPEG-TS cannot carry two RTSP sessions without renumbering the timestamps the capture times depend on. `relay_example.relay_rtsp_source()` still shows that loop, unchanged in signature.
+
+  Awaitable because opening talks to the camera and can block for the read timeout; the work happens on a worker thread rather than stalling the event loop and cancellation with it.
+- `RtspRelayStream.failure` reports why a session ended. A camera that drops has to reach the caller as a *camera* failure, and an error raised out of the byte stream arrives wrapped in whatever the HTTP client made of it - by which point "reconnect" and "do not" are indistinguishable.
+- `eyepop.relay` also exports `KlvRelay` and `CaptureClock`, which were importable only from their own modules.
+
+### Changed
+- A failing mux is no longer reported as a camera drop. `KlvRelay.relay()` muxes, and muxing raises the same `av.error.FFmpegError` a failing demux does, so a mux defect was recorded as a camera failure and retried forever by anything reconnecting on one. Copies of `relay_example.py` taken before this carry the old behaviour.
+- `read_timeout_s` is rejected when it is not finite and positive. Zero is not a shorter timeout - ffmpeg reads it as no socket timeout at all, removing the only bound on a camera that stops sending without closing the connection - and `nan` or `inf` previously failed inconsistently inside the conversion to microseconds.
+
 ## [3.21.0] - 2026-09-15
 
 ### Fixed
