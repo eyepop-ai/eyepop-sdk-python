@@ -65,12 +65,15 @@ from eyepop.data.types.dataset import (
 )
 
 from eyepop.data.types.asset import (
+    Area,
+    AreaType,
     Asset,
     AssetAnnotation,
     AssetAnnotationImport,
     AssetAnnotationResponse,
     AssetImport,
     AssetResponse,
+    ContourArea,
     RectangleArea,
     Roi,
     TimeSpan,
@@ -195,6 +198,9 @@ __all__ = [
     "AssetImport",
     "AssetResponse",
     "AliasResolution",
+    "Area",
+    "AreaType",
+    "ContourArea",
     "RectangleArea",
     "TimeSpan",
     "Roi",

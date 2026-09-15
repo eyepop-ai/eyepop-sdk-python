@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `ContourArea`, `AreaType` and the `Area` union are exported from `eyepop.data.types`, alongside the `RectangleArea` and `Point2d` that already were. A source's `roi` is typed `Area` and `Roi.area` holds one, so naming either shape is ordinary use - but `from eyepop.data.types import ContourArea` raised `ImportError` while the same import of `RectangleArea` worked, leaving the contour reachable only through `eyepop.data.types.asset`. Nothing about the types themselves changes.
+
 ## [3.21.2] - 2026-09-15
 
 ### Added
