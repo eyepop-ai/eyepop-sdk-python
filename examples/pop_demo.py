@@ -13,13 +13,13 @@ from typing import Any
 from dotenv import load_dotenv
 from PIL import Image
 from pybars import Compiler
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from relay_example import relay_http_source, relay_rtsp_source
 from webui import webui
 
 from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
-from eyepop.data.types.asset import Area, RectangleArea
+from eyepop.data.types import Area, ContourArea, Point2d, RectangleArea
 from eyepop.visualize import EyePopWorldPlot, labelled_world_points
 from eyepop.worker.camera import (
     Camera,
@@ -303,15 +303,70 @@ def list_of_boxes(arg: str) -> list[dict[str, Any]]:
     return boxes
 
 
-def rectangle_roi(arg: str) -> Area:
-    roi = ast.literal_eval(arg)
+def _roi_literal(arg: str, shape: str) -> Any:
+    """Parse an ROI argument, reporting a malformed one as a CLI error.
 
-    return RectangleArea(
-        x=roi[0],
-        y=roi[1],
-        width=roi[2],
-        height=roi[3],
+    argparse turns a ValueError or TypeError from a type callable into a usage
+    message and lets anything else escape as a traceback. `literal_eval` raises
+    SyntaxError on a malformed literal, so that one has to be converted here.
+    """
+    try:
+        return ast.literal_eval(arg)
+    except (ValueError, SyntaxError) as error:
+        raise argparse.ArgumentTypeError(f"expected {shape}, got {arg!r}") from error
+
+
+def rectangle_roi(arg: str) -> Area:
+    roi = _roi_literal(arg, "(x, y, width, height)")
+    try:
+        x, y, width, height = roi
+    except (TypeError, ValueError) as error:
+        raise argparse.ArgumentTypeError(f"expected (x, y, width, height), got {arg!r}") from error
+
+    return RectangleArea(x=x, y=y, width=width, height=height)
+
+
+def _is_collinear(points: list[Point2d]) -> bool:
+    """Do all the points lie on one line, enclosing nothing to crop to?
+
+    Tested against the first direction the ring takes rather than by its signed
+    area, which is zero for a bowtie whose lobes cancel - and a bowtie does
+    enclose area, because the worker fills a ring by the even-odd rule.
+    """
+    base = points[0]
+    direction = next(
+        ((p.x - base.x, p.y - base.y) for p in points[1:] if (p.x, p.y) != (base.x, base.y)),
+        None,
     )
+    if direction is None:
+        return True
+    dx, dy = direction
+    return all((p.x - base.x) * dy - (p.y - base.y) * dx == 0 for p in points)
+
+
+def contour_roi(arg: str) -> Area:
+    raw = _roi_literal(arg, "[(x, y), (x, y), (x, y), ...]")
+    try:
+        # The ring closes on its own, so the first point is not repeated at the end.
+        points = [Point2d(x=point[0], y=point[1]) for point in raw]
+    except (TypeError, IndexError, KeyError, ValidationError) as error:
+        raise argparse.ArgumentTypeError(
+            f"expected [(x, y), (x, y), (x, y), ...], got {arg!r}"
+        ) from error
+
+    # The worker validates a region authoritatively; these two are the same
+    # checks early, so a mistyped lane fails at the command line rather than
+    # after a session has been opened.
+    if len(points) < 3:
+        raise argparse.ArgumentTypeError(
+            f"a contour needs at least 3 points, got {len(points)}"
+        )
+    if _is_collinear(points):
+        raise argparse.ArgumentTypeError(
+            "a contour whose points all lie on one line encloses nothing to crop to"
+        )
+
+    return ContourArea(points=points)
 
 
 def camera_intrinsics(arg: str) -> CameraIntrinsics:
@@ -570,8 +625,15 @@ parser.add_argument('--tracking-motion-model', required=False, help="Pick a moti
 # Optional motion detection parameters
 parser.add_argument('--motion-detect', required=False, help="Skip video frames w/o detected motion", default=False, action="store_true")
 
-# Optional global ROI parameters
-parser.add_argument('--roi', required=False, type=rectangle_roi, help="Rectangular ROI as (x, y, width, height)")
+# Optional global ROI parameters. A source carries one region, so the two shapes
+# are alternatives rather than options to combine.
+roi_group = parser.add_mutually_exclusive_group()
+roi_group.add_argument('--roi-rectangle', required=False, type=rectangle_roi,
+                       help="Rectangular ROI as (x, y, width, height), in source pixels")
+roi_group.add_argument('--roi-contour', required=False, type=contour_roi,
+                       help="Contour ROI as [(x, y), (x, y), (x, y), ...], in source pixels. Crops to the "
+                            "ring's bounding box and blacks out everything outside the ring. At least three "
+                            "points, not all on one line")
 
 parser.add_argument('-w', '--to-world', required=False, default=False, action="store_true",
                     help="Translate this pop's point based predictions into world coordinates in meters, "
@@ -617,6 +679,9 @@ parser.add_argument('-mc', '--media-cache-seconds', required=False, type=int, he
 
 
 main_args = parser.parse_args()
+
+# The run functions take one region whichever shape it was given as.
+main_args.roi = main_args.roi_rectangle or main_args.roi_contour
 
 if not main_args.local_path and not main_args.url and not main_args.asset_uuid and not main_args.proxy_url:
     print("Need something to run inference on; pass either --url or --local-path or --asset-uuid or --proxy-url")
