@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `examples/pop_demo.py` takes `--roi-rectangle` and `--roi-contour` in place of `--roi`, which only ever accepted a rectangle. The two are alternatives, because a source carries one region. A contour is given as `[(x, y), (x, y), (x, y), ...]` in source pixels and crops to the ring's bounding box, blacking out everything outside the ring. `--roi` now fails as ambiguous between the two rather than doing something unexpected.
+
 ### Fixed
 - `ContourArea`, `AreaType` and the `Area` union are exported from `eyepop.data.types`, alongside the `RectangleArea` and `Point2d` that already were. A source's `roi` is typed `Area` and `Roi.area` holds one, so naming either shape is ordinary use - but `from eyepop.data.types import ContourArea` raised `ImportError` while the same import of `RectangleArea` worked, leaving the contour reachable only through `eyepop.data.types.asset`. Nothing about the types themselves changes.
 

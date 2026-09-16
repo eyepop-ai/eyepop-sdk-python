@@ -19,7 +19,7 @@ from webui import webui
 
 from eyepop import EyePopSdk, Job
 from eyepop.data.data_types import TranscodeMode
-from eyepop.data.types.asset import Area, RectangleArea
+from eyepop.data.types import Area, ContourArea, Point2d, RectangleArea
 from eyepop.visualize import EyePopWorldPlot, labelled_world_points
 from eyepop.worker.camera import (
     Camera,
@@ -314,6 +314,13 @@ def rectangle_roi(arg: str) -> Area:
     )
 
 
+def contour_roi(arg: str) -> Area:
+    points = ast.literal_eval(arg)
+
+    # The ring closes on its own, so the first point is not repeated at the end.
+    return ContourArea(points=[Point2d(x=point[0], y=point[1]) for point in points])
+
+
 def camera_intrinsics(arg: str) -> CameraIntrinsics:
     fx, fy, cx, cy = ast.literal_eval(arg)
 
@@ -570,8 +577,15 @@ parser.add_argument('--tracking-motion-model', required=False, help="Pick a moti
 # Optional motion detection parameters
 parser.add_argument('--motion-detect', required=False, help="Skip video frames w/o detected motion", default=False, action="store_true")
 
-# Optional global ROI parameters
-parser.add_argument('--roi', required=False, type=rectangle_roi, help="Rectangular ROI as (x, y, width, height)")
+# Optional global ROI parameters. A source carries one region, so the two shapes
+# are alternatives rather than options to combine.
+roi_group = parser.add_mutually_exclusive_group()
+roi_group.add_argument('--roi-rectangle', required=False, type=rectangle_roi,
+                       help="Rectangular ROI as (x, y, width, height), in source pixels")
+roi_group.add_argument('--roi-contour', required=False, type=contour_roi,
+                       help="Contour ROI as [(x, y), (x, y), (x, y), ...], in source pixels. Crops to the "
+                            "ring's bounding box and blacks out everything outside the ring. At least three "
+                            "points, not all on one line")
 
 parser.add_argument('-w', '--to-world', required=False, default=False, action="store_true",
                     help="Translate this pop's point based predictions into world coordinates in meters, "
@@ -617,6 +631,9 @@ parser.add_argument('-mc', '--media-cache-seconds', required=False, type=int, he
 
 
 main_args = parser.parse_args()
+
+# The run functions take one region whichever shape it was given as.
+main_args.roi = main_args.roi_rectangle or main_args.roi_contour
 
 if not main_args.local_path and not main_args.url and not main_args.asset_uuid and not main_args.proxy_url:
     print("Need something to run inference on; pass either --url or --local-path or --asset-uuid or --proxy-url")
