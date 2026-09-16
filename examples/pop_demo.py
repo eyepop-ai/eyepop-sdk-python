@@ -13,7 +13,7 @@ from typing import Any
 from dotenv import load_dotenv
 from PIL import Image
 from pybars import Compiler
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from relay_example import relay_http_source, relay_rtsp_source
 from webui import webui
 
@@ -303,22 +303,70 @@ def list_of_boxes(arg: str) -> list[dict[str, Any]]:
     return boxes
 
 
-def rectangle_roi(arg: str) -> Area:
-    roi = ast.literal_eval(arg)
+def _roi_literal(arg: str, shape: str) -> Any:
+    """Parse an ROI argument, reporting a malformed one as a CLI error.
 
-    return RectangleArea(
-        x=roi[0],
-        y=roi[1],
-        width=roi[2],
-        height=roi[3],
+    argparse turns a ValueError or TypeError from a type callable into a usage
+    message and lets anything else escape as a traceback. `literal_eval` raises
+    SyntaxError on a malformed literal, so that one has to be converted here.
+    """
+    try:
+        return ast.literal_eval(arg)
+    except (ValueError, SyntaxError) as error:
+        raise argparse.ArgumentTypeError(f"expected {shape}, got {arg!r}") from error
+
+
+def rectangle_roi(arg: str) -> Area:
+    roi = _roi_literal(arg, "(x, y, width, height)")
+    try:
+        x, y, width, height = roi
+    except (TypeError, ValueError) as error:
+        raise argparse.ArgumentTypeError(f"expected (x, y, width, height), got {arg!r}") from error
+
+    return RectangleArea(x=x, y=y, width=width, height=height)
+
+
+def _is_collinear(points: list[Point2d]) -> bool:
+    """Do all the points lie on one line, enclosing nothing to crop to?
+
+    Tested against the first direction the ring takes rather than by its signed
+    area, which is zero for a bowtie whose lobes cancel - and a bowtie does
+    enclose area, because the worker fills a ring by the even-odd rule.
+    """
+    base = points[0]
+    direction = next(
+        ((p.x - base.x, p.y - base.y) for p in points[1:] if (p.x, p.y) != (base.x, base.y)),
+        None,
     )
+    if direction is None:
+        return True
+    dx, dy = direction
+    return all((p.x - base.x) * dy - (p.y - base.y) * dx == 0 for p in points)
 
 
 def contour_roi(arg: str) -> Area:
-    points = ast.literal_eval(arg)
+    raw = _roi_literal(arg, "[(x, y), (x, y), (x, y), ...]")
+    try:
+        # The ring closes on its own, so the first point is not repeated at the end.
+        points = [Point2d(x=point[0], y=point[1]) for point in raw]
+    except (TypeError, IndexError, KeyError, ValidationError) as error:
+        raise argparse.ArgumentTypeError(
+            f"expected [(x, y), (x, y), (x, y), ...], got {arg!r}"
+        ) from error
 
-    # The ring closes on its own, so the first point is not repeated at the end.
-    return ContourArea(points=[Point2d(x=point[0], y=point[1]) for point in points])
+    # The worker validates a region authoritatively; these two are the same
+    # checks early, so a mistyped lane fails at the command line rather than
+    # after a session has been opened.
+    if len(points) < 3:
+        raise argparse.ArgumentTypeError(
+            f"a contour needs at least 3 points, got {len(points)}"
+        )
+    if _is_collinear(points):
+        raise argparse.ArgumentTypeError(
+            "a contour whose points all lie on one line encloses nothing to crop to"
+        )
+
+    return ContourArea(points=points)
 
 
 def camera_intrinsics(arg: str) -> CameraIntrinsics:
