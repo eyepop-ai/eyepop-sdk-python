@@ -38,8 +38,11 @@ def test_a_roi_holds_either_shape():
 
 
 def test_an_area_is_discriminated_on_the_wire():
-    """The union is what a worker job's `roi` is typed as, so it has to resolve
-    the right shape from JSON rather than guessing by field."""
+    """The union resolves the right shape from JSON.
+
+    It is what a worker job's `roi` is typed as, so it has to discriminate on
+    `type` rather than guessing by which fields are present.
+    """
     adapter = TypeAdapter(Area)
 
     contour = adapter.validate_python(
