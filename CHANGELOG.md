@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [3.22.0] - 2026-09-15
+## [3.21.3] - 2026-09-15
 
 ### Changed
 - `examples/pop_demo.py` takes `--roi-rectangle` and `--roi-contour` in place of `--roi`, which only ever accepted a rectangle. The two are alternatives, because a source carries one region. A contour is given as `[(x, y), (x, y), (x, y), ...]` in source pixels and crops to the ring's bounding box, blacking out everything outside the ring. `--roi` now fails as ambiguous between the two rather than doing something unexpected.
