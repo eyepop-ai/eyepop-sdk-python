@@ -2,8 +2,9 @@ name: Sessions Smoke
 
 on:
   schedule:
-    # Run hourly at minute 30.
-    - cron: "30 * * * *"
+    # Run at 10:00 and 21:00 Pacific against production with the latest released SDK.
+    - cron: "0 10,21 * * *"
+      timezone: "America/Los_Angeles"
   workflow_dispatch:
     inputs:
       environment:
@@ -177,8 +178,8 @@ jobs:
           set -euo pipefail
 
           if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
-            echo "SLACK_WEBHOOK_URL not set; skipping Slack notification"
-            exit 0
+            echo "::error::SLACK_WEBHOOK_URL is not set; no Slack alert was sent for this failure"
+            exit 1
           fi
 
           session_uuid="n/a"

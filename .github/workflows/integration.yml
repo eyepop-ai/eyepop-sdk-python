@@ -2,16 +2,29 @@ name: Staging SDK Integration
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 6 * * *'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "eyepop/**"
+      - "tests/integration/**"
+      - "tests/test.jpg"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/integration.yml"
 
 concurrency:
-  group: ${{ github.workflow }}-staging
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   integration:
     name: staging integration
+    # Fork PRs get no secrets, so the tests would all skip and report green.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: staging
@@ -19,6 +32,8 @@ jobs:
       EYEPOP_URL: ${{ vars.EYEPOP_URL }}
     steps:
     - uses: actions/checkout@v7
+      with:
+        persist-credentials: false
 
     - name: Install uv
       uses: astral-sh/setup-uv@v9.0.0
@@ -30,10 +45,15 @@ jobs:
       env:
         EYEPOP_API_KEY: ${{ secrets.EYEPOP_API_KEY }}
         EYEPOP_ACCOUNT_ID: ${{ vars.EYEPOP_ACCOUNT_ID }}
-        GITHUB_STEP_SUMMARY: ${{ github.step_summary }}
       run: |
-        uv run pytest tests/integration/ -v -s --tb=short --timeout=300 2>&1 | tee test_output.txt
-        echo "## Integration Test Results" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        cat test_output.txt >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
+        # pipefail keeps pytest's exit code; without it tee's exit 0 hid every failure.
+        set -o pipefail
+        status=0
+        uv run pytest tests/integration/ -v -s --tb=short --timeout=300 2>&1 | tee test_output.txt || status=$?
+        {
+          echo "## Integration Test Results"
+          echo '```'
+          cat test_output.txt
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+        exit "$status"
