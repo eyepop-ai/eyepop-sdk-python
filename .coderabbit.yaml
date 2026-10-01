@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # Repository layer on top of the organization settings. Values set here win; everything else comes
-# from the organization. Reviews run only on request: add the `needs-review` or `review-ready`
-# label, or comment `@coderabbitai review`.
+# from the organization. Reviews run only on request: add the `needs-review` label, or comment
+# `@coderabbitai review`.
 inheritance: true
 language: en-US
 tone_instructions: "Be direct and concise. Prioritize correctness, regressions, security, runtime behavior, and missing tests over style nits."
@@ -24,7 +24,6 @@ reviews:
     drafts: false
     labels:
       - needs-review
-      - review-ready
       - "!skip-review"
       - "!no-review"
       - "!autorelease: pending"
