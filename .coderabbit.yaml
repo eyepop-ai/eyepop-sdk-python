@@ -1,4 +1,8 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Repository layer on top of the organization settings. Values set here win; everything else comes
+# from the organization. Reviews run only on request: add the `needs-review` or `review-ready`
+# label, or comment `@coderabbitai review`.
+inheritance: true
 language: en-US
 tone_instructions: "Be direct and concise. Prioritize correctness, regressions, security, runtime behavior, and missing tests over style nits."
 
@@ -6,7 +10,8 @@ reviews:
   profile: chill
   request_changes_workflow: false
   high_level_summary: true
-  review_status: true
+  # No "Review skipped" comment on every unlabeled PR.
+  review_status: false
   review_details: false
   commit_status: false
   collapse_walkthrough: true
@@ -14,9 +19,11 @@ reviews:
 
   auto_review:
     enabled: false
+    # One review per request. Later pushes are not re-reviewed until someone asks again.
     auto_incremental_review: false
     drafts: false
     labels:
+      - needs-review
       - review-ready
       - "!skip-review"
       - "!no-review"
@@ -31,21 +38,12 @@ reviews:
       - "github-actions[bot]"
 
   path_filters:
-    - "!**/__pycache__/**"
-    - "!**/.mypy_cache/**"
-    - "!**/.pytest_cache/**"
-    - "!**/.ruff_cache/**"
-    - "!**/node_modules/**"
-    - "!**/dist/**"
-    - "!**/build/**"
-    - "!**/coverage/**"
-    - "!**/test-results/**"
-    - "!**/playwright-report/**"
-    - "!**/*.lock"
+    # FlatBuffers compiler output.
+    - "!eyepop/events/**"
 
   pre_merge_checks:
     docstrings:
-      mode: off
+      mode: "off"
 
   tools:
     actionlint:
@@ -56,6 +54,9 @@ reviews:
       enabled: true
     yamllint:
       enabled: true
+    # CI already gates on ruff (eyepop-actions python-lint).
+    ruff:
+      enabled: false
 
 knowledge_base:
   code_guidelines:
@@ -68,5 +69,6 @@ knowledge_base:
       - "docs/**/*.md"
 
 chat:
-  auto_reply: true
+  # Reply only when mentioned, so threads don't trigger CodeRabbit on their own.
+  auto_reply: false
   art: false
