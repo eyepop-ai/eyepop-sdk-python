@@ -44,7 +44,7 @@ jobs:
     - name: Run integration tests
       env:
         EYEPOP_API_KEY: ${{ secrets.EYEPOP_API_KEY }}
-        EYEPOP_ACCOUNT_ID: ${{ vars.EYEPOP_ACCOUNT_ID }}
+        EYEPOP_ACCOUNT_UUID: ${{ vars.EYEPOP_ACCOUNT_UUID }}
       run: |
         # pipefail keeps pytest's exit code; without it tee's exit 0 hid every failure.
         set -o pipefail
