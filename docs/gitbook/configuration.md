@@ -26,7 +26,7 @@ If your backend already holds a short-lived token, pass it as `access_token=` in
 | `EYEPOP_SECRET_KEY` | Secret key authentication, which works with named Pops. `EYEPOP_API_KEY` does not, and has to be unset — the SDK reads both, and a named Pop with an API key present raises `EYEPOP_API_KEY can only be used with transient pops`. |
 | `EYEPOP_POP_ID` | Named Pop to run. Defaults to `transient`. |
 | `EYEPOP_SESSION_UUID` | Attach to a persistent Deployment instead of creating a transient session. |
-| `EYEPOP_ACCOUNT_ID` | Required for some Data API calls. |
+| `EYEPOP_ACCOUNT_UUID` | Required for some Data API calls. `EYEPOP_ACCOUNT_ID` is still read when this is unset, with a `DeprecationWarning`. |
 | `EYEPOP_URL` | Override the API base URL. |
 | `EYEPOP_LOG_LEVEL` | Log verbosity for the `eyepop` logger tree. Unset, the SDK installs no handler of its own and its records fall through to your application's logging configuration. `eyepop.requests` stays at `WARNING` unless the level is `DEBUG`; `LOG_LEVEL` is accepted as a fallback. |
 

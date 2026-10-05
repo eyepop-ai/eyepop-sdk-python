@@ -1,5 +1,6 @@
 import logging
 import os
+import warnings
 
 from typing_extensions import deprecated
 
@@ -240,7 +241,12 @@ class EyePopSdk:
                     eyepop_url = "https://api.eyepop.ai"
 
         if account_id is None:
+            account_id = os.getenv("EYEPOP_ACCOUNT_UUID")
+        if account_id is None:
             account_id = os.getenv("EYEPOP_ACCOUNT_ID")
+            if account_id is not None:
+                warnings.warn("EYEPOP_ACCOUNT_ID is deprecated, use EYEPOP_ACCOUNT_UUID instead",
+                              DeprecationWarning, stacklevel=2)
 
         endpoint = DataEndpoint(
             secret_key=secret_key,

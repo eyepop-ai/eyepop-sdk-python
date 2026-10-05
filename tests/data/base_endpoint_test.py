@@ -28,7 +28,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         versions=[]
     )
 
-    env_var = ['EYEPOP_SECRET_KEY', 'EYEPOP_ACCOUNT_ID', 'EYEPOP_URL']
+    env_var = ['EYEPOP_SECRET_KEY', 'EYEPOP_ACCOUNT_UUID', 'EYEPOP_ACCOUNT_ID', 'EYEPOP_URL']
     for var in env_var:
         if var in os.environ:
             del os.environ[var]

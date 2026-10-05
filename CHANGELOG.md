@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `EyePopSdk.dataEndpoint()` reads the account from `EYEPOP_ACCOUNT_UUID`, the name every other EyePop tool uses. It used to read only `EYEPOP_ACCOUNT_ID`, so an environment set up for the CLI or the `eyepop-testing` fixtures gave the SDK no account.
+
+### Deprecated
+- `EYEPOP_ACCOUNT_ID`. It is still read when `EYEPOP_ACCOUNT_UUID` is unset, with a `DeprecationWarning`.
+
 ## [3.21.3] - 2026-09-15
 
 ### Changed
