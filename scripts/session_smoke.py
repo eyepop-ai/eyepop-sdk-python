@@ -191,6 +191,10 @@ def sdk_supports_session_name() -> bool:
     return "session_name" in inspect.signature(EyePopSdk.async_worker).parameters
 
 
+def sdk_supports_pop() -> bool:
+    return "pop" in inspect.signature(EyePopSdk.async_worker).parameters
+
+
 def async_worker_kwargs(args: argparse.Namespace, eyepop_url: str) -> tuple[dict[str, Any], bool]:
     kwargs: dict[str, Any] = {
         "pop_id": "transient",
@@ -200,7 +204,30 @@ def async_worker_kwargs(args: argparse.Namespace, eyepop_url: str) -> tuple[dict
     session_name_supported = sdk_supports_session_name()
     if args.session_name and session_name_supported:
         kwargs["session_name"] = args.session_name
+    # Opening with the pop creates the session in one request that carries the
+    # name too. Opening without it and calling set_pop() lets an SDK that does
+    # not keep a requested name attach to, and re-pop, another client's
+    # transient on a shared account.
+    if sdk_supports_pop():
+        kwargs["pop"] = build_pop(args)
     return kwargs, session_name_supported
+
+
+def endpoint_session_uuid(endpoint: Any) -> str:
+    return getattr(getattr(endpoint, "compute_ctx", None), "session_uuid", "") or ""
+
+
+async def list_session_uuids(api_key: str, eyepop_url: str) -> set[str]:
+    headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+    url = f"{eyepop_url.rstrip('/')}/v1/sessions"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            if response.status == 404:
+                return set()
+            response.raise_for_status()
+            body = await response.json()
+    sessions = body if isinstance(body, list) else [body] if isinstance(body, dict) else []
+    return {s["session_uuid"] for s in sessions if isinstance(s, dict) and s.get("session_uuid")}
 
 
 async def delete_transient_session(api_key: str, eyepop_url: str, session_uuid: str) -> dict[str, Any]:
@@ -220,7 +247,8 @@ async def delete_transient_session(api_key: str, eyepop_url: str, session_uuid: 
 
 async def run_smoke(args: argparse.Namespace, summary: dict[str, Any]) -> dict[str, Any]:
     eyepop_url = args.eyepop_url or ENV_URLS[args.environment]
-    session_uuid = ""
+    endpoint: Any = None
+    preexisting_session_uuids: set[str] = set()
     worker_kwargs: dict[str, Any] = {}
 
     try:
@@ -240,19 +268,22 @@ async def run_smoke(args: argparse.Namespace, summary: dict[str, Any]) -> dict[s
                 "session_name": args.session_name or "",
                 "session_name_supported": session_name_supported,
                 "session_name_applied": "session_name" in worker_kwargs,
+                "pop_at_open": "pop" in worker_kwargs,
             }
         )
+
+        # Test accounts are shared, so the run may end on a session another
+        # client owns. Only a session absent from this list is the run's own.
+        summary["phase"] = "session_snapshot"
+        preexisting_session_uuids = await list_session_uuids(api_key=args.api_key, eyepop_url=eyepop_url)
 
         summary["phase"] = "session_creation"
         async with EyePopSdk.async_worker(**worker_kwargs) as raw_endpoint:
             endpoint = cast(WorkerEndpoint, raw_endpoint)
-            compute_ctx = getattr(endpoint, "compute_ctx", None)
-            session_uuid = getattr(compute_ctx, "session_uuid", "") or ""
-            summary["session_uuid"] = session_uuid
-            summary["session_uuid_short"] = session_uuid[:8] if session_uuid else ""
 
-            summary["phase"] = "session_setup"
-            await endpoint.set_pop(build_pop(args))
+            if "pop" not in worker_kwargs:
+                summary["phase"] = "session_setup"
+                await endpoint.set_pop(build_pop(args))
 
             summary["phase"] = "prediction"
             job = await endpoint.upload(str(args.image))
@@ -283,7 +314,13 @@ async def run_smoke(args: argparse.Namespace, summary: dict[str, Any]) -> dict[s
     except Exception as exc:
         record_failure(summary, str(summary.get("phase", "harness")), f"{type(exc).__name__}: {exc}")
     finally:
-        if session_uuid and not args.no_cleanup:
+        # The session the run ended on, read last because set_pop() can move it.
+        session_uuid = endpoint_session_uuid(endpoint)
+        summary["session_uuid"] = session_uuid
+        summary["session_uuid_short"] = session_uuid[:8]
+        if session_uuid and session_uuid in preexisting_session_uuids:
+            summary["cleanup"] = {"ok": True, "result": "reused_not_deleted"}
+        elif session_uuid and not args.no_cleanup:
             try:
                 summary["cleanup"] = await delete_transient_session(
                     api_key=args.api_key,

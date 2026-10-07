@@ -79,6 +79,59 @@ class TestEndpointConnect(BaseEndpointTest):
         finally:
             await endpoint.disconnect()
 
+    @aioresponses()
+    async def test_named_compute_transient_set_pop_stays_on_its_own_session(
+        self, mock: aioresponses
+    ):
+        """The account already holds another client's transient; a named worker must not use it."""
+        session_name = "smoke-run-1"
+        pop = Pop(components=[])
+        owned_pipeline_id = "owned-pipeline"
+        own_session = {
+            "session_uuid": "own-session",
+            "session_name": "user-0wn5e55",
+            "display_name": session_name,
+            "session_endpoint": self.test_worker_url,
+            "access_token": self.test_access_token,
+            "session_status": "running",
+        }
+        post_bodies = []
+
+        def create_session(url, **kwargs) -> CallbackResult:
+            post_bodies.append(kwargs["json"])
+            pipelines = [{"pipeline_id": owned_pipeline_id}] if "pop" in kwargs["json"] else []
+            return CallbackResult(status=200, body=json.dumps([{**own_session, "pipelines": pipelines}]))
+
+        mock.get("https://compute.eyepop.ai/v1/sessions", status=200, body=json.dumps([{
+            "session_uuid": "other-client-session",
+            "session_name": "user-0ther111",
+            "display_name": "teaching-chow",
+            "session_endpoint": "http://other-client.test",
+            "access_token": self.test_access_token,
+            "session_status": "running",
+        }]))
+        mock.post("https://compute.eyepop.ai/v1/sessions?wait=true", callback=create_session)
+        mock.post("https://compute.eyepop.ai/v1/sessions?wait=true&transient=true", callback=create_session)
+        for session_endpoint in (self.test_worker_url, "http://other-client.test"):
+            mock.get(f"{session_endpoint}/health", status=200, body=json.dumps({"message": "ok"}), repeat=True)
+        mock.delete(f"{self.test_worker_url}/pipelines/{owned_pipeline_id}", status=204)
+
+        endpoint = EyePopSdk.async_worker(
+            eyepop_url="https://compute.eyepop.ai",
+            api_key="test-api-key",
+            pop_id="transient",
+            session_name=session_name,
+        )
+        try:
+            await endpoint.connect()
+            self.assertEqual(endpoint.compute_ctx.session_uuid, "own-session")
+            await endpoint.set_pop(pop)
+            self.assertEqual(endpoint.compute_ctx.session_uuid, "own-session")
+            self.assertEqual(endpoint.compute_ctx.session_name, session_name)
+            self.assertEqual([body["session_name"] for body in post_bodies], [session_name, session_name])
+        finally:
+            await endpoint.disconnect()
+
     def test_local_mode_reaches_endpoint(self):
         endpoint = EyePopSdk.async_worker(is_local_mode=True, pop=Pop(components=[]))
 

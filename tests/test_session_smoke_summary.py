@@ -70,23 +70,61 @@ class EmptyJob:
         return None
 
 
+class PersonJob:
+    def __init__(self) -> None:
+        self.results = [{"objects": [{"classLabel": "person", "confidence": 0.9}]}]
+
+    async def predict(self) -> dict[str, Any] | None:
+        return self.results.pop() if self.results else None
+
+
 class Endpoint:
-    def __init__(self, session_uuid: str = "session-12345678", upload_error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        session_uuid: str = "session-12345678",
+        upload_error: Exception | None = None,
+        set_pop_session_uuid: str | None = None,
+        job: Any = None,
+    ) -> None:
         self.compute_ctx = SimpleNamespace(session_uuid=session_uuid)
         self.upload_error = upload_error
+        self.set_pop_session_uuid = set_pop_session_uuid
+        self.set_pop_calls = 0
+        self.job = job or EmptyJob()
 
     async def set_pop(self, _: Any) -> None:
-        return None
+        self.set_pop_calls += 1
+        if self.set_pop_session_uuid:
+            self.compute_ctx.session_uuid = self.set_pop_session_uuid
 
-    async def upload(self, _: str) -> EmptyJob:
+    async def upload(self, _: str) -> Any:
         if self.upload_error:
             raise self.upload_error
-        return EmptyJob()
+        return self.job
 
 
 @asynccontextmanager
 async def worker(endpoint: Endpoint) -> AsyncIterator[Endpoint]:
     yield endpoint
+
+
+@pytest.fixture(autouse=True)
+def no_preexisting_sessions(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def list_session_uuids(**_: str) -> set[str]:
+        return set()
+
+    monkeypatch.setattr(session_smoke, "list_session_uuids", list_session_uuids)
+
+
+def record_deletes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    deleted: list[str] = []
+
+    async def delete_session(**kwargs: str) -> dict[str, Any]:
+        deleted.append(kwargs["session_uuid"])
+        return {"ok": True, "result": "deleted"}
+
+    monkeypatch.setattr(session_smoke, "delete_transient_session", delete_session)
+    return deleted
 
 
 @pytest.mark.parametrize(
@@ -199,3 +237,111 @@ async def test_cleanup_failure_does_not_replace_primary_assertion(
     assert result["error"]
     assert result["cleanup"]["result"] == "error"
     assert result["cleanup"]["error"]
+
+
+@pytest.mark.asyncio
+async def test_cleanup_deletes_the_session_set_pop_ended_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image = tmp_path / "image.jpg"
+    image.write_bytes(b"image")
+    endpoint = Endpoint(session_uuid="attached-1", set_pop_session_uuid="own-session-2", job=PersonJob())
+    monkeypatch.setattr(session_smoke.EyePopSdk, "async_worker", lambda **_: worker(endpoint))
+    deleted = record_deletes(monkeypatch)
+    summary = new_summary(environment="production", requested_sdk_version="latest")
+
+    result = await session_smoke.run_smoke(smoke_args(image), summary)
+    finalize_summary(result, time.monotonic() - 1)
+
+    assert endpoint.set_pop_calls == 1
+    assert deleted == ["own-session-2"]
+    assert result["session_uuid"] == "own-session-2"
+    assert result["ok"]
+
+
+@pytest.mark.asyncio
+async def test_cleanup_leaves_a_session_that_existed_before_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image = tmp_path / "image.jpg"
+    image.write_bytes(b"image")
+    monkeypatch.setattr(
+        session_smoke.EyePopSdk, "async_worker", lambda **_: worker(Endpoint(job=PersonJob()))
+    )
+
+    async def list_session_uuids(**_: str) -> set[str]:
+        return {"session-12345678"}
+
+    monkeypatch.setattr(session_smoke, "list_session_uuids", list_session_uuids)
+    deleted = record_deletes(monkeypatch)
+    summary = new_summary(environment="production", requested_sdk_version="latest")
+
+    result = await session_smoke.run_smoke(smoke_args(image), summary)
+    finalize_summary(result, time.monotonic() - 1)
+
+    assert deleted == []
+    assert result["session_uuid"] == "session-12345678"
+    assert result["cleanup"] == {"ok": True, "result": "reused_not_deleted"}
+    assert result["ok"]
+
+
+@pytest.mark.asyncio
+async def test_worker_opens_with_pop_and_name_when_the_sdk_takes_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image = tmp_path / "image.jpg"
+    image.write_bytes(b"image")
+    endpoint = Endpoint(job=PersonJob())
+    opened_with: dict[str, Any] = {}
+
+    def async_worker(
+        pop_id: str | None = None,
+        api_key: str | None = None,
+        eyepop_url: str | None = None,
+        session_name: str | None = None,
+        pop: Any = None,
+    ) -> Any:
+        opened_with.update(session_name=session_name, pop=pop)
+        return worker(endpoint)
+
+    monkeypatch.setattr(session_smoke.EyePopSdk, "async_worker", async_worker)
+    deleted = record_deletes(monkeypatch)
+    summary = new_summary(environment="production", requested_sdk_version="latest")
+
+    result = await session_smoke.run_smoke(smoke_args(image), summary)
+    finalize_summary(result, time.monotonic() - 1)
+
+    assert opened_with["session_name"] == "smoke-test"
+    assert opened_with["pop"] is not None
+    assert endpoint.set_pop_calls == 0
+    assert result["pop_at_open"]
+    assert deleted == ["session-12345678"]
+    assert result["ok"]
+
+
+@pytest.mark.asyncio
+async def test_session_snapshot_failure_opens_no_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image = tmp_path / "image.jpg"
+    image.write_bytes(b"image")
+    opened: list[bool] = []
+
+    def async_worker(**_: Any) -> Any:
+        opened.append(True)
+        return worker(Endpoint())
+
+    async def list_session_uuids(**_: str) -> set[str]:
+        raise RuntimeError("sessions API unavailable")
+
+    monkeypatch.setattr(session_smoke.EyePopSdk, "async_worker", async_worker)
+    monkeypatch.setattr(session_smoke, "list_session_uuids", list_session_uuids)
+    summary = new_summary(environment="production", requested_sdk_version="latest")
+
+    result = await session_smoke.run_smoke(smoke_args(image), summary)
+    finalize_summary(result, time.monotonic() - 1)
+
+    assert opened == []
+    assert result["phase"] == "session_snapshot"
+    assert result["failure_kind"] == "infrastructure"
+    assert result["cleanup"] == {"ok": True, "result": "not_required"}
