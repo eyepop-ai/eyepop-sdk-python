@@ -8,11 +8,6 @@ class ComputeApiPipelineStatus(BaseModel):
     reason: str = Field(description="The reason for the status")
 
 
-class ComputeApiSessionRequest(BaseModel):
-    account_uuid: str = Field(description="Required account uuid to create a session")
-    session_name: str = Field(description="Optional name to create a session", default="")
-
-
 class ComputeApiSessionResponse(BaseModel):
     session_uuid: str = Field(description="The related session uuid for this session")
     session_endpoint: str = Field(description="The related session url for this session")
@@ -37,6 +32,7 @@ class ComputeApiSessionResponse(BaseModel):
     session_message: str = Field(description="The message of the session", default="")
     session_name: str = Field(description="The name of the session", default="")
     user_uuid: str = Field(description="The UUID of the user", default="")
+    account_uuid: str = Field(description="The UUID of the account the session runs for", default="")
     created_at: str = Field(description="ISO timestamp when session was created", default="")
     uptime: int = Field(description="Session uptime in nanoseconds", default=0)
     compute_resources: dict = Field(

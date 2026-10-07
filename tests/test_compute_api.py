@@ -421,6 +421,146 @@ async def test_creates_session_with_session_name(aioresponses):
 
 
 @pytest.mark.asyncio
+async def test_creates_session_with_account_uuid(aioresponses):
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        account_uuid="account-789",
+        session_name="sessions-smoke-123",
+    )
+    captured_body = {}
+
+    def create_session(url, **kwargs) -> CallbackResult:
+        captured_body.update(kwargs["json"])
+        return CallbackResult(status=200, body=json.dumps(MOCK_SESSION_RESPONSE))
+
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[],
+        status=200,
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        callback=create_session,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(ctx, session)
+
+    assert captured_body == {"account_uuid": "account-789", "session_name": "sessions-smoke-123"}
+    assert result.session_uuid == "session-456"
+
+
+@pytest.mark.asyncio
+async def test_creates_session_without_account_uuid_when_unset(aioresponses):
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        account_uuid=None,
+        session_name="sessions-smoke-123",
+    )
+    captured_body = {}
+
+    def create_session(url, **kwargs) -> CallbackResult:
+        captured_body.update(kwargs["json"])
+        return CallbackResult(status=200, body=json.dumps(MOCK_SESSION_RESPONSE))
+
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[],
+        status=200,
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        callback=create_session,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        await fetch_new_compute_session(ctx, session)
+
+    assert "account_uuid" not in captured_body
+    assert captured_body == {"session_name": "sessions-smoke-123"}
+
+
+@pytest.mark.asyncio
+async def test_account_caller_reuses_only_a_transient_of_its_account(aioresponses):
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        account_uuid="account-789",
+    )
+    other_account = {**EPHEMERAL_SESSION_RESPONSE, "session_uuid": "other-1", "account_uuid": "account-000"}
+    no_account = {**EPHEMERAL_SESSION_RESPONSE, "session_uuid": "unknown-2"}
+    own_account = {**EPHEMERAL_SESSION_RESPONSE, "session_uuid": "own-3", "account_uuid": "account-789"}
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[other_account, no_account, own_account],
+        status=200,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(ctx, session)
+
+    assert result.session_uuid == "own-3"
+
+
+@pytest.mark.asyncio
+async def test_account_caller_creates_session_when_only_other_accounts_exist(aioresponses):
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        account_uuid="account-789",
+    )
+    captured_body = {}
+
+    def create_session(url, **kwargs) -> CallbackResult:
+        captured_body.update(kwargs["json"])
+        return CallbackResult(status=200, body=json.dumps(
+            {**MOCK_SESSION_RESPONSE, "session_uuid": "new-4", "account_uuid": "account-789"}
+        ))
+
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[{**EPHEMERAL_SESSION_RESPONSE, "account_uuid": "account-000"}],
+        status=200,
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        callback=create_session,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(ctx, session)
+
+    assert captured_body == {"account_uuid": "account-789"}
+    assert result.session_uuid == "new-4"
+
+
+@pytest.mark.asyncio
+async def test_raises_with_server_reason_when_account_uuid_is_required(mock_compute_config, aioresponses):
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[],
+        status=200
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        status=400,
+        payload={"error": {
+            "code": "VAL_001",
+            "type": "validation",
+            "message": "account_uuid is required: it could not be derived from the caller's credential",
+        }},
+    )
+
+    async with aiohttp.ClientSession() as session:
+        with pytest.raises(ComputeSessionException, match="account_uuid is required") as excinfo:
+            await fetch_new_compute_session(mock_compute_config, session)
+
+    assert "HTTP 400" in str(excinfo.value)
+
+
+@pytest.mark.asyncio
 async def test_creates_session_without_pipeline_image(aioresponses):
     """Test that no body is sent when pipeline_image is not set."""
     ctx = ComputeContext(

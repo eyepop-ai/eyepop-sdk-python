@@ -39,7 +39,7 @@ The SDK reads `EYEPOP_API_KEY` from the environment automatically. Other env var
 |----------|----------|-------------|
 | `EYEPOP_API_KEY` | Yes | API key from dashboard.eyepop.ai |
 | `EYEPOP_POP_ID` | No | Pop Id from dashboard. Defaults to `"transient"` |
-| `EYEPOP_ACCOUNT_UUID` | For Data API | Account UUID for `EyePopSdk.dataEndpoint()`. `EYEPOP_ACCOUNT_ID` is still read, deprecated |
+| `EYEPOP_ACCOUNT_UUID` | For Data API; workers when the key names no account | Account UUID for `EyePopSdk.dataEndpoint()` and for the compute session a worker opens (`account_id=` on either). `EYEPOP_ACCOUNT_ID` is still read, deprecated |
 | `EYEPOP_URL` | For staging | Compute API URL. Defaults to `https://compute.eyepop.ai` (production). Set to `https://compute.staging.eyepop.xyz` for staging. |
 
 **Important:** `EYEPOP_SECRET_KEY` is deprecated and should NOT be used in any code or documentation.

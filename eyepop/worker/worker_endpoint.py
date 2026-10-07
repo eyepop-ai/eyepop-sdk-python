@@ -69,6 +69,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             pipeline_version: str | None = None,
             session_name: str | None = None,
             pop: Pop | dict[str, Any] | None = None,
+            account_id: str | None = None,
             is_local_mode: bool = False
     ):
         super().__init__(
@@ -94,6 +95,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.compute_ctx.pipeline_version = pipeline_version
             if session_name:
                 self.compute_ctx.session_name = session_name
+            if account_id:
+                self.compute_ctx.account_uuid = account_id
             self.compute_ctx.pop = self.pop.model_dump() if self.pop is not None else None
             self.is_dev_mode = not bool(session_uuid)
         else:

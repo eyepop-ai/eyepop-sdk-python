@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from eyepop.settings import settings
+from eyepop.settings import account_uuid_from_env, settings
 
 
 class ComputeContext(BaseModel):
@@ -21,6 +21,10 @@ class ComputeContext(BaseModel):
     session_name: str = Field(
         description="The requested name of the session",
         default_factory=lambda: os.getenv("EYEPOP_SESSION_NAME", "")
+    )
+    account_uuid: str | None = Field(
+        description="The account the session runs for; required when the credential does not name one",
+        default_factory=account_uuid_from_env
     )
     pipeline_uuid: str = Field(description="The uuid of the pipeline", default="")
     pipeline_id: str = Field(description="The id of the pipeline", default="")
