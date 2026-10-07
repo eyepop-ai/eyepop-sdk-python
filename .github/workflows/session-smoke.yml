@@ -2,8 +2,9 @@ name: Sessions Smoke
 
 on:
   schedule:
-    # Run hourly at minute 30.
-    - cron: "30 * * * *"
+    # Run at 10:00 and 21:00 Pacific against production with the latest released SDK.
+    - cron: "0 10,21 * * *"
+      timezone: "America/Los_Angeles"
   workflow_dispatch:
     inputs:
       environment:
@@ -177,8 +178,8 @@ jobs:
           set -euo pipefail
 
           if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
-            echo "SLACK_WEBHOOK_URL not set; skipping Slack notification"
-            exit 0
+            echo "::error::SLACK_WEBHOOK_URL is not set; no Slack alert was sent for this failure"
+            exit 1
           fi
 
           session_uuid="n/a"
@@ -281,6 +282,73 @@ jobs:
               -H "Content-Type: application/json" \
               --data @slack-payload.json \
               "$SLACK_WEBHOOK_URL"; then
+              exit 0
+            fi
+
+            if [[ "$attempt" == "3" ]]; then
+              exit 1
+            fi
+
+            sleep $((attempt * 5))
+          done
+
+      - name: Notify Discord
+        if: ${{ failure() }}
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # Alerts stay off until the repo has a DISCORD_WEBHOOK_URL secret.
+          if [[ -z "${DISCORD_WEBHOOK_URL:-}" ]]; then
+            echo "::notice::DISCORD_WEBHOOK_URL is not set; Discord alert skipped"
+            exit 0
+          fi
+
+          summary='{}'
+          if [[ -f "$SUMMARY_JSON" ]] && jq -e . "$SUMMARY_JSON" >/dev/null 2>&1; then
+            summary="$(cat "$SUMMARY_JSON")"
+          fi
+
+          # Discord rejects an empty embed field and caps a value at 1024 characters.
+          jq -n \
+            --argjson s "$summary" \
+            --arg environment "$SMOKE_ENVIRONMENT" \
+            --arg requested_sdk "$SDK_VERSION" \
+            --arg run_url "$RUN_URL" \
+            '
+            def text: if . == null or . == "" then "n/a" else tostring end;
+            def field($name; value): {name: $name, value: (value | text | .[0:1024]), inline: true};
+            def capitalize: (.[0:1] | ascii_upcase) + .[1:];
+            ($s.phase // "harness") as $phase
+            | ($s.failure_kind // "harness") as $kind
+            | (if ($s.error // "") != "" then $s.error else ($kind | capitalize) + " failure during " + $phase + "." end) as $reason
+            | {
+                embeds: [{
+                  title: (($environment | capitalize) + " Python SDK sessions smoke failed"),
+                  url: $run_url,
+                  color: 15548997,
+                  description: ("**Reason:** " + $reason)[0:4096],
+                  fields: [
+                    field("Environment"; $environment),
+                    field("SDK"; ($s.sdk_version | text) + " (requested: " + $requested_sdk + ")"),
+                    field("Failure"; $kind + " / " + $phase),
+                    field("Session name"; $s.session_name),
+                    field("Session"; $s.session_uuid_short),
+                    field("Predictions"; $s.prediction_count),
+                    field("Matching objects"; $s.matching_object_count),
+                    field("Cleanup"; $s.cleanup.result),
+                    field("Duration"; $s.duration_seconds | if type == "number" then "\(.)s" else null end)
+                  ]
+                }]
+              }' > discord-payload.json
+
+          for attempt in 1 2 3; do
+            if curl --fail-with-body -sS -X POST \
+              -H "Content-Type: application/json" \
+              --data @discord-payload.json \
+              "$DISCORD_WEBHOOK_URL"; then
               exit 0
             fi
 

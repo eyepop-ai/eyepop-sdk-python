@@ -10,7 +10,9 @@ and Data (datasets / VLM / evaluation) APIs. Runs on `uv`, Python ≥ 3.12.
 - Typecheck gate is **basedpyright**, not mypy — despite a `[tool.mypy]` block + mypy in dev deps. Fixing
   types against mypy won't match CI.
 - Integration tests hit **real EyePop endpoints** and are skipped by default (`addopts = --ignore=tests/integration`,
-  and each needs `EYEPOP_API_KEY`). They run nightly or manually (`uv run pytest tests/integration/ --timeout=300`).
+  and each needs `EYEPOP_API_KEY`). CI runs them against staging on PRs that touch
+  the SDK; run them manually with `uv run pytest tests/integration/ --timeout=300`. Production is covered by
+  `session-smoke.yml` (10:00 and 21:00 Pacific, latest PyPI release, Slack and Discord alerts on failure).
 - Version is git-derived (`setuptools_scm`) — building from a worktree/shallow clone misversions; publish asserts
   `eyepop.__version__ == release tag` with `fetch-depth: 0`.
 - Auth env is layered: `EYEPOP_API_KEY` (or `EYEPOP_ACCESS_TOKEN`); `EYEPOP_ACCOUNT_ID` required for the Data API;
