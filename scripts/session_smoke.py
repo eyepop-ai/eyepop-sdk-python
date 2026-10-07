@@ -5,6 +5,7 @@ import asyncio
 import inspect
 import json
 import os
+import secrets
 import sys
 import time
 from pathlib import Path
@@ -50,7 +51,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--session-name",
         default=os.getenv("EYEPOP_SESSION_NAME"),
-        help="Optional transient session name for run correlation.",
+        help="Transient session name. Defaults to EYEPOP_SESSION_NAME, then to a generated unique name.",
     )
     parser.add_argument(
         "--image",
@@ -191,6 +192,10 @@ def sdk_supports_session_name() -> bool:
     return "session_name" in inspect.signature(EyePopSdk.async_worker).parameters
 
 
+def default_session_name() -> str:
+    return f"sdk-python-smoke-{time.strftime('%Y%m%dt%H%M%S', time.gmtime())}-{secrets.token_hex(3)}"
+
+
 def sdk_supports_pop() -> bool:
     return "pop" in inspect.signature(EyePopSdk.async_worker).parameters
 
@@ -254,6 +259,10 @@ async def run_smoke(args: argparse.Namespace, summary: dict[str, Any]) -> dict[s
     try:
         summary["phase"] = "validation"
         require_inputs(args)
+        # Unnamed, the sessions API hands the run whatever transient session
+        # the account already holds, which may be another client's.
+        if not args.session_name:
+            args.session_name = default_session_name()
         worker_kwargs, session_name_supported = async_worker_kwargs(args, eyepop_url)
         summary.update(
             {
