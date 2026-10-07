@@ -18,9 +18,11 @@ on:
         default: latest
         type: string
 
+# Shared with the staging integration workflow: one test account, one transient
+# session, so runs against an environment queue rather than overlap.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
-  cancel-in-progress: true
+  group: eyepop-session-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
