@@ -294,10 +294,10 @@ async def run_smoke(args: argparse.Namespace, summary: dict[str, Any]) -> dict[s
     session_uuids: list[str] = []
     preexisting: set[str] | None = None
     listing_error = ""
-    endpoint: WorkerEndpoint | None = None
+    opened_endpoint: WorkerEndpoint | None = None
     worker_kwargs: dict[str, Any] = {}
 
-    def note_session() -> None:
+    def note_session(endpoint: WorkerEndpoint | None) -> None:
         session_uuid = getattr(getattr(endpoint, "compute_ctx", None), "session_uuid", "") or ""
         if session_uuid and session_uuid not in session_uuids:
             session_uuids.append(session_uuid)
@@ -333,7 +333,8 @@ async def run_smoke(args: argparse.Namespace, summary: dict[str, Any]) -> dict[s
         summary["phase"] = "session_creation"
         async with EyePopSdk.async_worker(**worker_kwargs) as raw_endpoint:
             endpoint = cast(WorkerEndpoint, raw_endpoint)
-            note_session()
+            opened_endpoint = endpoint
+            note_session(endpoint)
             session_uuid = session_uuids[0] if session_uuids else ""
             summary["session_uuid"] = session_uuid
             summary["session_uuid_short"] = session_uuid[:8] if session_uuid else ""
@@ -341,7 +342,7 @@ async def run_smoke(args: argparse.Namespace, summary: dict[str, Any]) -> dict[s
             summary["phase"] = "session_setup"
             await endpoint.set_pop(build_pop(args))
             # set_pop on a transient endpoint can move it to another session.
-            note_session()
+            note_session(endpoint)
 
             summary["phase"] = "prediction"
             job = await endpoint.upload(str(args.image))
@@ -372,7 +373,7 @@ async def run_smoke(args: argparse.Namespace, summary: dict[str, Any]) -> dict[s
     except Exception as exc:
         record_failure(summary, str(summary.get("phase", "harness")), f"{type(exc).__name__}: {exc}")
     finally:
-        note_session()
+        note_session(opened_endpoint)
         summary["session_uuids"] = session_uuids
         if session_uuids and not args.no_cleanup:
             summary["cleanup"] = await cleanup_sessions(
