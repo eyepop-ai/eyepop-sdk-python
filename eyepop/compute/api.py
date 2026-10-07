@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Any
 
 import aiohttp
@@ -68,11 +69,20 @@ async def fetch_new_compute_session(
                     if not res:
                         need_new_session = True
                     elif isinstance(res, list):
-                        res = [s for s in res if isinstance(s, dict) and not s.get("persistent")]
+                        res = [
+                            s for s in res
+                            if isinstance(s, dict)
+                            and not s.get("persistent")
+                            and _matches_requested_name(s, compute_ctx.session_name)
+                        ]
                         if not res:
                             need_new_session = True
                     elif isinstance(res, dict):
-                        if not res.get("session_uuid") or res.get("persistent"):
+                        if (
+                            not res.get("session_uuid")
+                            or res.get("persistent")
+                            or not _matches_requested_name(res, compute_ctx.session_name)
+                        ):
                             need_new_session = True
 
         except aiohttp.ClientResponseError as e:
@@ -128,6 +138,29 @@ async def fetch_new_compute_session(
     return compute_ctx
 
 
+_MAX_SESSION_NAME_LENGTH = 63
+
+
+def _sanitize_session_name(name: str) -> str:
+    """Mirror compute-api's SanitizeDisplayName, which stores a requested name this way."""
+    sanitized = name.strip().lower().replace(" ", "-").replace("_", "-")
+    sanitized = re.sub(r"[^a-z0-9-]", "", sanitized).strip("-")
+    sanitized = re.sub(r"-{2,}", "-", sanitized)
+    return sanitized[:_MAX_SESSION_NAME_LENGTH].rstrip("-")
+
+
+def _matches_requested_name(session: dict, requested_name: str) -> bool:
+    """Whether an existing session was created under the caller's requested name.
+
+    The user's transient sessions are shared by every client on the same user, so a
+    named caller adopts only a session carrying its name. An unnamed caller adopts any.
+    """
+    if not requested_name:
+        return True
+    names = {session.get("session_name") or "", session.get("display_name") or ""} - {""}
+    return requested_name in names or _sanitize_session_name(requested_name) in names
+
+
 def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None | Any):
     try:
         session_response = TypeAdapter(ComputeApiSessionResponse).validate_python(res)
@@ -136,7 +169,9 @@ def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None
 
     compute_ctx.session_endpoint = session_response.session_endpoint
     compute_ctx.session_uuid = session_response.session_uuid
-    if session_response.session_name:
+    # Keep a requested name. Later POSTs (set_pop) send it, and the server's name for
+    # an adopted session would address that session instead of this caller's own.
+    if session_response.session_name and not compute_ctx.session_name:
         compute_ctx.session_name = session_response.session_name
     compute_ctx.m2m_access_token = session_response.access_token
     compute_ctx.access_token_expires_at = session_response.access_token_expires_at

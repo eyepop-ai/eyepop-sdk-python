@@ -71,12 +71,20 @@ class EmptyJob:
 
 
 class Endpoint:
-    def __init__(self, session_uuid: str = "session-12345678", upload_error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        session_uuid: str = "session-12345678",
+        upload_error: Exception | None = None,
+        set_pop_session_uuid: str | None = None,
+    ) -> None:
         self.compute_ctx = SimpleNamespace(session_uuid=session_uuid)
         self.upload_error = upload_error
+        self.set_pop_session_uuid = set_pop_session_uuid
 
     async def set_pop(self, _: Any) -> None:
-        return None
+        # set_pop can move a transient endpoint to a different session.
+        if self.set_pop_session_uuid:
+            self.compute_ctx.session_uuid = self.set_pop_session_uuid
 
     async def upload(self, _: str) -> EmptyJob:
         if self.upload_error:
@@ -87,6 +95,25 @@ class Endpoint:
 @asynccontextmanager
 async def worker(endpoint: Endpoint) -> AsyncIterator[Endpoint]:
     yield endpoint
+
+
+@pytest.fixture(autouse=True)
+def no_preexisting_sessions(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def list_sessions(**_: str) -> set[str]:
+        return set()
+
+    monkeypatch.setattr(session_smoke, "list_session_uuids", list_sessions)
+
+
+def record_deletes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    deleted: list[str] = []
+
+    async def delete_session(**kwargs: str) -> dict[str, Any]:
+        deleted.append(kwargs["session_uuid"])
+        return {"ok": True, "result": "deleted"}
+
+    monkeypatch.setattr(session_smoke, "delete_transient_session", delete_session)
+    return deleted
 
 
 @pytest.mark.parametrize(
@@ -199,3 +226,87 @@ async def test_cleanup_failure_does_not_replace_primary_assertion(
     assert result["error"]
     assert result["cleanup"]["result"] == "error"
     assert result["cleanup"]["error"]
+
+
+@pytest.mark.asyncio
+async def test_session_that_existed_before_the_run_is_not_deleted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The fixture user's sessions are shared; one the run adopted belongs to another client."""
+    image = tmp_path / "image.jpg"
+    image.write_bytes(b"image")
+
+    async def list_sessions(**_: str) -> set[str]:
+        return {"session-12345678"}
+
+    monkeypatch.setattr(session_smoke, "list_session_uuids", list_sessions)
+    monkeypatch.setattr(session_smoke.EyePopSdk, "async_worker", lambda **_: worker(Endpoint()))
+    deleted = record_deletes(monkeypatch)
+    summary = new_summary(environment="production", requested_sdk_version="latest")
+
+    result = await session_smoke.run_smoke(smoke_args(image), summary)
+
+    assert deleted == []
+    assert result["preexisting_session_count"] == 1
+    assert result["cleanup"] == {"ok": True, "result": "reused", "session_uuid": "session-12345678"}
+
+
+@pytest.mark.asyncio
+async def test_deletes_every_session_the_run_created(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    image = tmp_path / "image.jpg"
+    image.write_bytes(b"image")
+    endpoint = Endpoint(set_pop_session_uuid="session-87654321")
+    monkeypatch.setattr(session_smoke.EyePopSdk, "async_worker", lambda **_: worker(endpoint))
+    deleted = record_deletes(monkeypatch)
+    summary = new_summary(environment="production", requested_sdk_version="latest")
+
+    result = await session_smoke.run_smoke(smoke_args(image), summary)
+
+    assert deleted == ["session-12345678", "session-87654321"]
+    assert result["session_uuids"] == ["session-12345678", "session-87654321"]
+    assert result["cleanup"]["ok"] is True
+    assert result["cleanup"]["result"] == "deleted"
+
+
+@pytest.mark.asyncio
+async def test_unlisted_sessions_are_never_deleted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without a pre-run listing the run cannot prove which session it created."""
+    image = tmp_path / "image.jpg"
+    image.write_bytes(b"image")
+
+    async def list_sessions(**_: str) -> set[str]:
+        raise RuntimeError("sessions list unavailable")
+
+    monkeypatch.setattr(session_smoke, "list_session_uuids", list_sessions)
+    monkeypatch.setattr(session_smoke.EyePopSdk, "async_worker", lambda **_: worker(Endpoint()))
+    deleted = record_deletes(monkeypatch)
+    summary = new_summary(environment="production", requested_sdk_version="latest")
+
+    result = await session_smoke.run_smoke(smoke_args(image), summary)
+
+    assert deleted == []
+    assert result["cleanup"]["ok"] is False
+    assert result["cleanup"]["result"] == "ownership_unverified"
+    assert result["cleanup"]["session_uuids"] == ["session-12345678"]
+
+
+@pytest.mark.asyncio
+async def test_opens_its_own_named_session_with_the_pop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Opening with the pop makes the SDK create a session instead of adopting the user's newest one."""
+    image = tmp_path / "image.jpg"
+    image.write_bytes(b"image")
+    opened: list[dict[str, Any]] = []
+
+    # Named parameters, as the real SDK declares them: the smoke detects support by signature.
+    def async_worker(*, session_name: str | None = None, pop: Any = None, **kwargs: Any) -> Any:
+        opened.append({**kwargs, "session_name": session_name, "pop": pop})
+        return worker(Endpoint())
+
+    monkeypatch.setattr(session_smoke.EyePopSdk, "async_worker", async_worker)
+    record_deletes(monkeypatch)
+    summary = new_summary(environment="production", requested_sdk_version="latest")
+
+    await session_smoke.run_smoke(smoke_args(image), summary)
+
+    assert opened[0]["session_name"] == "smoke-test"
+    assert opened[0]["pop"] is not None

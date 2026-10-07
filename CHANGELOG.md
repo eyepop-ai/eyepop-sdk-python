@@ -9,9 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `EyePopSdk.dataEndpoint()` reads the account from `EYEPOP_ACCOUNT_UUID`, the name every other EyePop tool uses. It used to read only `EYEPOP_ACCOUNT_ID`, so an environment set up for the CLI or the `eyepop-testing` fixtures gave the SDK no account.
+- A worker endpoint opened with `session_name` keeps that name in `compute_ctx.session_name`. It used to be replaced by the name compute-api gave the session (`eyepop-<x>-<uuid>`). An unnamed endpoint still takes the session's name as before.
 
 ### Deprecated
 - `EYEPOP_ACCOUNT_ID`. It is still read when `EYEPOP_ACCOUNT_UUID` is unset, with a `DeprecationWarning`.
+
+### Fixed
+- A worker endpoint opened with `session_name` no longer takes over another client's transient session. Every client signed in as the same user shares that user's transient sessions. An endpoint opened without a pop adopted the newest one whatever its name and then took that session's name, so a later `set_pop()` re-popped the other client's pipeline. A named endpoint now adopts only a session that carries its name, as given or in the sanitized form compute-api stores, and otherwise creates its own. An unnamed endpoint behaves as before.
+- `scripts/session_smoke.py` deletes only the sessions it created. It used to delete whatever session the endpoint was attached to, which on a fixture user shared with other CI could be another run's session. It now lists the user's sessions before the run, opens its own named session with the pop (a generated name when `--session-name` and `EYEPOP_SESSION_NAME` are unset), and records every session the endpoint used. At cleanup it deletes those that did not exist before the run and reports any others as `reused`. If the sessions could not be listed it deletes nothing and fails cleanup as `ownership_unverified`.
 
 ## [3.21.3] - 2026-09-15
 

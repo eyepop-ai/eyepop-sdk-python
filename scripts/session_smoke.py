@@ -5,6 +5,7 @@ import asyncio
 import inspect
 import json
 import os
+import secrets
 import sys
 import time
 from pathlib import Path
@@ -191,6 +192,10 @@ def sdk_supports_session_name() -> bool:
     return "session_name" in inspect.signature(EyePopSdk.async_worker).parameters
 
 
+def sdk_supports_pop() -> bool:
+    return "pop" in inspect.signature(EyePopSdk.async_worker).parameters
+
+
 def async_worker_kwargs(args: argparse.Namespace, eyepop_url: str) -> tuple[dict[str, Any], bool]:
     kwargs: dict[str, Any] = {
         "pop_id": "transient",
@@ -200,7 +205,73 @@ def async_worker_kwargs(args: argparse.Namespace, eyepop_url: str) -> tuple[dict
     session_name_supported = sdk_supports_session_name()
     if args.session_name and session_name_supported:
         kwargs["session_name"] = args.session_name
+    # Opening with the pop makes the SDK create a session. Without it, the SDK adopts
+    # the user's newest transient, which on a shared fixture user can be another
+    # client's session. Released SDKs this smoke installs still do that.
+    if sdk_supports_pop():
+        kwargs["pop"] = build_pop(args)
     return kwargs, session_name_supported
+
+
+def default_session_name() -> str:
+    return f"sdk-python-smoke-{time.strftime('%Y%m%dt%H%M%S', time.gmtime())}-{secrets.token_hex(3)}"
+
+
+async def list_session_uuids(api_key: str, eyepop_url: str) -> set[str]:
+    headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+    url = f"{eyepop_url.rstrip('/')}/v1/sessions"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            if response.status == 404:
+                return set()
+            response.raise_for_status()
+            body = await response.json()
+    sessions = body if isinstance(body, list) else [body] if isinstance(body, dict) else []
+    return {s["session_uuid"] for s in sessions if isinstance(s, dict) and s.get("session_uuid")}
+
+
+async def cleanup_sessions(
+    api_key: str,
+    eyepop_url: str,
+    session_uuids: list[str],
+    preexisting: set[str] | None,
+    listing_error: str,
+) -> dict[str, Any]:
+    """Delete the sessions this run created, and only those.
+
+    A fixture user's transient sessions are shared with every other client on that
+    user, so a session that existed before the run belongs to someone else.
+    """
+    if preexisting is None:
+        return {
+            "ok": False,
+            "result": "ownership_unverified",
+            "session_uuids": session_uuids,
+            "error": f"Sessions were not listed before the run, so none was deleted: {listing_error}",
+        }
+
+    results: list[dict[str, Any]] = []
+    for session_uuid in session_uuids:
+        if session_uuid in preexisting:
+            results.append({"ok": True, "result": "reused", "session_uuid": session_uuid})
+            continue
+        try:
+            results.append(
+                await delete_transient_session(api_key=api_key, eyepop_url=eyepop_url, session_uuid=session_uuid)
+            )
+        except Exception as exc:
+            results.append({"ok": False, "result": "error", "error": f"{type(exc).__name__}: {exc}"})
+
+    if len(results) == 1:
+        return results[0]
+    failed = [r for r in results if not r.get("ok")]
+    if failed:
+        result = failed[0].get("result", "error")
+    elif all(r["result"] == "reused" for r in results):
+        result = "reused"
+    else:
+        result = "deleted"
+    return {"ok": not failed, "result": result, "sessions": results}
 
 
 async def delete_transient_session(api_key: str, eyepop_url: str, session_uuid: str) -> dict[str, Any]:
@@ -220,12 +291,22 @@ async def delete_transient_session(api_key: str, eyepop_url: str, session_uuid: 
 
 async def run_smoke(args: argparse.Namespace, summary: dict[str, Any]) -> dict[str, Any]:
     eyepop_url = args.eyepop_url or ENV_URLS[args.environment]
-    session_uuid = ""
+    session_uuids: list[str] = []
+    preexisting: set[str] | None = None
+    listing_error = ""
+    endpoint: WorkerEndpoint | None = None
     worker_kwargs: dict[str, Any] = {}
+
+    def note_session() -> None:
+        session_uuid = getattr(getattr(endpoint, "compute_ctx", None), "session_uuid", "") or ""
+        if session_uuid and session_uuid not in session_uuids:
+            session_uuids.append(session_uuid)
 
     try:
         summary["phase"] = "validation"
         require_inputs(args)
+        if not args.session_name:
+            args.session_name = default_session_name()
         worker_kwargs, session_name_supported = async_worker_kwargs(args, eyepop_url)
         summary.update(
             {
@@ -243,16 +324,24 @@ async def run_smoke(args: argparse.Namespace, summary: dict[str, Any]) -> dict[s
             }
         )
 
+        try:
+            preexisting = await list_session_uuids(api_key=args.api_key, eyepop_url=eyepop_url)
+            summary["preexisting_session_count"] = len(preexisting)
+        except Exception as exc:
+            listing_error = f"{type(exc).__name__}: {exc}"
+
         summary["phase"] = "session_creation"
         async with EyePopSdk.async_worker(**worker_kwargs) as raw_endpoint:
             endpoint = cast(WorkerEndpoint, raw_endpoint)
-            compute_ctx = getattr(endpoint, "compute_ctx", None)
-            session_uuid = getattr(compute_ctx, "session_uuid", "") or ""
+            note_session()
+            session_uuid = session_uuids[0] if session_uuids else ""
             summary["session_uuid"] = session_uuid
             summary["session_uuid_short"] = session_uuid[:8] if session_uuid else ""
 
             summary["phase"] = "session_setup"
             await endpoint.set_pop(build_pop(args))
+            # set_pop on a transient endpoint can move it to another session.
+            note_session()
 
             summary["phase"] = "prediction"
             job = await endpoint.upload(str(args.image))
@@ -283,19 +372,16 @@ async def run_smoke(args: argparse.Namespace, summary: dict[str, Any]) -> dict[s
     except Exception as exc:
         record_failure(summary, str(summary.get("phase", "harness")), f"{type(exc).__name__}: {exc}")
     finally:
-        if session_uuid and not args.no_cleanup:
-            try:
-                summary["cleanup"] = await delete_transient_session(
-                    api_key=args.api_key,
-                    eyepop_url=eyepop_url,
-                    session_uuid=session_uuid,
-                )
-            except Exception as exc:
-                summary["cleanup"] = {
-                    "ok": False,
-                    "result": "error",
-                    "error": f"{type(exc).__name__}: {exc}",
-                }
+        note_session()
+        summary["session_uuids"] = session_uuids
+        if session_uuids and not args.no_cleanup:
+            summary["cleanup"] = await cleanup_sessions(
+                api_key=args.api_key,
+                eyepop_url=eyepop_url,
+                session_uuids=session_uuids,
+                preexisting=preexisting,
+                listing_error=listing_error,
+            )
         elif args.no_cleanup:
             summary["cleanup"] = {"ok": True, "result": "skipped"}
         else:

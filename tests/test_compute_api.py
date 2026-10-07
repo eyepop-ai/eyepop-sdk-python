@@ -411,7 +411,117 @@ async def test_creates_session_with_session_name(aioresponses):
         data=None,
         json={"session_name": "sessions-smoke-123"},
     )
-    assert result.session_name == "server-session-456"
+    # The requested name survives: a later POST (set_pop) must address this caller's
+    # session, not whatever session the server-side name belongs to.
+    assert result.session_name == "sessions-smoke-123"
+
+
+@pytest.mark.asyncio
+async def test_named_request_does_not_attach_to_another_clients_session(aioresponses):
+    """Another client's transient on the same user must not be adopted by a named caller."""
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        session_name="smoke-run-1",
+    )
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[{**EPHEMERAL_SESSION_RESPONSE, "session_name": "eyepop-b-other", "display_name": "node-run-7"}],
+        status=200,
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        payload={**MOCK_SESSION_RESPONSE, "session_uuid": "own-789", "session_name": "eyepop-b-own"},
+        status=200,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(ctx, session)
+
+    aioresponses.assert_called_with(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        method="POST",
+        headers={
+            "Authorization": "Bearer test-api-key",
+            "Accept": "application/json",
+        },
+        data=None,
+        json={"session_name": "smoke-run-1"},
+    )
+    assert result.session_uuid == "own-789"
+    assert result.session_name == "smoke-run-1"
+
+
+@pytest.mark.asyncio
+async def test_named_request_does_not_attach_to_single_dict_with_other_name(aioresponses):
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        session_name="smoke-run-1",
+    )
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload={**EPHEMERAL_SESSION_RESPONSE, "session_name": "eyepop-b-other"},
+        status=200,
+    )
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/sessions?wait=true",
+        payload={**MOCK_SESSION_RESPONSE, "session_uuid": "own-789"},
+        status=200,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(ctx, session)
+
+    assert result.session_uuid == "own-789"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("display_name", "smoke-run-1"),
+        ("session_name", "smoke-run-1"),
+        # compute-api stores the sanitized form of a requested name.
+        ("display_name", "my-smoke-run"),
+    ],
+)
+async def test_named_request_adopts_its_own_session(field, value, aioresponses):
+    requested = "smoke-run-1" if value == "smoke-run-1" else "My_Smoke Run"
+    ctx = ComputeContext(
+        compute_url="https://compute.staging.eyepop.xyz",
+        api_key="test-api-key",
+        session_name=requested,
+    )
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[
+            {**EPHEMERAL_SESSION_RESPONSE, "session_uuid": "other-1", "session_name": "eyepop-b-other"},
+            {**EPHEMERAL_SESSION_RESPONSE, "session_uuid": "own-2", field: value},
+        ],
+        status=200,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(ctx, session)
+
+    assert result.session_uuid == "own-2"
+    assert result.session_name == requested
+
+
+@pytest.mark.asyncio
+async def test_unnamed_request_still_adopts_existing_transient_and_its_name(mock_compute_config, aioresponses):
+    aioresponses.get(
+        "https://compute.staging.eyepop.xyz/v1/sessions",
+        payload=[{**EPHEMERAL_SESSION_RESPONSE, "session_name": "eyepop-b-existing"}],
+        status=200,
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await fetch_new_compute_session(mock_compute_config, session)
+
+    assert result.session_uuid == "ephemeral-456"
+    assert result.session_name == "eyepop-b-existing"
 
 
 @pytest.mark.asyncio

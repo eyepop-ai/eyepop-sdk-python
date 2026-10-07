@@ -36,6 +36,9 @@ class ComputeApiSessionResponse(BaseModel):
     )
     session_message: str = Field(description="The message of the session", default="")
     session_name: str = Field(description="The name of the session", default="")
+    display_name: str = Field(
+        description="The sanitized name the session was requested under", default=""
+    )
     user_uuid: str = Field(description="The UUID of the user", default="")
     created_at: str = Field(description="ISO timestamp when session was created", default="")
     uptime: int = Field(description="Session uptime in nanoseconds", default=0)
