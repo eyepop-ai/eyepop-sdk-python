@@ -21,7 +21,7 @@ def start_workflow(template_name: str, body: str | None) -> None:
     """Start a new workflow."""
     params = CreateWorkflowBody(**json.loads(body)) if body else None
     with EyePopSdk.dataEndpoint(
-        account_id=os.getenv("EYEPOP_ACCOUNT_ID"),
+        account_id=os.getenv("EYEPOP_ACCOUNT_UUID"),
         api_key=os.getenv("EYEPOP_API_KEY"),
         is_async=False
     ) as data_endpoint:
@@ -38,7 +38,7 @@ def start_workflow(template_name: str, body: str | None) -> None:
 def list_workflows(dataset_uuid: tuple[str, ...], model_uuid: tuple[str, ...], phase: tuple[str, ...]) -> None:
     """List workflows."""
     with EyePopSdk.dataEndpoint(
-        account_id=os.getenv("EYEPOP_ACCOUNT_ID"),
+        account_id=os.getenv("EYEPOP_ACCOUNT_UUID"),
         api_key=os.getenv("EYEPOP_API_KEY"),
         is_async=False
     ) as data_endpoint:
@@ -55,7 +55,7 @@ def list_workflows(dataset_uuid: tuple[str, ...], model_uuid: tuple[str, ...], p
 def get_workflow(workflow_id: str) -> None:
     """Get workflow details by ID."""
     with EyePopSdk.dataEndpoint(
-        account_id=os.getenv("EYEPOP_ACCOUNT_ID"),
+        account_id=os.getenv("EYEPOP_ACCOUNT_UUID"),
         api_key=os.getenv("EYEPOP_API_KEY"),
         is_async=False
     ) as data_endpoint:

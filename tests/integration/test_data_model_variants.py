@@ -1,6 +1,6 @@
 """Integration tests for model artifact variants (OPA-75 / OPA-69).
 
-Requires a staging EYEPOP_URL with EYEPOP_API_KEY and EYEPOP_ACCOUNT_ID; creates a
+Requires a staging EYEPOP_URL with EYEPOP_API_KEY and EYEPOP_ACCOUNT_UUID; creates a
 model on the integration account, uploads variant artifacts, and deletes the model.
 """
 import io
@@ -29,8 +29,9 @@ VARIANT_CC_87 = {'quantization': str(Quantization.int8), 'target_runtime': str(T
 
 def requires_data_api():
     return pytest.mark.skipif(
-        not os.getenv("EYEPOP_API_KEY") or not os.getenv("EYEPOP_ACCOUNT_ID"),
-        reason="EYEPOP_API_KEY and EYEPOP_ACCOUNT_ID environment variables not set",
+        not os.getenv("EYEPOP_API_KEY")
+        or not (os.getenv("EYEPOP_ACCOUNT_UUID") or os.getenv("EYEPOP_ACCOUNT_ID")),
+        reason="EYEPOP_API_KEY and EYEPOP_ACCOUNT_UUID environment variables not set",
     )
 
 

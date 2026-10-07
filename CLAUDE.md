@@ -15,7 +15,7 @@ and Data (datasets / VLM / evaluation) APIs. Runs on `uv`, Python ≥ 3.12.
   `session-smoke.yml` (10:00 and 21:00 Pacific, latest PyPI release, Slack and Discord alerts on failure).
 - Version is git-derived (`setuptools_scm`) — building from a worktree/shallow clone misversions; publish asserts
   `eyepop.__version__ == release tag` with `fetch-depth: 0`.
-- Auth env is layered: `EYEPOP_API_KEY` (or `EYEPOP_ACCESS_TOKEN`); `EYEPOP_ACCOUNT_ID` required for the Data API;
+- Auth env is layered: `EYEPOP_API_KEY` (or `EYEPOP_ACCESS_TOKEN`); `EYEPOP_ACCOUNT_UUID` required for the Data API (`EYEPOP_ACCOUNT_ID` is a deprecated fallback);
   `EYEPOP_URL` defaults to **production** — override for staging. `EYEPOP_SECRET_KEY` is deprecated. In the
   composable-pop API, `model=`/`modelUuid=` are deprecated (use `ability=`) and `set_pop()` takes only `Pop` objects.
 

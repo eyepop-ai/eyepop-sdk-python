@@ -41,7 +41,7 @@ Optional:
 | Variable | Description |
 |---|---|
 | `EYEPOP_POP_ID` | Named pop ID. Defaults to `transient`. |
-| `EYEPOP_ACCOUNT_ID` | Required for some Data API calls. |
+| `EYEPOP_ACCOUNT_UUID` | Required for some Data API calls. `EYEPOP_ACCOUNT_ID` is still read when this is unset, with a `DeprecationWarning`. |
 
 ## Usage
 

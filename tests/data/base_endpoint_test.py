@@ -2,7 +2,8 @@ import datetime
 import json
 import os
 import unittest
-from aioresponses import aioresponses, CallbackResult
+
+from aioresponses import CallbackResult, aioresponses
 
 from eyepop.data.data_types import Dataset
 
@@ -13,7 +14,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
     test_eyepop_secret_key = 'test secret key'
     test_expired_access_token = '... expired ...'
     test_access_token = '... an access token ...'
-    test_data_url = f'http://example-data.test'
+    test_data_url = 'http://example-data.test'
     test_dataset_id = 'test_dataset_id'
 
     test_dataset = Dataset(
@@ -28,7 +29,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         versions=[]
     )
 
-    env_var = ['EYEPOP_SECRET_KEY', 'EYEPOP_ACCOUNT_ID', 'EYEPOP_URL']
+    env_var = ['EYEPOP_SECRET_KEY', 'EYEPOP_ACCOUNT_UUID', 'EYEPOP_ACCOUNT_ID', 'EYEPOP_URL']
     for var in env_var:
         if var in os.environ:
             del os.environ[var]
