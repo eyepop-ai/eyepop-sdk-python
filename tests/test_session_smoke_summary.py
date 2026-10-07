@@ -320,6 +320,36 @@ async def test_worker_opens_with_pop_and_name_when_the_sdk_takes_them(
 
 
 @pytest.mark.asyncio
+async def test_unnamed_run_opens_a_generated_unique_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image = tmp_path / "image.jpg"
+    image.write_bytes(b"image")
+    names: list[str | None] = []
+
+    def async_worker(
+        pop_id: str | None = None,
+        api_key: str | None = None,
+        eyepop_url: str | None = None,
+        session_name: str | None = None,
+        pop: Any = None,
+    ) -> Any:
+        names.append(session_name)
+        return worker(Endpoint(job=PersonJob()))
+
+    monkeypatch.setattr(session_smoke.EyePopSdk, "async_worker", async_worker)
+    record_deletes(monkeypatch)
+
+    for _ in range(2):
+        summary = new_summary(environment="production", requested_sdk_version="latest")
+        result = await session_smoke.run_smoke(smoke_args(image, session_name=None), summary)
+        assert result["session_name"] == names[-1]
+
+    assert all(name and name.startswith("sdk-python-smoke-") for name in names)
+    assert names[0] != names[1]
+
+
+@pytest.mark.asyncio
 async def test_session_snapshot_failure_opens_no_worker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
