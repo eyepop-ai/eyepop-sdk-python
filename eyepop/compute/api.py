@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Any
 
 import aiohttp
@@ -11,6 +12,8 @@ from eyepop.compute.status import wait_for_session
 from eyepop.exceptions import ComputeSessionException, ComputeTokenException
 
 log = logging.getLogger("eyepop.compute")
+
+_MAX_SESSION_NAME_LENGTH = 63
 
 
 async def fetch_session_endpoint(
@@ -68,11 +71,14 @@ async def fetch_new_compute_session(
                     if not res:
                         need_new_session = True
                     elif isinstance(res, list):
-                        res = [s for s in res if isinstance(s, dict) and not s.get("persistent")]
+                        res = [
+                            s for s in res
+                            if isinstance(s, dict) and _can_attach(s, compute_ctx.session_name)
+                        ]
                         if not res:
                             need_new_session = True
                     elif isinstance(res, dict):
-                        if not res.get("session_uuid") or res.get("persistent"):
+                        if not res.get("session_uuid") or not _can_attach(res, compute_ctx.session_name):
                             need_new_session = True
 
         except aiohttp.ClientResponseError as e:
@@ -128,6 +134,30 @@ async def fetch_new_compute_session(
     return compute_ctx
 
 
+def _can_attach(session: dict, requested_name: str) -> bool:
+    """Whether a listed session may be reused for this caller.
+
+    Never a persistent session. With no requested name any transient will do;
+    with one, only a transient that answers to that name, as the sessions API
+    itself matches it: by display name or session name, as given or sanitized.
+    """
+    if session.get("persistent"):
+        return False
+    if not requested_name:
+        return True
+    names = {session.get("display_name"), session.get("session_name")}
+    sanitized = _sanitize_session_name(requested_name)
+    return requested_name in names or bool(sanitized and sanitized in names)
+
+
+def _sanitize_session_name(name: str) -> str:
+    """The display name the sessions API stores for a requested session name."""
+    s = name.strip().lower().replace(" ", "-").replace("_", "-")
+    s = re.sub(r"[^a-z0-9-]", "", s).strip("-")
+    s = re.sub(r"-{2,}", "-", s)
+    return s[:_MAX_SESSION_NAME_LENGTH].rstrip("-")
+
+
 def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None | Any):
     try:
         session_response = TypeAdapter(ComputeApiSessionResponse).validate_python(res)
@@ -136,7 +166,9 @@ def _compute_context_from_response(compute_ctx: ComputeContext, res: dict | None
 
     compute_ctx.session_endpoint = session_response.session_endpoint
     compute_ctx.session_uuid = session_response.session_uuid
-    if session_response.session_name:
+    # A requested name is what later requests must keep asking for. Only an
+    # unnamed caller takes the server's name, which pins it to this session.
+    if session_response.session_name and not compute_ctx.session_name:
         compute_ctx.session_name = session_response.session_name
     compute_ctx.m2m_access_token = session_response.access_token
     compute_ctx.access_token_expires_at = session_response.access_token_expires_at
