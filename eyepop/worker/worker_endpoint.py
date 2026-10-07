@@ -16,7 +16,7 @@ from eyepop.exceptions import (
     PopNotReachableException,
     PopNotStartedException,
 )
-from eyepop.settings import settings
+from eyepop.settings import account_uuid_from_env, settings
 from eyepop.worker.camera import Camera
 from eyepop.worker.load_balancer import EndpointLoadBalancer
 from eyepop.worker.worker_client_session import WorkerClientSession
@@ -69,8 +69,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             pipeline_version: str | None = None,
             session_name: str | None = None,
             pop: Pop | dict[str, Any] | None = None,
+            is_local_mode: bool = False,
             account_id: str | None = None,
-            is_local_mode: bool = False
     ):
         super().__init__(
             secret_key=secret_key,
@@ -95,8 +95,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.compute_ctx.pipeline_version = pipeline_version
             if session_name:
                 self.compute_ctx.session_name = session_name
-            if account_id:
-                self.compute_ctx.account_uuid = account_id
+            # The environment is read only when no account is named, so a deprecated
+            # EYEPOP_ACCOUNT_ID cannot warn (or, with warnings as errors, fail) for a
+            # caller who named one.
+            self.compute_ctx.account_uuid = account_id if account_id is not None else account_uuid_from_env()
             self.compute_ctx.pop = self.pop.model_dump() if self.pop is not None else None
             self.is_dev_mode = not bool(session_uuid)
         else:

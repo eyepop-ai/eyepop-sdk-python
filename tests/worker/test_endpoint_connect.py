@@ -1,8 +1,10 @@
 import asyncio
+import inspect
 import json
 import os
 import unittest
 import uuid
+import warnings
 from types import MethodType
 from unittest.mock import patch
 
@@ -81,6 +83,26 @@ class TestEndpointConnect(BaseEndpointTest):
 
         assert endpoint.compute_ctx is not None
         self.assertEqual(endpoint.compute_ctx.account_uuid, "arg-uuid")
+
+    def test_named_account_does_not_read_the_deprecated_env(self):
+        with patch.dict(os.environ, {"EYEPOP_ACCOUNT_ID": "env-id"}, clear=False):
+            os.environ.pop("EYEPOP_ACCOUNT_UUID", None)
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", DeprecationWarning)
+                endpoint = EyePopSdk.async_worker(
+                    eyepop_url="https://compute.eyepop.ai",
+                    api_key="test-api-key",
+                    pop_id="transient",
+                    account_id="arg-uuid",
+                )
+
+        assert endpoint.compute_ctx is not None
+        self.assertEqual(endpoint.compute_ctx.account_uuid, "arg-uuid")
+
+    def test_is_local_mode_keeps_its_positional_slot(self):
+        parameters = list(inspect.signature(WorkerEndpoint.__init__).parameters)
+        self.assertEqual(parameters.index("is_local_mode"), parameters.index("pop") + 1)
+        self.assertEqual(parameters[-1], "account_id")
 
     @aioresponses()
     async def test_compute_transient_connect_with_pop_uses_compute_created_pipeline(
