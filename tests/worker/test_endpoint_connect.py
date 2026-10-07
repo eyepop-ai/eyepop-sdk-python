@@ -1,8 +1,12 @@
 import asyncio
+import inspect
 import json
+import os
 import unittest
 import uuid
+import warnings
 from types import MethodType
+from unittest.mock import patch
 
 import aiohttp
 from aiohttp import ClientResponseError
@@ -31,6 +35,74 @@ class TestEndpointConnect(BaseEndpointTest):
 
         self.assertIsNotNone(endpoint.compute_ctx)
         self.assertEqual(endpoint.compute_ctx.session_name, "sessions-smoke-123")
+
+    def test_account_id_sets_compute_context(self):
+        endpoint = EyePopSdk.async_worker(
+            eyepop_url="https://compute.eyepop.ai",
+            api_key="test-api-key",
+            pop_id="transient",
+            account_id="account-789",
+        )
+
+        self.assertIsNotNone(endpoint.compute_ctx)
+        self.assertEqual(endpoint.compute_ctx.account_uuid, "account-789")
+
+    def test_account_uuid_env_sets_compute_context(self):
+        with patch.dict(os.environ, {"EYEPOP_ACCOUNT_UUID": "env-uuid"}, clear=False):
+            os.environ.pop("EYEPOP_ACCOUNT_ID", None)
+            endpoint = EyePopSdk.async_worker(
+                eyepop_url="https://compute.eyepop.ai",
+                api_key="test-api-key",
+                pop_id="transient",
+            )
+
+        assert endpoint.compute_ctx is not None
+        self.assertEqual(endpoint.compute_ctx.account_uuid, "env-uuid")
+
+    def test_deprecated_account_id_env_sets_compute_context(self):
+        with patch.dict(os.environ, {"EYEPOP_ACCOUNT_ID": "env-id"}, clear=False):
+            os.environ.pop("EYEPOP_ACCOUNT_UUID", None)
+            with self.assertWarnsRegex(DeprecationWarning, "EYEPOP_ACCOUNT_ID is deprecated"):
+                endpoint = EyePopSdk.async_worker(
+                    eyepop_url="https://compute.eyepop.ai",
+                    api_key="test-api-key",
+                    pop_id="transient",
+                )
+
+        assert endpoint.compute_ctx is not None
+        self.assertEqual(endpoint.compute_ctx.account_uuid, "env-id")
+
+    def test_account_id_argument_wins_over_env(self):
+        with patch.dict(os.environ, {"EYEPOP_ACCOUNT_UUID": "env-uuid"}, clear=False):
+            endpoint = EyePopSdk.async_worker(
+                eyepop_url="https://compute.eyepop.ai",
+                api_key="test-api-key",
+                pop_id="transient",
+                account_id="arg-uuid",
+            )
+
+        assert endpoint.compute_ctx is not None
+        self.assertEqual(endpoint.compute_ctx.account_uuid, "arg-uuid")
+
+    def test_named_account_does_not_read_the_deprecated_env(self):
+        with patch.dict(os.environ, {"EYEPOP_ACCOUNT_ID": "env-id"}, clear=False):
+            os.environ.pop("EYEPOP_ACCOUNT_UUID", None)
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", DeprecationWarning)
+                endpoint = EyePopSdk.async_worker(
+                    eyepop_url="https://compute.eyepop.ai",
+                    api_key="test-api-key",
+                    pop_id="transient",
+                    account_id="arg-uuid",
+                )
+
+        assert endpoint.compute_ctx is not None
+        self.assertEqual(endpoint.compute_ctx.account_uuid, "arg-uuid")
+
+    def test_is_local_mode_keeps_its_positional_slot(self):
+        parameters = list(inspect.signature(WorkerEndpoint.__init__).parameters)
+        self.assertEqual(parameters.index("is_local_mode"), parameters.index("pop") + 1)
+        self.assertEqual(parameters[-1], "account_id")
 
     @aioresponses()
     async def test_compute_transient_connect_with_pop_uses_compute_created_pipeline(

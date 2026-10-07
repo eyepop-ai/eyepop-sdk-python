@@ -73,12 +73,14 @@ async def fetch_new_compute_session(
                     elif isinstance(res, list):
                         res = [
                             s for s in res
-                            if isinstance(s, dict) and _can_attach(s, compute_ctx.session_name)
+                            if isinstance(s, dict) and _can_attach(s, compute_ctx.session_name, compute_ctx.account_uuid)
                         ]
                         if not res:
                             need_new_session = True
                     elif isinstance(res, dict):
-                        if not res.get("session_uuid") or not _can_attach(res, compute_ctx.session_name):
+                        if not res.get("session_uuid") or not _can_attach(
+                            res, compute_ctx.session_name, compute_ctx.account_uuid
+                        ):
                             need_new_session = True
 
         except aiohttp.ClientResponseError as e:
@@ -91,6 +93,8 @@ async def fetch_new_compute_session(
     if need_new_session:
         try:
             body = {}
+            if compute_ctx.account_uuid:
+                body["account_uuid"] = compute_ctx.account_uuid
             if compute_ctx.session_name:
                 body["session_name"] = compute_ctx.session_name
             if compute_ctx.pipeline_image:
@@ -109,9 +113,15 @@ async def fetch_new_compute_session(
                 headers=headers,
                 json=body if body else None,
             ) as post_response:
-                post_response.raise_for_status()
-                res = await post_response.json()
                 log.debug(f"POST /v1/sessions - status: {post_response.status}")
+                if post_response.status >= 400:
+                    reason = await _error_message(post_response)
+                    raise ComputeSessionException(
+                        f"Failed to create new session: HTTP {post_response.status} - {reason}",
+                    )
+                res = await post_response.json()
+        except ComputeSessionException:
+            raise
         except aiohttp.ClientResponseError as e:
             raise ComputeSessionException(
                 f"Failed to create new session: {e.message}",
@@ -134,14 +144,43 @@ async def fetch_new_compute_session(
     return compute_ctx
 
 
-def _can_attach(session: dict, requested_name: str) -> bool:
+async def _error_message(response: aiohttp.ClientResponse) -> str:
+    """The reason an error response gives, from its `error.message` when it has one.
+
+    The HTTP reason phrase alone hides why the compute API refused, for instance
+    that it could not derive account_uuid from the credential.
+    """
+    try:
+        text = await response.text()
+    except Exception:
+        return response.reason or ""
+    try:
+        payload = json.loads(text)
+    except ValueError:
+        return text or response.reason or ""
+    if isinstance(payload, dict):
+        error = payload.get("error")
+        if isinstance(error, dict) and error.get("message"):
+            return str(error["message"])
+        if isinstance(error, str) and error:
+            return error
+        if payload.get("message"):
+            return str(payload["message"])
+    return text or response.reason or ""
+
+
+def _can_attach(session: dict, requested_name: str, account_uuid: str | None = None) -> bool:
     """Whether a listed session may be reused for this caller.
 
-    Never a persistent session. With no requested name any transient will do;
-    with one, only a transient that answers to that name, as the sessions API
-    itself matches it: by display name or session name, as given or sanitized.
+    Never a persistent session, and with a requested account never a session
+    of another account, or one that does not say which it runs for. With no
+    requested name any transient will do; with one, only a transient that
+    answers to that name, as the sessions API itself matches it: by display
+    name or session name, as given or sanitized.
     """
     if session.get("persistent"):
+        return False
+    if account_uuid and session.get("account_uuid") != account_uuid:
         return False
     if not requested_name:
         return True

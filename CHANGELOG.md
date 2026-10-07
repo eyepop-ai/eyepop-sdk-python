@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `account_id` on `EyePopSdk.sync_worker()`, `EyePopSdk.async_worker()` and `EyePopSdk.workerEndpoint()`, read from `EYEPOP_ACCOUNT_UUID` (or the deprecated `EYEPOP_ACCOUNT_ID`) when not given - the same name and environment `dataEndpoint()` already uses (BUG-295). A worker sends it as `account_uuid` when it creates its compute session, and reuses only a transient session that runs for that account. The compute API is about to refuse `POST /v1/sessions` with HTTP 400 `VAL_001` when it cannot derive the account from the caller's credential, and until now a worker had no way to name one, so such a caller could not open a session at all. Unset, nothing changes: no `account_uuid` is sent and any transient session may be reused, as before.
+- A refused session create now reports the compute API's own reason, for instance `account_uuid is required: it could not be derived from the caller's credential`, in the `ComputeSessionException` it raises. It used to carry only the HTTP reason phrase, such as `Bad Request`, which said nothing about what to fix.
+
+### Removed
+- `eyepop.compute.responses.ComputeApiSessionRequest`, which nothing used and which declared `account_uuid` required when the compute API treats it as optional.
+
 ### Changed
 - `EyePopSdk.dataEndpoint()` reads the account from `EYEPOP_ACCOUNT_UUID`, the name every other EyePop tool uses. It used to read only `EYEPOP_ACCOUNT_ID`, so an environment set up for the CLI or the `eyepop-testing` fixtures gave the SDK no account.
 

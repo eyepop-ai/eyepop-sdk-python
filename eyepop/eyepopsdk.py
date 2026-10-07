@@ -1,12 +1,12 @@
 import logging
 import os
-import warnings
 
 from typing_extensions import deprecated
 
 from eyepop import __version__
 from eyepop.data.data_endpoint import DataEndpoint
 from eyepop.data.data_syncify import SyncDataEndpoint
+from eyepop.settings import account_uuid_from_env
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_syncify import SyncWorkerEndpoint
 from eyepop.worker.worker_types import Pop
@@ -37,6 +37,7 @@ class EyePopSdk:
             pipeline_version: str | None = None,
             session_name: str | None = None,
             pop: Pop | dict[str, object] | None = None,
+            account_id: str | None = None,
     ) -> WorkerEndpoint | SyncWorkerEndpoint:
         if is_async:
             return EyePopSdk.async_worker(
@@ -56,6 +57,7 @@ class EyePopSdk:
                 pipeline_version=pipeline_version,
                 session_name=session_name,
                 pop=pop,
+                account_id=account_id,
             )
         else:
             return EyePopSdk.sync_worker(
@@ -75,6 +77,7 @@ class EyePopSdk:
                 pipeline_version=pipeline_version,
                 session_name=session_name,
                 pop=pop,
+                account_id=account_id,
             )
 
     @staticmethod
@@ -95,6 +98,7 @@ class EyePopSdk:
             pipeline_version: str | None = None,
             session_name: str | None = None,
             pop: Pop | dict[str, object] | None = None,
+            account_id: str | None = None,
     ) -> SyncWorkerEndpoint:
         endpoint = EyePopSdk.async_worker(
             pop_id=pop_id,
@@ -113,6 +117,7 @@ class EyePopSdk:
             pipeline_version=pipeline_version,
             session_name=session_name,
             pop=pop,
+            account_id=account_id,
         )
         return SyncWorkerEndpoint(endpoint)
 
@@ -134,6 +139,7 @@ class EyePopSdk:
             pipeline_version: str | None = None,
             session_name: str | None = None,
             pop: Pop | dict[str, object] | None = None,
+            account_id: str | None = None,
     ) -> WorkerEndpoint:
         if is_local_mode is None:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
@@ -203,6 +209,7 @@ class EyePopSdk:
             pipeline_version=pipeline_version,
             session_name=session_name,
             pop=pop,
+            account_id=account_id,
             is_local_mode=is_local_mode,
         )
         return endpoint
@@ -241,12 +248,7 @@ class EyePopSdk:
                     eyepop_url = "https://api.eyepop.ai"
 
         if account_id is None:
-            account_id = os.getenv("EYEPOP_ACCOUNT_UUID")
-        if account_id is None:
-            account_id = os.getenv("EYEPOP_ACCOUNT_ID")
-            if account_id is not None:
-                warnings.warn("EYEPOP_ACCOUNT_ID is deprecated, use EYEPOP_ACCOUNT_UUID instead",
-                              DeprecationWarning, stacklevel=2)
+            account_id = account_uuid_from_env()
 
         endpoint = DataEndpoint(
             secret_key=secret_key,

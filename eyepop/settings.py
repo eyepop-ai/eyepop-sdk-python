@@ -1,3 +1,6 @@
+import os
+import warnings
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,3 +25,17 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def account_uuid_from_env(stacklevel: int = 3) -> str | None:
+    """The account named by the environment.
+
+    Reads EYEPOP_ACCOUNT_UUID, the name every EyePop tool uses, then the deprecated EYEPOP_ACCOUNT_ID.
+    """
+    account_uuid = os.getenv("EYEPOP_ACCOUNT_UUID")
+    if account_uuid is None:
+        account_uuid = os.getenv("EYEPOP_ACCOUNT_ID")
+        if account_uuid is not None:
+            warnings.warn("EYEPOP_ACCOUNT_ID is deprecated, use EYEPOP_ACCOUNT_UUID instead",
+                          DeprecationWarning, stacklevel=stacklevel)
+    return account_uuid

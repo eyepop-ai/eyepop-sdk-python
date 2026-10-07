@@ -22,6 +22,10 @@ class ComputeContext(BaseModel):
         description="The requested name of the session",
         default_factory=lambda: os.getenv("EYEPOP_SESSION_NAME", "")
     )
+    account_uuid: str | None = Field(
+        description="The account the session runs for; required when the credential does not name one",
+        default=None
+    )
     pipeline_uuid: str = Field(description="The uuid of the pipeline", default="")
     pipeline_id: str = Field(description="The id of the pipeline", default="")
     pipeline_owned: bool = Field(description="Whether this SDK endpoint owns the pipeline", default=False)
