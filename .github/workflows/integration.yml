@@ -13,9 +13,13 @@ on:
       - "uv.lock"
       - ".github/workflows/integration.yml"
 
+# A user gets one transient session at a time, and every staging run in this repo
+# (this workflow and a dispatched staging Sessions Smoke) uses the same test
+# account. Runs share one group and queue, so they never take the session from
+# each other.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: eyepop-session-staging
+  cancel-in-progress: false
 
 permissions:
   contents: read
