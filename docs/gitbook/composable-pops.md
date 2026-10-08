@@ -40,6 +40,58 @@ FullForward(targets, includeClasses=None)
 
 `is_full_fallback=True` selects `crop_with_full_fallback`, which crops when the parent detected something and falls back to the whole frame when it did not.
 
+### Selecting one frame per track
+
+`SelectForward` goes on a `TrackingComponent`. Instead of running its targets on every frame, it picks each track's most relevant detection and runs the targets once on the past frame where that detection was seen:
+
+```python
+SelectForward(targets, full=False, relevancyModel=None, relevancyModelUuid=None,
+              minTrackLengthSeconds=None, intervalSeconds=None,
+              boxPadding=None, orientationTargetAngle=None)
+```
+
+- `full=False` builds `select_crop`: the targets see a crop of the selected detection, shaped by `boxPadding` and `orientationTargetAngle`. `full=True` builds `select_full`: the targets see that whole frame, and the crop options are rejected.
+- Without a relevancy model, the most relevant detection is the most confident and largest one that is not cut off by the frame edge. `relevancyModel` names an ability that runs on every tracked object of every frame; a detection it finds nothing on is never selected, and its confidence weighs the rest.
+- A track shorter than `minTrackLengthSeconds` is never selected. With `intervalSeconds`, the first selection comes that long after the track starts, then at most one per interval and only when a more relevant detection turned up. The track's end reports a final one if it improved since. Without `intervalSeconds`, each track is selected once, when it ends.
+
+```python
+from eyepop.worker.worker_types import (
+    Pop, InferenceComponent, TrackingComponent, CropForward, SelectForward,
+)
+
+pop = Pop(components=[
+    InferenceComponent(
+        ability='eyepop.person:latest',
+        categoryName='person',
+        forward=CropForward(targets=[TrackingComponent(
+            reidModel='eyepop.person.reid:latest',
+            forward=SelectForward(
+                relevancyModel='eyepop.person.face.short-range:latest',
+                minTrackLengthSeconds=1,
+                intervalSeconds=10,
+                boxPadding=1.1,
+                targets=[InferenceComponent(
+                    ability='eyepop.person.face.short-range:latest',
+                    categoryName='2d-face-points',
+                )],
+            ),
+        )]),
+    ),
+])
+```
+
+The targets' results arrive late, as **selected predictions**. A selected prediction is an ordinary `Prediction` with `selected=True`. Its `timestamp` is the past frame's, so it comes after predictions with later timestamps, and its one object is the selected detection, with the targets' results nested under it. Its `trackId` links it to that track's live predictions. A selected prediction is not the stream's progress: skip it where you draw or count frames.
+
+```python
+while result := job.predict():
+    if result.get('selected'):
+        handle_selection(result)
+    else:
+        handle_frame(result)
+```
+
+The endpoint asks the worker for prediction version 3 whenever its Pop has a select forward, which is the version that carries selected predictions. For any other Pop it keeps asking for version 2.
+
 ### Building a Pop
 
 ```python
