@@ -10,6 +10,10 @@ from eyepop.worker.camera import Camera
 class PredictionVersion(enum.IntEnum):
     V1 = 1
     V2 = 2
+    # V3 adds selected predictions: a select_crop or select_full forward
+    # reports each selection on a prediction of its own, `selected` set and
+    # timed by the past frame it selected. Nothing else differs from V2.
+    V3 = 3
 
 
 DEFAULT_PREDICTION_VERSION = PredictionVersion.V2
@@ -33,6 +37,48 @@ class ForwardOperatorType(enum.StrEnum):
     FULL = "full"
     CROP = "crop"
     CROP_WITH_FULL_FALLBACK = "crop_with_full_fallback"
+    # SELECT_CROP and SELECT_FULL forward one past frame per track, the one of
+    # its most relevant detection, and their targets' results arrive late as
+    # selected predictions. Only a tracking component's forward can select.
+    SELECT_CROP = "select_crop"
+    SELECT_FULL = "select_full"
+
+
+class SelectMode(enum.StrEnum):
+    MOST_RELEVANT = "most_relevant"
+
+
+class PopSelect(BaseModel):
+    """How a select_crop or select_full forward picks one frame per track.
+
+    `relevancyModel` (by alias) or `relevancyModelUuid` names an ability that
+    runs on every tracked object of every frame; a detection it finds nothing
+    on is never selected. Without one, relevance comes from the detection's
+    box alone.
+
+    A track shorter than `minTrackLengthSeconds` is never selected. With
+    `intervalSeconds` the first selection comes that long after the track
+    starts, then at most one per interval and only when a more relevant
+    detection turned up; the track's end reports a final one if it improved
+    since. Without it, a track is selected once, when it ends.
+    """
+
+    mode: SelectMode | None = None
+    relevancyModelUuid: str | None = None
+    relevancyModel: str | None = None
+    minTrackLengthSeconds: float | None = None
+    intervalSeconds: float | None = None
+    model_config = ConfigDict(extra='forbid')
+
+    @model_validator(mode='after')
+    def _validate(self) -> "PopSelect":
+        if self.relevancyModel is not None and self.relevancyModelUuid is not None:
+            raise ValueError("select can only have one of relevancyModelUuid or relevancyModel")
+        if self.minTrackLengthSeconds is not None and self.minTrackLengthSeconds < 0:
+            raise ValueError("select minTrackLengthSeconds cannot be negative")
+        if self.intervalSeconds is not None and self.intervalSeconds <= 0:
+            raise ValueError("select intervalSeconds must be positive")
+        return self
 
 
 class PopCrop(BaseModel):
@@ -46,7 +92,29 @@ class PopForwardOperator(BaseModel):
     type: ForwardOperatorType
     includeClasses: list[str] | None = None
     crop: PopCrop | None = None
+    select: PopSelect | None = None
     model_config = ConfigDict(extra='forbid')
+
+    def is_select(self) -> bool:
+        return self.type in (ForwardOperatorType.SELECT_CROP, ForwardOperatorType.SELECT_FULL)
+
+    @model_validator(mode='after')
+    def _validate(self) -> "PopForwardOperator":
+        # the same rules the worker applies when it compiles the Pop, checked
+        # here so a mistake fails where it is made; that a select sits on a
+        # tracking component's forward is left to the worker
+        if not self.is_select():
+            if self.select is not None:
+                raise ValueError("select is only valid with the select_crop or select_full operator")
+            return self
+        if self.select is None:
+            raise ValueError(f"{self.type} requires a select block")
+        if self.crop is not None:
+            if self.type != ForwardOperatorType.SELECT_CROP:
+                raise ValueError(f"crop options are only valid with select_crop, not {self.type}")
+            if self.crop.maxItems is not None:
+                raise ValueError("select_crop forwards one detection per selection, maxItems does not apply")
+        return self
 
 class PopForward(BaseModel):
     operator: PopForwardOperator | None = None
@@ -257,6 +325,22 @@ class Pop(BaseModel):
     depthMap: PopDepthMap | None = None
     model_config = ConfigDict(extra='forbid')
 
+    def selects(self) -> bool:
+        """Whether any forward of this Pop is a select_crop or select_full."""
+        return _any_selects(self.components)
+
+
+def _any_selects(components: List[DynamicComponent] | None) -> bool:
+    for component in components or []:
+        forward = component.forward
+        if forward is None:
+            continue
+        if forward.operator is not None and forward.operator.is_select():
+            return True
+        if _any_selects(forward.targets):
+            return True
+    return False
+
 # Helper factories
 
 def CropForward(
@@ -288,6 +372,44 @@ def FullForward(
         operator=PopForwardOperator(
             type=ForwardOperatorType.FULL,
             includeClasses=includeClasses
+        ),
+        targets=targets,
+    )
+
+
+def SelectForward(
+        targets: List[DynamicComponent],
+        full: bool = False,
+        relevancyModel: str | None = None,
+        relevancyModelUuid: str | None = None,
+        minTrackLengthSeconds: float | None = None,
+        intervalSeconds: float | None = None,
+        boxPadding: float | None = None,
+        orientationTargetAngle: float | None = None,
+) -> PopForward:
+    """Forwards each track's most relevant detection to `targets`, late.
+
+    Goes on a tracking component. The targets run on a crop of that detection
+    from the past frame it was seen in, or with `full` on that whole frame.
+    Their results arrive as selected predictions: `Prediction.selected` is
+    set, `timestamp` is the past frame's and the selected object's `trackId`
+    links them to the live predictions. `boxPadding` and
+    `orientationTargetAngle` shape the crop and do not apply with `full`.
+    """
+    crop = None
+    if boxPadding is not None or orientationTargetAngle is not None:
+        crop = PopCrop(boxPadding=boxPadding, orientationTargetAngle=orientationTargetAngle)
+    return PopForward(
+        operator=PopForwardOperator(
+            type=ForwardOperatorType.SELECT_FULL if full else ForwardOperatorType.SELECT_CROP,
+            crop=crop,
+            select=PopSelect(
+                mode=SelectMode.MOST_RELEVANT,
+                relevancyModel=relevancyModel,
+                relevancyModelUuid=relevancyModelUuid,
+                minTrackLengthSeconds=minTrackLengthSeconds,
+                intervalSeconds=intervalSeconds,
+            ),
         ),
         targets=targets,
     )
