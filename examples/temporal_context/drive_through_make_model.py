@@ -30,12 +30,15 @@ def make_pop(ability: str) -> Pop:
     return Pop(components=[
         # Efficient, every frame: find vehicles...
         InferenceComponent(
-            ability="eyepop.vehicle:latest",
+            ability="eyepop.vehicle.large:latest",
             confidenceThreshold=0.5,
+            objectAreaThreshold=0.01,  # ignore distant cars parked in the background
             forward=CropForward(
                 includeClasses=["car", "truck"],
-                # ...and follow each one across frames.
+                # ...and follow each one across frames, even when its label
+                # flickers between car and truck.
                 targets=[TrackingComponent(
+                    agnostic=True,
                     # Deep analysis, once per selection: the VLM sees the
                     # clearest crop of each car, not every frame of it.
                     forward=SelectForward(
