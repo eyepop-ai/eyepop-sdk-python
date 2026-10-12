@@ -53,17 +53,6 @@ def make_pop(ability: str) -> Pop:
     ])
 
 
-def find_details(obj: dict[str, Any]) -> dict[str, Any] | None:
-    """The VLM's structured response, nested somewhere under the selected car."""
-    for details in obj.get("details") or []:
-        if isinstance(details, dict):
-            return details
-    for child in obj.get("objects") or []:
-        if found := find_details(child):
-            return found
-    return None
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--ability", required=True,
@@ -90,7 +79,8 @@ def main() -> None:
             # A selected prediction: the deep analysis of one car, about a past frame.
             selections += 1
             car = result["objects"][0]
-            answer = find_details(car) or {}
+            # the VLM's structured answer, shaped by its response schema
+            answer = (car.get("details") or [{}])[0]
             cars[car["trackId"]] = answer
             print(f"{result['seconds']:7.2f}s  car #{car['trackId']:<3} "
                   f"{answer.get('make', '?')} {answer.get('model', '?')} ({answer.get('color', '?')})")
