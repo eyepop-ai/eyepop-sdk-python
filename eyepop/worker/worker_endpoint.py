@@ -29,7 +29,14 @@ from eyepop.worker.worker_jobs import (
     _UploadStreamGroupJob,
     _UploadStreamJob,
 )
-from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, Pop, VideoMode
+from eyepop.worker.worker_types import (
+    DEFAULT_PREDICTION_VERSION,
+    ComponentParams,
+    MotionDetectConfig,
+    Pop,
+    PredictionVersion,
+    VideoMode,
+)
 
 log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
@@ -377,7 +384,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             session=self, on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
+            version=self._prediction_version(),
         )
         await  self._task_start(job.execute())
         return job
@@ -409,7 +417,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
+            version=self._prediction_version(),
         )
         await self._task_start(job.execute())
         return job
@@ -441,7 +450,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
+            version=self._prediction_version(),
         )
         await self._task_start(job.execute())
         return job
@@ -469,7 +479,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             camera=camera,
             media_cache_seconds=media_cache_seconds,
             session=self, on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
+            version=self._prediction_version(),
         )
         await self._task_start(job.execute())
         return job
@@ -505,7 +516,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             rtsp_force_non_compliant_url=rtsp_force_non_compliant_url,
             session=self,
             on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
+            version=self._prediction_version(),
         )
         await self._task_start(job.execute())
         return job
@@ -536,7 +548,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
+            version=self._prediction_version(),
         )
         await self._task_start(job.execute())
         return job
@@ -562,10 +575,19 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             media_cache_seconds=media_cache_seconds,
             session=self,
             on_ready=on_ready,
-            callback=self.metrics_collector
+            callback=self.metrics_collector,
+            version=self._prediction_version(),
         )
         await self._task_start(job.execute())
         return job
+
+    def _prediction_version(self) -> PredictionVersion:
+        # A select forward's results come only at V3. Only a Pop that selects
+        # asks for it, so a worker too old to know V3 - which also rejects
+        # that Pop - is never sent a version it would not accept.
+        if self.pop is not None and self.pop.selects():
+            return PredictionVersion.V3
+        return DEFAULT_PREDICTION_VERSION
 
     async def dev_mode_base_url(self) -> str:
         if self.worker_config is None:

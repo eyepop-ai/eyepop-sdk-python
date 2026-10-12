@@ -110,6 +110,12 @@ class Prediction(BaseModel):
         default=None,
         description="Temporal offset in seconds (convenience field, equivalent to timestamp / 1e9)",
     )
+    selected: bool | None = Field(
+        default=None,
+        description="Set on a selected prediction: the results of a select_crop or select_full forward for one "
+        "track. It arrives after later predictions, carries the timestamp of the past frame that was selected, "
+        "and its selected object's trackId links it to the live predictions of that track.",
+    )
 
     objects: List[PredictedObject] | None = None
     classes: List[PredictedClass] | None = None

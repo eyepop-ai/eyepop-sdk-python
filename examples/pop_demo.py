@@ -41,6 +41,7 @@ from eyepop.worker.worker_types import (
     MotionModel,
     Pop,
     PopDepthMap,
+    SelectForward,
     TrackingComponent,
 )
 
@@ -90,6 +91,30 @@ pop_examples = {
         InferenceComponent(
             ability='eyepop.person:latest',
             categoryName="person"
+        )
+    ]),
+
+    # One face per person track, from the frame where it is seen best, and
+    # reported late as a selected prediction (see composable-pops.md).
+    "face-select": Pop(components=[
+        InferenceComponent(
+            ability='eyepop.person:latest',
+            categoryName="person",
+            forward=CropForward(
+                targets=[TrackingComponent(
+                    reidModel='eyepop.person.reid:latest',
+                    forward=SelectForward(
+                        relevancyModel='eyepop.person.face.short-range:latest',
+                        minTrackLengthSeconds=1.0,
+                        intervalSeconds=10.0,
+                        boxPadding=1.1,
+                        targets=[InferenceComponent(
+                            ability='eyepop.person.face.short-range:latest',
+                            categoryName="2d-face-points",
+                        )]
+                    )
+                )]
+            )
         )
     ]),
 
@@ -903,7 +928,9 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, WorldPointColle
                 nonlocal visualize_prediction
                 nonlocal visualize_path
                 while result := await job.predict():
-                    visualize_prediction = result
+                    if not result.get('selected'):
+                        # a selected prediction belongs to a past frame, not the one drawn
+                        visualize_prediction = result
                     if args.visualize_world:
                         world_points.collect(result)
                     visualize_path = path
@@ -939,7 +966,9 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, WorldPointColle
                 media_cache_seconds=args.media_cache_seconds
             )
             while result := await job.predict():
-                visualize_prediction = result
+                if not result.get('selected'):
+                    # a selected prediction belongs to a past frame, not the one drawn
+                    visualize_prediction = result
                 if args.visualize_world:
                     world_points.collect(result)
                 if args.output:
@@ -959,7 +988,9 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, WorldPointColle
                         fps=args.fps,
                         camera=camera,
                 ):
-                    visualize_prediction = result
+                    if not result.get('selected'):
+                        # a selected prediction belongs to a past frame, not the one drawn
+                        visualize_prediction = result
                     if args.visualize_world:
                         world_points.collect(result)
                     if args.output:
@@ -978,7 +1009,9 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, WorldPointColle
                         fps=args.fps,
                         camera=camera,
                 ):
-                    visualize_prediction = result
+                    if not result.get('selected'):
+                        # a selected prediction belongs to a past frame, not the one drawn
+                        visualize_prediction = result
                     if args.visualize_world:
                         world_points.collect(result)
                     if args.output:
@@ -1002,7 +1035,9 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, WorldPointColle
                 media_cache_seconds=args.media_cache_seconds
             )
             while result := await job.predict():
-                visualize_prediction = result
+                if not result.get('selected'):
+                    # a selected prediction belongs to a past frame, not the one drawn
+                    visualize_prediction = result
                 if args.visualize_world:
                     world_points.collect(result)
                 if args.output:
