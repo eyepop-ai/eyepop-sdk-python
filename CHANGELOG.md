@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.23.0] - 2026-10-12
+
 ### Added
 - `classes` on `InferenceComponent` (AWSU-310, inference component `classes` attribute): the class labels to restrict the component's predictions to, e.g. `InferenceComponent(ability="eyepop.common-objects:latest", classes=["person", "car"])`. The worker drops every other class before `topK`. A label the ability does not have makes the Pop invalid. The model forbids unknown fields, so until now a Python caller could not send it.
 
