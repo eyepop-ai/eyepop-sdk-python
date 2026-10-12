@@ -2,7 +2,7 @@
 
 Pops that run detection and tracking on every frame, and deep analysis only once per tracked object, on the frame that shows it best, through the `select_crop` forward operator. Each script is the complete code of a tutorial in the [Temporal Context](https://docs.eyepop.ai/developer-documentation/platform/temporal-context) section of the EyePop documentation.
 
-Requires `eyepop>=3.23.0` and `EYEPOP_API_KEY` (see [../README.md](../README.md#credentials)).
+Requires `eyepop>=3.24.0` and `EYEPOP_API_KEY` (see [../README.md](../README.md#credentials)).
 
 | Script | What it does |
 |---|---|
