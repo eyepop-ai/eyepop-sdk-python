@@ -181,6 +181,7 @@ class InferenceComponent(BaseComponent):
     objectAreaThreshold: float | None = None
     topK: int | None = None
     topKClasses: int | None = None
+    classes: List[str] | None = None
     targetFps: str | None = None
     videoChunkLengthSeconds: float | None = None
     videoChunkOverlap: float | None = None

@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `PredictionVersion.V3`, the prediction version that carries selected predictions. An endpoint asks for it whenever its Pop has a select forward and keeps asking for `V2` otherwise, so a worker that does not know `V3` is never sent it.
 - `pop_demo.py --pop face-select`, one face per person track. The demo no longer draws a selected prediction as the last frame.
 
+## [3.23.0] - 2026-10-12
+
+### Added
+- `classes` on `InferenceComponent` (AWSU-310, inference component `classes` attribute): the class labels to restrict the component's predictions to, e.g. `InferenceComponent(ability="eyepop.common-objects:latest", classes=["person", "car"])`. The worker drops every other class before `topK`. A label the ability does not have makes the Pop invalid. The model forbids unknown fields, so until now a Python caller could not send it.
+
 ## [3.22.0] - 2026-10-07
 
 ### Added
