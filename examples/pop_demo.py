@@ -62,10 +62,6 @@ script_dir = os.path.dirname(__file__)
 
 pop_examples = {
     "noop": Pop(components=[]),
-    "templates": Pop(components=[
-        InferenceComponent(ability='eyepop.person-with-2d-body-points:latest'),
-        InferenceComponent(ability='eyepop.person-with-face-mesh:latest'),
-    ]),
     "vehicles": Pop(components=[
         InferenceComponent(
             ability='eyepop.vehicle:latest',
