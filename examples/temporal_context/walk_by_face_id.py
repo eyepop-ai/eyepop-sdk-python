@@ -33,6 +33,7 @@ POP = Pop(components=[
     # Efficient, every frame: find people...
     InferenceComponent(
         ability="eyepop.person:latest",
+        confidenceThreshold=0.9,  # walkers score higher; keeps the lobby's plants from being people
         forward=CropForward(
             # ...and follow each one across frames, by appearance as well as motion.
             targets=[TrackingComponent(
@@ -81,7 +82,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--video", default=str(VIDEO), help="a video file, or an rtsp:// or https:// URL")
     parser.add_argument("--output", help="write one JSON line per person: track id, time and face-ID vector")
-    parser.add_argument("--threshold", type=float, default=0.5,
+    parser.add_argument("--threshold", type=float, default=0.3,
                         help="minimum cosine similarity for two walk-bys to count as the same person")
     args = parser.parse_args()
 
