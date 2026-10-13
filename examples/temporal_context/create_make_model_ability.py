@@ -23,10 +23,13 @@ from eyepop.data.types.vlm import (
     VlmAbilityGroupCreate,
 )
 
-PROMPT = """You see one vehicle, cropped from a drive-through camera.
-Identify its manufacturer (make), its model name and its main body color.
-Answer "unknown" for anything you cannot tell from the image. Do not guess a model
-from the make alone."""
+PROMPT = """You see one vehicle, cropped from a camera mounted above a drive-through lane, so it
+may be seen from above, from the front or from behind. Identify its manufacturer (make), its
+model name and its main body color. Use every clue: the badge, the grille, the lights and the
+shape of the body. A pickup truck, with an open cargo bed, is never an SUV. Name the model line
+as precisely as you can, the way a dealer would, for example Tacoma, Ram 1500, Civic or RAV4.
+Name the most likely model even when the vehicle is seen from behind, and answer "unknown" only
+when the image shows too little of the vehicle to tell."""
 
 RESPONSE_SCHEMA = Schema.model_validate({
     "type": "object",

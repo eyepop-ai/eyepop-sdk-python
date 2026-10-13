@@ -41,13 +41,14 @@ def make_pop(ability: str) -> Pop:
                 # flickers between car and truck.
                 targets=[TrackingComponent(
                     agnostic=True,
+                    classHysteresis=True,
                     maxAgeSeconds=2.0,  # keep a car's track while the island hides it
                     # Deep analysis, once per selection: the VLM sees the
                     # clearest crop of each car, not every frame of it.
                     forward=SelectForward(
                         minTrackLengthSeconds=2.0,
                         intervalSeconds=10.0,
-                        boxPadding=1.1,
+                        boxPadding=1.4,  # enough of the car around it to tell similar models apart
                         targets=[InferenceComponent(ability=ability)],
                     ),
                 )],
