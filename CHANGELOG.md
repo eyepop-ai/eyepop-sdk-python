@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.24.0] - 2026-10-12
+
 ### Added
 - The `select_crop` and `select_full` forward operators (AWSU-245), with `PopSelect`, `SelectMode` and a `SelectForward(...)` helper. On a tracking component's forward they pick each track's most relevant detection and run the targets once on the past frame it was seen in: on a crop of it (`select_crop`) or on that whole frame (`full=True`, `select_full`). `relevancyModel`, `minTrackLengthSeconds` and `intervalSeconds` decide what is relevant and when a selection is reported. Until now `Pop(...)` rejected a Pop with either operator, so a worker running such a Pop could not be used from the SDK at all. The rules the worker applies (a select block for a select operator and only there, crop options only on `select_crop` and without `maxItems`) are checked as the Pop is built.
 - `Prediction.selected`, set on a selected prediction: the targets' results for one selection. It arrives late, carries the past frame's `timestamp`, and its object's `trackId` links it to that track's live predictions.
