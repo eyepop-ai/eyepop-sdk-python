@@ -12,9 +12,10 @@ See https://docs.eyepop.ai/developer-documentation/platform/temporal-context/exa
 """
 import argparse
 import json
-import math
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import (
@@ -27,13 +28,12 @@ from eyepop.worker.worker_types import (
 
 VIDEO = Path(__file__).parent / "media" / "office_walk_by.mp4"
 
-FACE_DETECTOR = "eyepop.person.face.long-range:latest"
+FACE_DETECTOR = "eyepop.person.face.short-range:latest"
 
 POP = Pop(components=[
     # Efficient, every frame: find people...
     InferenceComponent(
-        ability="eyepop.person:latest",
-        confidenceThreshold=0.9,  # walkers score higher; keeps the lobby's plants from being people
+        ability="eyepop.person.medium:latest",
         forward=CropForward(
             # ...and follow each one across frames, by appearance as well as motion.
             targets=[TrackingComponent(
@@ -43,13 +43,12 @@ POP = Pop(components=[
                 # a face on is never selected.
                 forward=SelectForward(
                     relevancyModel=FACE_DETECTOR,
-                    minTrackLengthSeconds=3.0,  # a walk-by lasts longer; shorter tracks are fragments
-                    boxPadding=1.1,
+                    minTrackLengthSeconds=2.0,  # a walk-by lasts longer; shorter tracks are fragments
                     targets=[InferenceComponent(
                         ability=FACE_DETECTOR,
                         # Cut the face out, rotate it upright, and embed it.
                         forward=CropForward(
-                            boxPadding=1.5,
+                            boxPadding=1.25,
                             orientationTargetAngle=-90,
                             targets=[InferenceComponent(ability="eyepop.face-id.large:latest")],
                         ),
@@ -73,9 +72,33 @@ def find_face_id(obj: dict[str, Any]) -> list[float] | None:
     return None
 
 
-def cosine(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b, strict=True))
-    return dot / (math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b)))
+def group_by_face(faces: list[dict[str, Any]], threshold: float) -> list[list[tuple[dict[str, Any], float]]]:
+    """Group walk-bys whose face-IDs are alike: each group is likely one person.
+
+    Every walk-by in a group is more than `threshold` alike to every other one in it.
+    Each walk-by is kept with its lowest cosine similarity to the rest of its group.
+    """
+    if not faces:
+        return []
+    vectors = np.array([face["faceId"] for face in faces])
+    vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+    similarity = vectors @ vectors.T  # cosine similarity of every pair of walk-bys
+
+    groups: list[list[int]] = []
+    for i in range(len(faces)):
+        # The groups this walk-by is alike to all of, by its least-alike member.
+        fits = [(similarity[i, group].min(), group) for group in groups]
+        fits = [(sim, group) for sim, group in fits if sim > threshold]
+        if fits:
+            max(fits, key=lambda fit: fit[0])[1].append(i)
+        else:
+            groups.append([i])
+
+    def lowest(i: int, group: list[int]) -> float:
+        others = [j for j in group if j != i]
+        return float(similarity[i, others].min()) if others else 1.0
+
+    return [[(faces[i], lowest(i, group)) for i in group] for group in groups]
 
 
 def main() -> None:
@@ -86,7 +109,7 @@ def main() -> None:
                         help="minimum cosine similarity for two walk-bys to count as the same person")
     args = parser.parse_args()
 
-    faces: dict[int, dict[str, Any]] = {}
+    faces: list[dict[str, Any]] = []
 
     with EyePopSdk.sync_worker(pop=POP) as endpoint:
         job = endpoint.load_from(args.video) if "://" in args.video else endpoint.upload(args.video)
@@ -97,26 +120,19 @@ def main() -> None:
             face_id = find_face_id(person)
             if face_id is None:
                 continue
-            faces[person["trackId"]] = {"trackId": person["trackId"], "seconds": result["seconds"], "faceId": face_id}
+            faces.append({"trackId": person["trackId"], "seconds": result["seconds"], "faceId": face_id})
             print(f"{result['seconds']:7.2f}s  person #{person['trackId']:<3} face-ID with {len(face_id)} dimensions")
 
     if args.output:
         with open(args.output, "w") as f:
-            for face in faces.values():
+            for face in faces:
                 f.write(json.dumps(face) + "\n")
 
-    # Group walk-bys whose face-IDs are alike: each group is likely one person.
-    people: list[list[dict[str, Any]]] = []
-    for face in faces.values():
-        match = next((p for p in people if cosine(p[0]["faceId"], face["faceId"]) >= args.threshold), None)
-        if match is None:
-            people.append([face])
-        else:
-            match.append(face)
+    people = group_by_face(faces, args.threshold)
     print(f"\n{len(faces)} walk-bys, {len(people)} different people")
     for person in people:
         if len(person) > 1:
-            seen = ", ".join(f"#{f['trackId']} at {f['seconds']:.1f}s" for f in person)
+            seen = ", ".join(f"#{face['trackId']} at {face['seconds']:.1f}s ({sim:.2f})" for face, sim in person)
             print(f"  walked by {len(person)} times: {seen}")
 
 

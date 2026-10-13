@@ -32,11 +32,9 @@ def make_pop(ability: str) -> Pop:
     return Pop(components=[
         # Efficient, every frame: find vehicles...
         InferenceComponent(
-            ability="eyepop.vehicle.large:latest",
-            confidenceThreshold=0.5,
+            ability="eyepop.vehicle.medium:latest",
             objectAreaThreshold=0.01,  # ignore distant cars parked in the background
             forward=CropForward(
-                includeClasses=["car", "truck"],
                 # ...and follow each one across frames, even when its label
                 # flickers between car and truck.
                 targets=[TrackingComponent(
@@ -48,7 +46,6 @@ def make_pop(ability: str) -> Pop:
                     forward=SelectForward(
                         minTrackLengthSeconds=2.0,
                         intervalSeconds=10.0,
-                        boxPadding=1.4,  # enough of the car around it to tell similar models apart
                         targets=[InferenceComponent(ability=ability)],
                     ),
                 )],
