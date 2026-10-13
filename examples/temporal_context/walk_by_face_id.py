@@ -43,7 +43,7 @@ POP = Pop(components=[
                 # a face on is never selected.
                 forward=SelectForward(
                     relevancyModel=FACE_DETECTOR,
-                    minTrackLengthSeconds=1.0,
+                    minTrackLengthSeconds=3.0,  # a walk-by lasts longer; shorter tracks are fragments
                     boxPadding=1.1,
                     targets=[InferenceComponent(
                         ability=FACE_DETECTOR,
@@ -82,7 +82,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--video", default=str(VIDEO), help="a video file, or an rtsp:// or https:// URL")
     parser.add_argument("--output", help="write one JSON line per person: track id, time and face-ID vector")
-    parser.add_argument("--threshold", type=float, default=0.3,
+    parser.add_argument("--threshold", type=float, default=0.25,
                         help="minimum cosine similarity for two walk-bys to count as the same person")
     args = parser.parse_args()
 

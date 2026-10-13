@@ -8,7 +8,7 @@ Requires `eyepop>=3.24.0` and `EYEPOP_API_KEY` (see [../README.md](../README.md#
 |---|---|
 | `create_make_model_ability.py` | Creates and publishes the `<namespace>.describe.vehicle-make-model` VLM ability, with a JSON response schema for make, model and color. Run it once before `drive_through_make_model.py`. |
 | `drive_through_make_model.py` | Names the make, model and color of the ten cars entering and leaving the drive-through in `media/drive_through.mp4`, with one VLM call per car, and tells which way each one drove. |
-| `walk_by_face_id.py` | Keeps the best face-ID vector of each of the ten walk-bys in `media/office_walk_by.mp4`, and recognizes the two people who come back in different clothes. |
+| `walk_by_face_id.py` | Keeps the best face-ID vector of each of the ten walk-bys in `media/office_walk_by.mp4`, alone, in pairs and in a group of three, and recognizes the two people who come back in different clothes. |
 
 ```shell
 python create_make_model_ability.py --account <account-uuid> --namespace <namespace>
