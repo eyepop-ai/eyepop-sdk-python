@@ -52,6 +52,7 @@ Every example with CLI flags accepts `-h` / `--help`.
 | `pop_demo.py -w` | World coordinates in meters. Adds a depth ability and `toWorld` to any of the pops above. |
 | `pop_demo.py --depth-map-to-world` | A point cloud of the whole scene, back-projected from the depth map itself. |
 | `pop_demo.py -w -vw` | Scatter everything with world coordinates - key points, outlines, contours, mask and scene clouds - into a 3D plot. |
+| `temporal_context/` | Deep analysis once per tracked object with `select_crop`: car make and model from a drive-through, face-ID vectors from walk-bys. See its README. |
 | `visualize_with_webui2.py` | Interactive web viewer for predictions. |
 | `import_dataset.py` | Import local assets into a dataset. |
 | `auth_session.py` | Browser-based OAuth session. |
