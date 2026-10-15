@@ -34,13 +34,12 @@ Credentials are read from environment variables. Set **one** auth method:
 |---|---|
 | `EYEPOP_API_KEY` | API key from your dashboard. |
 | `EYEPOP_ACCESS_TOKEN` | Pre-issued OAuth access token. |
-| `EYEPOP_SECRET_KEY` | Secret key for a named pop. |
 
 Optional:
 
 | Variable | Description |
 |---|---|
-| `EYEPOP_POP_ID` | Named pop ID. Defaults to `transient`. |
+| `EYEPOP_POP_ID` | Named pop ID. Defaults to `transient`. A named pop needs `access_token=`; an API key works only with `transient`. |
 | `EYEPOP_ACCOUNT_UUID` | The account to work in. Required for some Data API calls, and names the account a worker's compute session runs for when the API key does not (same as `account_id=`). `EYEPOP_ACCOUNT_ID` is still read when this is unset, with a `DeprecationWarning`. |
 
 ## Usage

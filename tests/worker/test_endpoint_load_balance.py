@@ -18,13 +18,12 @@ class TestEndpointLoadBalance(BaseEndpointTest):
         self._prepare_mock(mock, 1)
         with EyePopSdk.sync_worker(
                 eyepop_url=self.test_eyepop_url,
-                secret_key=self.test_eyepop_secret_key,
+                access_token=self.test_access_token,
                 pop_id=self.test_eyepop_pop_id,
         ) as endpoint:
             self.assertBaseMock(mock, status='active_prod')
             test_timestamp = time.time() * 1000 * 1000 * 1000
 
-            self.test_access_token = '... a new access token ....'
             self._prepare_mock(mock, 1)
 
             def loadFrom(url, **kwargs) -> CallbackResult:
@@ -64,13 +63,12 @@ class TestEndpointLoadBalance(BaseEndpointTest):
         self._prepare_mock(mock, 2)
         with EyePopSdk.sync_worker(
                 eyepop_url=self.test_eyepop_url,
-                secret_key=self.test_eyepop_secret_key,
+                access_token=self.test_access_token,
                 pop_id=self.test_eyepop_pop_id,
         ) as endpoint:
             self.assertBaseMock(mock, status='active_prod')
             test_timestamp = time.time() * 1000 * 1000 * 1000
 
-            self.test_access_token = '... a new access token ....'
             self._prepare_mock(mock, 2)
 
             def loadFrom(url, **kwargs) -> CallbackResult:
@@ -129,12 +127,6 @@ class TestEndpointLoadBalance(BaseEndpointTest):
 
     def _prepare_mock(self, mock, num_endpoints):
         self.setup_base_mock(mock, status='active_prod', num_endpoints=num_endpoints)
-        mock.post(f'{self.test_eyepop_url}/authentication/token',
-                  status=200,
-                  body=json.dumps({
-                      'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token
-                  }),
-                  repeat=True)
 
         # automatic call to get pop comp and store
         def get_pop(url, **kwargs) -> CallbackResult:

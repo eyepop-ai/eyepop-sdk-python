@@ -20,8 +20,6 @@ class TestEndpointUploadStream(BaseEndpointTest):
     @aioresponses()
     def test_sync_upload_ok(self, mock: aioresponses):
         self.setup_base_mock(mock)
-        mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
-            {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
         # automatic call to get pop comp and store
         def get_pop(url, **kwargs) -> CallbackResult:
             if kwargs['headers']['Authorization'] != f'Bearer {self.test_access_token}':
@@ -33,7 +31,7 @@ class TestEndpointUploadStream(BaseEndpointTest):
                     callback=get_pop)
         with EyePopSdk.sync_worker(
                 eyepop_url=self.test_eyepop_url,
-                secret_key=self.test_eyepop_secret_key,
+                access_token=self.test_access_token,
                 pop_id=self.test_eyepop_pop_id
         ) as endpoint:
             self.assertBaseMock(mock)
@@ -75,8 +73,6 @@ class TestEndpointUploadStream(BaseEndpointTest):
     @pytest.mark.asyncio
     async def test_async_upload_ok(self, mock: aioresponses):
         self.setup_base_mock(mock)
-        mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
-            {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
         # automatic call to get pop comp and store
         def get_pop(url, **kwargs) -> CallbackResult:
             if kwargs['headers']['Authorization'] != f'Bearer {self.test_access_token}':
@@ -88,7 +84,7 @@ class TestEndpointUploadStream(BaseEndpointTest):
                     callback=get_pop)
         async with EyePopSdk.async_worker(
                 eyepop_url=self.test_eyepop_url,
-                secret_key=self.test_eyepop_secret_key,
+                access_token=self.test_access_token,
                 pop_id=self.test_eyepop_pop_id,
         ) as endpoint:
             self.assertBaseMock(mock)

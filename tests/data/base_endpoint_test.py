@@ -11,7 +11,6 @@ from eyepop.data.data_types import Dataset
 class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
     test_eyepop_url = 'http://example.test'
     test_eyepop_account_id = 'test_account_id'
-    test_eyepop_secret_key = 'test secret key'
     test_expired_access_token = '... expired ...'
     test_access_token = '... an access token ...'
     test_data_url = 'http://example-data.test'
@@ -29,7 +28,7 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         versions=[]
     )
 
-    env_var = ['EYEPOP_SECRET_KEY', 'EYEPOP_ACCOUNT_UUID', 'EYEPOP_ACCOUNT_ID', 'EYEPOP_URL']
+    env_var = ['EYEPOP_ACCOUNT_UUID', 'EYEPOP_ACCOUNT_ID', 'EYEPOP_URL']
     for var in env_var:
         if var in os.environ:
             del os.environ[var]
@@ -62,8 +61,9 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
         mock.delete(f'{self.test_data_url}/datasets/{self.test_dataset_id}', callback=delete_dataset, repeat=False)
 
     def assertBaseMock(self, mock: aioresponses):
-        mock.assert_called_with(f'{self.test_eyepop_url}/authentication/token', method='POST',
-                                json={'secret_key': self.test_eyepop_secret_key})
+        mock.assert_called_with(f'{self.test_eyepop_url}/configs?account_uuid={self.test_eyepop_account_id}',
+                                method='GET', headers={'Authorization': f'Bearer {self.test_access_token}'},
+                                data=None, timeout=None)
         # mock.assert_called_with(
         #     f'{self.test_data_url}datasets?account_uuid={self.test_eyepop_account_id}',
         #     method='POST', headers={'Authorization': f'Bearer {self.test_access_token}'}, data=None,

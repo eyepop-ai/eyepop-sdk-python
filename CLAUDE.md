@@ -16,7 +16,8 @@ and Data (datasets / VLM / evaluation) APIs. Runs on `uv`, Python ≥ 3.12.
 - Version is git-derived (`setuptools_scm`) — building from a worktree/shallow clone misversions; publish asserts
   `eyepop.__version__ == release tag` with `fetch-depth: 0`.
 - Auth env is layered: `EYEPOP_API_KEY` (or `EYEPOP_ACCESS_TOKEN`); `EYEPOP_ACCOUNT_UUID` (or `account_id=`) required for the Data API and names the account for worker compute sessions (`EYEPOP_ACCOUNT_ID` is a deprecated fallback);
-  `EYEPOP_URL` defaults to **production** — override for staging. `EYEPOP_SECRET_KEY` is deprecated. In the
+  `EYEPOP_URL` defaults to **production** — override for staging. A named Pop needs `access_token=`; `EYEPOP_API_KEY` is
+  transient-only. In the
   composable-pop API, `model=`/`modelUuid=` are deprecated (use `ability=`) and `set_pop()` takes only `Pop` objects.
 
 ## See also

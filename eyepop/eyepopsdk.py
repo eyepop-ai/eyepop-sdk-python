@@ -22,7 +22,6 @@ class EyePopSdk:
     def workerEndpoint(
             pop_id: str | None = None,
             session_uuid: str | None = None,
-            secret_key: str | None = None,
             api_key: str | None = None,
             access_token: str | None = None,
             auto_start: bool = True,
@@ -43,7 +42,6 @@ class EyePopSdk:
             return EyePopSdk.async_worker(
                 pop_id=pop_id,
                 session_uuid=session_uuid,
-                secret_key=secret_key,
                 api_key=api_key,
                 access_token=access_token,
                 auto_start=auto_start,
@@ -63,7 +61,6 @@ class EyePopSdk:
             return EyePopSdk.sync_worker(
                 pop_id=pop_id,
                 session_uuid=session_uuid,
-                secret_key=secret_key,
                 api_key=api_key,
                 access_token=access_token,
                 auto_start=auto_start,
@@ -84,7 +81,6 @@ class EyePopSdk:
     def sync_worker(
             pop_id: str | None = None,
             session_uuid: str | None = None,
-            secret_key: str | None = None,
             api_key: str | None = None,
             access_token: str | None = None,
             auto_start: bool = True,
@@ -103,7 +99,6 @@ class EyePopSdk:
         endpoint = EyePopSdk.async_worker(
             pop_id=pop_id,
             session_uuid=session_uuid,
-            secret_key=secret_key,
             api_key=api_key,
             access_token=access_token,
             auto_start=auto_start,
@@ -125,7 +120,6 @@ class EyePopSdk:
     def async_worker(
             pop_id: str | None = None,
             session_uuid: str | None = None,
-            secret_key: str | None = None,
             api_key: str | None = None,
             access_token: str | None = None,
             auto_start: bool = True,
@@ -151,15 +145,14 @@ class EyePopSdk:
         if session_uuid is None:
             session_uuid = os.getenv("EYEPOP_SESSION_UUID", None)
 
-        has_any_auth_key = access_token is not None or secret_key is not None or api_key is not None
+        has_any_auth_key = access_token is not None or api_key is not None
 
         if not has_any_auth_key and not is_local_mode:
-            secret_key = os.getenv("EYEPOP_SECRET_KEY")
             api_key = os.getenv("EYEPOP_API_KEY")
-            if secret_key is None and api_key is None:
+            if api_key is None:
                 raise KeyError(
                     "At least one authentication method required: "
-                    "EYEPOP_SECRET_KEY or EYEPOP_API_KEY or access_token"
+                    "EYEPOP_API_KEY or access_token"
                 )
 
         if eyepop_url is None:
@@ -177,7 +170,7 @@ class EyePopSdk:
         if api_key and not is_transient_pop:
             raise ValueError(
                 f"EYEPOP_API_KEY can only be used with transient pops. "
-                f"Current pop_id: '{pop_id}'. Use EYEPOP_SECRET_KEY for named pops."
+                f"Current pop_id: '{pop_id}'. Pass access_token for named pops."
             )
 
         is_compute_url = eyepop_url and "https://compute" in eyepop_url.lower()
@@ -194,7 +187,6 @@ class EyePopSdk:
         log.debug(f"EyePop URL: {eyepop_url}")
 
         endpoint = WorkerEndpoint(
-            secret_key=secret_key,
             access_token=access_token,
             api_key=api_key,
             pop_id=pop_id,
@@ -221,7 +213,6 @@ class EyePopSdk:
     @staticmethod
     def dataEndpoint(
         account_id: str | None = None,
-        secret_key: str | None = None,
         access_token: str | None = None,
         api_key: str | None = None,
         eyepop_url: str | None = None,
@@ -230,13 +221,12 @@ class EyePopSdk:
         request_tracer_max_buffer: int = 1204,
         disable_ws: bool = True,
     ) -> DataEndpoint | SyncDataEndpoint:
-        if access_token is None and secret_key is None and api_key is None:
-            secret_key = os.getenv("EYEPOP_SECRET_KEY")
+        if access_token is None and api_key is None:
             api_key = os.getenv("EYEPOP_API_KEY")
-            if secret_key is None and api_key is None:
+            if api_key is None:
                 raise KeyError(
                     "At least one authentication method required: "
-                    "EYEPOP_SECRET_KEY or EYEPOP_API_KEY or access_token"
+                    "EYEPOP_API_KEY or access_token"
                 )
 
         if eyepop_url is None:
@@ -251,7 +241,6 @@ class EyePopSdk:
             account_id = account_uuid_from_env()
 
         endpoint = DataEndpoint(
-            secret_key=secret_key,
             access_token=access_token,
             account_id=account_id,
             api_key=api_key,
