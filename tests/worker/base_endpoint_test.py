@@ -9,13 +9,12 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
 
     test_eyepop_url = 'http://example.test'
     test_eyepop_pop_id = 'test_pop_id'
-    test_eyepop_secret_key = 'test secret key'
     test_expired_access_token = '... expired ...'
     test_access_token = '... an access token ...'
     test_worker_url = 'http://example-worker.test'
     test_pipeline_id = 'test_pipeline_id'
 
-    env_var = ['EYEPOP_SECRET_KEY', 'EYEPOP_POP_ID', 'EYEPOP_URL']
+    env_var = ['EYEPOP_POP_ID', 'EYEPOP_URL']
     for var in env_var:
         if var in os.environ:
             del os.environ[var]
@@ -103,8 +102,6 @@ class BaseEndpointTest(unittest.IsolatedAsyncioTestCase):
     ):
         if provided_access_token is None:
             provided_access_token = self.test_access_token
-            mock.assert_called_with(f'{self.test_eyepop_url}/authentication/token', method='POST',
-                                    json={'secret_key': self.test_eyepop_secret_key})
         if is_transient:
             mock.assert_called_with(f'{self.test_eyepop_url}/workers/config',
                                     method='GET',

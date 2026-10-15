@@ -1,27 +1,23 @@
-import json
-import unittest
 import datetime
+import unittest
 
 from aioresponses import aioresponses
 
 from eyepop import EyePopSdk
-from eyepop.data.data_types import DatasetCreate, Dataset, DatasetUpdate
+from eyepop.data.data_types import Dataset, DatasetCreate, DatasetUpdate
 from tests.data.base_endpoint_test import BaseEndpointTest
 
 
 class TestEndpointConnect(BaseEndpointTest):
 
     def test_missing_secret(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(KeyError):
             EyePopSdk.dataEndpoint()
 
     @aioresponses()
     def test_crud_dataset(self, mock: aioresponses):
 
         self.setup_base_mock(mock)
-
-        mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
-            {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
 
         mock.post(f'{self.test_data_url}/datasets?account_uuid={self.test_eyepop_account_id}', status=200,
                   body=Dataset(
@@ -50,7 +46,7 @@ class TestEndpointConnect(BaseEndpointTest):
         ).model_dump_json())
         mock.delete(f'{self.test_data_url}/datasets/{self.test_dataset_id}', status=204)
 
-        with EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+        with EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, access_token=self.test_access_token,
                                     account_id=self.test_eyepop_account_id) as endpoint:
             endpoint.connect()
             dataset = endpoint.create_dataset(DatasetCreate(

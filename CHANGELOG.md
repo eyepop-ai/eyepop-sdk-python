@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **Breaking:** secret-key authentication. The SDK no longer reads `EYEPOP_SECRET_KEY` or exchanges a secret key at `POST /authentication/token`, which the EyePop API is retiring. `secret_key=` is gone from `EyePopSdk.workerEndpoint()`, `sync_worker()`, `async_worker()` and `dataEndpoint()`, and from the `Endpoint`, `WorkerEndpoint` and `DataEndpoint` constructors. Passing it by name raises `TypeError`. It was the first constructor argument and the third of each worker factory, so a call that passes later arguments by position has to be updated.
+
+  To migrate, use an API key (`EYEPOP_API_KEY` or `api_key=`) for a transient Pop. A named Pop needs `access_token=`: an API key still works only with `transient`, and the `ValueError` it raises for a named Pop now says to pass `access_token` rather than pointing at `EYEPOP_SECRET_KEY`. A worker on the token path that is refused its Pop config with a 401 now raises it once, instead of retrying with the same token.
+
 ## [3.24.0] - 2026-10-12
 
 ### Added

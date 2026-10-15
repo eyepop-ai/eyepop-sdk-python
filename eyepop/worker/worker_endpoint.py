@@ -61,7 +61,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
 
     def __init__(
             self,
-            secret_key: str | None,
             access_token: str | None,
             api_key: str | None,
             eyepop_url: str,
@@ -80,7 +79,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             account_id: str | None = None,
     ):
         super().__init__(
-            secret_key=secret_key,
             access_token=access_token,
             eyepop_url=eyepop_url,
             job_queue_length=job_queue_length,
@@ -218,21 +216,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
                 self.last_fetch_config_success_time = time.time()
                 self.last_fetch_config_error = None
                 self.last_fetch_config_error_time = None
-            except aiohttp.ClientResponseError as e:
-                if e.status != 401:
-                    self.last_fetch_config_error = e
-                    self.last_fetch_config_error_time = time.time()
-                    raise e
-                else:
-                    self.token = None
-                    self.expire_token_time = None
-                    headers = {}
-                    authorization_header = await self._authorization_header()
-                    if authorization_header is not None:
-                        headers['Authorization'] = authorization_header
-                    async with self.client_session.get(config_url, headers=headers) as retried_response:
-                        self.worker_config = await retried_response.json()
-            except aiohttp.ClientConnectionError as e:
+            except (aiohttp.ClientResponseError, aiohttp.ClientConnectionError) as e:
                 self.last_fetch_config_error = e
                 self.last_fetch_config_error_time = time.time()
                 raise e

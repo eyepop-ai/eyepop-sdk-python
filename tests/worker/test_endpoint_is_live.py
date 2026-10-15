@@ -26,8 +26,6 @@ class TestEndpointIsLive(BaseEndpointTest):
 
     def setup_pop_mock(self, mock: aioresponses):
         self.setup_base_mock(mock)
-        mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
-            {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}', status=200,
                  body=json.dumps({'pop': Pop(components=[]).model_dump()}))
 
@@ -49,7 +47,7 @@ class TestEndpointIsLive(BaseEndpointTest):
         self.mock_source_post(mock, seen)
         with EyePopSdk.sync_worker(
                 eyepop_url=self.test_eyepop_url,
-                secret_key=self.test_eyepop_secret_key,
+                access_token=self.test_access_token,
                 pop_id=self.test_eyepop_pop_id,
         ) as endpoint:
             with open(self.test_file, 'rb') as file:
@@ -66,7 +64,7 @@ class TestEndpointIsLive(BaseEndpointTest):
         self.mock_source_post(mock, seen)
         with EyePopSdk.sync_worker(
                 eyepop_url=self.test_eyepop_url,
-                secret_key=self.test_eyepop_secret_key,
+                access_token=self.test_access_token,
                 pop_id=self.test_eyepop_pop_id,
         ) as endpoint:
             job = endpoint.upload(self.test_file, is_live=True)
@@ -82,7 +80,7 @@ class TestEndpointIsLive(BaseEndpointTest):
         self.mock_source_post(mock, seen)
         async with EyePopSdk.async_worker(
                 eyepop_url=self.test_eyepop_url,
-                secret_key=self.test_eyepop_secret_key,
+                access_token=self.test_access_token,
                 pop_id=self.test_eyepop_pop_id,
         ) as endpoint:
             job = await endpoint.upload(self.test_file, is_live=True)
@@ -98,7 +96,7 @@ class TestEndpointIsLive(BaseEndpointTest):
         self.mock_source_post(mock, seen)
         async with EyePopSdk.async_worker(
                 eyepop_url=self.test_eyepop_url,
-                secret_key=self.test_eyepop_secret_key,
+                access_token=self.test_access_token,
                 pop_id=self.test_eyepop_pop_id,
         ) as endpoint:
             with open(self.test_file, 'rb') as file:
