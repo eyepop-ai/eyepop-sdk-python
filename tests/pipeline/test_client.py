@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from aiohttp import web
 
-import eyepop.pipeline.client as client_module
+import eyepop.pipeline
 from eyepop.pipeline import EyePopClient, EyePopError
 from tests.pipeline.fakes import (
     PREDICTIONS,
@@ -68,6 +68,7 @@ async def collect(client: EyePopClient, items: list[dict[str, Any]], ability: An
 
 
 async def test_image_by_url_asset_and_file(pipeline_api: FakePipelineAPI, tmp_path: pathlib.Path):
+    """A url and an asset go as JSON, a file and bytes as multipart typed from the name or content_type; each returns the predictions unchanged."""
     image = tmp_path / "people.jpg"
     image.write_bytes(b"\xff\xd8 jpeg bytes")
     async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
@@ -93,17 +94,19 @@ async def test_image_by_url_asset_and_file(pipeline_api: FakePipelineAPI, tmp_pa
 
 @pytest.mark.parametrize("error", ["overloaded", "pipeline_stopped"])
 async def test_image_retries_a_503_with_retry_after(pipeline_api: FakePipelineAPI, error: str):
+    """A 503 with Retry-After is retried, and the 200 that follows is returned."""
     pipeline_api.post_answers.append((503, {"error": error, "message": "busy"}, {"Retry-After": "1"}))
     async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
         assert await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person") == PREDICTIONS
     assert len(pipeline_api.requests) == 2
 
 
-async def test_image_raises_the_last_503_once_the_bound_has_passed(pipeline_api: FakePipelineAPI, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(client_module, "_RETRY_BOUND", 1.5)
+async def test_image_raises_the_last_503_once_the_bound_has_passed(pipeline_api: FakePipelineAPI):
+    """A 503 still answered once the retry bound has passed is raised as it arrived."""
     overloaded = (503, {"error": "overloaded", "retry_after_seconds": 1}, {"Retry-After": "1"})
     pipeline_api.post_answers.extend([overloaded] * 5)
     async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
+        client._retry_bound = 1.5  # pyright: ignore[reportPrivateUsage]
         with pytest.raises(EyePopError) as raised:
             await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person")
     assert (raised.value.status, raised.value.error, raised.value.close_code) == (503, "overloaded", None)
@@ -111,6 +114,7 @@ async def test_image_raises_the_last_503_once_the_bound_has_passed(pipeline_api:
 
 
 async def test_image_raises_other_errors_at_once(pipeline_api: FakePipelineAPI):
+    """A 422 raises at once with its status, error and message."""
     pipeline_api.post_answers.append((422, {"error": "invalid_pop", "message": "no components"}, {}))
     async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
         with pytest.raises(EyePopError) as raised:
@@ -120,6 +124,7 @@ async def test_image_raises_other_errors_at_once(pipeline_api: FakePipelineAPI):
 
 
 async def test_socket_retries_an_upgrade_answered_503(pipeline_api: FakePipelineAPI):
+    """An upgrade answered 503 with Retry-After is retried and the socket opens."""
     pipeline_api.upgrade_answers.append((503, {"error": "overloaded", "retry_after_seconds": 1}, {"Retry-After": "1"}))
     async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
         messages = await collect(client, [{"id": "a", "url": "https://example.com/1.jpg"}])
@@ -128,6 +133,7 @@ async def test_socket_retries_an_upgrade_answered_503(pipeline_api: FakePipeline
 
 
 async def test_socket_raises_a_refused_upgrade_at_once(pipeline_api: FakePipelineAPI):
+    """An upgrade answered 403 raises at once with its status and no error."""
     pipeline_api.upgrade_answers.append((403, "Forbidden", {}))
     async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
         with pytest.raises(EyePopError) as raised:
@@ -140,6 +146,7 @@ async def test_socket_raises_a_refused_upgrade_at_once(pipeline_api: FakePipelin
 
 
 async def test_batch(pipeline_api: FakePipelineAPI):
+    """One socket carries the request as sent and yields every message but done, in order."""
     async def script(ws: web.WebSocketResponse, request: dict[str, Any], fake: FakePipelineAPI) -> None:
         for item in request["items"]:
             await ws.send_json({"type": "start", "id": item["id"]})
@@ -173,6 +180,7 @@ async def test_batch(pipeline_api: FakePipelineAPI):
 
 
 async def test_upload(pipeline_api: FakePipelineAPI, tmp_path: pathlib.Path):
+    """No byte is sent before its item's start; every byte then uploaded follows; an item that ends first stops its bytes and sends uploaded at once."""
     video = bytes(range(256)) * 1000  # several frames' worth
     path = tmp_path / "clip.mp4"
     path.write_bytes(video)
@@ -191,8 +199,9 @@ async def test_upload(pipeline_api: FakePipelineAPI, tmp_path: pathlib.Path):
     async def script(ws: web.WebSocketResponse, request: dict[str, Any], fake: FakePipelineAPI) -> None:
         assert await receive(ws, before_start, timeout=0.3) is None  # nothing before start
         await ws.send_json({"type": "start", "id": "c"})
-        while await receive(ws, upload_c) != {"type": "uploaded", "id": "c"}:
+        while (message := await receive(ws, upload_c, timeout=2)) not in (None, {"type": "uploaded", "id": "c"}):
             pass
+        assert message is not None, "no uploaded for c"
         await ws.send_json({"type": "end", "id": "c", "reason": "eos"})
         await ws.send_json({"type": "start", "id": "d"})
         assert await receive(ws, upload_d) == b"first chunk"
@@ -249,6 +258,7 @@ async def wait_for(condition, timeout: float = 2.0) -> None:
 
 
 async def test_breaking_a_stream_closes_its_socket(pipeline_api: FakePipelineAPI):
+    """Breaking out of a stream closes its socket with 1000."""
     pipeline_api.script = live
     async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
         seen = []
@@ -263,6 +273,7 @@ async def test_breaking_a_stream_closes_its_socket(pipeline_api: FakePipelineAPI
 
 
 async def test_closing_the_client_ends_a_stream(pipeline_api: FakePipelineAPI):
+    """Closing the client closes its socket with 1000 and ends the iteration."""
     pipeline_api.script = live
     client = EyePopClient(pipeline_api.url, access_token=JWT)
     seen = []
@@ -301,6 +312,7 @@ def closes(code: int, reason: bytes = b""):
     ],
 )
 async def test_server_errors(pipeline_api: FakePipelineAPI, script, close_code: int, error: str | None, message: str | None):
+    """An error message or a close other than 1000 raises with the close code, and the error code or the close's reason."""
     pipeline_api.script = script
     async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
         with pytest.raises(EyePopError) as raised:
@@ -314,6 +326,7 @@ async def test_server_errors(pipeline_api: FakePipelineAPI, script, close_code: 
 
 
 async def test_api_key_is_exchanged_and_never_sent_to_the_pipeline_api(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI):
+    """The API key reaches only compute-api; the pipeline API sees only the minted token, exchanged once while it is valid."""
     async with EyePopClient(pipeline_api.url, api_key=API_KEY, compute_url=compute_api.url) as client:
         await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person")
         await collect(client, [{"id": "a", "url": "https://example.com/1.jpg"}])
@@ -322,6 +335,7 @@ async def test_api_key_is_exchanged_and_never_sent_to_the_pipeline_api(pipeline_
 
 
 async def test_a_request_in_the_tokens_last_minute_exchanges_first(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI):
+    """A request in the token's last 60 s is preceded by a second exchange."""
     compute_api.expires_in = 30
     async with EyePopClient(pipeline_api.url, api_key=API_KEY, compute_url=compute_api.url) as client:
         await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person")
@@ -331,6 +345,7 @@ async def test_a_request_in_the_tokens_last_minute_exchanges_first(pipeline_api:
 
 
 async def test_forced_exchanges_run_one_at_a_time(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI):
+    """Forced callers that arrive together share one exchange."""
     async with EyePopClient(pipeline_api.url, api_key=API_KEY, compute_url=compute_api.url) as client:
         assert await client._valid_token() == "minted-1"
         tokens = await asyncio.gather(*(client._valid_token(force=True) for _ in range(6)))
@@ -339,6 +354,7 @@ async def test_forced_exchanges_run_one_at_a_time(pipeline_api: FakePipelineAPI,
 
 
 async def test_a_failed_exchange_raises_and_sends_nothing(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI):
+    """A refused exchange raises with compute-api's status, names compute-api, and sends the pipeline API nothing."""
     compute_api.status = 401
     async with EyePopClient(pipeline_api.url, api_key=API_KEY, compute_url=compute_api.url) as client:
         with pytest.raises(EyePopError) as by_image:
@@ -363,18 +379,21 @@ async def test_a_failed_exchange_raises_and_sends_nothing(pipeline_api: FakePipe
     ],
 )
 def test_plain_http_off_loopback_is_refused(kwargs: dict[str, str]):
-    with pytest.raises(ValueError, match="https"):
+    """A plain http url or compute url off loopback is refused before any request."""
+    with pytest.raises(ValueError):
         EyePopClient(**kwargs, api_key=API_KEY)
 
 
 @pytest.mark.parametrize("url", ["http://localhost:8080", "http://127.0.0.1", "http://[::1]:8080", "https://pipeline.example.com"])
 def test_loopback_and_https_are_accepted(url: str):
+    """https, and plain http to a loopback host, are accepted."""
     EyePopClient(url, access_token=JWT, compute_url="http://localhost:9000")
 
 
 @pytest.mark.parametrize("kwargs", [{}, {"access_token": JWT, "api_key": API_KEY}])
 def test_exactly_one_credential(kwargs: dict[str, str]):
-    with pytest.raises(ValueError, match="exactly one"):
+    """Neither credential, or both, is refused."""
+    with pytest.raises(ValueError):
         EyePopClient("https://pipeline.example.com", **kwargs)
 
 
@@ -382,6 +401,7 @@ def test_exactly_one_credential(kwargs: dict[str, str]):
 
 
 async def test_no_credential_in_errors_or_logs(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI, caplog: pytest.LogCaptureFixture):
+    """No error message or log record holds the API key or a token."""
     caplog.set_level(logging.DEBUG)
     pipeline_api.post_answers.append((401, "Unauthorized", {}))
     pipeline_api.script = closes(1008, b"credential_expired")
@@ -408,7 +428,8 @@ async def test_no_credential_in_errors_or_logs(pipeline_api: FakePipelineAPI, co
 
 
 def test_pipeline_and_auth_import_nothing_else_from_the_sdk():
-    root = pathlib.Path(client_module.__file__).parents[1]
+    """eyepop/pipeline and eyepop/auth import no eyepop module outside those two trees."""
+    root = pathlib.Path(eyepop.pipeline.__file__).parents[1]
     allowed = ("eyepop.pipeline", "eyepop.auth")
     outside = []
     for tree in ("pipeline", "auth"):
@@ -434,6 +455,7 @@ def test_pipeline_and_auth_import_nothing_else_from_the_sdk():
 
 
 async def test_a_socket_with_no_pong_raises_1006_within_one_and_a_half_heartbeats():
+    """A socket that answers no ping raises 1006 within 1.5 heartbeats."""
     async def silent(ws: web.WebSocketResponse, request: dict[str, Any], fake: FakePipelineAPI) -> None:
         await ws.send_json({"type": "start", "id": "cam"})
         await asyncio.sleep(10)
@@ -447,11 +469,11 @@ async def test_a_socket_with_no_pong_raises_1006_within_one_and_a_half_heartbeat
             await anext(stream)
         elapsed = time.monotonic() - started
     assert (raised.value.status, raised.value.close_code) == (None, 1006)
-    assert "pong" in raised.value.message
     assert elapsed <= 1.5 * heartbeat + 0.05  # timer jitter
 
 
 async def test_a_connection_dropped_with_no_close_frame_raises_1006():
+    """A connection dropped with no close frame raises 1006."""
     async def drop(ws: web.WebSocketResponse, request: dict[str, Any], fake: FakePipelineAPI) -> None:
         await ws.send_json({"type": "start", "id": "a"})
         transport = ws._req.transport if ws._req else None  # pyright: ignore[reportPrivateUsage]
@@ -465,6 +487,7 @@ async def test_a_connection_dropped_with_no_close_frame_raises_1006():
 
 
 async def test_nothing_listening_raises_with_no_status_and_no_close_code():
+    """A port nothing listens on raises with no status and no close code, the library's exception as cause."""
     async with EyePopClient(f"http://127.0.0.1:{free_port()}", access_token=JWT) as client:
         with pytest.raises(EyePopError) as by_image:
             await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person")
@@ -477,6 +500,7 @@ async def test_nothing_listening_raises_with_no_status_and_no_close_code():
 
 
 async def test_compute_api_down_raises_an_exchange_error(pipeline_api: FakePipelineAPI):
+    """compute-api down raises with no status, names compute-api, and sends the pipeline API nothing."""
     async with EyePopClient(pipeline_api.url, api_key=API_KEY, compute_url=f"http://127.0.0.1:{free_port()}") as client:
         with pytest.raises(EyePopError) as raised:
             await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person")

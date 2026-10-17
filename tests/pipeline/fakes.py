@@ -6,7 +6,7 @@ function given the server's socket and the client's first message.
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Self
 
 from aiohttp import BodyPartReader, WSMsgType, web
 from aiohttp.test_utils import TestServer
@@ -67,7 +67,27 @@ async def batch_done(ws: web.WebSocketResponse, request: dict[str, Any], fake: "
     await ws.close()
 
 
-class FakePipelineAPI:
+class _FakeServer:
+    """An aiohttp app on a free loopback port, started by `async with`."""
+
+    def __init__(self, app: web.Application):
+        self.server = TestServer(app, host="127.0.0.1")
+
+    @property
+    def url(self) -> str:
+        return str(self.server.make_url("")).rstrip("/")
+
+    async def __aenter__(self) -> Self:
+        """Start serving."""
+        await self.server.start_server()
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        """Stop serving."""
+        await self.server.close()
+
+
+class FakePipelineAPI(_FakeServer):
     """`POST` and the upgrade at `/api/v1/pipeline`.
 
     `post_answers` and `upgrade_answers` are queues of `(status, body, headers)` served before the
@@ -84,22 +104,11 @@ class FakePipelineAPI:
         self.upgrade_answers: list[tuple[int, Any, dict[str, str]]] = []
         app = web.Application()
         app.router.add_route("*", "/api/v1/pipeline", self._handle)
-        self.server = TestServer(app, host="127.0.0.1")
-
-    @property
-    def url(self) -> str:
-        return str(self.server.make_url("")).rstrip("/")
+        super().__init__(app)
 
     @property
     def upgrades(self) -> list[Recorded]:
         return [r for r in self.requests if r.method == "GET"]
-
-    async def __aenter__(self) -> "FakePipelineAPI":
-        await self.server.start_server()
-        return self
-
-    async def __aexit__(self, *_: object) -> None:
-        await self.server.close()
 
     async def _handle(self, request: web.Request) -> web.StreamResponse:
         recorded = Recorded(
@@ -136,7 +145,7 @@ class FakePipelineAPI:
         return web.json_response(body, status=status, headers=headers)
 
 
-class FakeComputeAPI:
+class FakeComputeAPI(_FakeServer):
     """compute-api's `POST /v1/auth/authenticate`: mints `minted-1`, `minted-2`, ... valid for `expires_in`."""
 
     def __init__(self, expires_in: int = 3600, status: int = 200):
@@ -145,22 +154,11 @@ class FakeComputeAPI:
         self.authorizations: list[str | None] = []
         app = web.Application()
         app.router.add_post("/v1/auth/authenticate", self._handle)
-        self.server = TestServer(app, host="127.0.0.1")
-
-    @property
-    def url(self) -> str:
-        return str(self.server.make_url("")).rstrip("/")
+        super().__init__(app)
 
     @property
     def minted(self) -> list[str]:
         return [f"minted-{n}" for n in range(1, len(self.authorizations) + 1)]
-
-    async def __aenter__(self) -> "FakeComputeAPI":
-        await self.server.start_server()
-        return self
-
-    async def __aexit__(self, *_: object) -> None:
-        await self.server.close()
 
     async def _handle(self, request: web.Request) -> web.Response:
         self.authorizations.append(request.headers.get("Authorization"))
