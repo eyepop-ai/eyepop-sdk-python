@@ -34,7 +34,7 @@ def env_api_key(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.fixture
 async def pipeline_api() -> AsyncIterator[FakePipelineAPI]:
-    """The fake pipeline API; afterwards, every request carried a bearer JWT and every upgrade offered `eyepop.v1`."""
+    """The fake pipeline API; afterwards, every request carried a bearer JWT, no API key and no Origin, and every upgrade offered `eyepop.v1`."""
     async with FakePipelineAPI() as fake:
         yield fake
     for recorded in fake.requests:
@@ -62,7 +62,7 @@ async def collect(client: EyePopClient, items: list[dict[str, Any]], ability: An
     return [message async for message in client.socket(items, ability=ability)]
 
 
-# 1. One image
+# One image
 
 
 async def test_image_by_url_asset_and_file(pipeline_api: FakePipelineAPI, tmp_path: pathlib.Path):
@@ -87,7 +87,7 @@ async def test_image_by_url_asset_and_file(pipeline_api: FakePipelineAPI, tmp_pa
     assert all(r.authorization == f"Bearer {JWT}" for r in pipeline_api.requests)
 
 
-# 2. Retry and errors
+# Retry and errors
 
 
 @pytest.mark.parametrize("error", ["overloaded", "pipeline_stopped"])
@@ -151,7 +151,7 @@ async def test_socket_raises_a_refused_upgrade_at_once(pipeline_api: FakePipelin
     assert len(pipeline_api.upgrades) == 1
 
 
-# 3. A batch
+# A batch
 
 
 async def test_batch(pipeline_api: FakePipelineAPI):
@@ -185,12 +185,12 @@ async def test_batch(pipeline_api: FakePipelineAPI):
     assert pipeline_api.upgrades[0].authorization == f"Bearer {JWT}"
 
 
-# 4. An upload
+# An upload
 
 
 async def test_upload(pipeline_api: FakePipelineAPI, tmp_path: pathlib.Path):
     """No byte is sent before its item's start; every byte then uploaded follows; an item that ends first stops its bytes and sends uploaded at once."""
-    video = bytes(range(256)) * 1000  # several frames' worth
+    video = bytes(range(256)) * 1000  # spans several 64 KiB chunks
     path = tmp_path / "clip.mp4"
     path.write_bytes(video)
     more = asyncio.Event()
@@ -239,7 +239,7 @@ async def test_upload(pipeline_api: FakePipelineAPI, tmp_path: pathlib.Path):
     assert messages[-1] == {"type": "end", "id": "d", "reason": "error", "message": "stalled"}
 
 
-# 5. Stopping a stream
+# Stopping a stream
 
 
 async def live(ws: web.WebSocketResponse, request: dict[str, Any], fake: FakePipelineAPI) -> None:
@@ -295,7 +295,7 @@ async def test_closing_the_client_ends_a_stream(pipeline_api: FakePipelineAPI):
     assert pipeline_api.received[0].close_code == 1000
 
 
-# 6. Server errors
+# Server errors
 
 
 async def send_error(ws: web.WebSocketResponse, request: dict[str, Any], fake: FakePipelineAPI) -> None:
@@ -331,7 +331,7 @@ async def test_server_errors(pipeline_api: FakePipelineAPI, script, close_code: 
         assert raised.value.message == message
 
 
-# 8. An API key
+# An API key
 
 
 async def test_api_key_is_exchanged_and_never_sent_to_the_pipeline_api(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI):
@@ -386,7 +386,7 @@ async def test_an_exchange_answer_with_no_valid_expiry_raises_and_sends_nothing(
     assert pipeline_api.requests == []
 
 
-# 9. Plain http off loopback
+# Plain http off loopback
 
 
 @pytest.mark.parametrize(
@@ -416,7 +416,7 @@ def test_exactly_one_credential(kwargs: dict[str, str]):
         EyePopClient("https://pipeline.example.com", **kwargs)
 
 
-# 10. No credential in errors or logs
+# No credential in errors or logs
 
 
 async def test_no_credential_in_errors_or_logs(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI, caplog: pytest.LogCaptureFixture):
@@ -443,7 +443,7 @@ async def test_no_credential_in_errors_or_logs(pipeline_api: FakePipelineAPI, co
     assert not [t for t in texts if any(s in t for s in secrets)]
 
 
-# 11. An isolated module tree
+# An isolated module tree
 
 
 def test_pipeline_and_auth_import_nothing_else_from_the_sdk():
@@ -470,7 +470,7 @@ def test_pipeline_and_auth_import_nothing_else_from_the_sdk():
     assert outside == []
 
 
-# 12. Dead connections
+# Dead connections
 
 
 async def test_a_socket_with_no_pong_raises_1006_within_one_and_a_half_heartbeats():

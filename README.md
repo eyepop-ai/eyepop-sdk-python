@@ -456,7 +456,8 @@ asyncio.run(main())
 
 `eyepop.pipeline` is an experimental client for the pipeline API: one image over a `POST`, and
 batches, uploads and live streams over one WebSocket per call. It may change without notice, is
-not exported from `eyepop`, and uses nothing else from this SDK. It reads no environment variable:
+not exported from `eyepop`, and uses nothing else from this SDK but its API key exchange
+(`eyepop.auth`). It reads no environment variable:
 pass the pipeline API's url and exactly one credential.
 
 With an access token (a user's JWT, or one already minted from an API key):
@@ -494,5 +495,5 @@ async def main():
 ```
 
 A live stream is one item, an `rtsp://` or `rtmp://` url or one with `"live": True`; stop it by
-breaking out of the loop or closing the client. The client refuses a plain `http` url unless its
+closing the client, or by breaking out of a loop over `contextlib.aclosing(client.socket(...))`. The client refuses a plain `http` url unless its
 host is a loopback address.

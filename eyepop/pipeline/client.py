@@ -93,7 +93,7 @@ class EyePopClient:
         self._sockets: set[aiohttp.ClientWebSocketResponse] = set()
 
     async def __aenter__(self) -> "EyePopClient":
-        """Return the client; leaving the block closes it."""
+        """Return the client."""
         return self
 
     async def __aexit__(self, *_: object) -> None:

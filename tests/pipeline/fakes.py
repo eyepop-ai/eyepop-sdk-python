@@ -79,11 +79,7 @@ class _FakeServer:
 
 
 class FakePipelineAPI(_FakeServer):
-    """`POST` and the upgrade at `/api/v1/pipeline`.
-
-    `post_answers` and `upgrade_answers` are queues of `(status, body, headers)` served before the
-    default: `200` with `PREDICTIONS`, and an upgrade that runs `script`.
-    """
+    """Serves queued `(status, body, headers)` answers first, then `200` with `PREDICTIONS` or `script`."""
 
     def __init__(self, script: Script = batch_done, autoping: bool = True):
         self.script = script
