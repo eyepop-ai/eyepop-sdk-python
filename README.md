@@ -451,3 +451,49 @@ async def main():
 
 asyncio.run(main())
 ```
+
+## Experimental: the pipeline API
+
+`eyepop.pipeline` is an experimental client for the pipeline API: one image over a `POST`, and
+batches, uploads and live streams over one WebSocket per call. It may change without notice, is
+not exported from `eyepop`, and uses nothing else from this SDK but its API key exchange
+(`eyepop.auth`). It reads no environment variable:
+pass the pipeline API's url and exactly one credential.
+
+With an access token (a user's JWT, or one already minted from an API key):
+
+```python
+import asyncio
+import pathlib
+
+from eyepop.pipeline import EyePopClient, EyePopError
+
+async def main():
+    async with EyePopClient("https://pipeline.example.com", access_token=jwt) as client:
+        predictions = await client.image({"url": "https://example.com/people.jpg"}, ability="eyepop.person")
+        predictions = await client.image(pathlib.Path("people.jpg"), ability="eyepop.person")
+
+asyncio.run(main())
+```
+
+With an API key, which the client exchanges at compute-api (`compute_url`, by default
+`https://compute.eyepop.ai`) for a token, again when less than a minute of it is left, and never
+sends to the pipeline API:
+
+```python
+async def main():
+    async with EyePopClient("https://pipeline.example.com", api_key=api_key) as client:
+        items = [
+            {"id": "a", "url": "https://example.com/1.jpg"},
+            {"id": "b", "upload": {"contentType": "video/mp4"}, "file": pathlib.Path("clip.mp4")},
+        ]
+        try:
+            async for message in client.socket(items, ability="eyepop.person"):
+                print(message["type"], message["id"])  # start, prediction, dropped, end
+        except EyePopError as e:
+            print(e.status, e.close_code, e.error, e.message)
+```
+
+A live stream is one item, an `rtsp://` or `rtmp://` url or one with `"live": True`; stop it by
+closing the client, or by breaking out of a loop over `contextlib.aclosing(client.socket(...))`. The client refuses a plain `http` url unless its
+host is a loopback address.
