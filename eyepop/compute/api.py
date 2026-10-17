@@ -6,6 +6,7 @@ from typing import Any
 import aiohttp
 from pydantic import TypeAdapter
 
+from eyepop.auth import ExchangeError, exchange
 from eyepop.compute.context import ComputeContext, first_pipeline_id
 from eyepop.compute.responses import ComputeApiSessionResponse
 from eyepop.compute.status import wait_for_session
@@ -245,31 +246,24 @@ async def refresh_compute_token(
             session_uuid=compute_ctx.session_uuid,
         )
 
-    headers = {"Authorization": f"Bearer {compute_ctx.api_key}", "Accept": "application/json"}
-
-    refresh_url = f"{compute_ctx.compute_url}/v1/auth/authenticate"
-
     try:
-        async with client_session.post(refresh_url, headers=headers) as response:
-            response.raise_for_status()
-            token_response = await response.json()
-            log.debug(f"POST /v1/auth/authenticate - status: {response.status}")
-
-            compute_ctx.m2m_access_token = token_response.get("access_token", "")
-            compute_ctx.access_token_expires_at = token_response.get("expires_at", "")
-            compute_ctx.access_token_expires_in = token_response.get("expires_in", 0)
-
-            return compute_ctx
-
-    except aiohttp.ClientResponseError as e:
+        token = await exchange(client_session, compute_ctx.compute_url, compute_ctx.api_key)
+    except ExchangeError as e:
         raise ComputeTokenException(
-            f"Token refresh failed: HTTP {e.status} - {e.message}",
+            f"Token refresh failed: {e.message}",
             session_uuid=compute_ctx.session_uuid,
         ) from e
     except Exception as e:
         raise ComputeTokenException(
             f"Token refresh failed: {str(e)}", session_uuid=compute_ctx.session_uuid
         ) from e
+    log.debug("POST /v1/auth/authenticate - token refreshed")
+
+    compute_ctx.m2m_access_token = token.access_token
+    compute_ctx.access_token_expires_at = token.expires_at
+    compute_ctx.access_token_expires_in = token.expires_in
+
+    return compute_ctx
 
 
 async def fetch_permanent_compute_session(
