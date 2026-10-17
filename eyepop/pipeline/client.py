@@ -1,9 +1,3 @@
-"""A client for the pipeline API [EXPERIMENTAL].
-
-It speaks eyepop-instance's `specs/012-pipeline-api/contracts/request.md` (one image, `POST`) and
-`websocket.md` (batches, uploads and streams), and adds nothing to them.
-"""
-
 import asyncio
 import contextlib
 import ipaddress
@@ -25,7 +19,7 @@ from eyepop.auth import ExchangeError, exchange
 log = logging.getLogger("eyepop.pipeline")
 
 _PATH = "/api/v1/pipeline"
-_REFRESH_BEFORE = 60.0  # seconds of a token's life left when the client exchanges again
+_REFRESH_SECONDS_BEFORE_EXPIRY = 60.0
 _CHUNK = 64 * 1024
 
 Image = Mapping[str, str] | bytes | pathlib.Path | BinaryIO
@@ -34,11 +28,7 @@ Ability = str | Mapping[str, Any]
 
 
 class EyePopError(Exception):
-    """Every error the pipeline API's contracts name [EXPERIMENTAL].
-
-    `status` is the HTTP status, `close_code` the WebSocket close code, `error` the contract's code
-    and `message` its text; whatever did not arrive is None (`message` is "").
-    """
+    """[EXPERIMENTAL] Any field that did not arrive is None (`message` is "")."""
 
     def __init__(
         self,
@@ -62,8 +52,6 @@ class EyePopError(Exception):
 
 
 class _RetryAfter(Exception):
-    """A `503` the contracts say to retry once `wait` seconds have passed."""
-
     def __init__(self, wait: float, error: EyePopError):
         self.wait = wait
         self.error = error
@@ -81,7 +69,7 @@ class EyePopClient:
             predictions = await client.image(pathlib.Path("people.jpg"), ability="eyepop.person")
     """
 
-    _retry_bound = 30.0  # seconds after the first try that a 503 stops being retried
+    _retry_503_for_seconds = 30.0
 
     def __init__(
         self,
@@ -113,7 +101,6 @@ class EyePopClient:
         await self.close()
 
     async def close(self) -> None:
-        """Close every open socket with `1000`, then the client's connections."""
         while self._sockets:
             await self._sockets.pop().close()
         if self._session is not None:
@@ -161,17 +148,14 @@ class EyePopClient:
             await ws.close()
 
     async def _valid_token(self, force: bool = False) -> str:
-        """The JWT to send, exchanging the API key first when it is missing, near expiry, or `force`.
-
-        One exchange runs at a time: callers that waited on it take its token instead of exchanging again.
-        """
+        """One exchange runs at a time: callers that waited on it take its token instead of exchanging again."""
         if self._api_key is None:
             assert self._access_token is not None
             return self._access_token
         seen = self._access_token
         async with self._lock:
             if self._access_token == seen and (
-                force or seen is None or self._expires - time.monotonic() < _REFRESH_BEFORE
+                force or seen is None or self._expires - time.monotonic() < _REFRESH_SECONDS_BEFORE_EXPIRY
             ):
                 await self._exchange(self._api_key)
             assert self._access_token is not None
@@ -205,7 +189,7 @@ class EyePopClient:
             try:
                 return await attempt()
             except _RetryAfter as answer:
-                if time.monotonic() + answer.wait - start > self._retry_bound:
+                if time.monotonic() + answer.wait - start > self._retry_503_for_seconds:
                     raise answer.error from None
                 log.debug("the pipeline API answered %s, retrying in %ss", answer.error, answer.wait)
                 await asyncio.sleep(answer.wait)
@@ -274,8 +258,6 @@ class _ImageRequest:
 
 
 class _Uploads:
-    """Sends each upload item's media once the server has sent its `start`, and stops at its `end`."""
-
     def __init__(self, ws: aiohttp.ClientWebSocketResponse, media: dict[Any, Media]):
         self._ws = ws
         self._media = media
@@ -306,7 +288,7 @@ class _Uploads:
         await self._send_uploaded(item_id)
 
     async def _stop(self, item_id: Any) -> None:
-        """An item that ends before its bytes do stops them, and its `uploaded` ends the server's draining."""
+        # `uploaded` ends the server's draining of an item that ended before its bytes did
         sender = self._senders[item_id]
         sender.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -320,7 +302,6 @@ class _Uploads:
 
 
 def _socket_failure(msg: aiohttp.WSMessage, error: dict[str, Any] | None, closed_by_client: bool) -> EyePopError | None:
-    """Why a socket ended, or None when it ended as it should: `1000` with no `error`, or closed by the client."""
     if msg.type == aiohttp.WSMsgType.CLOSE:
         code, reason = msg.data, msg.extra or None
         if error is not None:
@@ -339,7 +320,7 @@ def _socket_failure(msg: aiohttp.WSMessage, error: dict[str, Any] | None, closed
 
 
 def _checked_url(url: str, name: str) -> str:
-    """The url without a trailing slash; plain `http` only to a loopback host, so a token never crosses a network in clear."""
+    """Plain `http` only to a loopback host, so a token never crosses a network in clear."""
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https") or not parts.hostname:
         raise ValueError(f"{name} must be an http or https url")
@@ -374,7 +355,7 @@ def _retry_after(status: int, headers: Mapping[str, str] | None) -> float | None
 
 
 def _answer_error(status: int, content_type: str, text: str) -> EyePopError:
-    """request.md's `{"error", "message"}` body; `401` and `403` are plain text, kept as the message."""
+    """`401` and `403` answer plain text, kept as the message."""
     if content_type == "application/json":
         with contextlib.suppress(ValueError):
             body = json.loads(text)

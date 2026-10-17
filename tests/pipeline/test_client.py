@@ -1,5 +1,3 @@
-"""The pipeline client against in-process fakes: eyepop-instance's `specs/012-pipeline-api/contracts/sdk-client.md`, "Tests"."""
-
 import ast
 import asyncio
 import contextlib
@@ -106,7 +104,7 @@ async def test_image_raises_the_last_503_once_the_bound_has_passed(pipeline_api:
     overloaded = (503, {"error": "overloaded", "retry_after_seconds": 1}, {"Retry-After": "1"})
     pipeline_api.post_answers.extend([overloaded] * 5)
     async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
-        client._retry_bound = 1.5  # pyright: ignore[reportPrivateUsage]
+        client._retry_503_for_seconds = 1.5  # pyright: ignore[reportPrivateUsage]
         with pytest.raises(EyePopError) as raised:
             await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person")
     assert (raised.value.status, raised.value.error, raised.value.close_code) == (503, "overloaded", None)
@@ -208,7 +206,7 @@ async def test_upload(pipeline_api: FakePipelineAPI, tmp_path: pathlib.Path):
     upload_c, upload_d = Received(), Received()
 
     async def script(ws: web.WebSocketResponse, request: dict[str, Any], fake: FakePipelineAPI) -> None:
-        assert await receive(ws, before_start, timeout=0.3) is None  # nothing before start
+        assert await receive(ws, before_start, timeout=0.3) is None
         await ws.send_json({"type": "start", "id": "c"})
         while (message := await receive(ws, upload_c, timeout=2)) not in (None, {"type": "uploaded", "id": "c"}):
             pass

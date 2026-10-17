@@ -1,9 +1,3 @@
-"""In-process fakes of the pipeline API and of compute-api's exchange, for the pipeline client's tests.
-
-Each records every request and upgrade it receives. A socket's behaviour is a script: an async
-function given the server's socket and the client's first message.
-"""
-
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Self
@@ -58,7 +52,6 @@ async def until_closed(ws: web.WebSocketResponse, received: Received) -> None:
 
 
 async def batch_done(ws: web.WebSocketResponse, request: dict[str, Any], fake: "FakePipelineAPI") -> None:
-    """Each item: `start`, one prediction, `end`; then `done` and `1000`."""
     for item in request["items"]:
         await ws.send_json({"type": "start", "id": item["id"]})
         await ws.send_json({"type": "prediction", "id": item["id"], "prediction": PREDICTIONS[0]})
@@ -68,8 +61,6 @@ async def batch_done(ws: web.WebSocketResponse, request: dict[str, Any], fake: "
 
 
 class _FakeServer:
-    """An aiohttp app on a free loopback port, started by `async with`."""
-
     def __init__(self, app: web.Application):
         self.server = TestServer(app, host="127.0.0.1")
 
@@ -146,8 +137,6 @@ class FakePipelineAPI(_FakeServer):
 
 
 class FakeComputeAPI(_FakeServer):
-    """compute-api's `POST /v1/auth/authenticate`: mints `minted-1`, `minted-2`, ... valid for `expires_in`."""
-
     def __init__(self, expires_in: int | None = 3600, status: int = 200):
         self.expires_in = expires_in
         self.status = status

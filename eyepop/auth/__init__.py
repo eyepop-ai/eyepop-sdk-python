@@ -1,18 +1,10 @@
-"""The API key exchange at compute-api.
-
-Imports nothing from the rest of the SDK, so `eyepop.pipeline` can use it on its own.
-"""
-
 from dataclasses import dataclass
 
 import aiohttp
 
 
 class ExchangeError(Exception):
-    """An exchange that failed. `status` is compute-api's HTTP status, None when it could not be reached.
-
-    The message never holds the API key or a token.
-    """
+    """`status` is None when compute-api could not be reached. The message never holds a credential."""
 
     def __init__(self, status: int | None, message: str):
         super().__init__(message)
@@ -28,7 +20,6 @@ class Token:
 
 
 async def exchange(session: aiohttp.ClientSession, compute_url: str, api_key: str) -> Token:
-    """Exchange an API key for an access token: `POST {compute_url}/v1/auth/authenticate`."""
     headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
     try:
         async with session.post(f"{compute_url}/v1/auth/authenticate", headers=headers) as response:
