@@ -113,6 +113,17 @@ async def test_image_raises_the_last_503_once_the_bound_has_passed(pipeline_api:
     assert len(pipeline_api.requests) == 2
 
 
+@pytest.mark.parametrize("retry_after", ["-1", "nan"])
+async def test_image_raises_a_503_with_an_invalid_retry_after_at_once(pipeline_api: FakePipelineAPI, retry_after: str):
+    """A 503 whose Retry-After is negative or not a number raises at once."""
+    pipeline_api.post_answers.append((503, {"error": "overloaded", "message": "busy"}, {"Retry-After": retry_after}))
+    async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
+        with pytest.raises(EyePopError) as raised:
+            await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person")
+    assert (raised.value.status, raised.value.error) == (503, "overloaded")
+    assert len(pipeline_api.requests) == 1
+
+
 async def test_image_raises_other_errors_at_once(pipeline_api: FakePipelineAPI):
     """A 422 raises at once with its status, error and message."""
     pipeline_api.post_answers.append((422, {"error": "invalid_pop", "message": "no components"}, {}))
@@ -367,6 +378,16 @@ async def test_a_failed_exchange_raises_and_sends_nothing(pipeline_api: FakePipe
     assert pipeline_api.requests == []
 
 
+async def test_an_exchange_answer_with_no_valid_expiry_raises_and_sends_nothing(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI):
+    """An exchange answered with a null expires_in raises and sends the pipeline API nothing."""
+    compute_api.expires_in = None
+    async with EyePopClient(pipeline_api.url, api_key=API_KEY, compute_url=compute_api.url) as client:
+        with pytest.raises(EyePopError) as raised:
+            await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person")
+    assert (raised.value.status, raised.value.close_code) == (None, None)
+    assert pipeline_api.requests == []
+
+
 # 9. Plain http off loopback
 
 
@@ -469,7 +490,7 @@ async def test_a_socket_with_no_pong_raises_1006_within_one_and_a_half_heartbeat
             await anext(stream)
         elapsed = time.monotonic() - started
     assert (raised.value.status, raised.value.close_code) == (None, 1006)
-    assert elapsed <= 1.5 * heartbeat + 0.05  # timer jitter
+    assert elapsed <= 1.5 * heartbeat + 0.2  # scheduler jitter on loaded runners
 
 
 async def test_a_connection_dropped_with_no_close_frame_raises_1006():

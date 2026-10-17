@@ -9,6 +9,7 @@ import contextlib
 import ipaddress
 import json
 import logging
+import math
 import mimetypes
 import pathlib
 import time
@@ -183,8 +184,12 @@ class EyePopClient:
             raise EyePopError(e.message, status=e.status) from e
         if not token.access_token:
             raise EyePopError("compute-api answered the API key exchange with no access_token")
+        try:
+            expires = time.monotonic() + float(token.expires_in)
+        except (TypeError, ValueError):
+            raise EyePopError("compute-api answered the API key exchange with no valid expires_in") from None
         self._access_token = token.access_token
-        self._expires = time.monotonic() + token.expires_in
+        self._expires = expires
 
     async def _authorization(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {await self._valid_token()}"}
@@ -362,9 +367,10 @@ def _retry_after(status: int, headers: Mapping[str, str] | None) -> float | None
     if status != 503 or not headers:
         return None
     try:
-        return float(headers["Retry-After"])
+        wait = float(headers["Retry-After"])
     except (KeyError, ValueError):
         return None
+    return wait if math.isfinite(wait) and wait >= 0 else None
 
 
 def _answer_error(status: int, content_type: str, text: str) -> EyePopError:

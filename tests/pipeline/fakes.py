@@ -148,7 +148,7 @@ class FakePipelineAPI(_FakeServer):
 class FakeComputeAPI(_FakeServer):
     """compute-api's `POST /v1/auth/authenticate`: mints `minted-1`, `minted-2`, ... valid for `expires_in`."""
 
-    def __init__(self, expires_in: int = 3600, status: int = 200):
+    def __init__(self, expires_in: int | None = 3600, status: int = 200):
         self.expires_in = expires_in
         self.status = status
         self.authorizations: list[str | None] = []
