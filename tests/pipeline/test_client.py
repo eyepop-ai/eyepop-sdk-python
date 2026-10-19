@@ -18,6 +18,7 @@ from tests.pipeline.fakes import (
     FakeComputeAPI,
     FakePipelineAPI,
     Received,
+    batch_done,
     receive,
     until_closed,
 )
@@ -58,7 +59,7 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-async def collect(client: EyePopClient, items: list[dict[str, Any]], ability: Any = "eyepop.person") -> list[dict[str, Any]]:
+async def collect(client: EyePopClient, items: list[dict[str, Any]], ability: str = "eyepop.person") -> list[dict[str, Any]]:
     return [message async for message in client.socket(items, ability=ability)]
 
 
@@ -71,7 +72,7 @@ async def test_image_by_url_asset_and_file(pipeline_api: FakePipelineAPI, tmp_pa
     image.write_bytes(b"\xff\xd8 jpeg bytes")
     async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
         assert await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person") == PREDICTIONS
-        assert await client.image({"assetUuid": "4d1e"}, ability={"components": []}) == PREDICTIONS
+        assert await client.image({"assetUuid": "4d1e"}, pop={"components": []}) == PREDICTIONS
         assert await client.image(image, ability="eyepop.person") == PREDICTIONS
         assert await client.image(b"png bytes", ability="eyepop.person", content_type="image/png") == PREDICTIONS
 
@@ -85,6 +86,26 @@ async def test_image_by_url_asset_and_file(pipeline_api: FakePipelineAPI, tmp_pa
     assert by_file.parts["image"] == ("image/jpeg", b"\xff\xd8 jpeg bytes")
     assert by_bytes.parts["image"] == ("image/png", b"png bytes")
     assert all(r.authorization == f"Bearer {JWT}" for r in pipeline_api.requests)
+
+
+async def test_image_by_model(pipeline_api: FakePipelineAPI):
+    """A model goes as one inference component naming its uuid."""
+    async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
+        assert await client.image({"url": "https://example.com/1.jpg"}, model="model-uuid") == PREDICTIONS
+    assert pipeline_api.requests[0].json["pop"] == {"components": [{"type": "inference", "modelUuid": "model-uuid"}]}
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [{}, {"ability": "eyepop.person", "model": "model-uuid"}, {"ability": "eyepop.person", "pop": {"components": []}}],
+)
+async def test_exactly_one_of_ability_pop_and_model(kwargs: dict[str, Any]):
+    """None of ability, pop and model, or more than one, is refused before anything is sent."""
+    async with EyePopClient("https://pipeline.example.com", access_token=JWT) as client:
+        with pytest.raises(ValueError):
+            await client.image({"url": "https://example.com/1.jpg"}, **kwargs)
+        with pytest.raises(ValueError):
+            await anext(client.socket([{"id": "a", "url": "https://example.com/1.jpg"}], **kwargs))
 
 
 # Retry and errors
@@ -103,12 +124,31 @@ async def test_image_raises_the_last_503_once_the_bound_has_passed(pipeline_api:
     """A 503 still answered once the retry bound has passed is raised as it arrived."""
     overloaded = (503, {"error": "overloaded", "retry_after_seconds": 1}, {"Retry-After": "1"})
     pipeline_api.post_answers.extend([overloaded] * 5)
-    async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
-        client._retry_503_for_seconds = 1.5  # pyright: ignore[reportPrivateUsage]
+    async with EyePopClient(pipeline_api.url, access_token=JWT, wait=1.5) as client:
         with pytest.raises(EyePopError) as raised:
             await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person")
     assert (raised.value.status, raised.value.error, raised.value.close_code) == (503, "overloaded", None)
     assert len(pipeline_api.requests) == 2
+
+
+async def test_image_waits_at_least_a_second_on_a_zero_retry_after(pipeline_api: FakePipelineAPI):
+    """A 503 with Retry-After 0 is retried after a second, not at once."""
+    pipeline_api.post_answers.append((503, {"error": "overloaded", "message": "busy"}, {"Retry-After": "0"}))
+    async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
+        started = time.monotonic()
+        assert await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person") == PREDICTIONS
+    assert time.monotonic() - started >= 1.0
+    assert len(pipeline_api.requests) == 2
+
+
+@pytest.mark.parametrize("body", ["<html>proxy page</html>", {"no": "predictions"}, ["a list"]])
+async def test_image_raises_a_200_with_no_predictions(pipeline_api: FakePipelineAPI, body: Any):
+    """A 200 that is not JSON or holds no predictions raises with status 200."""
+    pipeline_api.post_answers.append((200, body, {}))
+    async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
+        with pytest.raises(EyePopError) as raised:
+            await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person")
+    assert (raised.value.status, raised.value.close_code) == (200, None)
 
 
 @pytest.mark.parametrize("retry_after", ["-1", "nan"])
@@ -139,6 +179,54 @@ async def test_socket_retries_an_upgrade_answered_503(pipeline_api: FakePipeline
         messages = await collect(client, [{"id": "a", "url": "https://example.com/1.jpg"}])
     assert [m["type"] for m in messages] == ["start", "prediction", "end"]
     assert len(pipeline_api.upgrades) == 2
+
+
+def refused_for_capacity(times: int, error: str = "no_pipeline_available"):
+    """A script that refuses the first `times` sockets as the server does when it has no capacity."""
+
+    async def script(ws: web.WebSocketResponse, request: dict[str, Any], fake: FakePipelineAPI) -> None:
+        if len(fake.socket_requests) > times:
+            return await batch_done(ws, request, fake)
+        await ws.send_json({"type": "error", "error": error, "message": "no capacity"})
+        await ws.close(code=1011, message=error.encode())
+
+    return script
+
+
+@pytest.mark.parametrize("error", ["no_pipeline_available", "overloaded"])
+async def test_socket_reopens_a_socket_refused_for_capacity(pipeline_api: FakePipelineAPI, error: str):
+    """A socket refused for want of capacity is reopened with the same request, and the batch then runs."""
+    pipeline_api.script = refused_for_capacity(1, error)
+    async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
+        messages = await collect(client, [{"id": "a", "url": "https://example.com/1.jpg"}])
+    assert [m["type"] for m in messages] == ["start", "prediction", "end"]
+    first, second = pipeline_api.socket_requests
+    assert first == second
+
+
+async def test_socket_raises_once_wait_has_passed(pipeline_api: FakePipelineAPI):
+    """A socket still refused for want of capacity once `wait` has passed raises the last refusal."""
+    pipeline_api.script = refused_for_capacity(10)
+    async with EyePopClient(pipeline_api.url, access_token=JWT, wait=1.5) as client:
+        with pytest.raises(EyePopError) as raised:
+            await collect(client, [{"id": "a", "url": "https://example.com/1.jpg"}])
+    assert (raised.value.close_code, raised.value.error) == (1011, "no_pipeline_available")
+    assert len(pipeline_api.socket_requests) == 2
+
+
+async def test_socket_never_reopens_after_yielding(pipeline_api: FakePipelineAPI):
+    """A refusal after a message was yielded raises at once: the caller has already seen part of the run."""
+    async def script(ws: web.WebSocketResponse, request: dict[str, Any], fake: FakePipelineAPI) -> None:
+        await ws.send_json({"type": "start", "id": "a"})
+        await ws.send_json({"type": "error", "error": "no_pipeline_available", "message": "no capacity"})
+        await ws.close(code=1011, message=b"no_pipeline_available")
+
+    pipeline_api.script = script
+    async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
+        with pytest.raises(EyePopError) as raised:
+            await collect(client, [{"id": "a", "url": "https://example.com/1.jpg"}])
+    assert raised.value.error == "no_pipeline_available"
+    assert len(pipeline_api.socket_requests) == 1
 
 
 async def test_socket_raises_a_refused_upgrade_at_once(pipeline_api: FakePipelineAPI):
@@ -311,6 +399,22 @@ def closes(code: int, reason: bytes = b""):
     return script
 
 
+@pytest.mark.parametrize("text", ["not json", "[1, 2]"])
+async def test_a_message_that_is_not_a_json_object_raises(pipeline_api: FakePipelineAPI, text: str):
+    """A text frame that is not a JSON object raises EyePopError and closes the socket with 1000."""
+    received = Received()
+
+    async def script(ws: web.WebSocketResponse, request: dict[str, Any], fake: FakePipelineAPI) -> None:
+        await ws.send_str(text)
+        await until_closed(ws, received)
+
+    pipeline_api.script = script
+    async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
+        with pytest.raises(EyePopError):
+            await collect(client, [{"id": "a", "url": "https://example.com/1.jpg"}])
+    assert received.close_code == 1000
+
+
 @pytest.mark.parametrize(
     ("script", "close_code", "error", "message"),
     [
@@ -353,13 +457,56 @@ async def test_a_request_in_the_tokens_last_minute_exchanges_first(pipeline_api:
     assert [r.authorization for r in pipeline_api.requests] == ["Bearer minted-1", "Bearer minted-2"]
 
 
-async def test_forced_exchanges_run_one_at_a_time(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI):
-    """Forced callers that arrive together share one exchange."""
+async def test_callers_in_the_last_minute_share_one_exchange(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI):
+    """Callers that arrive together in the token's last minute share one exchange, even when the new token is as short."""
+    compute_api.expires_in = 30
     async with EyePopClient(pipeline_api.url, api_key=API_KEY, compute_url=compute_api.url) as client:
-        assert await client._valid_token() == "minted-1"
-        tokens = await asyncio.gather(*(client._valid_token(force=True) for _ in range(6)))
+        assert await client._valid_token() == "minted-1"  # pyright: ignore[reportPrivateUsage]
+        tokens = await asyncio.gather(*(client._valid_token() for _ in range(6)))  # pyright: ignore[reportPrivateUsage]
     assert tokens == ["minted-2"] * 6
     assert len(compute_api.authorizations) == 2
+
+
+async def test_a_401_exchanges_again_and_retries_once(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI):
+    """A POST or an upgrade answered 401 is retried once with a newly exchanged token."""
+    pipeline_api.post_answers.append((401, "Unauthorized", {}))
+    pipeline_api.upgrade_answers.append((401, "Unauthorized", {}))
+    async with EyePopClient(pipeline_api.url, api_key=API_KEY, compute_url=compute_api.url) as client:
+        assert await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person") == PREDICTIONS
+        await collect(client, [{"id": "a", "url": "https://example.com/1.jpg"}])
+    assert [r.authorization for r in pipeline_api.requests] == [f"Bearer minted-{n}" for n in (1, 2, 2, 3)]
+    assert len(compute_api.authorizations) == 3
+
+
+async def test_a_second_401_raises(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI):
+    """A 401 answered again after the new exchange raises, with no further exchange."""
+    pipeline_api.post_answers.extend([(401, "Unauthorized", {})] * 3)
+    async with EyePopClient(pipeline_api.url, api_key=API_KEY, compute_url=compute_api.url) as client:
+        with pytest.raises(EyePopError) as raised:
+            await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person")
+    assert raised.value.status == 401
+    assert len(pipeline_api.requests) == 2
+    assert len(compute_api.authorizations) == 2
+
+
+async def test_401s_that_arrive_together_share_one_exchange(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI):
+    """Requests rejected with the same token share one new exchange."""
+    pipeline_api.post_answers.extend([(401, "Unauthorized", {})] * 3)
+    async with EyePopClient(pipeline_api.url, api_key=API_KEY, compute_url=compute_api.url) as client:
+        await client._valid_token()  # pyright: ignore[reportPrivateUsage]
+        images = [client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person") for _ in range(3)]
+        assert await asyncio.gather(*images) == [PREDICTIONS] * 3
+    assert len(compute_api.authorizations) == 2
+
+
+async def test_a_401_with_an_access_token_raises_at_once(pipeline_api: FakePipelineAPI):
+    """With an access token there is nothing to exchange: a 401 raises at once."""
+    pipeline_api.post_answers.append((401, "Unauthorized", {}))
+    async with EyePopClient(pipeline_api.url, access_token=JWT) as client:
+        with pytest.raises(EyePopError) as raised:
+            await client.image({"url": "https://example.com/1.jpg"}, ability="eyepop.person")
+    assert raised.value.status == 401
+    assert len(pipeline_api.requests) == 1
 
 
 async def test_a_failed_exchange_raises_and_sends_nothing(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI):
@@ -422,7 +569,7 @@ def test_exactly_one_credential(kwargs: dict[str, str]):
 async def test_no_credential_in_errors_or_logs(pipeline_api: FakePipelineAPI, compute_api: FakeComputeAPI, caplog: pytest.LogCaptureFixture):
     """No error message or log record holds the API key or a token."""
     caplog.set_level(logging.DEBUG)
-    pipeline_api.post_answers.append((401, "Unauthorized", {}))
+    pipeline_api.post_answers.extend([(401, "Unauthorized", {})] * 2)
     pipeline_api.script = closes(1008, b"credential_expired")
     errors: list[EyePopError] = []
     async with EyePopClient(pipeline_api.url, api_key=API_KEY, compute_url=compute_api.url) as client:

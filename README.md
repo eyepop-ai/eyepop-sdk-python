@@ -476,9 +476,12 @@ async def main():
 asyncio.run(main())
 ```
 
+Every call takes exactly one of `ability=` (an ability name), `pop=` (a pop's JSON) and `model=` (a
+model's uuid).
+
 With an API key, which the client exchanges at compute-api (`compute_url`, by default
-`https://compute.eyepop.ai`) for a token, again when less than a minute of it is left, and never
-sends to the pipeline API:
+`https://compute.eyepop.ai`) for a token, again when less than a minute of it is left or once when the
+pipeline API answers 401, and never sends to the pipeline API:
 
 ```python
 async def main():
@@ -493,6 +496,10 @@ async def main():
         except EyePopError as e:
             print(e.status, e.close_code, e.error, e.message)
 ```
+
+While the pipeline API has no capacity for a call (a `503` with `Retry-After`, or a socket refused
+with `no_pipeline_available` or `overloaded` before it yielded anything), the client retries it for
+`wait` seconds, 30 by default; pass `wait=300` to sit out a new replica waiting for a GPU node.
 
 A live stream is one item, an `rtsp://` or `rtmp://` url or one with `"live": True`; stop it by
 closing the client, or by breaking out of a loop over `contextlib.aclosing(client.socket(...))`. The client refuses a plain `http` url unless its

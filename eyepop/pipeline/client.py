@@ -7,7 +7,15 @@ import math
 import mimetypes
 import pathlib
 import time
-from collections.abc import AsyncIterable, AsyncIterator, Awaitable, Callable, Mapping
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterable,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Mapping,
+    Sequence,
+)
 from dataclasses import dataclass
 from typing import Any, BinaryIO
 from urllib.parse import urlsplit
@@ -21,10 +29,11 @@ log = logging.getLogger("eyepop.pipeline")
 _PATH = "/api/v1/pipeline"
 _REFRESH_SECONDS_BEFORE_EXPIRY = 60.0
 _CHUNK = 64 * 1024
+_NO_CAPACITY = ("no_pipeline_available", "overloaded")
+_REOPEN_SECONDS = 1.0
 
 Image = Mapping[str, str] | bytes | pathlib.Path | BinaryIO
 Media = bytes | pathlib.Path | BinaryIO | AsyncIterable[bytes]
-Ability = str | Mapping[str, Any]
 
 
 class EyePopError(Exception):
@@ -63,13 +72,13 @@ class EyePopClient:
     `url` is the pipeline API's base url. Pass exactly one credential: `access_token`, a JWT, or
     `api_key`, which the client exchanges at `compute_url` and never sends to the pipeline API. It
     reads no environment variable. `heartbeat` is the socket's ping interval in seconds; a socket
-    that sends no pong within half of it is dead.
+    that sends no pong within half of it is dead. `wait` is how many seconds a call keeps retrying
+    while the pipeline API has no capacity for it: a `503` with Retry-After, or a socket refused
+    with `no_pipeline_available` or `overloaded` before it yielded anything.
 
         async with EyePopClient(url, api_key=key) as client:
             predictions = await client.image(pathlib.Path("people.jpg"), ability="eyepop.person")
     """
-
-    _retry_503_for_seconds = 30.0
 
     def __init__(
         self,
@@ -78,6 +87,7 @@ class EyePopClient:
         api_key: str | None = None,
         compute_url: str = "https://compute.eyepop.ai",
         heartbeat: float = 20.0,
+        wait: float = 30.0,
     ):
         if (access_token is None) == (api_key is None):
             raise ValueError("pass exactly one of access_token and api_key")
@@ -88,6 +98,7 @@ class EyePopClient:
         self._access_token = access_token
         self._expires = 0.0
         self._heartbeat = heartbeat
+        self._wait = wait
         self._lock = asyncio.Lock()
         self._session: aiohttp.ClientSession | None = None
         self._sockets: set[aiohttp.ClientWebSocketResponse] = set()
@@ -107,33 +118,76 @@ class EyePopClient:
             await self._session.close()
             self._session = None
 
-    async def image(self, image: Image, ability: Ability, content_type: str | None = None) -> list[Any]:
+    async def image(
+        self,
+        image: Image,
+        *,
+        ability: str | None = None,
+        pop: Mapping[str, Any] | None = None,
+        model: str | None = None,
+        content_type: str | None = None,
+    ) -> list[Any]:
         """Run one image through a pop and return its `predictions` as the pipeline wrote them.
 
         `image` is `{"url": ...}` or `{"assetUuid": ...}`, sent as JSON, or the image's bytes,
         a `pathlib.Path` or a binary file, sent as multipart and typed from the file's name or
-        `content_type`. `ability` is an ability name or a pop's JSON.
+        `content_type`. Pass exactly one of `ability` (an ability name), `pop` (a pop's JSON) or
+        `model` (a model's uuid).
         """
-        request = await _ImageRequest.read(image, _pop(ability), content_type)
-        return await self._retrying(lambda: self._post(request))
+        request = await _ImageRequest.read(image, _pop(ability, pop, model), content_type)
+        return await self._retrying(lambda token: self._post(request, token), time.monotonic() + self._wait)
 
-    async def socket(self, items: list[Mapping[str, Any]], ability: Ability) -> AsyncIterator[dict[str, Any]]:
+    async def socket(
+        self,
+        items: Sequence[Mapping[str, Any]],
+        *,
+        ability: str | None = None,
+        pop: Mapping[str, Any] | None = None,
+        model: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
         """Open one socket, send the request, and yield each `start`, `prediction`, `dropped` and `end`.
 
         `items` are the WebSocket contract's items with the caller's ids. An upload item holds its
         media under `file` (bytes, a `pathlib.Path`, a binary file or an async iterable of bytes),
         sent after the server's `start` for it. Iteration ends after `done`; stopping it, or closing
         the client, closes the socket with `1000`. Any other close or failure raises `EyePopError`.
+        Pass exactly one of `ability`, `pop` and `model`, as for `image`. A socket refused for want
+        of capacity before it yielded anything is reopened with the same request until `wait` passes.
         """
-        request = {"pop": _pop(ability), "items": [{k: v for k, v in item.items() if k != "file"} for item in items]}
-        ws = await self._retrying(self._open_socket)
+        request = {"pop": _pop(ability, pop, model), "items": [{k: v for k, v in item.items() if k != "file"} for item in items]}
+        media = {item["id"]: item["file"] for item in items if "file" in item}
+        deadline = time.monotonic() + self._wait
+        while True:
+            yielded = False
+            try:
+                async with contextlib.aclosing(self._socket_once(request, media, deadline)) as messages:
+                    async for message in messages:
+                        yielded = True
+                        yield message
+                return
+            except EyePopError as e:
+                # nothing yielded means no upload started either, so the request can be resent whole
+                if yielded or e.error not in _NO_CAPACITY or time.monotonic() + _REOPEN_SECONDS > deadline:
+                    raise
+                log.debug("the pipeline API refused the socket with %s, reopening in %ss", e.error, _REOPEN_SECONDS)
+            await asyncio.sleep(_REOPEN_SECONDS)
+
+    async def _socket_once(
+        self, request: dict[str, Any], media: dict[Any, Media], deadline: float
+    ) -> AsyncGenerator[dict[str, Any]]:
+        ws = await self._retrying(self._open_socket, deadline)
         self._sockets.add(ws)
-        uploads = _Uploads(ws, {item["id"]: item["file"] for item in items if "file" in item})
+        uploads = _Uploads(ws, media)
         error: dict[str, Any] | None = None
         try:
             await ws.send_json(request)
             while (msg := await ws.receive()).type == aiohttp.WSMsgType.TEXT:
-                message = json.loads(msg.data)
+                try:
+                    message = json.loads(msg.data)
+                except ValueError:
+                    message = None
+                if not isinstance(message, dict):
+                    raise EyePopError("the pipeline API sent a message that is not a JSON object")
                 await uploads.follow(message)
                 if message.get("type") == "error":
                     error = message
@@ -147,15 +201,18 @@ class EyePopClient:
             uploads.cancel()
             await ws.close()
 
-    async def _valid_token(self, force: bool = False) -> str:
-        """One exchange runs at a time: callers that waited on it take its token instead of exchanging again."""
+    async def _valid_token(self, rejected: str | None = None) -> str:
+        """One exchange runs at a time: callers that waited on it take its token instead of exchanging again.
+
+        `rejected` is a token the pipeline API answered 401; it is exchanged unless another caller already has.
+        """
         if self._api_key is None:
             assert self._access_token is not None
             return self._access_token
         seen = self._access_token
         async with self._lock:
             if self._access_token == seen and (
-                force or seen is None or self._expires - time.monotonic() < _REFRESH_SECONDS_BEFORE_EXPIRY
+                seen is None or seen == rejected or self._expires - time.monotonic() < _REFRESH_SECONDS_BEFORE_EXPIRY
             ):
                 await self._exchange(self._api_key)
             assert self._access_token is not None
@@ -175,31 +232,37 @@ class EyePopClient:
         self._access_token = token.access_token
         self._expires = expires
 
-    async def _authorization(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {await self._valid_token()}"}
-
     def _client_session(self) -> aiohttp.ClientSession:
         if self._session is None:
             self._session = aiohttp.ClientSession()
         return self._session
 
-    async def _retrying[T](self, attempt: Callable[[], Awaitable[T]]) -> T:
-        start = time.monotonic()
+    async def _retrying[T](self, attempt: Callable[[str], Awaitable[T]], deadline: float) -> T:
+        rejected: str | None = None
         while True:
+            token = await self._valid_token(rejected)
             try:
-                return await attempt()
+                return await attempt(token)
+            except EyePopError as e:
+                if e.status != 401 or self._api_key is None or rejected is not None:
+                    raise
+                log.debug("the pipeline API answered 401, exchanging the API key again")
+                rejected = token
             except _RetryAfter as answer:
-                if time.monotonic() + answer.wait - start > self._retry_503_for_seconds:
+                if time.monotonic() + answer.wait > deadline:
                     raise answer.error from None
                 log.debug("the pipeline API answered %s, retrying in %ss", answer.error, answer.wait)
                 await asyncio.sleep(answer.wait)
 
-    async def _post(self, request: "_ImageRequest") -> list[Any]:
-        headers = await self._authorization()
+    async def _post(self, request: "_ImageRequest", token: str) -> list[Any]:
+        headers = {"Authorization": f"Bearer {token}"}
         try:
             async with self._client_session().post(self._url, headers=headers, **request.body()) as response:
                 if response.status == 200:
-                    return (await response.json())["predictions"]
+                    try:
+                        return (await response.json(content_type=None))["predictions"]
+                    except (ValueError, KeyError, TypeError) as e:
+                        raise EyePopError("the pipeline API answered 200 with no predictions", status=200) from e
                 error = _answer_error(response.status, response.content_type, await response.text())
                 wait = _retry_after(response.status, response.headers)
         except (aiohttp.ClientError, OSError, TimeoutError) as e:
@@ -208,8 +271,8 @@ class EyePopClient:
             raise _RetryAfter(wait, error)
         raise error
 
-    async def _open_socket(self) -> aiohttp.ClientWebSocketResponse:
-        headers = await self._authorization()
+    async def _open_socket(self, token: str) -> aiohttp.ClientWebSocketResponse:
+        headers = {"Authorization": f"Bearer {token}"}
         try:
             return await self._client_session().ws_connect(
                 self._ws_url, protocols=("eyepop.v1",), headers=headers, heartbeat=self._heartbeat
@@ -338,10 +401,13 @@ def _is_loopback(host: str) -> bool:
         return False
 
 
-def _pop(ability: Ability) -> Any:
-    if isinstance(ability, str):
-        return {"components": [{"type": "inference", "ability": ability}]}
-    return ability
+def _pop(ability: str | None, pop: Mapping[str, Any] | None, model: str | None) -> Any:
+    if [ability, pop, model].count(None) != 2:
+        raise ValueError("pass exactly one of ability, pop and model")
+    if pop is not None:
+        return pop
+    component = {"ability": ability} if ability is not None else {"modelUuid": model}
+    return {"components": [{"type": "inference", **component}]}
 
 
 def _retry_after(status: int, headers: Mapping[str, str] | None) -> float | None:
@@ -351,7 +417,8 @@ def _retry_after(status: int, headers: Mapping[str, str] | None) -> float | None
         wait = float(headers["Retry-After"])
     except (KeyError, ValueError):
         return None
-    return wait if math.isfinite(wait) and wait >= 0 else None
+    # a floor, so that `Retry-After: 0` cannot turn an overload into a request storm
+    return max(wait, 1.0) if math.isfinite(wait) and wait >= 0 else None
 
 
 def _answer_error(status: int, content_type: str, text: str) -> EyePopError:
