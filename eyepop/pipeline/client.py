@@ -33,7 +33,7 @@ log = logging.getLogger("eyepop.pipeline")
 _PATH = "/api/v1/pipeline"
 _REFRESH_SECONDS_BEFORE_EXPIRY = 60.0
 _CHUNK = 64 * 1024
-_NO_CAPACITY = ("no_pipeline_available", "overloaded")
+_NO_CAPACITY = ("pipeline_start_failed", "overloaded")
 _REOPEN_SECONDS = 1.0
 
 Image = str | Mapping[str, str] | bytes | pathlib.Path | BinaryIO
@@ -78,7 +78,7 @@ class EyePop:
     constructor reads no environment variable; `EyePop.init()` does. `heartbeat` is the socket's
     ping interval in seconds; a socket that sends no pong within half of it is dead. `wait` is how
     many seconds a call keeps retrying while the pipeline API has no capacity for it: a `503` with
-    Retry-After, or a socket refused with `no_pipeline_available` or `overloaded` before it
+    Retry-After, or a socket refused with `pipeline_start_failed` or `overloaded` before it
     yielded anything.
 
         async with EyePop.init() as ep:

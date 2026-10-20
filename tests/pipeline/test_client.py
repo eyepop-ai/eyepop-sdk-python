@@ -195,7 +195,7 @@ async def test_socket_retries_an_upgrade_answered_503(pipeline_api: FakePipeline
     assert len(pipeline_api.upgrades) == 2
 
 
-def refused_for_capacity(times: int, error: str = "no_pipeline_available"):
+def refused_for_capacity(times: int, error: str = "pipeline_start_failed"):
     """A script that refuses the first `times` sockets as the server does when it has no capacity."""
 
     async def script(ws: web.WebSocketResponse, request: dict[str, Any], fake: FakePipelineAPI) -> None:
@@ -207,7 +207,7 @@ def refused_for_capacity(times: int, error: str = "no_pipeline_available"):
     return script
 
 
-@pytest.mark.parametrize("error", ["no_pipeline_available", "overloaded"])
+@pytest.mark.parametrize("error", ["pipeline_start_failed", "overloaded"])
 async def test_socket_reopens_a_socket_refused_for_capacity(pipeline_api: FakePipelineAPI, error: str):
     """A socket refused for want of capacity is reopened with the same request, and the batch then runs."""
     pipeline_api.script = refused_for_capacity(1, error)
@@ -224,7 +224,7 @@ async def test_socket_raises_once_wait_has_passed(pipeline_api: FakePipelineAPI)
     async with EyePop(pipeline_api.url, access_token=JWT, wait=1.5) as client:
         with pytest.raises(EyePopError) as raised:
             await collect(client, [{"id": "a", "url": "https://example.com/1.jpg"}])
-    assert (raised.value.close_code, raised.value.error) == (1011, "no_pipeline_available")
+    assert (raised.value.close_code, raised.value.error) == (1011, "pipeline_start_failed")
     assert len(pipeline_api.socket_requests) == 2
 
 
@@ -232,14 +232,14 @@ async def test_socket_never_reopens_after_yielding(pipeline_api: FakePipelineAPI
     """A refusal after a message was yielded raises at once: the caller has already seen part of the run."""
     async def script(ws: web.WebSocketResponse, request: dict[str, Any], fake: FakePipelineAPI) -> None:
         await ws.send_json({"type": "start", "id": "a"})
-        await ws.send_json({"type": "error", "error": "no_pipeline_available", "message": "no capacity"})
-        await ws.close(code=1011, message=b"no_pipeline_available")
+        await ws.send_json({"type": "error", "error": "pipeline_start_failed", "message": "no capacity"})
+        await ws.close(code=1011, message=b"pipeline_start_failed")
 
     pipeline_api.script = script
     async with EyePop(pipeline_api.url, access_token=JWT) as client:
         with pytest.raises(EyePopError) as raised:
             await collect(client, [{"id": "a", "url": "https://example.com/1.jpg"}])
-    assert raised.value.error == "no_pipeline_available"
+    assert raised.value.error == "pipeline_start_failed"
     assert len(pipeline_api.socket_requests) == 1
 
 

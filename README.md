@@ -499,7 +499,7 @@ less than a minute of it is left or once when the pipeline API answers 401, and 
 the pipeline API.
 
 While the pipeline API has no capacity for a call (a `503` with `Retry-After`, or a socket refused
-with `no_pipeline_available` or `overloaded` before it yielded anything), the client retries it for
+with `pipeline_start_failed` or `overloaded` before it yielded anything), the client retries it for
 `wait` seconds, 30 by default; pass `wait=300` to sit out a new replica waiting for a GPU node.
 
 `person.stream("rtsp://...")` runs until you stop it: break out of the loop, wrap it in
