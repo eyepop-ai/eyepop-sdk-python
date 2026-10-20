@@ -455,52 +455,53 @@ asyncio.run(main())
 ## Experimental: the pipeline API
 
 `eyepop.pipeline` is an experimental client for the pipeline API: one image over a `POST`, and
-batches, uploads and live streams over one WebSocket per call. It may change without notice, is
+batches, videos and live streams over one WebSocket per call. It may change without notice, is
 not exported from `eyepop`, and uses nothing else from this SDK but its API key exchange
-(`eyepop.auth`). It reads no environment variable:
-pass the pipeline API's url and exactly one credential.
-
-With an access token (a user's JWT, or one already minted from an API key):
+(`eyepop.auth`).
 
 ```python
 import asyncio
-import pathlib
 
-from eyepop.pipeline import EyePopClient, EyePopError
+from eyepop.pipeline import Ability, EyePop, EyePopError, Model, Pop
 
 async def main():
-    async with EyePopClient("https://pipeline.example.com", access_token=jwt) as client:
-        predictions = await client.image({"url": "https://example.com/people.jpg"}, ability="eyepop.person")
-        predictions = await client.image(pathlib.Path("people.jpg"), ability="eyepop.person")
+    async with EyePop.init() as ep:
+        person = ep.use(Ability("eyepop.person"))
+
+        prediction = await person.image("people.jpg")  # a url, a path, bytes or a binary file
+        for obj in prediction.objects:
+            print(obj.label, obj.confidence, obj.x, obj.y, obj.width, obj.height)
+
+        async for result in person.batch(["https://example.com/1.jpg", "https://example.com/2.jpg"]):
+            print(result.source, result.error or result.prediction)
+
+        try:
+            async for frame in person.video("clip.mp4"):
+                print(frame.timestamp, len(frame.objects))
+        except EyePopError as e:
+            print(e.status, e.close_code, e.error, e.message)
 
 asyncio.run(main())
 ```
 
-Every call takes exactly one of `ability=` (an ability name), `pop=` (a pop's JSON) and `model=` (a
-model's uuid).
+`ep.use()` takes what to run: an `Ability` by name, a `Model` by uuid, either one with
+`.crop(...)` to run more on the crop of each object it finds, such as
+`Ability("eyepop.person").crop(Ability("eyepop.person.2d-body-points"))`, or a `Pop` of a pop's JSON.
+A batch yields each image's prediction, or its error when it failed, without stopping the others;
+a video that fails raises. Each object's `raw`, and each prediction's, hold it as the pipeline
+wrote it.
 
-With an API key, which the client exchanges at compute-api (`compute_url`, by default
-`https://compute.eyepop.ai`) for a token, again when less than a minute of it is left or once when the
-pipeline API answers 401, and never sends to the pipeline API:
-
-```python
-async def main():
-    async with EyePopClient("https://pipeline.example.com", api_key=api_key) as client:
-        items = [
-            {"id": "a", "url": "https://example.com/1.jpg"},
-            {"id": "b", "upload": {"contentType": "video/mp4"}, "file": pathlib.Path("clip.mp4")},
-        ]
-        try:
-            async for message in client.socket(items, ability="eyepop.person"):
-                print(message["type"], message["id"])  # start, prediction, dropped, end
-        except EyePopError as e:
-            print(e.status, e.close_code, e.error, e.message)
-```
+`EyePop.init()` reads `EYEPOP_PIPELINE_URL`, and `EYEPOP_API_KEY` or else `EYEPOP_ACCESS_TOKEN`, from the
+environment or from `.env` in the working directory, for whatever is not passed to it.
+`EyePop(url, access_token=... or api_key=...)` reads no environment variable. The client exchanges an
+API key at compute-api (`compute_url`, by default `https://compute.eyepop.ai`) for a token, again when
+less than a minute of it is left or once when the pipeline API answers 401, and never sends it to
+the pipeline API.
 
 While the pipeline API has no capacity for a call (a `503` with `Retry-After`, or a socket refused
 with `no_pipeline_available` or `overloaded` before it yielded anything), the client retries it for
 `wait` seconds, 30 by default; pass `wait=300` to sit out a new replica waiting for a GPU node.
 
-A live stream is one item, an `rtsp://` or `rtmp://` url or one with `"live": True`; stop it by
-closing the client, or by breaking out of a loop over `contextlib.aclosing(client.socket(...))`. The client refuses a plain `http` url unless its
-host is a loopback address.
+`person.stream("rtsp://...")` runs until you stop it: break out of the loop, wrap it in
+`asyncio.timeout(...)`, or close the client. The client refuses a plain `http` url unless its host
+is a loopback address.
