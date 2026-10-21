@@ -29,7 +29,7 @@ VEHICLE = Pop(components=[InferenceComponent(ability="eyepop.vehicle:latest")])
 @pytest.fixture(autouse=True)
 def no_environment(monkeypatch: pytest.MonkeyPatch):
     for name in ("EYEPOP_URL", "EYEPOP_API_KEY", "EYEPOP_SECRET_KEY", "EYEPOP_ACCESS_TOKEN", "EYEPOP_POP_ID",
-                 "EYEPOP_SESSION_UUID", "EYEPOP_IS_PIPELINE_MODE", "EYEPOP_LOCAL_MODE"):
+                 "EYEPOP_SESSION_UUID", "EYEPOP_PIPELINE_MODE", "EYEPOP_LOCAL_MODE"):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -75,7 +75,7 @@ def image(tmp_path: Path) -> Path:
 
 def test_pipeline_mode_is_selected_by_the_argument_or_the_environment(monkeypatch: pytest.MonkeyPatch):
     assert in_pipeline_mode(EyePopSdk.async_worker(is_pipeline_mode=True, access_token="t"))
-    monkeypatch.setenv("EYEPOP_IS_PIPELINE_MODE", "true")
+    monkeypatch.setenv("EYEPOP_PIPELINE_MODE", "true")
     assert in_pipeline_mode(EyePopSdk.async_worker(access_token="t"))
     assert not in_pipeline_mode(EyePopSdk.async_worker(access_token="t", is_pipeline_mode=False))
 

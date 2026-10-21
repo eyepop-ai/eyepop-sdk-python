@@ -215,7 +215,7 @@ class EyePopSdk:
     ) -> WorkerEndpoint:
         """A worker endpoint.
 
-        With `is_pipeline_mode`, or `EYEPOP_IS_PIPELINE_MODE` set to true, its
+        With `is_pipeline_mode`, or `EYEPOP_PIPELINE_MODE` set to true, its
         jobs run on the pipeline API's socket rather than on a worker session;
         the compute API at `eyepop_url` names the pipeline API in its
         `/v1/configs`. Pipeline mode takes an API key or a user access token,
@@ -226,7 +226,7 @@ class EyePopSdk:
             is_local_mode = local_mode_env.lower() in ("true", "yes")
 
         if is_pipeline_mode is None:
-            is_pipeline_mode = os.getenv("EYEPOP_IS_PIPELINE_MODE", "").lower() in ("true", "yes", "1")
+            is_pipeline_mode = os.getenv("EYEPOP_PIPELINE_MODE", "").lower() in ("true", "yes", "1")
 
         if is_pipeline_mode:
             return _pipeline_endpoint(

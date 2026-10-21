@@ -158,7 +158,7 @@ plt.show()
 
 ## Pipeline mode
 
-With `is_pipeline_mode=True`, or `EYEPOP_IS_PIPELINE_MODE=true`, a worker endpoint runs its jobs on
+With `is_pipeline_mode=True`, or `EYEPOP_PIPELINE_MODE=true`, a worker endpoint runs its jobs on
 the pipeline API instead of a worker session. The code that uses the endpoint stays the same:
 
 ```python
