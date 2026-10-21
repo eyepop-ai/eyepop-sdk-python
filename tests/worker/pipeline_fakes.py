@@ -136,7 +136,7 @@ class _Run:
 
     async def command(self, command: dict[str, Any]):
         self.socket.commands.append(command)
-        id_ = command.get("id")
+        id_: Any = command.get("id")
         match command.get("type"):
             case "setPop":
                 if self.fake.close_on_pop is not None:
