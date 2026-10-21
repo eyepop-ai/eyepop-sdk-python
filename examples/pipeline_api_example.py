@@ -1,7 +1,7 @@
 import asyncio
 import pathlib
 
-from eyepop.pipeline import STOP, Ability, Model, Pop, batch, image, pipeline, stream, video
+from eyepop.pipeline import STOP, Ability, Model, Pop, batch, image, pipeline, run, stream, video
 
 IMAGE = pathlib.Path(__file__).parent / "example.jpg"
 IMAGE_URLS = [
@@ -40,7 +40,7 @@ async def main():
     async for frame in video(person, VIDEO):
         print(frame.timestamp, len(frame.objects))
 
-    await watch()
+    await run(watch)
 
     # a pipeline to keep: change its pop while the camera runs, then queue a clip behind it
     async with pipeline(person) as p:

@@ -603,7 +603,7 @@ async def test_a_decorated_function_is_the_job(configured: FakePipelineAPI):
         if len(frames) == 4:
             return STOP
 
-    await watch()
+    await eyepop.pipeline.run(watch)
     assert frames == [0, 1, 2, 3]
 
 
