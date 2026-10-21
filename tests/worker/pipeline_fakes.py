@@ -65,7 +65,8 @@ class FakePipelineAPI(_Server):
     of its setSources were answered, `idle_after_done` closes it `1000 idle`
     once it has no open source, `overloaded_live` refuses that many live
     setSources `overloaded` and closes `1011 overloaded`, as max-live does,
-    and `close_on_open` closes every socket as soon as it opens.
+    `close_on_open` closes every socket as soon as it opens, and `pop_delay`
+    holds each setPop's answer that long.
     """
 
     def __init__(self):
@@ -80,6 +81,7 @@ class FakePipelineAPI(_Server):
         self.idle_after_done = False
         self.overloaded_live = 0
         self.close_on_open: tuple[int, str] | None = None
+        self.pop_delay = 0.0
         app = web.Application()
         app.router.add_get("/api/v1/pipeline", self._upgrade)
         super().__init__(app)
@@ -144,6 +146,8 @@ class _Run:
         id_: Any = command.get("id")
         match command.get("type"):
             case "setPop":
+                if self.fake.pop_delay > 0:
+                    await asyncio.sleep(self.fake.pop_delay)
                 if self.fake.close_on_pop is not None:
                     code, reason = self.fake.close_on_pop
                     self.fake.close_on_pop = None

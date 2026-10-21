@@ -282,6 +282,21 @@ async def test_a_disconnect_timeout_closes_the_socket_under_a_live_job(compute: 
         await endpoint.client_session.close()
 
 
+async def test_a_job_cancelled_before_its_turn_never_sends_its_set_source(compute: FakeComputeAPI,
+                                                                          pipeline: FakePipelineAPI):
+    async with worker(compute) as endpoint:
+        # the setPop holds the line until it is answered; the job submitted after it waits its turn
+        pipeline.pop_delay = 0.2
+        changing = asyncio.create_task(endpoint.set_pop(PERSON))
+        await asyncio.sleep(0)
+        job = await endpoint.load_from("https://images.example/never.jpg")
+        await asyncio.sleep(0.05)  # the job runs and waits for its turn behind the setPop
+        await job.cancel()
+        await changing
+        assert await job.predict() is None
+    assert pipeline.sockets[0].sources == []
+
+
 async def test_a_source_that_ends_with_an_error_raises(compute: FakeComputeAPI):
     async with worker(compute) as endpoint:
         with pytest.raises(PipelineSourceException, match="bad media"):

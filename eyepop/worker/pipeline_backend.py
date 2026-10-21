@@ -420,7 +420,10 @@ class PipelineBackend(WorkerBackend):
         """Run the job's source to its end; a live source refused overloaded goes once more on a new socket."""
         retried = False
         while True:
-            socket, source = await self._set_source(job)
+            sent = await self._set_source(job)
+            if sent is None:
+                return
+            socket, source = sent
             uploader = None
             if source.uploads:
                 uploader = asyncio.create_task(self._upload(socket, source, job))
@@ -439,13 +442,16 @@ class PipelineBackend(WorkerBackend):
             retried = True
             await socket.closed.wait()
 
-    async def _set_source(self, job: WorkerJob) -> tuple[_Socket, _Source]:
+    async def _set_source(self, job: WorkerJob) -> tuple[_Socket, _Source] | None:
         """Send the job's setSource, after every job submitted before it.
 
         The send lock is the first thing a job waits for, and asyncio.Lock wakes
         its waiters in order, so jobs go out in the order they were submitted.
         """
         async with self._send_lock:
+            if job.cancelled:
+                # Cancelled before its turn: never sent, so it takes no source on the pipeline.
+                return None
             combined = await _combined_media(job.source)
             socket = await self._ensure_socket()
             source = _Source(self._new_id('source'))
