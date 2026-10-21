@@ -32,13 +32,17 @@ class PredictedObject:
 
 @dataclass(frozen=True)
 class Prediction:
-    """[EXPERIMENTAL] One image's or one frame's prediction. `timestamp` is in nanoseconds from the media's start."""
+    """[EXPERIMENTAL] One image's or one frame's prediction. `timestamp` is in nanoseconds from the media's start.
+
+    `source` is the id of the source it came from on a socket, and None for an image sent alone.
+    """
 
     timestamp: int | None
     source_width: float
     source_height: float
     objects: list[PredictedObject]
     raw: Mapping[str, Any]
+    source: str | None = None
 
     @classmethod
     def parse(cls, data: Mapping[str, Any]) -> "Prediction":
