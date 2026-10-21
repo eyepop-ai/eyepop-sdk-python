@@ -63,8 +63,9 @@ class FakePipelineAPI(_Server):
     Scripted behaviour: `upgrade_answers` refuse upgrades first, `refusals`
     answer setSources with an error, `closes` close a socket after a number
     of its setSources were answered, `idle_after_done` closes it `1000 idle`
-    once it has no open source, and `overloaded_live` refuses that many live
-    setSources `overloaded` and closes `1011 overloaded`, as max-live does.
+    once it has no open source, `overloaded_live` refuses that many live
+    setSources `overloaded` and closes `1011 overloaded`, as max-live does,
+    and `close_on_open` closes every socket as soon as it opens.
     """
 
     def __init__(self):
@@ -78,6 +79,7 @@ class FakePipelineAPI(_Server):
         self.close_on_pop: tuple[int, str] | None = None
         self.idle_after_done = False
         self.overloaded_live = 0
+        self.close_on_open: tuple[int, str] | None = None
         app = web.Application()
         app.router.add_get("/api/v1/pipeline", self._upgrade)
         super().__init__(app)
@@ -113,6 +115,9 @@ class _Run:
         self.commands: dict[str, dict[str, Any]] = {}
 
     async def serve(self):
+        if self.fake.close_on_open is not None:
+            await self.close(*self.fake.close_on_open)
+            return
         player = asyncio.create_task(self.play())
         try:
             while not self.ws.closed:

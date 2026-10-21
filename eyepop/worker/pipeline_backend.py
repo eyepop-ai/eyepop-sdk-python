@@ -51,6 +51,8 @@ _REFRESH_BEFORE_EXPIRY_SECS = 60.0
 # The closes after which the backend opens a new socket at once; after any
 # other close it opens one when the next job or set_pop needs it.
 _RECONNECT_AT_ONCE = {(1008, 'credential_expired'), (1011, 'overloaded'), (1001, 'shutting_down')}
+# The longest wait before such a reconnect, when one close follows another with no source played between.
+_MAX_RECONNECT_DELAY_SECS = 30.0
 # What the socket's setSource does not take yet (AWSU-317).
 _NOT_SENT = ('video_mode', 'motion_detect', 'media_cache_seconds')
 
@@ -146,6 +148,8 @@ class PipelineBackend(WorkerBackend):
         self._next_id = 0
         self._warned: set[str] = set()
         self._open: dict[WorkerJob, _Source] = {}
+        # Reconnects at once since a source last played.
+        self._reconnects = 0
 
     # Connection
 
@@ -157,17 +161,21 @@ class PipelineBackend(WorkerBackend):
     async def disconnect(self, timeout: float | None = None):
         self._disconnecting = True
         tasks = list(self.endpoint.tasks)
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-        if self._reconnecting is not None:
-            self._reconnecting.cancel()
-            await asyncio.gather(self._reconnecting, return_exceptions=True)
-            self._reconnecting = None
-        socket, self._socket = self._socket, None
-        if socket is not None:
-            await socket.ws.close()
-            if socket.reader is not None:
-                await asyncio.gather(socket.reader, return_exceptions=True)
+        try:
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            # Also when the endpoint's disconnect timeout cancels the wait for
+            # a job that runs on, a live one: closing the socket ends it.
+            if self._reconnecting is not None:
+                self._reconnecting.cancel()
+                await asyncio.gather(self._reconnecting, return_exceptions=True)
+                self._reconnecting = None
+            socket, self._socket = self._socket, None
+            if socket is not None:
+                await socket.ws.close()
+                if socket.reader is not None:
+                    await asyncio.gather(socket.reader, return_exceptions=True)
 
     async def session(self) -> dict | None:
         return {'pipeline_api_url': self.pipeline_api_url}
@@ -306,7 +314,15 @@ class PipelineBackend(WorkerBackend):
             self._reconnecting = asyncio.create_task(self._reconnect_at_once())
 
     async def _reconnect_at_once(self):
+        # The first reconnect is at once. Should the new socket be closed the
+        # same way before a source plays on it, each next one waits twice as
+        # long, so a pipeline API that keeps closing is not reconnected to in a loop.
+        delay = 0.0 if self._reconnects == 0 else min(2.0 ** (self._reconnects - 1), _MAX_RECONNECT_DELAY_SECS)
+        self._reconnects += 1
         try:
+            if delay > 0:
+                log_requests.info('reopening the pipeline API socket in %.0f s', delay)
+                await asyncio.sleep(delay)
             async with self._send_lock:
                 await self._ensure_socket()
         except Exception as e:
@@ -331,6 +347,8 @@ class PipelineBackend(WorkerBackend):
                 answer.set_result(message)
             return
         if source is not None:
+            if type_ == 'start':
+                self._reconnects = 0
             if type_ == 'end':
                 for upload in source.uploads.values():
                     upload.end()

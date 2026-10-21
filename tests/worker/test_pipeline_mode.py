@@ -1,5 +1,6 @@
 """Pipeline mode (SDK-24): WorkerEndpoint's jobs on the pipeline API's socket, against the fakes."""
 import asyncio
+import contextlib
 import io
 import threading
 import warnings
@@ -245,6 +246,40 @@ async def test_a_live_job_refused_overloaded_twice_raises(compute: FakeComputeAP
     async with worker(compute) as endpoint:
         with pytest.raises(PipelineCommandException, match="overloaded"):
             await predictions(await endpoint.load_from("rtsp://camera.example/stream"))
+
+
+async def test_closes_one_after_another_wait_longer_before_each_reconnect(compute: FakeComputeAPI,
+                                                                          pipeline: FakePipelineAPI):
+    # Every socket is closed `1001 shutting_down` as it opens: the first reconnect is at once, the
+    # next waits a second, the one after two
+    pipeline.close_on_open = (1001, "shutting_down")
+    async with worker(compute):
+        await asyncio.sleep(0.5)
+        assert len(pipeline.sockets) == 2
+        await asyncio.sleep(1)
+        assert len(pipeline.sockets) == 3
+        await asyncio.sleep(1)
+        assert len(pipeline.sockets) == 3
+
+
+async def test_a_disconnect_timeout_closes_the_socket_under_a_live_job(compute: FakeComputeAPI,
+                                                                       pipeline: FakePipelineAPI):
+    endpoint = worker(compute)
+    await endpoint.connect()
+    job = await endpoint.load_from("rtsp://camera.example/stream")
+    assert await job.predict() == prediction(0)
+
+    await endpoint.disconnect(timeout=0.2)
+
+    backend = endpoint.backend
+    assert isinstance(backend, PipelineBackend)
+    assert backend._socket is None, "the socket closed although the live job never ended on its own"
+    with contextlib.suppress(PipelineSocketClosedException):
+        while await asyncio.wait_for(job.predict(), 5) is not None:
+            pass
+    # A timed out disconnect skips the endpoint's own cleanup, as it always has.
+    if endpoint.client_session is not None:
+        await endpoint.client_session.close()
 
 
 async def test_a_source_that_ends_with_an_error_raises(compute: FakeComputeAPI):
