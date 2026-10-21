@@ -297,6 +297,29 @@ async def test_a_job_cancelled_before_its_turn_never_sends_its_set_source(comput
     assert pipeline.sockets[0].sources == []
 
 
+async def test_a_cancelled_live_job_stops_its_source_and_the_next_job_plays(compute: FakeComputeAPI,
+                                                                            pipeline: FakePipelineAPI):
+    async with worker(compute) as endpoint:
+        live = await endpoint.load_from("rtsp://camera.example/stream")
+        assert await live.predict() == prediction(0)
+        await live.cancel()
+        # the live source no longer holds the pipeline's queue
+        image = await endpoint.load_from("https://images.example/a.jpg")
+        assert await asyncio.wait_for(predictions(image), 5) == [prediction(0), prediction(1)]
+    socket = pipeline.sockets[0]
+    assert {"type": "stopSource", "id": socket.sources[0]["id"]} in socket.commands
+
+
+async def test_cancelling_against_a_pipeline_api_without_stop_source_still_ends_the_job(compute: FakeComputeAPI,
+                                                                                        pipeline: FakePipelineAPI):
+    pipeline.knows_stop_source = False
+    async with worker(compute) as endpoint:
+        live = await endpoint.load_from("rtsp://camera.example/stream")
+        assert await live.predict() == prediction(0)
+        await live.cancel()
+        assert await live.predict() is None
+
+
 async def test_a_source_that_ends_with_an_error_raises(compute: FakeComputeAPI):
     async with worker(compute) as endpoint:
         with pytest.raises(PipelineSourceException, match="bad media"):

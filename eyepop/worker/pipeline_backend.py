@@ -147,7 +147,7 @@ class PipelineBackend(WorkerBackend):
         self._token_expires = 0.0
         self._next_id = 0
         self._warned: set[str] = set()
-        self._open: dict[WorkerJob, _Source] = {}
+        self._open: dict[WorkerJob, tuple[_Socket, _Source]] = {}
         # Reconnects at once since a source last played.
         self._reconnects = 0
 
@@ -354,7 +354,13 @@ class PipelineBackend(WorkerBackend):
                     upload.end()
             source.inbox.put_nowait(message)
         elif type_ == 'error':
-            log.warning('the pipeline API refused a message: %s %s', message.get('error'), message.get('message'))
+            if id_ is None:
+                log.warning('the pipeline API refused a message: %s %s', message.get('error'), message.get('message'))
+            else:
+                # A stopSource for a source that ended meanwhile, or one a pipeline API without
+                # stopSource does not know: the job ended either way.
+                log.debug('the pipeline API refused a command for %s: %s %s', id_, message.get('error'),
+                          message.get('message'))
 
     # Pop
 
@@ -412,9 +418,18 @@ class PipelineBackend(WorkerBackend):
             warnings.warn(message, UserWarning, stacklevel=4)
 
     async def cancelled(self, job: WorkerJob):
-        source = self._open.get(job)
-        if source is not None:
-            source.inbox.put_nowait(_CANCELLED)
+        """Stop the job's source on the pipeline, so that a cancelled live source does not run on."""
+        opened = self._open.get(job)
+        if opened is None:
+            return
+        socket, source = opened
+        source.inbox.put_nowait(_CANCELLED)
+        if socket.open:
+            try:
+                await socket.send_json({'type': 'stopSource', 'id': source.id})
+            except (ConnectionError, aiohttp.ClientError) as e:
+                # The socket is closing, which stops the source too.
+                log_requests.debug('could not stop a cancelled source: %s', e)
 
     async def run(self, job: WorkerJob):
         """Run the job's source to its end; a live source refused overloaded goes once more on a new socket."""
@@ -460,7 +475,7 @@ class PipelineBackend(WorkerBackend):
                 for key in _upload_keys(job.source):
                     source.uploads[key] = _Upload()
             socket.sources[source.id] = source
-            self._open[job] = source
+            self._open[job] = (socket, source)
             if combined is None:
                 await socket.send_json(command)
             else:

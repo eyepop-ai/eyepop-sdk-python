@@ -81,6 +81,8 @@ class FakePipelineAPI(_Server):
         self.idle_after_done = False
         self.overloaded_live = 0
         self.close_on_open: tuple[int, str] | None = None
+        # False plays a pipeline API from before stopSource, which answers it unknown_command.
+        self.knows_stop_source = True
         self.pop_delay = 0.0
         app = web.Application()
         app.router.add_get("/api/v1/pipeline", self._upgrade)
@@ -115,6 +117,9 @@ class _Run:
         self.uploads: list[tuple[str, int | None]] = []
         self.missing: dict[str, int] = {}
         self.commands: dict[str, dict[str, Any]] = {}
+        # Sources the client stopped; the live one playing ends at its next frame.
+        self.stopped: set[str] = set()
+        self.playing: str | None = None
 
     async def serve(self):
         if self.fake.close_on_open is not None:
@@ -166,6 +171,8 @@ class _Run:
                     if self.missing[id_] == 0:
                         await self.queue.put((id_, self.commands[id_]))
                     await self.next_upload()
+            case "stopSource" if self.fake.knows_stop_source:
+                await self.stop_source(id_)
             case "ping":
                 await self.send({"type": "pong", "id": id_})
             case "quit":
@@ -226,17 +233,35 @@ class _Run:
             id_, member = self.uploads[0]
             await self.send({"type": "send", "id": id_, "credit": self.fake.window, **_member(member)})
 
+    async def stop_source(self, id_: str):
+        """End a source at the client's word: a playing live one at its next frame, any other at once."""
+        if id_ not in self.open or id_ in self.stopped:
+            await self.send({"type": "error", "id": id_, "error": "invalid_request", "message": "no open source"})
+            return
+        self.stopped.add(id_)
+        if self.playing != id_:
+            self.uploads[:] = [upload for upload in self.uploads if upload[0] != id_]
+            await self.end(id_, "stopped")
+
     async def play(self):
         while (item := await self.queue.get()) is not None:
             id_, command = item
+            if id_ in self.stopped:
+                continue
+            self.playing = id_
             await self.send({"type": "start", "id": id_})
             if command.get("live") or str(command.get("url", "")).startswith(("rtsp://", "rtmp://")):
                 n = 0
-                while not self.ws.closed:
+                while not self.ws.closed and id_ not in self.stopped:
                     await self.send({"type": "prediction", "id": id_, "prediction": prediction(n)})
                     n += 1
                     await asyncio.sleep(0.01)
+                self.playing = None
+                if id_ in self.stopped:
+                    await self.end(id_, "stopped")
+                    continue
                 return
+            self.playing = None
             if "bad" in str(command.get("url", "")):
                 await self.end(id_, "error", "bad media")
                 continue

@@ -199,8 +199,9 @@ out in the order they are submitted, each queued behind the ones before it, up t
 yet sent go out on a new socket. After the pipeline stops itself when idle, the next job opens a
 new socket and sets the pop again; after `credential_expired`, `overloaded` or `shutting_down`, a
 new socket is opened at once. A live source refused `overloaded` is sent once more on the new
-socket. Cancelling a job stops its predictions; its source keeps running on the pipeline until it
-ends or the endpoint disconnects.
+socket. Cancelling a job stops its source on the pipeline with `stopSource`, queued or playing, so a
+cancelled live source frees its place; a pipeline API from before `stopSource` lets the source run
+until it ends or the endpoint disconnects.
 
 ## Composable Pops
 
