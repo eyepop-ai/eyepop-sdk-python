@@ -496,7 +496,7 @@ a video that fails raises `EyePopError`.
 `batch`, `video` and `stream` also decorate. The function gets each result; return `STOP` to end the job.
 
 ```python
-from eyepop.pipeline import STOP, Ability, stream
+from eyepop.pipeline import STOP, Ability, run, stream
 
 @stream(Ability("eyepop.person"), "rtsp://camera.local/1")
 async def watch(frame):
@@ -504,10 +504,11 @@ async def watch(frame):
     if frame.objects:
         return STOP
 
-await watch()   # or watch.run() in a program with no event loop of its own
+await run(watch)   # `run(a, b)` runs several side by side, each on a pipeline of its own
 ```
 
-`run(a, b)` runs decorated jobs side by side, each on a pipeline of its own.
+`await watch()` and `watch.run()` (in a program with no event loop of its own) work too, but a type
+checker may read `watch` as your original function, so `run(...)` is the form that checks cleanly.
 
 ### Keep a pipeline
 
