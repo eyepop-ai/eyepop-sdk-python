@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Pipeline mode (SDK-24): `is_pipeline_mode=True` on `EyePopSdk.sync_worker()`, `EyePopSdk.async_worker()` and `EyePopSdk.workerEndpoint()`, or `EYEPOP_IS_PIPELINE_MODE=true`, runs a worker endpoint's jobs on the pipeline API's socket (eyepop-instance spec 019) instead of a worker session, with the endpoint's methods unchanged. The compute API's `/v1/configs` names the pipeline API (`pipeline_api_url`). One socket per endpoint: the pop goes as `setPop`, each job as one `setSource` in submission order, files up to 8 MiB in one message and larger files, streams and live uploads in chunks under the server's credit, and groups as one `group` source. An API key is exchanged at the compute API and never reaches the pipeline API. The README's "Pipeline mode" section lists what the mode supports, and what it refuses or does not send yet (AWSU-316, AWSU-317). `examples/pipeline_mode.py` runs it.
+- `PipelineSocketClosedException`, `PipelineCommandException` and `PipelineSourceException` in `eyepop.exceptions`, raised by pipeline mode jobs.
+- `EYEPOP_COMBINED_UPLOAD_MAX_BYTES` and `EYEPOP_PIPELINE_HEARTBEAT_SECS` settings for pipeline mode.
+
+### Changed
+- `job_queue_length` on the worker factories defaults to `None`: 1024 for a worker session, as before, and 256 in pipeline mode, which refuses more.
+
 ## [3.24.0] - 2026-10-12
 
 ### Added

@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     coordinate_n_digits: int = 3
     embedding_n_digits: int = 1
     default_data_url: str = "https://dataset-api.eyepop.ai"
+    # Pipeline mode: uploads up to this size go as one combined message, larger ones in chunks.
+    combined_upload_max_bytes: int = 8 * 1024 * 1024
+    # Pipeline mode: the socket's ping interval; it keeps the connection alive, nothing else.
+    pipeline_heartbeat_secs: float = 20.0
 
 
 settings = Settings()
