@@ -34,7 +34,12 @@ from eyepop.settings import settings
 from eyepop.worker.camera import Camera
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_jobs import WorkerJob, _guess_mime_type_from_location
-from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, Pop, VideoMode
+from eyepop.worker.worker_types import (
+    ComponentParams,
+    MotionDetectConfig,
+    Pop,
+    VideoMode,
+)
 
 log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')

@@ -1,7 +1,7 @@
 """Runs a worker endpoint in pipeline mode: the same calls as with a worker session, on the pipeline API.
 
-    EYEPOP_API_KEY=... EYEPOP_URL=https://compute.staging.eyepop.xyz \
-        python examples/pipeline_mode.py examples/example.jpg examples/bus.jpg
+Run it with EYEPOP_API_KEY set and EYEPOP_URL naming the compute API, for instance
+`python examples/pipeline_mode.py examples/example.jpg examples/bus.jpg`.
 """
 import asyncio
 import sys
