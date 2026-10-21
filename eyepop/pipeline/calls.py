@@ -30,6 +30,8 @@ class Job[T]:
         async def watch(frame): ...
 
         await watch()   # or watch.run()
+
+    The handler may be a plain function; returning `STOP` ends the job.
     """
 
     def __init__(self, pop: PopLike, method: str, *args: Any):
