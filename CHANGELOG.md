@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.25.0] - 2026-10-21
+
 ### Added
 - Pipeline mode (SDK-24): `is_pipeline_mode=True` on `EyePopSdk.sync_worker()`, `EyePopSdk.async_worker()` and `EyePopSdk.workerEndpoint()`, or `EYEPOP_PIPELINE_MODE=true`, runs a worker endpoint's jobs on the pipeline API's socket (eyepop-instance spec 019) instead of a worker session. The endpoint is the same `WorkerEndpoint` with the same methods; only its backend differs. The compute API's `/v1/configs` names the pipeline API (`pipeline_api_url`). One socket per endpoint: the pop goes as `setPop`, each job as one `setSource` in submission order, files up to 8 MiB in one message and larger files, streams and live uploads in chunks under the server's credit, and groups as one `group` source. An API key is exchanged at the compute API and never reaches the pipeline API. The README's "Pipeline mode" section lists what the mode supports, and what it refuses or does not send yet (AWSU-316, AWSU-317). `examples/pipeline_mode.py` runs it.
 - In pipeline mode, cancelling a job sends `stopSource` for its source (eyepop-instance spec 019 User Story 7, stop one source), so a cancelled live source stops on the pipeline instead of running until the socket closes. A pipeline API from before `stopSource` answers it `unknown_command`, which is logged at debug and changes nothing else.
