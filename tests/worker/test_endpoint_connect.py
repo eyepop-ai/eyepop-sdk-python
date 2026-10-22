@@ -14,9 +14,17 @@ from aioresponses import CallbackResult, aioresponses
 from yarl import URL
 
 from eyepop import EyePopSdk
+from eyepop.worker.session_backend import SessionBackend
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from eyepop.worker.worker_types import Pop
 from tests.worker.base_endpoint_test import BaseEndpointTest
+
+
+def session_backend(endpoint: WorkerEndpoint) -> SessionBackend:
+    """The worker session that runs the endpoint's jobs."""
+    backend = endpoint.backend
+    assert isinstance(backend, SessionBackend)
+    return backend
 
 
 class TestEndpointConnect(BaseEndpointTest):
@@ -100,7 +108,10 @@ class TestEndpointConnect(BaseEndpointTest):
         self.assertEqual(endpoint.compute_ctx.account_uuid, "arg-uuid")
 
     def test_is_local_mode_keeps_its_positional_slot(self):
-        parameters = list(inspect.signature(WorkerEndpoint.__init__).parameters)
+        parameters = [
+            name for name, parameter in inspect.signature(WorkerEndpoint.__init__).parameters.items()
+            if parameter.kind != inspect.Parameter.KEYWORD_ONLY
+        ]
         self.assertEqual(parameters.index("is_local_mode"), parameters.index("pop") + 1)
         self.assertEqual(parameters[-1], "account_id")
 
@@ -145,7 +156,7 @@ class TestEndpointConnect(BaseEndpointTest):
         )
         try:
             await endpoint.connect()
-            self.assertEqual(endpoint.worker_config["pipeline_id"], owned_pipeline_id)
+            self.assertEqual(session_backend(endpoint).worker_config["pipeline_id"], owned_pipeline_id)
             self.assertTrue(endpoint.compute_ctx.pipeline_owned)
             self.assertEqual(captured_session_body["pop"], pop.model_dump())
         finally:
@@ -237,7 +248,7 @@ class TestEndpointConnect(BaseEndpointTest):
         self.assertNotIn(("GET", URL(f"{local_url}/health")), mock.requests)
 
     async def test_ensure_pipeline_started_serializes_concurrent_creation(self):
-        endpoint = object.__new__(WorkerEndpoint)
+        endpoint = object.__new__(SessionBackend)
         endpoint.worker_config = {}
         endpoint._pipeline_create_lock = asyncio.Lock()
         create_calls = 0
@@ -369,7 +380,7 @@ class TestEndpointConnect(BaseEndpointTest):
             headers={"Authorization": f"Bearer {self.test_access_token}"},
             timeout=None,
         )
-        self.assertNotIn("pipeline_id", endpoint.worker_config)
+        self.assertNotIn("pipeline_id", session_backend(endpoint).worker_config)
 
     @aioresponses()
     async def test_disconnect_compute_transient_unowned_pipeline_skips_delete(self, mock: aioresponses):
@@ -381,7 +392,8 @@ class TestEndpointConnect(BaseEndpointTest):
             api_key="test-api-key",
             pop_id="transient",
         )
-        endpoint.worker_config = {
+        backend = session_backend(endpoint)
+        backend.worker_config = {
             "session_endpoint": self.test_worker_url,
             "pipeline_id": self.test_pipeline_id,
             "endpoints": [],
@@ -389,13 +401,13 @@ class TestEndpointConnect(BaseEndpointTest):
         self.assertIsNotNone(endpoint.compute_ctx)
         endpoint.compute_ctx.pipeline_id = self.test_pipeline_id
         endpoint.compute_ctx.pipeline_owned = False
-        endpoint._owns_pipeline_id = False
+        backend._owns_pipeline_id = False
 
         async with aiohttp.ClientSession() as session:
             endpoint.client_session = session
             await endpoint._disconnect()
 
-        self.assertIn("pipeline_id", endpoint.worker_config)
+        self.assertIn("pipeline_id", backend.worker_config)
         delete_calls = [
             key for key in mock.requests
             if key[0] == "DELETE" and str(key[1]) == delete_url

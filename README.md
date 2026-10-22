@@ -156,6 +156,53 @@ EyePopSdk.plot(plt.gca()).prediction(result)
 plt.show()
 ```
 
+## Pipeline mode
+
+With `is_pipeline_mode=True`, or `EYEPOP_PIPELINE_MODE=true`, a worker endpoint runs its jobs on
+the pipeline API instead of a worker session. The code that uses the endpoint stays the same:
+
+```python
+from eyepop import EyePopSdk
+from eyepop.worker.worker_types import InferenceComponent, Pop
+
+pop = Pop(components=[InferenceComponent(ability='eyepop.person:latest')])
+with EyePopSdk.sync_worker(is_pipeline_mode=True, pop=pop) as endpoint:
+    print(endpoint.upload('photo.jpg').predict())
+```
+
+The endpoint opens one socket to the pipeline API at `connect()` and sets its pop there. The
+compute API at `EYEPOP_URL` names the pipeline API in its `/v1/configs` (`pipeline_api_url`); with
+`is_local_mode`, `eyepop_url` is the pipeline API itself (default `http://127.0.0.1:9002`). Jobs go
+out in the order they are submitted, each queued behind the ones before it, up to 256 at a time:
+`job_queue_length` defaults to 256 and may not exceed it.
+
+| | Pipeline mode |
+|---|---|
+| `upload`, `upload_group` | Files up to 8 MiB go in one message (`EYEPOP_COMBINED_UPLOAD_MAX_BYTES`), larger ones in chunks. |
+| `upload_stream`, `upload_stream_group`, `upload(is_live=True)` | Sent in chunks as the pipeline reads them. |
+| `load_from`, `load_from_group`, `load_asset` | Supported. An `rtsp://` or `rtmp://` url is live. |
+| `params`, `roi`, `camera`, `fps` | Supported. |
+| `video_mode`, `motion_detect`, `media_cache_seconds` | Not sent yet; a warning names each once per endpoint (AWSU-317). |
+| `rtsp_force_non_compliant_url` | Not sent; a warning names it once per endpoint. |
+| `set_pop`, `get_pop` | Supported. A pop the pipeline refuses raises `PopConfigurationException`, and the last pop it took stays. |
+| `session()` | Returns `{"pipeline_api_url": ...}`. |
+| `pipeline_get/post/patch/delete`, `dev_mode_base_url`, `dev_mode_pipeline_base_url` | Raise `NotImplementedError`: there is no worker session. |
+| `api_key`, `access_token` | An API key is exchanged at the compute API and never sent to the pipeline API; an access token is sent as given. |
+| `secret_key`, `pop_id`, `session_uuid`, `session_name`, `pipeline_image`, `pipeline_version` | Raise `ValueError` at construction. |
+| `dataset_uuid` | Raises `ValueError` at construction until the pipeline API writes to datasets (AWSU-316). |
+| Prediction version | The pipeline API's own (V3); none is sent. |
+
+**Errors.** A source that ends with an error raises `PipelineSourceException` (a `ValueError`) from
+`predict()`. A command the pipeline API refuses, `queue_full` among them, raises
+`PipelineCommandException`. When the socket closes under a job, the job raises
+`PipelineSocketClosedException` with the close's code and reason and is not sent again; jobs not
+yet sent go out on a new socket. After the pipeline stops itself when idle, the next job opens a
+new socket and sets the pop again; after `credential_expired`, `overloaded` or `shutting_down`, a
+new socket is opened at once. A live source refused `overloaded` is sent once more on the new
+socket. Cancelling a job stops its source on the pipeline with `stopSource`, queued or playing, so a
+cancelled live source frees its place; a pipeline API from before `stopSource` lets the source run
+until it ends or the endpoint disconnects.
+
 ## Composable Pops
 
 Build multi-stage inference pipelines by chaining models. Configure at runtime with `endpoint.set_pop(pop)`.

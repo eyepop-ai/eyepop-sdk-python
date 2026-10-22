@@ -37,3 +37,31 @@ class ComputeHealthCheckException(Exception):
         self.last_status = last_status
         super().__init__(message)
 
+
+
+class PipelineSocketClosedException(Exception):
+    """Thrown for a job in flight when the pipeline API's socket closed; the job is not sent again.
+
+    `code` and `reason` are the close's, for instance 1011 `pipeline_stopped`.
+    """
+    def __init__(self, code: int | None, reason: str):
+        self.code = code
+        self.reason = reason
+        super().__init__(f'the pipeline API closed the socket: {code} {reason}'.rstrip())
+
+
+class PipelineCommandException(Exception):
+    """Thrown when the pipeline API answered a command with an error, for instance `queue_full`."""
+    def __init__(self, error: str, message: str = ''):
+        self.error = error
+        self.message = message
+        super().__init__(f'the pipeline API refused the command: {error} {message}'.rstrip())
+
+
+class PipelineSourceException(ValueError):
+    """Thrown when a source ended with reason `error` or `preempted` rather than at its end of stream."""
+    def __init__(self, source_id: str, reason: str, message: str = ''):
+        self.source_id = source_id
+        self.reason = reason
+        self.message = message
+        super().__init__(f'Error in source {source_id}: {reason} {message}'.rstrip())
