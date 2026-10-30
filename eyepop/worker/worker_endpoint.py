@@ -17,7 +17,6 @@ from eyepop.worker.worker_types import (
     ComponentParams,
     MotionDetectConfig,
     Pop,
-    PredictionVersion,
     VideoMode,
 )
 
@@ -171,7 +170,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
-            version=self._prediction_version(),
+            version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 
     async def upload_stream(
@@ -198,7 +197,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
-            version=self._prediction_version(),
+            version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 
     async def upload_stream_group(
@@ -231,7 +230,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             roi=roi,
             camera=camera,
             media_cache_seconds=media_cache_seconds,
-            version=self._prediction_version(),
+            version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 
     async def upload_group(
@@ -259,7 +258,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             roi=roi,
             camera=camera,
             media_cache_seconds=media_cache_seconds,
-            version=self._prediction_version(),
+            version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 
     async def load_from(
@@ -291,7 +290,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             rtsp_force_non_compliant_url=rtsp_force_non_compliant_url,
-            version=self._prediction_version(),
+            version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 
     async def load_from_group(
@@ -319,7 +318,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             roi=roi,
             camera=camera,
             media_cache_seconds=media_cache_seconds,
-            version=self._prediction_version(),
+            version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 
     async def load_asset(
@@ -341,7 +340,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
-            version=self._prediction_version(),
+            version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 
     async def _submit(self, source: WorkerSource, on_ready: Callable[[WorkerJob], None] | None) -> WorkerJob:
@@ -349,14 +348,6 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         job = WorkerJob(self, self._backend, source, on_ready=on_ready, callback=self.metrics_collector)
         await self._task_start(job.execute())
         return job
-
-    def _prediction_version(self) -> PredictionVersion:
-        # A select forward's results come only at V3. Only a Pop that selects
-        # asks for it, so a worker too old to know V3 - which also rejects
-        # that Pop - is never sent a version it would not accept.
-        if self.pop is not None and self.pop.selects():
-            return PredictionVersion.V3
-        return DEFAULT_PREDICTION_VERSION
 
     #
     # Implements: WorkerClientSession, on the backend's worker session

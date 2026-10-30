@@ -51,7 +51,7 @@ class TestEndpointUploadGroup(BaseEndpointTest):
                     {'source_id': self.test_source_id, 'seconds': 0, 'system_timestamp': test_timestamp}))
 
             mock.post(
-                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync&version=2',
+                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync&version=3',
                 callback=upload)
 
             job = endpoint.upload_group([self.test_file, self.test_file])
@@ -84,7 +84,7 @@ class TestEndpointUploadGroup(BaseEndpointTest):
                     {'source_id': self.test_source_id, 'seconds': 0, 'system_timestamp': test_timestamp}))
 
             mock.post(
-                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync&version=2',
+                f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}/source?mode=queue&processing=sync&version=3',
                 callback=upload)
 
             job = await endpoint.upload_group([self.test_file, self.test_file, self.test_file])

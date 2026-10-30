@@ -39,7 +39,7 @@ class TestEndpointIsLive(BaseEndpointTest):
 
         mock.post(
             f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}'
-            f'/source?mode=queue&processing=sync&isLive=True&version=2',
+            f'/source?mode=queue&processing=sync&isLive=True&version=3',
             callback=on_post)
 
     @aioresponses()
