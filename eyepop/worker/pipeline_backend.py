@@ -1,4 +1,4 @@
-"""Runs a WorkerEndpoint's jobs on the pipeline API's socket (SDK-24).
+"""Runs a WorkerEndpoint's jobs on the pipeline API's sockets (SDK-24).
 
 The socket protocol is eyepop-instance spec 019, `contracts/socket.md`: one
 socket runs its own pipeline and takes commands, `setPop` and `setSource`
@@ -13,7 +13,7 @@ import os
 import struct
 import time
 import warnings
-from collections.abc import AsyncIterable, Mapping
+from collections.abc import AsyncIterable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, BinaryIO
 from urllib.parse import urljoin, urlsplit
@@ -53,6 +53,8 @@ _REFRESH_BEFORE_EXPIRY_SECS = 60.0
 _RECONNECT_AT_ONCE = {(1008, 'credential_expired'), (1011, 'overloaded'), (1001, 'shutting_down')}
 # The longest wait before such a reconnect, when one close follows another with no source played between.
 _MAX_RECONNECT_DELAY_SECS = 30.0
+# After the pipeline API refused another socket, the endpoint tries again only this much later.
+_EXTRA_SOCKET_RETRY_SECS = 10.0
 # What the socket's setSource does not take yet (AWSU-317).
 _NOT_SENT = ('video_mode', 'motion_detect', 'media_cache_seconds')
 
@@ -109,8 +111,9 @@ class _Source:
 class _Socket:
     """One upgraded socket: its open sources and commands by id, and the task that reads it."""
 
-    def __init__(self, ws: aiohttp.ClientWebSocketResponse):
+    def __init__(self, ws: aiohttp.ClientWebSocketResponse, wake: Callable[[], None]):
         self.ws = ws
+        self._wake = wake
         self.sources: dict[str, _Source] = {}
         self.commands: dict[str, asyncio.Future] = {}
         self.closed = asyncio.Event()
@@ -119,6 +122,8 @@ class _Socket:
         # The ids of sources sent on this socket that have neither ended nor been refused, as the
         # pipeline API counts them, cancelled ones included.
         self.held: set[str] = set()
+        # The held sources that are live. A live source never ends, so nothing queued behind it plays.
+        self.lives: set[str] = set()
         # The held sources the pipeline API took: only these end, so only these make room.
         self.accepted: set[str] = set()
         # The ends on this socket so far.
@@ -126,28 +131,18 @@ class _Socket:
         # How many sources the socket had taken when it last refused queue_full: while as many are
         # held, the next send waits. None once none is held.
         self.cap: int | None = None
-        self._room = asyncio.Event()
 
-    def freed(self):
-        """A source ended or the socket closed."""
-        self.ended += 1
+    def freed(self, ended: bool = True):
+        """A source ended or was refused, or the socket closed."""
+        if ended:
+            self.ended += 1
         if not self.held:
             self.cap = None
-        self.wake()
+        self._wake()
 
-    def wake(self):
-        """Have the send waiting for room look again."""
-        self._room.set()
-        self._room = asyncio.Event()
-
-    async def room(self, job: WorkerJob):
-        """Wait, while the socket is full, until a source ends, it closes or the job is cancelled.
-
-        The caller holds the send lock, so one send waits here and each end lets one go,
-        instead of every refused source sending its media again at once.
-        """
-        while self.cap is not None and len(self.held) >= self.cap and self.open and not job.cancelled:
-            await self._room.wait()
+    @property
+    def has_room(self) -> bool:
+        return self.cap is None or len(self.held) < self.cap
 
     @property
     def open(self) -> bool:
@@ -163,10 +158,14 @@ class _Socket:
 
 
 class PipelineBackend(WorkerBackend):
-    """Runs jobs on one socket to the pipeline API, opened at connect().
+    """Runs jobs on up to `pipeline_sockets` sockets to the pipeline API; connect() opens the first.
 
-    Jobs go out in the order they were submitted, each as one source queued
-    behind the ones before it. A source the pipeline API refuses queue_full,
+    A socket's pipeline plays its sources one after another, so a batch on one
+    socket leaves the GPU mostly idle. While every open socket has a source and
+    fewer than `pipeline_sockets` are open, the next job opens another; each job
+    goes on the socket with the fewest open sources. Jobs go out in the order
+    they were submitted, each as one source queued behind the ones before it
+    on its socket. A source the pipeline API refuses queue_full,
     because the socket holds as many sources or as many image bytes as it
     takes, goes again once another source on the socket ended, so it may go
     after jobs submitted later. While the socket is full every send waits, and
@@ -176,7 +175,7 @@ class PipelineBackend(WorkerBackend):
     def __init__(self, endpoint: 'WorkerEndpoint'):
         self.endpoint = endpoint
         self.pipeline_api_url: str | None = None
-        self._socket: _Socket | None = None
+        self._sockets: list[_Socket] = []
         self._send_lock = asyncio.Lock()
         self._connect_lock = asyncio.Lock()
         self._reconnecting: asyncio.Task | None = None
@@ -185,9 +184,16 @@ class PipelineBackend(WorkerBackend):
         self._token_expires = 0.0
         self._next_id = 0
         self._warned: set[str] = set()
+        self._no_extra_socket_until = 0.0
+        self._room = asyncio.Event()
         self._open: dict[WorkerJob, tuple[_Socket, _Source]] = {}
         # Reconnects at once since a source last played.
         self._reconnects = 0
+
+    def _wake(self):
+        """Have the send waiting for room look again."""
+        self._room.set()
+        self._room = asyncio.Event()
 
     # Connection
 
@@ -209,8 +215,8 @@ class PipelineBackend(WorkerBackend):
                 self._reconnecting.cancel()
                 await asyncio.gather(self._reconnecting, return_exceptions=True)
                 self._reconnecting = None
-            socket, self._socket = self._socket, None
-            if socket is not None:
+            sockets, self._sockets = self._sockets, []
+            for socket in sockets:
                 await socket.ws.close()
                 if socket.reader is not None:
                     await asyncio.gather(socket.reader, return_exceptions=True)
@@ -218,27 +224,59 @@ class PipelineBackend(WorkerBackend):
     async def session(self) -> dict | None:
         return {'pipeline_api_url': self.pipeline_api_url}
 
+    def _open_sockets(self) -> list[_Socket]:
+        return [socket for socket in self._sockets if socket.open]
+
     async def _ensure_socket(self) -> _Socket:
-        """The open socket, or a new one with the last pop set on it. The caller holds the send lock."""
+        """An open socket, or a new one with the last pop set on it. The caller holds the send lock."""
         async with self._connect_lock:
-            if self._socket is not None and self._socket.open:
-                return self._socket
-            if self.endpoint.client_session is None:
-                raise PipelineSocketClosedException(None, 'the endpoint is not connected')
-            url = await self._socket_url()
-            ws = await self._upgrade(url)
-            socket = _Socket(ws)
-            socket.reader = asyncio.create_task(self._read(socket))
-            self._socket = socket
-            if self.endpoint.pop is not None:
+            sockets = self._open_sockets()
+            return sockets[0] if sockets else await self._open_socket(patient=True)
+
+    async def _socket_for_job(self, job: WorkerJob) -> _Socket:
+        """The socket for the next job. The caller holds the send lock.
+
+        A live job goes on a socket of its own, an idle one or a new one, which
+        `pipeline_sockets` does not count. Any other job skips the sockets with a live
+        source: a new one while every other socket has a source and fewer than
+        `pipeline_sockets` are open, else the one with room and the fewest sources.
+        """
+        async with self._connect_lock:
+            if job.source.live():
+                idle = next((socket for socket in self._open_sockets() if not socket.held), None)
+                return idle or await self._open_socket(patient=True)
+            sockets = [socket for socket in self._open_sockets() if not socket.lives]
+            if not sockets:
+                return await self._open_socket(patient=True)
+            if (len(sockets) < settings.pipeline_sockets and all(socket.held for socket in sockets)
+                    and time.monotonic() >= self._no_extra_socket_until):
                 try:
-                    await self._set_pop_on(socket, self.endpoint.pop)
-                except PopConfigurationException:
-                    # A socket whose pipeline does not run the pop runs no job.
-                    self._socket = None
-                    await socket.ws.close()
-                    raise
-            return socket
+                    return await self._open_socket(patient=False)
+                except (aiohttp.ClientError, PipelineSocketClosedException, PopConfigurationException) as e:
+                    # The open sockets take the job, and the jobs after it until the wait is over, so
+                    # a full pipeline API is not asked for a socket once per job.
+                    self._no_extra_socket_until = time.monotonic() + _EXTRA_SOCKET_RETRY_SECS
+                    log_requests.info('could not open another pipeline API socket: %s', e)
+            return min(sockets, key=lambda socket: (not socket.has_room, len(socket.held)))
+
+    async def _open_socket(self, patient: bool) -> _Socket:
+        """A new socket with the last pop set on it; `patient` waits through 503 with Retry-After."""
+        if self.endpoint.client_session is None:
+            raise PipelineSocketClosedException(None, 'the endpoint is not connected')
+        url = await self._socket_url()
+        ws = await self._upgrade(url, patient)
+        socket = _Socket(ws, self._wake)
+        socket.reader = asyncio.create_task(self._read(socket))
+        self._sockets.append(socket)
+        if self.endpoint.pop is not None:
+            try:
+                await self._set_pop_on(socket, self.endpoint.pop)
+            except PopConfigurationException:
+                # A socket whose pipeline does not run the pop runs no job.
+                self._sockets.remove(socket)
+                await socket.ws.close()
+                raise
+        return socket
 
     async def _socket_url(self) -> str:
         if self.pipeline_api_url is None:
@@ -282,8 +320,8 @@ class PipelineBackend(WorkerBackend):
             self._token_expires = time.monotonic() + float(endpoint.compute_ctx.access_token_expires_in or 0)
         return self._token
 
-    async def _upgrade(self, url: str) -> aiohttp.ClientWebSocketResponse:
-        """Open the socket, waiting through 503 with Retry-After and exchanging the API key again after a 401."""
+    async def _upgrade(self, url: str, patient: bool = True) -> aiohttp.ClientWebSocketResponse:
+        """Open the socket, waiting through 503 with Retry-After when `patient`, and exchanging the API key again after a 401."""
         client_session = self.endpoint.client_session
         assert client_session is not None
         deadline = time.monotonic() + settings.max_retry_time_secs
@@ -307,7 +345,7 @@ class PipelineBackend(WorkerBackend):
                     rejected = True
                     continue
                 wait = _retry_after(e.status, e.headers)
-                if wait is None or time.monotonic() + wait > deadline:
+                if not patient or wait is None or time.monotonic() + wait > deadline:
                     raise
                 log_requests.info('the pipeline API answered %d, retrying in %.1f s', e.status, wait)
                 await asyncio.sleep(wait)
@@ -336,8 +374,8 @@ class PipelineBackend(WorkerBackend):
     def _closed(self, socket: _Socket, code: int | None, reason: str):
         socket.closed.set()
         socket.freed()
-        if self._socket is socket:
-            self._socket = None
+        if socket in self._sockets:
+            self._sockets.remove(socket)
         error = PipelineSocketClosedException(code, reason)
         for source in socket.sources.values():
             source.close(error)
@@ -350,7 +388,9 @@ class PipelineBackend(WorkerBackend):
         if (code, reason) in _RECONNECT_AT_ONCE:
             if reason == 'credential_expired':
                 self._token = None
-            self._reconnecting = asyncio.create_task(self._reconnect_at_once())
+            # Only the close that leaves none open reopens one; the others have sockets to run on.
+            if not self._open_sockets():
+                self._reconnecting = asyncio.create_task(self._reconnect_at_once())
 
     async def _reconnect_at_once(self):
         # The first reconnect is at once. Should the new socket be closed the
@@ -371,20 +411,16 @@ class PipelineBackend(WorkerBackend):
     def _dispatch(self, socket: _Socket, message: dict[str, Any]):
         type_, id_ = message.get('type'), message.get('id')
         source = socket.sources.get(id_) if isinstance(id_, str) else None
-        if type_ == 'end':
+        if type_ == 'end' or (type_ == 'error' and id_ in socket.held and message.get('error') != 'unknown_command'):
             # Also the end of a source its job already let go, a cancelled one: it frees room all the same.
+            # A refused source never ends, so the refusal frees it. unknown_command answers a stopSource on a
+            # pipeline API from before it, for a source still open.
             socket.held.discard(id_)
             socket.accepted.discard(id_)
-            socket.freed()
+            socket.lives.discard(id_)
+            socket.freed(ended=type_ == 'end')
         elif type_ == 'result' and id_ in socket.held:
             socket.accepted.add(id_)
-        elif type_ == 'error' and id_ in socket.held and message.get('error') != 'unknown_command':
-            # A refused setSource, also one whose job was cancelled before the refusal arrived: no end follows.
-            # unknown_command answers a stopSource on a pipeline API from before it, for a source still open.
-            socket.held.discard(id_)
-            if not socket.held:
-                socket.cap = None
-            socket.wake()
         if type_ in ('send', 'credit'):
             upload = source.uploads.get(message.get('member')) if source is not None else None
             if upload is not None:
@@ -418,14 +454,20 @@ class PipelineBackend(WorkerBackend):
     # Pop
 
     async def set_pop(self, pop: Pop):
-        """Set the pop on the socket's pipeline; a pop it refuses raises, and the last pop it took stays."""
+        """Set the pop on every open socket's pipeline; a pop the first refuses raises, and the last pop it took stays.
+
+        shortcut: a refusal from a later socket, which the first took, leaves the earlier ones on the
+        new pop; a refusal is the pop's own fault, so every socket answers it alike.
+        """
         endpoint = self.endpoint
         if endpoint.client_session is None:
             endpoint.pop = pop
             return {'pop': pop.model_dump()}
         async with self._send_lock:
-            if self._socket is not None and self._socket.open:
-                await self._set_pop_on(self._socket, pop)
+            sockets = self._open_sockets()
+            if sockets:
+                for socket in sockets:
+                    await self._set_pop_on(socket, pop)
                 endpoint.pop = pop
             else:
                 previous, endpoint.pop = endpoint.pop, pop
@@ -475,8 +517,7 @@ class PipelineBackend(WorkerBackend):
         opened = self._open.get(job)
         if opened is None:
             # It may be the send waiting for room.
-            if self._socket is not None:
-                self._socket.wake()
+            self._wake()
             return
         socket, source = opened
         source.inbox.put_nowait(_CANCELLED)
@@ -537,12 +578,17 @@ class PipelineBackend(WorkerBackend):
             if job.cancelled:
                 # Cancelled before its turn: never sent, so it takes no source on the pipeline.
                 return None
-            await (await self._ensure_socket()).room(job)
-            if job.cancelled:
-                return None
             combined = await _combined_media(job.source)
-            # It may have closed while the send waited for room.
-            socket = await self._ensure_socket()
+            while True:
+                socket = await self._socket_for_job(job)
+                if job.cancelled:
+                    return None
+                if socket.open and socket.has_room:
+                    break
+                if socket.open:
+                    # Full: each end on any socket lets one send look again, instead of every
+                    # refused source sending its media at once.
+                    await self._room.wait()
             source = _Source(self._new_id('source'))
             command = _set_source_command(source.id, job.source)
             if combined is None:
@@ -550,6 +596,8 @@ class PipelineBackend(WorkerBackend):
                     source.uploads[key] = _Upload()
             socket.sources[source.id] = source
             socket.held.add(source.id)
+            if job.source.live():
+                socket.lives.add(source.id)
             source.ended_before = socket.ended
             self._open[job] = (socket, source)
             if combined is None:
