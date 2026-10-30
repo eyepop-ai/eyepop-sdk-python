@@ -35,6 +35,12 @@ def no_environment(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture
+def one_socket(monkeypatch: pytest.MonkeyPatch):
+    """An endpoint that opens one socket, for what a socket does with the sources it holds."""
+    monkeypatch.setattr(settings, "pipeline_sockets", 1)
+
+
+@pytest.fixture
 async def pipeline() -> AsyncIterator[FakePipelineAPI]:
     async with FakePipelineAPI() as fake:
         yield fake
@@ -273,7 +279,7 @@ async def test_a_disconnect_timeout_closes_the_socket_under_a_live_job(compute: 
 
     backend = endpoint.backend
     assert isinstance(backend, PipelineBackend)
-    assert backend._socket is None, "the socket closed although the live job never ended on its own"
+    assert backend._sockets == [], "the socket closed although the live job never ended on its own"
     with contextlib.suppress(PipelineSocketClosedException):
         while await asyncio.wait_for(job.predict(), 5) is not None:
             pass
@@ -408,6 +414,7 @@ async def test_load_from_group_and_load_asset_name_their_source(compute: FakeCom
 # 6. Concurrency
 
 
+@pytest.mark.usefixtures("one_socket")
 async def test_jobs_go_out_in_submission_order_on_one_socket(compute: FakeComputeAPI, pipeline: FakePipelineAPI,
                                                              image: Path):
     urls = [f"https://images.example/{n}.jpg" for n in range(5)]
@@ -419,6 +426,7 @@ async def test_jobs_go_out_in_submission_order_on_one_socket(compute: FakeComput
     assert [s.get("url") for s in pipeline.sockets[0].sources] == [None, *urls]
 
 
+@pytest.mark.usefixtures("one_socket")
 async def test_queue_full_with_no_other_source_open_raises(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
     pipeline.refusals = ["queue_full"]
     async with worker(compute) as endpoint:
@@ -426,6 +434,7 @@ async def test_queue_full_with_no_other_source_open_raises(compute: FakeComputeA
             await predictions(await endpoint.load_from("https://images.example/a.jpg"))
 
 
+@pytest.mark.usefixtures("one_socket")
 async def test_a_source_refused_queue_full_goes_again_once_another_ended(compute: FakeComputeAPI,
                                                                           pipeline: FakePipelineAPI):
     pipeline.queue_full_at = 2
@@ -443,6 +452,7 @@ async def test_a_source_refused_queue_full_goes_again_once_another_ended(compute
     assert sorted(set(sent)) == sorted(urls) and len(sent) == len(urls) + pipeline.queue_full_refused
 
 
+@pytest.mark.usefixtures("one_socket")
 async def test_the_end_of_a_cancelled_source_lets_a_source_refused_queue_full_go(compute: FakeComputeAPI,
                                                                                 pipeline: FakePipelineAPI):
     pipeline.queue_full_at = 1
@@ -456,6 +466,7 @@ async def test_the_end_of_a_cancelled_source_lets_a_source_refused_queue_full_go
         assert await asyncio.wait_for(predictions(image), 5) == [prediction(0), prediction(1)]
 
 
+@pytest.mark.usefixtures("one_socket")
 async def test_a_job_cancelled_while_it_waits_for_room_ends_at_once(compute: FakeComputeAPI,
                                                                     pipeline: FakePipelineAPI):
     pipeline.queue_full_at = 1
@@ -476,6 +487,7 @@ async def test_a_job_cancelled_while_it_waits_for_room_ends_at_once(compute: Fak
                                                                    "https://images.example/a.jpg"]
 
 
+@pytest.mark.usefixtures("one_socket")
 async def test_an_upload_from_a_stream_refused_queue_full_raises(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
     pipeline.queue_full_at = 1
     async with worker(compute) as endpoint:
@@ -486,6 +498,50 @@ async def test_an_upload_from_a_stream_refused_queue_full_raises(compute: FakeCo
         with pytest.raises(PipelineCommandException, match="queue_full"):
             await asyncio.wait_for(predictions(job), 5)
         await live.cancel()
+
+
+async def test_a_batch_spreads_over_pipeline_sockets_sockets_each_with_the_pop(compute: FakeComputeAPI,
+                                                                              pipeline: FakePipelineAPI):
+    pipeline.source_delay = 0.2
+    urls = [f"https://images.example/{n}.jpg" for n in range(12)]
+    async with worker(compute, pop=PERSON) as endpoint:
+        jobs = [await endpoint.load_from(url) for url in urls]
+        results = await asyncio.wait_for(asyncio.gather(*(predictions(job) for job in jobs)), 5)
+    assert all(r == [prediction(0), prediction(1)] for r in results)
+    assert len(pipeline.sockets) == settings.pipeline_sockets == 4
+    assert all(socket.pops == [PERSON.model_dump(mode="json")] for socket in pipeline.sockets)
+    assert all(socket.sources for socket in pipeline.sockets)
+    assert sorted(s["url"] for socket in pipeline.sockets for s in socket.sources) == sorted(urls)
+
+
+async def test_jobs_one_after_another_stay_on_one_socket(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+    async with worker(compute) as endpoint:
+        for n in range(3):
+            assert await predictions(await endpoint.load_from(f"https://images.example/{n}.jpg")) == [
+                prediction(0), prediction(1)]
+    assert len(pipeline.sockets) == 1
+
+
+async def test_set_pop_reaches_every_open_socket(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+    pipeline.source_delay = 0.2
+    async with worker(compute, pop=PERSON) as endpoint:
+        jobs = [await endpoint.load_from(f"https://images.example/{n}.jpg") for n in range(4)]
+        await asyncio.wait_for(asyncio.gather(*(predictions(job) for job in jobs)), 5)
+        await endpoint.set_pop(VEHICLE)
+    assert len(pipeline.sockets) == 4
+    assert all(socket.pops == [PERSON.model_dump(mode="json"), VEHICLE.model_dump(mode="json")]
+               for socket in pipeline.sockets)
+
+
+async def test_another_socket_the_pipeline_api_refuses_does_not_hold_up_the_job(compute: FakeComputeAPI,
+                                                                               pipeline: FakePipelineAPI):
+    pipeline.source_delay = 0.2
+    async with worker(compute) as endpoint:
+        pipeline.upgrade_answers = [(503, {"Retry-After": "5"})]
+        jobs = [await endpoint.load_from(f"https://images.example/{n}.jpg") for n in range(2)]
+        results = await asyncio.wait_for(asyncio.gather(*(predictions(job) for job in jobs)), 2)
+    assert all(r == [prediction(0), prediction(1)] for r in results)
+    assert len(pipeline.sockets) == 1, "the second job went on the open socket instead of waiting 5 s"
 
 
 # 8. Credential

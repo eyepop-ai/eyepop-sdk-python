@@ -170,11 +170,19 @@ with EyePopSdk.sync_worker(is_pipeline_mode=True, pop=pop) as endpoint:
     print(endpoint.upload('photo.jpg').predict())
 ```
 
-The endpoint opens one socket to the pipeline API at `connect()` and sets its pop there. The
+The endpoint opens a socket to the pipeline API at `connect()` and sets its pop there. The
 compute API at `EYEPOP_URL` names the pipeline API in its `/v1/configs` (`pipeline_api_url`); with
 `is_local_mode`, `eyepop_url` is the pipeline API itself (default `http://127.0.0.1:9002`). Jobs go
-out in the order they are submitted, each queued behind the ones before it, up to 256 at a time:
-`job_queue_length` defaults to 256 and may not exceed it.
+out in the order they are submitted, each queued behind the ones before it on its socket, up to 256
+at a time: `job_queue_length` defaults to 256 and may not exceed it.
+
+Each socket runs its own pipeline, which plays its sources one after another. While every open
+socket has a source, the next job opens another, up to 4 (`EYEPOP_PIPELINE_SOCKETS`), each with the
+pop set; a job goes on the socket with the fewest open sources. A batch submitted at once therefore
+runs on 4 pipelines, and jobs run one after another stay on one socket. On a T4, 4 sockets of
+704-pixel images ran `common-objects.large` at about 89 images per second, against 30 on one. When
+the pipeline API refuses another socket, the job goes on an open one. `set_pop` sets the pop on
+every open socket.
 
 | | Pipeline mode |
 |---|---|

@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     combined_upload_max_bytes: int = 8 * 1024 * 1024
     # Pipeline mode: the socket's ping interval; it keeps the connection alive, nothing else.
     pipeline_heartbeat_secs: float = 20.0
+    # Pipeline mode: the most sockets an endpoint opens. Each runs its own pipeline, which plays its
+    # sources one after another; a new one opens only while every open one has a source.
+    pipeline_sockets: int = 4
 
 
 settings = Settings()
