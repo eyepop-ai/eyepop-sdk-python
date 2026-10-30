@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- In pipeline mode, a source the pipeline API refuses `queue_full` goes again once another source on the socket ended, instead of failing its job. The socket holds at most 256 open sources and 32 MiB of images sent in one message (eyepop-instance `image-max-bytes`); with images of about 600 KiB, about 53 fit, so a batch of 500 images on one endpoint lost 36 to 324 of them per batch on staging (2026-10-29). A refused source may now go after jobs submitted later. A `queue_full` refusal with none of the endpoint's other sources open on the socket still fails the job, since no end would make room.
+
 ## [3.25.3] - 2026-10-30
 
 ### Changed

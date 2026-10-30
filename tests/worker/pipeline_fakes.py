@@ -65,8 +65,11 @@ class FakePipelineAPI(_Server):
     of its setSources were answered, `idle_after_done` closes it `1000 idle`
     once it has no open source, `overloaded_live` refuses that many live
     setSources `overloaded` and closes `1011 overloaded`, as max-live does,
-    `close_on_open` closes every socket as soon as it opens, and `pop_delay`
-    holds each setPop's answer that long.
+    `close_on_open` closes every socket as soon as it opens, `pop_delay`
+    holds each setPop's answer that long, `queue_full_at` refuses a setSource
+    `queue_full` while the socket has that many open sources (counted in
+    `queue_full_refused`), and `source_delay` holds each source that long
+    before its predictions.
     """
 
     def __init__(self):
@@ -84,6 +87,9 @@ class FakePipelineAPI(_Server):
         # False plays a pipeline API from before stopSource, which answers it unknown_command.
         self.knows_stop_source = True
         self.pop_delay = 0.0
+        self.queue_full_at: int | None = None
+        self.queue_full_refused = 0
+        self.source_delay = 0.0
         app = web.Application()
         app.router.add_get("/api/v1/pipeline", self._upgrade)
         super().__init__(app)
@@ -199,6 +205,10 @@ class _Run:
         if self.fake.refusals:
             await self.send({"type": "error", "id": id_, "error": self.fake.refusals.pop(0), "message": "refused"})
             return
+        if self.fake.queue_full_at is not None and len(self.open) >= self.fake.queue_full_at:
+            self.fake.queue_full_refused += 1
+            await self.send({"type": "error", "id": id_, "error": "queue_full", "message": "socket full"})
+            return
         live = command.get("live") or str(command.get("url", "")).startswith(("rtsp://", "rtmp://"))
         if live and self.fake.overloaded_live > 0:
             self.fake.overloaded_live -= 1
@@ -262,6 +272,7 @@ class _Run:
                     continue
                 return
             self.playing = None
+            await asyncio.sleep(self.fake.source_delay)
             if "bad" in str(command.get("url", "")):
                 await self.end(id_, "error", "bad media")
                 continue

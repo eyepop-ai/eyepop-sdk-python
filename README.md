@@ -193,8 +193,10 @@ out in the order they are submitted, each queued behind the ones before it, up t
 | Prediction version | The pipeline API's own (V3); none is sent. |
 
 **Errors.** A source that ends with an error raises `PipelineSourceException` (a `ValueError`) from
-`predict()`. A command the pipeline API refuses, `queue_full` among them, raises
-`PipelineCommandException`. When the socket closes under a job, the job raises
+`predict()`. A command the pipeline API refuses raises `PipelineCommandException`, except
+`queue_full` on a source: the socket is full (256 open sources, or 32 MiB of images sent in one
+message), so the source goes again once another of the endpoint's sources on that socket ended. It
+raises only when none of them is open. When the socket closes under a job, the job raises
 `PipelineSocketClosedException` with the close's code and reason and is not sent again; jobs not
 yet sent go out on a new socket. After the pipeline stops itself when idle, the next job opens a
 new socket and sets the pop again; after `credential_expired`, `overloaded` or `shutting_down`, a
