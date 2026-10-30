@@ -13,7 +13,7 @@ import os
 import struct
 import time
 import warnings
-from collections.abc import AsyncIterable, Mapping
+from collections.abc import AsyncIterable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, BinaryIO
 from urllib.parse import urljoin, urlsplit
@@ -111,8 +111,9 @@ class _Source:
 class _Socket:
     """One upgraded socket: its open sources and commands by id, and the task that reads it."""
 
-    def __init__(self, ws: aiohttp.ClientWebSocketResponse):
+    def __init__(self, ws: aiohttp.ClientWebSocketResponse, wake: Callable[[], None]):
         self.ws = ws
+        self._wake = wake
         self.sources: dict[str, _Source] = {}
         self.commands: dict[str, asyncio.Future] = {}
         self.closed = asyncio.Event()
@@ -128,28 +129,14 @@ class _Socket:
         # How many sources were open when the socket last refused queue_full: while as many are
         # open, the next send waits. None once none is open.
         self.cap: int | None = None
-        self._room = asyncio.Event()
 
-    def freed(self):
-        """A source ended or the socket closed."""
-        self.ended += 1
+    def freed(self, ended: bool = True):
+        """A source ended or was refused, or the socket closed."""
+        if ended:
+            self.ended += 1
         if not self.held:
             self.cap = None
-        self.wake()
-
-    def wake(self):
-        """Have the send waiting for room look again."""
-        self._room.set()
-        self._room = asyncio.Event()
-
-    async def room(self, job: WorkerJob):
-        """Wait, while the socket is full, until a source ends, it closes or the job is cancelled.
-
-        The caller holds the send lock, so one send waits here and each end lets one go,
-        instead of every refused source sending its media again at once.
-        """
-        while not self.has_room and self.open and not job.cancelled:
-            await self._room.wait()
+        self._wake()
 
     @property
     def has_room(self) -> bool:
@@ -196,9 +183,15 @@ class PipelineBackend(WorkerBackend):
         self._next_id = 0
         self._warned: set[str] = set()
         self._no_extra_socket_until = 0.0
+        self._room = asyncio.Event()
         self._open: dict[WorkerJob, tuple[_Socket, _Source]] = {}
         # Reconnects at once since a source last played.
         self._reconnects = 0
+
+    def _wake(self):
+        """Have the send waiting for room look again."""
+        self._room.set()
+        self._room = asyncio.Event()
 
     # Connection
 
@@ -270,7 +263,7 @@ class PipelineBackend(WorkerBackend):
             raise PipelineSocketClosedException(None, 'the endpoint is not connected')
         url = await self._socket_url()
         ws = await self._upgrade(url, patient)
-        socket = _Socket(ws)
+        socket = _Socket(ws, self._wake)
         socket.reader = asyncio.create_task(self._read(socket))
         self._sockets.append(socket)
         if self.endpoint.pop is not None:
@@ -393,7 +386,9 @@ class PipelineBackend(WorkerBackend):
         if (code, reason) in _RECONNECT_AT_ONCE:
             if reason == 'credential_expired':
                 self._token = None
-            self._reconnecting = asyncio.create_task(self._reconnect_at_once())
+            # Only the close that leaves none open reopens one; the others have sockets to run on.
+            if not self._open_sockets():
+                self._reconnecting = asyncio.create_task(self._reconnect_at_once())
 
     async def _reconnect_at_once(self):
         # The first reconnect is at once. Should the new socket be closed the
@@ -414,11 +409,12 @@ class PipelineBackend(WorkerBackend):
     def _dispatch(self, socket: _Socket, message: dict[str, Any]):
         type_, id_ = message.get('type'), message.get('id')
         source = socket.sources.get(id_) if isinstance(id_, str) else None
-        if type_ == 'end':
+        if type_ == 'end' or (type_ == 'error' and id_ in socket.held):
             # Also the end of a source its job already let go, a cancelled one: it frees room all the same.
+            # A refused source never ends, so the refusal frees it.
             socket.held.discard(id_)
             socket.lives.discard(id_)
-            socket.freed()
+            socket.freed(ended=type_ == 'end')
         if type_ in ('send', 'credit'):
             upload = source.uploads.get(message.get('member')) if source is not None else None
             if upload is not None:
@@ -515,8 +511,7 @@ class PipelineBackend(WorkerBackend):
         opened = self._open.get(job)
         if opened is None:
             # It may be the send waiting for room.
-            for socket in self._sockets:
-                socket.wake()
+            self._wake()
             return
         socket, source = opened
         source.inbox.put_nowait(_CANCELLED)
@@ -554,8 +549,6 @@ class PipelineBackend(WorkerBackend):
                     await asyncio.gather(uploader, return_exceptions=True)
             if refused is None:
                 return
-            socket.held.discard(source.id)
-            socket.lives.discard(source.id)
             if refused == 'queue_full':
                 if not socket.held and socket.ended == source.ended_before:
                     raise PipelineCommandException('queue_full', 'the socket refused the source with none of its own open')
@@ -582,12 +575,14 @@ class PipelineBackend(WorkerBackend):
             combined = await _combined_media(job.source)
             while True:
                 socket = await self._socket_for_job(job)
-                await socket.room(job)
                 if job.cancelled:
                     return None
-                if socket.open:
+                if socket.open and socket.has_room:
                     break
-                # It closed while the send waited for room: pick again.
+                if socket.open:
+                    # Full: each end on any socket lets one send look again, instead of every
+                    # refused source sending its media at once.
+                    await self._room.wait()
             source = _Source(self._new_id('source'))
             command = _set_source_command(source.id, job.source)
             if combined is None:

@@ -76,6 +76,7 @@ class FakePipelineAPI(_Server):
         self.frames = 2
         self.window = 16
         self.sockets: list[Socket] = []
+        self.runs: list[_Run] = []
         self.upgrade_answers: list[tuple[int, dict[str, str]]] = []
         self.refusals: list[str] = []
         self.pop_error: str | None = None
@@ -105,7 +106,9 @@ class FakePipelineAPI(_Server):
         self.sockets.append(socket)
         ws = web.WebSocketResponse(protocols=("eyepop.v1",))
         await ws.prepare(request)
-        await _Run(self, socket, ws).serve()
+        run = _Run(self, socket, ws)
+        self.runs.append(run)
+        await run.serve()
         return ws
 
 

@@ -4,7 +4,7 @@ import contextlib
 import io
 import threading
 import warnings
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 
 import pytest
@@ -61,6 +61,11 @@ def worker(compute: FakeComputeAPI, **options) -> WorkerEndpoint:
     endpoint = EyePopSdk.async_worker(eyepop_url=compute.url, is_pipeline_mode=True, **options)
     assert in_pipeline_mode(endpoint)
     return endpoint
+
+
+def pipeline_backend(endpoint: WorkerEndpoint) -> PipelineBackend:
+    assert isinstance(endpoint.backend, PipelineBackend)
+    return endpoint.backend
 
 
 async def predictions(job: WorkerJob) -> list[dict]:
@@ -568,6 +573,49 @@ async def test_a_camera_gets_a_socket_of_its_own_and_no_image_of_a_batch_queues_
     assert all(r == [prediction(0), prediction(1)] for r in results)
     assert [s["url"] for s in pipeline.sockets[0].sources] == ["rtsp://camera.example/stream"]
     assert len(pipeline.sockets) == 1 + settings.pipeline_sockets
+
+
+async def test_a_source_refused_for_another_reason_takes_no_room_on_the_socket(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, one_socket: None):
+    pipeline.refusals = ["invalid_source"]
+    async with worker(compute) as endpoint:
+        with pytest.raises(PipelineCommandException):
+            await predictions(await endpoint.load_from("https://images.example/a.jpg"))
+        held = pipeline_backend(endpoint)._sockets[0].held
+    assert held == set()
+
+
+async def test_a_job_waiting_for_room_goes_on_whichever_socket_frees_first(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(settings, "pipeline_sockets", 2)
+    pipeline.queue_full_at = 1
+    async with worker(compute) as endpoint:
+        pipeline.source_delay = 1.5
+        slow = await endpoint.load_from("https://images.example/slow.jpg")
+        await asyncio.sleep(0.05)
+        pipeline.source_delay = 0.1
+        quick = await endpoint.load_from("https://images.example/quick.jpg")
+        waiting = await endpoint.load_from("https://images.example/waiting.jpg")
+        result = await asyncio.wait_for(predictions(waiting), 1)
+        await asyncio.gather(predictions(slow), predictions(quick))
+    assert result == [prediction(0), prediction(1)]
+
+
+async def test_sockets_the_pipeline_api_closes_together_are_reopened_once(compute: FakeComputeAPI,
+                                                                         pipeline: FakePipelineAPI):
+    pipeline.source_delay = 0.2
+    async with worker(compute) as endpoint:
+        jobs = [await endpoint.load_from(f"https://images.example/{n}.jpg") for n in range(8)]
+        await asyncio.wait_for(asyncio.gather(*(predictions(job) for job in jobs)), 5)
+        backend = pipeline_backend(endpoint)
+        await asyncio.gather(*(run.close(1001, "shutting_down") for run in pipeline.runs))
+        await asyncio.wait_for(_until(lambda: len(backend._open_sockets()) == 1), 5)
+    assert backend._reconnects == 1
+
+
+async def _until(condition: Callable[[], bool]):
+    while not condition():
+        await asyncio.sleep(0.01)
 
 
 # 8. Credential
