@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `pip install eyepop` works on Python 3.14. The `pyarrow` cap is raised from `<22` to `<27`; pyarrow 21 has no Python 3.14 wheel, so the install fell back to building it from source and failed.
+- The `test` extra caps `aiohttp` below 3.14. aioresponses 0.7.9, the latest, cannot build an aiohttp 3.14 response, which failed 111 tests on a fresh install. The SDK itself is unaffected.
+- The `readline()` regression test accepts `LineTooLong`, which aiohttp 3.13.5 raises for an oversized line where earlier versions raised `ValueError`.
+
 ## [3.25.0] - 2026-10-21
 
 ### Added
