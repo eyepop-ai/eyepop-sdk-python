@@ -45,7 +45,7 @@ with EyePopSdk.sync_worker(session_uuid="<your-session-uuid>") as endpoint:
 
 ### Local mode
 
-An [on-premise instance](https://docs.eyepop.ai/deploying/on-premise) serves the EyePop runtime on your own machine. **Local mode** points the SDK at `http://127.0.0.1:8080` instead of the cloud and sends no account credentials — the instance is already registered to your account, and reaching the loopback port is what authorizes the client.
+An [on-premise instance](https://docs.eyepop.ai/developer-documentation/cli/on-premise) serves the EyePop runtime on your own machine. **Local mode** points the SDK at `http://127.0.0.1:8080` instead of the cloud and sends no account credentials — the instance is already registered to your account, and reaching the loopback port is what authorizes the client.
 
 ```python
 from eyepop import EyePopSdk
@@ -76,4 +76,4 @@ Connecting creates a pipeline on the instance and disconnecting removes it, so k
 
 * [Running Inference](inference.md) — process files, streams, URLs, and video
 * [Composable Pops](composable-pops.md) — chain models into a pipeline
-* [On-Premise](https://docs.eyepop.ai/deploying/on-premise) — create an instance to run local mode against
+* [On-Premise Instances](https://docs.eyepop.ai/developer-documentation/cli/on-premise) — set up an instance with the CLI to run local mode against
