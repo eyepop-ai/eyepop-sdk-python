@@ -456,13 +456,13 @@ async def test_a_source_refused_queue_full_goes_again_once_another_ended(compute
 async def test_the_end_of_a_cancelled_source_lets_a_source_refused_queue_full_go(compute: FakeComputeAPI,
                                                                                 pipeline: FakePipelineAPI):
     pipeline.queue_full_at = 1
+    pipeline.source_delay = 0.3
     async with worker(compute) as endpoint:
-        live = await endpoint.load_from("rtsp://camera.example/stream")
-        assert await live.predict() == prediction(0)
+        slow = await endpoint.load_from("https://images.example/slow.jpg")
         image = await endpoint.load_from("https://images.example/a.jpg")
         await asyncio.sleep(0.05)  # refused queue_full, it waits for room
         assert pipeline.queue_full_refused == 1
-        await live.cancel()
+        await slow.cancel()
         assert await asyncio.wait_for(predictions(image), 5) == [prediction(0), prediction(1)]
 
 
@@ -470,34 +470,34 @@ async def test_the_end_of_a_cancelled_source_lets_a_source_refused_queue_full_go
 async def test_a_job_cancelled_while_it_waits_for_room_ends_at_once(compute: FakeComputeAPI,
                                                                     pipeline: FakePipelineAPI):
     pipeline.queue_full_at = 1
+    pipeline.source_delay = 0.3
     async with worker(compute) as endpoint:
-        live = await endpoint.load_from("rtsp://camera.example/stream")
-        assert await live.predict() == prediction(0)
+        slow = await endpoint.load_from("https://images.example/slow.jpg")
         image = await endpoint.load_from("https://images.example/a.jpg")
-        await asyncio.sleep(0.05)  # refused queue_full, it waits for room behind the live source
+        await asyncio.sleep(0.05)  # refused queue_full, it waits for room behind the slow source
         await image.cancel()
         for _ in range(100):
             if len(endpoint.tasks) == 1:
                 break
             await asyncio.sleep(0.01)
-        assert len(endpoint.tasks) == 1  # only the live job runs on
-        await live.cancel()
+        assert len(endpoint.tasks) == 1  # only the slow job runs on
+        assert await predictions(slow) == [prediction(0), prediction(1)]
     assert pipeline.queue_full_refused == 1
-    assert [s.get("url") for s in pipeline.sockets[0].sources] == ["rtsp://camera.example/stream",
+    assert [s.get("url") for s in pipeline.sockets[0].sources] == ["https://images.example/slow.jpg",
                                                                    "https://images.example/a.jpg"]
 
 
 @pytest.mark.usefixtures("one_socket")
 async def test_an_upload_from_a_stream_refused_queue_full_raises(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
     pipeline.queue_full_at = 1
+    pipeline.source_delay = 0.3
     async with worker(compute) as endpoint:
-        live = await endpoint.load_from("rtsp://camera.example/stream")
-        assert await live.predict() == prediction(0)
+        slow = await endpoint.load_from("https://images.example/slow.jpg")
         # Its first bytes were read for the refused send; it cannot be sent again whole.
         job = await endpoint.upload_stream(io.BytesIO(b"jpeg bytes"), "image/jpeg")
         with pytest.raises(PipelineCommandException, match="queue_full"):
             await asyncio.wait_for(predictions(job), 5)
-        await live.cancel()
+        await predictions(slow)
 
 
 async def test_a_batch_spreads_over_pipeline_sockets_sockets_each_with_the_pop(compute: FakeComputeAPI,
@@ -542,6 +542,32 @@ async def test_another_socket_the_pipeline_api_refuses_does_not_hold_up_the_job(
         results = await asyncio.wait_for(asyncio.gather(*(predictions(job) for job in jobs)), 2)
     assert all(r == [prediction(0), prediction(1)] for r in results)
     assert len(pipeline.sockets) == 1, "the second job went on the open socket instead of waiting 5 s"
+
+
+async def test_after_the_pipeline_api_refused_another_socket_the_next_jobs_do_not_ask_again_at_once(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+    pipeline.source_delay = 0.05
+    async with worker(compute) as endpoint:
+        pipeline.upgrade_answers = [(503, {}), (503, {}), (503, {})]
+        jobs = [await endpoint.load_from(f"https://images.example/{n}.jpg") for n in range(8)]
+        results = await asyncio.wait_for(asyncio.gather(*(predictions(job) for job in jobs)), 5)
+    assert all(r == [prediction(0), prediction(1)] for r in results)
+    assert len(pipeline.upgrade_answers) == 2
+    assert len(pipeline.sockets) == 1
+
+
+async def test_a_camera_gets_a_socket_of_its_own_and_no_image_of_a_batch_queues_behind_it(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+    pipeline.source_delay = 0.05
+    async with worker(compute) as endpoint:
+        live = await endpoint.load_from("rtsp://camera.example/stream")
+        assert await live.predict() == prediction(0)
+        jobs = [await endpoint.load_from(f"https://images.example/{n}.jpg") for n in range(8)]
+        results = await asyncio.wait_for(asyncio.gather(*(predictions(job) for job in jobs)), 5)
+        await live.cancel()
+    assert all(r == [prediction(0), prediction(1)] for r in results)
+    assert [s["url"] for s in pipeline.sockets[0].sources] == ["rtsp://camera.example/stream"]
+    assert len(pipeline.sockets) == 1 + settings.pipeline_sockets
 
 
 # 8. Credential

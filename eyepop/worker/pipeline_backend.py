@@ -53,6 +53,8 @@ _REFRESH_BEFORE_EXPIRY_SECS = 60.0
 _RECONNECT_AT_ONCE = {(1008, 'credential_expired'), (1011, 'overloaded'), (1001, 'shutting_down')}
 # The longest wait before such a reconnect, when one close follows another with no source played between.
 _MAX_RECONNECT_DELAY_SECS = 30.0
+# After the pipeline API refused another socket, the endpoint tries again only this much later.
+_EXTRA_SOCKET_RETRY_SECS = 10.0
 # What the socket's setSource does not take yet (AWSU-317).
 _NOT_SENT = ('video_mode', 'motion_detect', 'media_cache_seconds')
 
@@ -119,6 +121,8 @@ class _Socket:
         # The ids of sources sent on this socket that have neither ended nor been refused, as the
         # pipeline API counts them, cancelled ones included.
         self.held: set[str] = set()
+        # The held sources that are live. A live source never ends, so nothing queued behind it plays.
+        self.lives: set[str] = set()
         # The ends on this socket so far.
         self.ended = 0
         # How many sources were open when the socket last refused queue_full: while as many are
@@ -191,6 +195,7 @@ class PipelineBackend(WorkerBackend):
         self._token_expires = 0.0
         self._next_id = 0
         self._warned: set[str] = set()
+        self._no_extra_socket_until = 0.0
         self._open: dict[WorkerJob, tuple[_Socket, _Source]] = {}
         # Reconnects at once since a source last played.
         self._reconnects = 0
@@ -233,21 +238,29 @@ class PipelineBackend(WorkerBackend):
             sockets = self._open_sockets()
             return sockets[0] if sockets else await self._open_socket(patient=True)
 
-    async def _socket_for_job(self) -> _Socket:
+    async def _socket_for_job(self, job: WorkerJob) -> _Socket:
         """The socket for the next job. The caller holds the send lock.
 
-        A new one while every open socket has a source and fewer than `pipeline_sockets` are
-        open, else the open one with room and the fewest sources.
+        A live job goes on a socket of its own, an idle one or a new one, which
+        `pipeline_sockets` does not count. Any other job skips the sockets with a live
+        source: a new one while every other socket has a source and fewer than
+        `pipeline_sockets` are open, else the one with room and the fewest sources.
         """
         async with self._connect_lock:
-            sockets = self._open_sockets()
+            if _is_live(job.source):
+                idle = next((socket for socket in self._open_sockets() if not socket.held), None)
+                return idle or await self._open_socket(patient=True)
+            sockets = [socket for socket in self._open_sockets() if not socket.lives]
             if not sockets:
                 return await self._open_socket(patient=True)
-            if len(sockets) < settings.pipeline_sockets and all(socket.held for socket in sockets):
+            if (len(sockets) < settings.pipeline_sockets and all(socket.held for socket in sockets)
+                    and time.monotonic() >= self._no_extra_socket_until):
                 try:
                     return await self._open_socket(patient=False)
                 except (aiohttp.ClientError, PipelineSocketClosedException, PopConfigurationException) as e:
-                    # The open sockets take the job; the next job tries again.
+                    # The open sockets take the job, and the jobs after it until the wait is over, so
+                    # a full pipeline API is not asked for a socket once per job.
+                    self._no_extra_socket_until = time.monotonic() + _EXTRA_SOCKET_RETRY_SECS
                     log_requests.info('could not open another pipeline API socket: %s', e)
             return min(sockets, key=lambda socket: (not socket.has_room, len(socket.held)))
 
@@ -404,6 +417,7 @@ class PipelineBackend(WorkerBackend):
         if type_ == 'end':
             # Also the end of a source its job already let go, a cancelled one: it frees room all the same.
             socket.held.discard(id_)
+            socket.lives.discard(id_)
             socket.freed()
         if type_ in ('send', 'credit'):
             upload = source.uploads.get(message.get('member')) if source is not None else None
@@ -541,6 +555,7 @@ class PipelineBackend(WorkerBackend):
             if refused is None:
                 return
             socket.held.discard(source.id)
+            socket.lives.discard(source.id)
             if refused == 'queue_full':
                 if not socket.held and socket.ended == source.ended_before:
                     raise PipelineCommandException('queue_full', 'the socket refused the source with none of its own open')
@@ -564,14 +579,15 @@ class PipelineBackend(WorkerBackend):
             if job.cancelled:
                 # Cancelled before its turn: never sent, so it takes no source on the pipeline.
                 return None
-            socket = await self._socket_for_job()
-            await socket.room(job)
-            if job.cancelled:
-                return None
             combined = await _combined_media(job.source)
-            if not socket.open:
-                # It closed while the send waited for room.
-                socket = await self._socket_for_job()
+            while True:
+                socket = await self._socket_for_job(job)
+                await socket.room(job)
+                if job.cancelled:
+                    return None
+                if socket.open:
+                    break
+                # It closed while the send waited for room: pick again.
             source = _Source(self._new_id('source'))
             command = _set_source_command(source.id, job.source)
             if combined is None:
@@ -579,6 +595,8 @@ class PipelineBackend(WorkerBackend):
                     source.uploads[key] = _Upload()
             socket.sources[source.id] = source
             socket.held.add(source.id)
+            if _is_live(job.source):
+                socket.lives.add(source.id)
             source.ended_before = socket.ended
             self._open[job] = (socket, source)
             if combined is None:

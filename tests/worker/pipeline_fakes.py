@@ -273,6 +273,8 @@ class _Run:
                 return
             self.playing = None
             await asyncio.sleep(self.fake.source_delay)
+            if id_ in self.stopped:
+                continue  # stopSource ended it already
             if "bad" in str(command.get("url", "")):
                 await self.end(id_, "error", "bad media")
                 continue

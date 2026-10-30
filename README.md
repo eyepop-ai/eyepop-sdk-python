@@ -181,8 +181,10 @@ socket has a source, the next job opens another, up to 4 (`EYEPOP_PIPELINE_SOCKE
 pop set; a job goes on the socket with the fewest open sources. A batch submitted at once therefore
 runs on 4 pipelines, and jobs run one after another stay on one socket. On a T4, 4 sockets of
 704-pixel images ran `common-objects.large` at about 89 images per second, against 30 on one. When
-the pipeline API refuses another socket, the job goes on an open one. `set_pop` sets the pop on
-every open socket.
+the pipeline API refuses another socket, the job goes on an open one, and the endpoint asks again
+only 10 s later. A live source never ends, so nothing queued behind it would play: it goes on an
+idle socket or a new one, which the 4 do not count, and no other job is sent on a socket that has
+one. `set_pop` sets the pop on every open socket.
 
 | | Pipeline mode |
 |---|---|
