@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.25.3] - 2026-10-30
+
 ### Changed
 - **Breaking**: `Prediction.meshs` and `PredictedObject.meshs` are renamed `meshes`, and serialize as `meshes`, matching the key the worker now sends. Validation still reads `meshs`, so predictions from an older worker and annotations stored with the earlier spelling keep their meshes.
 
