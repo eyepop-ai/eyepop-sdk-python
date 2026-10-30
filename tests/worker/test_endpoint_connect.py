@@ -311,6 +311,7 @@ class TestEndpointConnect(BaseEndpointTest):
             backend.last_fetch_config_success_time = None
             await backend.connect()
 
+            assert backend.worker_config is not None
             self.assertEqual(backend.worker_config["pipeline_id"], "after")
         finally:
             await endpoint.disconnect()
