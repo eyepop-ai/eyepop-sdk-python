@@ -1,6 +1,6 @@
 from typing import Any, List
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 from eyepop.data.types.common import Contour, Depth, Mask, Point2d, Point3d
 
@@ -60,7 +60,8 @@ class PredictedObject(PredictedClass):
     objects: List["PredictedObject"] | None = None
     classes: List[PredictedClass] | None = None
     texts: List[PredictedText] | None = None
-    meshs: List[PredictedMesh] | None = None
+    # "meshs" is the spelling predictions and stored annotations carried before "meshes"
+    meshes: List[PredictedMesh] | None = Field(default=None, validation_alias=AliasChoices("meshes", "meshs"))
     keyPoints: List[PredictedKeyPoints] | None = None
     details: List[dict[str, Any]] | None = None
 
@@ -120,7 +121,8 @@ class Prediction(BaseModel):
     objects: List[PredictedObject] | None = None
     classes: List[PredictedClass] | None = None
     texts: List[PredictedText] | None = None
-    meshs: List[PredictedMesh] | None = None
+    # "meshs" is the spelling predictions and stored annotations carried before "meshes"
+    meshes: List[PredictedMesh] | None = Field(default=None, validation_alias=AliasChoices("meshes", "meshs"))
     keyPoints: List[PredictedKeyPoints] | None = None
     embeddings: List[PredictedEmbedding] | None = None
     details: List[dict[str, Any]] | None = None

@@ -1,6 +1,7 @@
 import unittest
 
 from eyepop.data.data_types import PredictedClass, Prediction
+from eyepop.data.types import PredictedObject
 
 
 class TestPredictionMetadata(unittest.TestCase):
@@ -83,3 +84,34 @@ class TestPredictionMetadata(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPredictionMeshes(unittest.TestCase):
+    """Meshes are read and written as "meshes"; "meshs", the earlier spelling, is still read."""
+
+    MESH = {"category": "3d-face-mesh", "confidence": 1.0, "points": [{"x": 1.0, "y": 2.0, "z": 3.0}]}
+
+    def test_meshes_round_trip_as_meshes(self):
+        pred = Prediction.model_validate({
+            "source_width": 640, "source_height": 480,
+            "meshes": [self.MESH],
+            "objects": [{"classLabel": "face", "x": 0, "y": 0, "width": 1, "height": 1, "meshes": [self.MESH]}],
+        })
+        assert len(pred.meshes) == 1
+        assert len(pred.objects[0].meshes) == 1
+        dumped = pred.model_dump(exclude_none=True)
+        assert "meshes" in dumped and "meshs" not in dumped
+        assert "meshes" in dumped["objects"][0] and "meshs" not in dumped["objects"][0]
+
+    def test_meshs_is_still_read(self):
+        pred = Prediction.model_validate({
+            "source_width": 640, "source_height": 480,
+            "meshs": [self.MESH],
+            "objects": [{"classLabel": "face", "x": 0, "y": 0, "width": 1, "height": 1, "meshs": [self.MESH]}],
+        })
+        assert pred.meshes[0].points[0].z == 3.0
+        assert pred.objects[0].meshes[0].category == "3d-face-mesh"
+
+    def test_meshes_by_name(self):
+        obj = PredictedObject(classLabel="face", x=0, y=0, width=1, height=1, meshes=[])
+        assert obj.meshes == []

@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - In pipeline mode, a source the pipeline API refuses `queue_full` goes again once another source on the socket ended, instead of failing its job. The socket holds at most 256 open sources and 32 MiB of images sent in one message (eyepop-instance `image-max-bytes`); with images of about 600 KiB, about 53 fit, so a batch of 500 images on one endpoint lost 36 to 324 of them per batch on staging (2026-10-29). A refused source may now go after jobs submitted later. A `queue_full` refusal with none of the endpoint's other sources open on the socket still fails the job, since no end would make room.
 
+## [3.25.3] - 2026-10-30
+
+### Changed
+- **Breaking**: `Prediction.meshs` and `PredictedObject.meshs` are renamed `meshes`, and serialize as `meshes`, matching the key the worker now sends. Validation still reads `meshs`, so predictions from an older worker and annotations stored with the earlier spelling keep their meshes.
+
+## [3.25.2] - 2026-10-30
+
+### Fixed
+- Local mode without a pop runs on the on-premise instance's own pipeline. The endpoint dropped that pipeline because it had not created it, then tried to create one of its own on the first job, which the instance refuses with `409 pop_fixed` because it serves one fixed pop. It now keeps the instance's pipeline and leaves it running on disconnect, and reads the pipeline's pop as unknown when the instance reports it with no components.
+- Local mode without a pop reads the instance's session on every reconnect, so after a 404 the endpoint finds the instance's current pipeline instead of retrying the one it knew.
+- Disconnecting no longer waits forever on a live job (`is_live`, or an `rtsp://` or `rtmp://` URL) when the endpoint leaves the pipeline running: local mode without a pop, and persistent deployments. It cancels its own live jobs, which stops their sources; finite jobs still finish first, and the pipeline and other clients' jobs are left alone.
+
+### Changed
+- The local mode docs no longer pass a pop: the instance's pop is chosen with `eyepop instance init` or `eyepop instance set`.
+
+## [3.25.1] - 2026-10-30
+
+### Fixed
+- `pip install eyepop` works on Python 3.14. The `pyarrow` cap is raised from `<22` to `<27`; pyarrow 21 has no Python 3.14 wheel, so the install fell back to building it from source and failed.
+- The `test` extra caps `aiohttp` below 3.14. aioresponses 0.7.9, the latest, cannot build an aiohttp 3.14 response, which failed 111 tests on a fresh install. The SDK itself is unaffected.
+- The `readline()` regression test accepts `LineTooLong`, which aiohttp 3.13.5 raises for an oversized line where earlier versions raised `ValueError`.
+
 ## [3.25.0] - 2026-10-21
 
 ### Added
