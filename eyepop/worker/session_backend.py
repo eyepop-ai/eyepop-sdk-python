@@ -79,6 +79,11 @@ class SessionBackend(WorkerBackend):
     def _is_compute_transient(self) -> bool:
         return self.compute_ctx is not None and self.endpoint.permanent_session_uuid is None
 
+    def _runs_on_instance_pipeline(self) -> bool:
+        # An on-premise instance serves one fixed pop and refuses a pipeline of any other,
+        # so a local endpoint without a pop of its own runs on the instance's pipeline.
+        return self.endpoint.is_local_mode and self.compute_ctx is not None and self.compute_ctx.pop is None
+
     async def _authorization_headers(self) -> dict[str, str]:
         headers = {}
         authorization_header = await self.endpoint._authorization_header()
@@ -151,7 +156,7 @@ class SessionBackend(WorkerBackend):
 
             pipeline_id = self.compute_ctx.pipeline_id
             self._owns_pipeline_id = bool(pipeline_id and self.compute_ctx.pipeline_owned)
-            if self._is_compute_transient() and not self._owns_pipeline_id:
+            if self._is_compute_transient() and not self._owns_pipeline_id and not self._runs_on_instance_pipeline():
                 pipeline_id = ""
 
             self.worker_config = {
@@ -211,7 +216,8 @@ class SessionBackend(WorkerBackend):
             async with self.client_session.get(get_url, headers=headers) as response:
                 response_json = await response.json()
                 pop_as_dict = response_json.get('pop')
-                if pop_as_dict is None:
+                # an on-premise instance reports its pipeline's pop without components
+                if pop_as_dict is None or pop_as_dict.get('components') is None:
                     self.endpoint.pop = None
                 else:
                     self.endpoint.pop = Pop(**pop_as_dict)

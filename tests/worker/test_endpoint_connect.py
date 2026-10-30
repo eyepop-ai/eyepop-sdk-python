@@ -247,6 +247,40 @@ class TestEndpointConnect(BaseEndpointTest):
         # /health is deliberately unmocked: local mode must never poll it
         self.assertNotIn(("GET", URL(f"{local_url}/health")), mock.requests)
 
+    @aioresponses()
+    async def test_local_mode_without_pop_runs_on_the_instance_pipeline(self, mock: aioresponses):
+        local_url = "http://127.0.0.1:8080"
+        pipeline_id = "d816158a-3cc4-4e15-8a61-832dfeef8dd9"
+        # An on-premise instance reports its pipeline's pop with no components
+        instance_pipeline = {
+            "id": pipeline_id,
+            "pipeline_id": pipeline_id,
+            "state": "IDLE",
+            "pop": {"components": None, "postTransform": None},
+        }
+
+        mock.get(f"{local_url}/v1/sessions", status=200, body=json.dumps([{
+            "session_uuid": "local",
+            "session_endpoint": local_url,
+            "access_token": "<local access token>",
+            "pipelines": [instance_pipeline],
+            "session_status": "running",
+        }]))
+        mock.get(f"{local_url}/pipelines/{pipeline_id}", status=200, body=json.dumps(instance_pipeline))
+        mock.post(f"{local_url}/pipelines", status=409, body=json.dumps({"error": "pop_fixed"}))
+        mock.delete(f"{local_url}/pipelines/{pipeline_id}", status=204)
+
+        endpoint = EyePopSdk.async_worker(is_local_mode=True)
+        try:
+            await endpoint.connect()
+            self.assertEqual(session_backend(endpoint).worker_config["pipeline_id"], pipeline_id)
+            self.assertIsNone(endpoint.pop)
+        finally:
+            await endpoint.disconnect()
+
+        created_or_deleted = [key for key in mock.requests if key[0] in ("POST", "DELETE")]
+        self.assertEqual([], created_or_deleted)
+
     async def test_ensure_pipeline_started_serializes_concurrent_creation(self):
         endpoint = object.__new__(SessionBackend)
         endpoint.worker_config = {}

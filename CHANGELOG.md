@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Local mode without a pop runs on the on-premise instance's own pipeline. The endpoint dropped that pipeline because it had not created it, then tried to create one of its own on the first job, which the instance refuses with `409 pop_fixed` because it serves one fixed pop. It now keeps the instance's pipeline and leaves it running on disconnect, and reads the pipeline's pop as unknown when the instance reports it with no components.
+
+### Changed
+- The local mode docs no longer pass a pop: the instance's pop is chosen with `eyepop instance init` or `eyepop instance set`.
+
 ## [3.25.1] - 2026-10-30
 
 ### Fixed

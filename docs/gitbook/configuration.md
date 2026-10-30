@@ -47,15 +47,12 @@ with EyePopSdk.sync_worker(session_uuid="<your-session-uuid>") as endpoint:
 
 An [on-premise instance](https://docs.eyepop.ai/developer-documentation/cli/on-premise) serves the EyePop runtime on your own machine. **Local mode** points the SDK at the instance on `http://127.0.0.1:8080` instead of the cloud and sends no account credentials — the instance is already registered to your account, and reaching the loopback port is what authorizes the client.
 
+The instance serves one Pop, chosen when it is set up with `eyepop instance init` and changed with `eyepop instance set`, so you do not pass one from the SDK. This needs `eyepop` 3.25.2 or later.
+
 ```python
 from eyepop import EyePopSdk
-from eyepop.worker.worker_types import InferenceComponent, Pop
 
-pop = Pop(components=[
-    InferenceComponent(ability="eyepop.person:latest")
-])
-
-with EyePopSdk.sync_worker(is_local_mode=True, pop=pop) as endpoint:
+with EyePopSdk.sync_worker(is_local_mode=True) as endpoint:
     result = endpoint.upload("image.jpg").predict()
     print(result)
 ```
@@ -66,11 +63,10 @@ with EyePopSdk.sync_worker(is_local_mode=True, pop=pop) as endpoint:
 endpoint = EyePopSdk.sync_worker(
     is_local_mode=True,
     eyepop_url="http://127.0.0.1:9090",
-    pop=pop,
 )
 ```
 
-Connecting creates a pipeline on the instance and disconnecting removes it, so keep the `with` block and reuse one connected endpoint for many images.
+The endpoint runs on the instance's own pipeline and leaves it running when it disconnects. Reuse one connected endpoint for many images rather than connecting for each.
 
 ### Next steps
 
