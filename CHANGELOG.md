@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.25.2] - 2026-10-30
+
 ### Fixed
 - Local mode without a pop runs on the on-premise instance's own pipeline. The endpoint dropped that pipeline because it had not created it, then tried to create one of its own on the first job, which the instance refuses with `409 pop_fixed` because it serves one fixed pop. It now keeps the instance's pipeline and leaves it running on disconnect, and reads the pipeline's pop as unknown when the instance reports it with no components.
 - Local mode without a pop reads the instance's session on every reconnect, so after a 404 the endpoint finds the instance's current pipeline instead of retrying the one it knew.
