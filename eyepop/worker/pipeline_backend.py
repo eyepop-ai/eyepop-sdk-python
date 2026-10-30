@@ -116,20 +116,35 @@ class _Socket:
         self.closed = asyncio.Event()
         self.reader: asyncio.Task | None = None
         self.write_lock = asyncio.Lock()
-        # Sources that ended on this socket, and the event their next end sets: a source
-        # refused queue_full waits for room on it.
+        # The ids of sources sent on this socket that have neither ended nor been refused, as the
+        # pipeline API counts them, cancelled ones included.
+        self.held: set[str] = set()
+        # The ends on this socket so far.
         self.ended = 0
+        # How many sources were open when the socket last refused queue_full: while as many are
+        # open, the next send waits. None once none is open.
+        self.cap: int | None = None
         self._room = asyncio.Event()
 
     def freed(self):
-        """A source ended or the socket closed: wake the sources waiting for room."""
+        """A source ended or the socket closed."""
         self.ended += 1
+        if not self.held:
+            self.cap = None
+        self.wake()
+
+    def wake(self):
+        """Have the send waiting for room look again."""
         self._room.set()
         self._room = asyncio.Event()
 
-    async def room(self, since: int):
-        """Wait until a source ended on this socket after `since` ends, or the socket closed."""
-        while self.ended == since and self.open:
+    async def room(self, job: WorkerJob):
+        """Wait, while the socket is full, until a source ends, it closes or the job is cancelled.
+
+        The caller holds the send lock, so one send waits here and each end lets one go,
+        instead of every refused source sending its media again at once.
+        """
+        while self.cap is not None and len(self.held) >= self.cap and self.open and not job.cancelled:
             await self._room.wait()
 
     @property
@@ -152,7 +167,8 @@ class PipelineBackend(WorkerBackend):
     behind the ones before it. A source the pipeline API refuses queue_full,
     because the socket holds as many sources or as many image bytes as it
     takes, goes again once another source on the socket ended, so it may go
-    after jobs submitted later.
+    after jobs submitted later. While the socket is full every send waits, and
+    each end lets one go.
     """
 
     def __init__(self, endpoint: 'WorkerEndpoint'):
@@ -353,6 +369,10 @@ class PipelineBackend(WorkerBackend):
     def _dispatch(self, socket: _Socket, message: dict[str, Any]):
         type_, id_ = message.get('type'), message.get('id')
         source = socket.sources.get(id_) if isinstance(id_, str) else None
+        if type_ == 'end':
+            # Also the end of a source its job already let go, a cancelled one: it frees room all the same.
+            socket.held.discard(id_)
+            socket.freed()
         if type_ in ('send', 'credit'):
             upload = source.uploads.get(message.get('member')) if source is not None else None
             if upload is not None:
@@ -373,7 +393,6 @@ class PipelineBackend(WorkerBackend):
             if type_ == 'end':
                 for upload in source.uploads.values():
                     upload.end()
-                socket.freed()
             source.inbox.put_nowait(message)
         elif type_ == 'error':
             if id_ is None:
@@ -443,6 +462,9 @@ class PipelineBackend(WorkerBackend):
         """Stop the job's source on the pipeline, so that a cancelled live source does not run on."""
         opened = self._open.get(job)
         if opened is None:
+            # It may be the send waiting for room.
+            if self._socket is not None:
+                self._socket.wake()
             return
         socket, source = opened
         source.inbox.put_nowait(_CANCELLED)
@@ -458,7 +480,8 @@ class PipelineBackend(WorkerBackend):
 
         A live source refused overloaded goes once more on a new socket. A
         source refused queue_full goes again once another source on the socket
-        ended; with none of its other sources open there, the refusal stands.
+        ended; with none of its other sources open there, or with an upload from
+        the caller's own stream, which cannot be read twice, the refusal stands.
         """
         retried = False
         while True:
@@ -479,10 +502,14 @@ class PipelineBackend(WorkerBackend):
                     await asyncio.gather(uploader, return_exceptions=True)
             if refused is None:
                 return
+            socket.held.discard(source.id)
             if refused == 'queue_full':
-                if not socket.sources:
+                if not socket.held and socket.ended == source.ended_before:
                     raise PipelineCommandException('queue_full', 'the socket refused the source with none of its own open')
-                await socket.room(source.ended_before)
+                if any(upload.location is None for upload in job.source.uploads):
+                    raise PipelineCommandException('queue_full', 'the socket refused an upload from a stream, which cannot be sent again')
+                # Sources whose refusal is still on its way count too, until it arrives.
+                socket.cap = min(len(socket.held), socket.cap or len(socket.held)) or None
                 continue
             if retried or not _is_live(job.source):
                 raise PipelineCommandException('overloaded', 'the pipeline API has no capacity for another live source')
@@ -499,7 +526,11 @@ class PipelineBackend(WorkerBackend):
             if job.cancelled:
                 # Cancelled before its turn: never sent, so it takes no source on the pipeline.
                 return None
+            await (await self._ensure_socket()).room(job)
+            if job.cancelled:
+                return None
             combined = await _combined_media(job.source)
+            # It may have closed while the send waited for room.
             socket = await self._ensure_socket()
             source = _Source(self._new_id('source'))
             command = _set_source_command(source.id, job.source)
@@ -507,6 +538,7 @@ class PipelineBackend(WorkerBackend):
                 for key in _upload_keys(job.source):
                     source.uploads[key] = _Upload()
             socket.sources[source.id] = source
+            socket.held.add(source.id)
             source.ended_before = socket.ended
             self._open[job] = (socket, source)
             if combined is None:
