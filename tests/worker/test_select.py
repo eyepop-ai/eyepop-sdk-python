@@ -111,23 +111,23 @@ def test_a_prediction_reads_selected():
 
 
 class TestEndpointRequestsSelections(BaseEndpointTest):
-    """A Pop that selects asks for prediction version 3.
+    """Every endpoint asks for prediction version 3.
 
-    A select forward's results come only at that version, and any other Pop
-    keeps asking for 2.
+    It is the version that carries selected predictions, and the endpoint asks
+    for it whether or not it knows its Pop selects.
     """
 
     test_source_id = 'test_source_id'
     test_file = str(resources.files(tests) / 'test.jpg')
 
-    def setup_pop_mock(self, mock: aioresponses, pop: Pop):
+    def setup_pop_mock(self, mock: aioresponses, pop: Pop | None):
         self.setup_base_mock(mock)
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
         mock.get(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}', status=200,
-                 body=json.dumps({'pop': pop.model_dump()}))
+                 body=json.dumps({'pop': pop.model_dump() if pop is not None else None}))
 
-    def upload_with(self, mock: aioresponses, pop: Pop, version: int) -> list[str]:
+    def upload_with(self, mock: aioresponses, pop: Pop | None, version: int) -> list[str]:
         self.setup_pop_mock(mock, pop)
         seen: list[str] = []
 
@@ -156,7 +156,13 @@ class TestEndpointRequestsSelections(BaseEndpointTest):
         self.assertIn('version=3', seen[0])
 
     @aioresponses()
-    def test_any_other_pop_asks_for_version_2(self, mock: aioresponses):
-        seen = self.upload_with(mock, face_id_pop(CropForward(targets=face_targets())), 2)
+    def test_an_endpoint_that_does_not_know_its_pop_asks_for_version_3(self, mock: aioresponses):
+        seen = self.upload_with(mock, None, 3)
         self.assertEqual(len(seen), 1)
-        self.assertIn('version=2', seen[0])
+        self.assertIn('version=3', seen[0])
+
+    @aioresponses()
+    def test_any_other_pop_asks_for_version_3(self, mock: aioresponses):
+        seen = self.upload_with(mock, face_id_pop(CropForward(targets=face_targets())), 3)
+        self.assertEqual(len(seen), 1)
+        self.assertIn('version=3', seen[0])

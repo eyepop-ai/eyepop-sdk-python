@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Selected predictions arrive on an endpoint that does not know its Pop: a persistent deployment attached by session UUID, or an on-premise instance in local mode without a pop. Every endpoint now asks for prediction version 3, where it used to ask for it only when the Pop it was given had a select forward and asked for version 2 otherwise. `DEFAULT_PREDICTION_VERSION` is `V3`.
+
 ### Changed
 - In pipeline mode, an endpoint runs its jobs on up to 4 sockets (`EYEPOP_PIPELINE_SOCKETS`) instead of one. A socket's pipeline plays its sources one after another, so one socket of 704-pixel images ran `common-objects.large` at about 30 images per second on a staging T4 with the GPU about a third busy; 4 sockets ran about 89 with the GPU 98 percent busy (2026-10-29). A new socket opens only while every open one has a source, with the pop set on it, and each job goes on the socket with the fewest open sources, so jobs run one after another still use one socket. When the pipeline API refuses another socket, the job goes on an open one instead of waiting, and the endpoint asks again only 10 s later. A live source goes on an idle socket or a new one, which `EYEPOP_PIPELINE_SOCKETS` does not count, and no other job is sent on a socket that has one, so images no longer queue behind a camera that never ends and a camera refused `overloaded` takes no other source down with its socket. `set_pop` sets the pop on every open socket. Jobs still go out in submission order, but a job on a less busy socket may finish before an earlier one.
 

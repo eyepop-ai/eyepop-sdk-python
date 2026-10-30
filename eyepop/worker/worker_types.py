@@ -16,7 +16,7 @@ class PredictionVersion(enum.IntEnum):
     V3 = 3
 
 
-DEFAULT_PREDICTION_VERSION = PredictionVersion.V2
+DEFAULT_PREDICTION_VERSION = PredictionVersion.V3
 
 
 class VideoMode(enum.StrEnum):
