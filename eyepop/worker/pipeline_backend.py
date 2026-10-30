@@ -452,7 +452,7 @@ class PipelineBackend(WorkerBackend):
                     await asyncio.gather(uploader, return_exceptions=True)
             if not overloaded:
                 return
-            if retried or not _is_live(job.source):
+            if retried or not job.source.live():
                 raise PipelineCommandException('overloaded', 'the pipeline API has no capacity for another live source')
             retried = True
             await socket.closed.wait()
@@ -536,10 +536,6 @@ class PipelineBackend(WorkerBackend):
             pass
         except Exception as e:
             source.inbox.put_nowait(e)
-
-
-def _is_live(source: WorkerSource) -> bool:
-    return bool(source.is_live) or any(url.startswith(('rtsp://', 'rtmp://')) for url in source.urls)
 
 
 def _content_type(upload: _UploadSource) -> str:
