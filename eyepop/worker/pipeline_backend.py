@@ -242,7 +242,7 @@ class PipelineBackend(WorkerBackend):
         `pipeline_sockets` are open, else the one with room and the fewest sources.
         """
         async with self._connect_lock:
-            if _is_live(job.source):
+            if job.source.live():
                 idle = next((socket for socket in self._open_sockets() if not socket.held), None)
                 return idle or await self._open_socket(patient=True)
             sockets = [socket for socket in self._open_sockets() if not socket.lives]
@@ -596,7 +596,7 @@ class PipelineBackend(WorkerBackend):
                     source.uploads[key] = _Upload()
             socket.sources[source.id] = source
             socket.held.add(source.id)
-            if _is_live(job.source):
+            if job.source.live():
                 socket.lives.add(source.id)
             source.ended_before = socket.ended
             self._open[job] = (socket, source)
