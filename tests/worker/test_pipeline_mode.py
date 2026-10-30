@@ -426,6 +426,16 @@ async def test_queue_full_with_no_other_source_open_raises(compute: FakeComputeA
             await predictions(await endpoint.load_from("https://images.example/a.jpg"))
 
 
+async def test_sources_refused_with_none_taken_raise_instead_of_sending_each_other_again(compute: FakeComputeAPI,
+                                                                                        pipeline: FakePipelineAPI):
+    pipeline.queue_full_at = 0
+    async with worker(compute) as endpoint:
+        jobs = [await endpoint.load_from(f"https://images.example/{name}.jpg") for name in "ab"]
+        refused = await asyncio.wait_for(asyncio.gather(*(predictions(job) for job in jobs), return_exceptions=True), 5)
+    assert [e.error for e in refused] == ["queue_full", "queue_full"]
+    assert pipeline.queue_full_refused == 2
+
+
 async def test_a_source_refused_queue_full_goes_again_once_another_ended(compute: FakeComputeAPI,
                                                                           pipeline: FakePipelineAPI):
     pipeline.queue_full_at = 2
