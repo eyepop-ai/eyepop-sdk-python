@@ -419,11 +419,26 @@ async def test_jobs_go_out_in_submission_order_on_one_socket(compute: FakeComput
     assert [s.get("url") for s in pipeline.sockets[0].sources] == [None, *urls]
 
 
-async def test_queue_full_raises(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+async def test_queue_full_with_no_other_source_open_raises(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
     pipeline.refusals = ["queue_full"]
     async with worker(compute) as endpoint:
         with pytest.raises(PipelineCommandException, match="queue_full"):
             await predictions(await endpoint.load_from("https://images.example/a.jpg"))
+
+
+async def test_a_source_refused_queue_full_goes_again_once_another_ended(compute: FakeComputeAPI,
+                                                                          pipeline: FakePipelineAPI):
+    pipeline.queue_full_at = 2
+    pipeline.source_delay = 0.02
+    urls = [f"https://images.example/{n}.jpg" for n in range(8)]
+    async with worker(compute) as endpoint:
+        jobs = [await endpoint.load_from(url) for url in urls]
+        results = await asyncio.wait_for(asyncio.gather(*(predictions(job) for job in jobs)), 5)
+    assert all(r == [prediction(0), prediction(1)] for r in results)
+    assert pipeline.queue_full_refused > 0
+    assert len(pipeline.sockets) == 1
+    sent = [s["url"] for s in pipeline.sockets[0].sources]
+    assert sorted(set(sent)) == sorted(urls) and len(sent) == len(urls) + pipeline.queue_full_refused
 
 
 # 8. Credential

@@ -97,6 +97,8 @@ class _Source:
     id: str
     inbox: asyncio.Queue = field(default_factory=asyncio.Queue)
     uploads: dict[int | None, _Upload] = field(default_factory=dict)
+    # The socket's ended count when the setSource went out.
+    ended_before: int = 0
 
     def close(self, error: BaseException):
         for upload in self.uploads.values():
@@ -114,6 +116,21 @@ class _Socket:
         self.closed = asyncio.Event()
         self.reader: asyncio.Task | None = None
         self.write_lock = asyncio.Lock()
+        # Sources that ended on this socket, and the event their next end sets: a source
+        # refused queue_full waits for room on it.
+        self.ended = 0
+        self._room = asyncio.Event()
+
+    def freed(self):
+        """A source ended or the socket closed: wake the sources waiting for room."""
+        self.ended += 1
+        self._room.set()
+        self._room = asyncio.Event()
+
+    async def room(self, since: int):
+        """Wait until a source ended on this socket after `since` ends, or the socket closed."""
+        while self.ended == since and self.open:
+            await self._room.wait()
 
     @property
     def open(self) -> bool:
@@ -132,7 +149,10 @@ class PipelineBackend(WorkerBackend):
     """Runs jobs on one socket to the pipeline API, opened at connect().
 
     Jobs go out in the order they were submitted, each as one source queued
-    behind the ones before it.
+    behind the ones before it. A source the pipeline API refuses queue_full,
+    because the socket holds as many sources or as many image bytes as it
+    takes, goes again once another source on the socket ended, so it may go
+    after jobs submitted later.
     """
 
     def __init__(self, endpoint: 'WorkerEndpoint'):
@@ -297,6 +317,7 @@ class PipelineBackend(WorkerBackend):
 
     def _closed(self, socket: _Socket, code: int | None, reason: str):
         socket.closed.set()
+        socket.freed()
         if self._socket is socket:
             self._socket = None
         error = PipelineSocketClosedException(code, reason)
@@ -352,6 +373,7 @@ class PipelineBackend(WorkerBackend):
             if type_ == 'end':
                 for upload in source.uploads.values():
                     upload.end()
+                socket.freed()
             source.inbox.put_nowait(message)
         elif type_ == 'error':
             if id_ is None:
@@ -432,7 +454,12 @@ class PipelineBackend(WorkerBackend):
                 log_requests.debug('could not stop a cancelled source: %s', e)
 
     async def run(self, job: WorkerJob):
-        """Run the job's source to its end; a live source refused overloaded goes once more on a new socket."""
+        """Run the job's source to its end.
+
+        A live source refused overloaded goes once more on a new socket. A
+        source refused queue_full goes again once another source on the socket
+        ended; with none of its other sources open there, the refusal stands.
+        """
         retried = False
         while True:
             sent = await self._set_source(job)
@@ -443,15 +470,20 @@ class PipelineBackend(WorkerBackend):
             if source.uploads:
                 uploader = asyncio.create_task(self._upload(socket, source, job))
             try:
-                overloaded = await self._follow(job, source)
+                refused = await self._follow(job, source)
             finally:
                 self._open.pop(job, None)
                 socket.sources.pop(source.id, None)
                 if uploader is not None:
                     uploader.cancel()
                     await asyncio.gather(uploader, return_exceptions=True)
-            if not overloaded:
+            if refused is None:
                 return
+            if refused == 'queue_full':
+                if not socket.sources:
+                    raise PipelineCommandException('queue_full', 'the socket refused the source with none of its own open')
+                await socket.room(source.ended_before)
+                continue
             if retried or not _is_live(job.source):
                 raise PipelineCommandException('overloaded', 'the pipeline API has no capacity for another live source')
             retried = True
@@ -475,6 +507,7 @@ class PipelineBackend(WorkerBackend):
                 for key in _upload_keys(job.source):
                     source.uploads[key] = _Upload()
             socket.sources[source.id] = source
+            source.ended_before = socket.ended
             self._open[job] = (socket, source)
             if combined is None:
                 await socket.send_json(command)
@@ -482,15 +515,15 @@ class PipelineBackend(WorkerBackend):
                 await socket.send_bytes(_combined_message(command, combined))
         return socket, source
 
-    async def _follow(self, job: WorkerJob, source: _Source) -> bool:
-        """Push the source's predictions to the job until it ends; True when the pipeline API was overloaded."""
+    async def _follow(self, job: WorkerJob, source: _Source) -> str | None:
+        """Push the source's predictions to the job until it ends; the refusal to retry on, overloaded or queue_full."""
         first = True
         while True:
             if job.cancelled:
-                return False
+                return None
             message = await source.inbox.get()
             if message is _CANCELLED:
-                return False
+                return None
             if isinstance(message, BaseException):
                 raise message
             type_ = message.get('type')
@@ -502,11 +535,11 @@ class PipelineBackend(WorkerBackend):
             elif type_ == 'end':
                 reason = message.get('reason')
                 if reason == 'eos':
-                    return False
+                    return None
                 raise PipelineSourceException(source.id, reason or '', message.get('message', ''))
             elif type_ == 'error':
-                if message.get('error') == 'overloaded':
-                    return True
+                if message.get('error') in ('overloaded', 'queue_full'):
+                    return message['error']
                 raise PipelineCommandException(message.get('error', ''), message.get('message', ''))
             elif type_ == 'dropped':
                 log.debug('the pipeline API dropped %s predictions of a live source', message.get('count'))
