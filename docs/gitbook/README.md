@@ -32,6 +32,8 @@ with EyePopSdk.sync_worker(pop=pop) as endpoint:
 
 Pass the Pop when you open the session so EyePop can schedule the right compute before any media is processed.
 
+To run on your own hardware instead of EyePop's cloud, point the SDK at an [on-premise instance](https://docs.eyepop.ai/developer-documentation/cli/on-premise) with **local mode**, `is_local_mode=True`. See [Local mode](configuration.md#local-mode).
+
 ### Next steps
 
 * [Configuration](configuration.md) — credentials and environment variables
