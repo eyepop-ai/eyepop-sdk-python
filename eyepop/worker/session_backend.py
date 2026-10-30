@@ -58,6 +58,7 @@ class SessionBackend(WorkerBackend):
         self.load_balancer = EndpointLoadBalancer([])
         self._owns_pipeline_id = False
         self._pipeline_create_lock = asyncio.Lock()
+        self._running: set[WorkerJob] = set()
         self.last_fetch_config_success_time = None
         self.last_fetch_config_error = None
         self.last_fetch_config_error_time = None
@@ -108,12 +109,18 @@ class SessionBackend(WorkerBackend):
         client_timeout = None
         if timeout is not None:
             client_timeout = aiohttp.ClientTimeout(total=timeout)
-        if (self.is_dev_mode and self.endpoint.pop_id == 'transient'
-                and self._has_pipeline_id()
-                and (not self._is_compute_transient() or self._owns_pipeline_id)
-                and self.client_session is not None):
+        deletes_pipeline = (self.is_dev_mode and self.endpoint.pop_id == 'transient'
+                            and self._has_pipeline_id()
+                            and (not self._is_compute_transient() or self._owns_pipeline_id)
+                            and self.client_session is not None)
+        if not deletes_pipeline:
+            # Deleting the pipeline is what ends a live source. On one that stays, the
+            # endpoint would wait on its live jobs forever, so stop them; finite jobs finish.
+            for job in [job for job in self._running if job.source.live()]:
+                await job.cancel()
+        else:
             worker_config = self.worker_config
-            assert worker_config is not None
+            assert worker_config is not None and self.client_session is not None
             try:
                 base_url = await self.dev_mode_base_url()
                 delete_pipeline_url = f'{base_url}/pipelines/{worker_config["pipeline_id"]}'
@@ -143,7 +150,9 @@ class SessionBackend(WorkerBackend):
             raise aiohttp.ClientConnectionError()
 
         if self.compute_ctx:
-            if not self.compute_ctx.session_endpoint:
+            # The instance's pipeline is re-read on every connect: the one this endpoint
+            # knew may be gone, and the endpoint cannot create one in its place.
+            if not self.compute_ctx.session_endpoint or self._runs_on_instance_pipeline():
                 log_requests.debug("Fetching compute API session")
                 self.compute_ctx = await fetch_session_endpoint(
                     compute_ctx=self.compute_ctx,
@@ -511,12 +520,16 @@ class SessionBackend(WorkerBackend):
 
     async def run(self, job: WorkerJob):
         source = job.source
-        if source.uploads:
-            await self._run_upload(job, source)
-        elif source.asset_uuid is not None:
-            await self._run_patch(job, _asset_body(source))
-        else:
-            await self._run_patch(job, _url_body(source))
+        self._running.add(job)
+        try:
+            if source.uploads:
+                await self._run_upload(job, source)
+            elif source.asset_uuid is not None:
+                await self._run_patch(job, _asset_body(source))
+            else:
+                await self._run_patch(job, _url_body(source))
+        finally:
+            self._running.discard(job)
 
     async def _run_patch(self, job: WorkerJob, body: dict[str, Any]):
         job.set_response(await self.pipeline_patch('source?mode=queue&processing=sync',

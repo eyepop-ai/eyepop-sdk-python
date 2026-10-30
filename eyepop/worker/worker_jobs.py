@@ -84,6 +84,10 @@ class WorkerSource:
     rtsp_force_non_compliant_url: bool | None = None
     version: PredictionVersion = DEFAULT_PREDICTION_VERSION
 
+    def live(self) -> bool:
+        """Whether the source runs until it is stopped rather than to an end of its own."""
+        return bool(self.is_live) or any(url.startswith(('rtsp://', 'rtmp://')) for url in self.urls)
+
 
 class WorkerJob(Job):
     """A job submitted to an EyePop.ai WorkerEndpoint, run by the endpoint's backend."""

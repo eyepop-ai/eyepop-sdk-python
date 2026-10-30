@@ -16,6 +16,7 @@ from yarl import URL
 from eyepop import EyePopSdk
 from eyepop.worker.session_backend import SessionBackend
 from eyepop.worker.worker_endpoint import WorkerEndpoint
+from eyepop.worker.worker_jobs import WorkerJob, WorkerSource
 from eyepop.worker.worker_types import Pop
 from tests.worker.base_endpoint_test import BaseEndpointTest
 
@@ -280,6 +281,56 @@ class TestEndpointConnect(BaseEndpointTest):
 
         created_or_deleted = [key for key in mock.requests if key[0] in ("POST", "DELETE")]
         self.assertEqual([], created_or_deleted)
+
+    @aioresponses()
+    async def test_local_mode_without_pop_reconnects_to_the_instance_pipeline_it_reports_now(
+        self, mock: aioresponses
+    ):
+        local_url = "http://127.0.0.1:8080"
+
+        def instance_session(pipeline_id: str) -> str:
+            return json.dumps([{
+                "session_uuid": "local",
+                "session_endpoint": local_url,
+                "access_token": "<local access token>",
+                "pipelines": [{"id": pipeline_id, "pipeline_id": pipeline_id}],
+                "session_status": "running",
+            }])
+
+        mock.get(f"{local_url}/v1/sessions", status=200, body=instance_session("before"))
+        mock.get(f"{local_url}/v1/sessions", status=200, body=instance_session("after"))
+        for pipeline_id in ("before", "after"):
+            mock.get(f"{local_url}/pipelines/{pipeline_id}", status=200, body=json.dumps({"id": pipeline_id}), repeat=True)
+
+        endpoint = EyePopSdk.async_worker(is_local_mode=True)
+        backend = session_backend(endpoint)
+        try:
+            await endpoint.connect()
+            # what the request loop does once the pipeline it knows answers 404
+            backend.worker_config = None
+            backend.last_fetch_config_success_time = None
+            await backend.connect()
+
+            self.assertEqual(backend.worker_config["pipeline_id"], "after")
+        finally:
+            await endpoint.disconnect()
+
+    async def test_disconnect_cancels_its_live_jobs_on_a_pipeline_it_leaves_running(self):
+        endpoint = EyePopSdk.async_worker(is_local_mode=True)
+        backend = session_backend(endpoint)
+        backend.worker_config = {"session_endpoint": "http://127.0.0.1:8080", "pipeline_id": "instance", "endpoints": []}
+        live_rtsp = WorkerJob(endpoint, backend, WorkerSource(urls=["rtsp://camera/stream"]), on_ready=None)
+        live_upload = WorkerJob(endpoint, backend, WorkerSource(is_live=True), on_ready=None)
+        finite = WorkerJob(endpoint, backend, WorkerSource(urls=["https://example.com/image.jpg"]), on_ready=None)
+        backend._running.update({live_rtsp, live_upload, finite})
+
+        async with aiohttp.ClientSession() as session:
+            endpoint.client_session = session
+            await endpoint._disconnect()
+
+        self.assertTrue(live_rtsp.cancelled)
+        self.assertTrue(live_upload.cancelled)
+        self.assertFalse(finite.cancelled)
 
     async def test_ensure_pipeline_started_serializes_concurrent_creation(self):
         endpoint = object.__new__(SessionBackend)
