@@ -49,7 +49,8 @@ async def test_readline_would_reject_the_same_payload():
     """Regression guard: readline() is why large predictions failed with 'Chunk too big'."""
     line = _depth_prediction_line(_DEPTH_WIDTH, _DEPTH_HEIGHT)
 
-    with pytest.raises(ValueError):
+    # aiohttp 3.13.5 raises LineTooLong, which is not a ValueError, where earlier versions raised ValueError
+    with pytest.raises((ValueError, aiohttp.http_exceptions.LineTooLong)):
         await _stream_reader(_DEFAULT_LIMIT, line).readline()
 
 
