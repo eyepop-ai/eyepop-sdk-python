@@ -124,10 +124,12 @@ class _Socket:
         self.held: set[str] = set()
         # The held sources that are live. A live source never ends, so nothing queued behind it plays.
         self.lives: set[str] = set()
+        # The held sources the pipeline API took: only these end, so only these make room.
+        self.accepted: set[str] = set()
         # The ends on this socket so far.
         self.ended = 0
-        # How many sources were open when the socket last refused queue_full: while as many are
-        # open, the next send waits. None once none is open.
+        # How many sources the socket had taken when it last refused queue_full: while as many are
+        # held, the next send waits. None once none is held.
         self.cap: int | None = None
 
     def freed(self, ended: bool = True):
@@ -409,12 +411,16 @@ class PipelineBackend(WorkerBackend):
     def _dispatch(self, socket: _Socket, message: dict[str, Any]):
         type_, id_ = message.get('type'), message.get('id')
         source = socket.sources.get(id_) if isinstance(id_, str) else None
-        if type_ == 'end' or (type_ == 'error' and id_ in socket.held):
+        if type_ == 'end' or (type_ == 'error' and id_ in socket.held and message.get('error') != 'unknown_command'):
             # Also the end of a source its job already let go, a cancelled one: it frees room all the same.
-            # A refused source never ends, so the refusal frees it.
+            # A refused source never ends, so the refusal frees it. unknown_command answers a stopSource on a
+            # pipeline API from before it, for a source still open.
             socket.held.discard(id_)
+            socket.accepted.discard(id_)
             socket.lives.discard(id_)
             socket.freed(ended=type_ == 'end')
+        elif type_ == 'result' and id_ in socket.held:
+            socket.accepted.add(id_)
         if type_ in ('send', 'credit'):
             upload = source.uploads.get(message.get('member')) if source is not None else None
             if upload is not None:
@@ -550,12 +556,12 @@ class PipelineBackend(WorkerBackend):
             if refused is None:
                 return
             if refused == 'queue_full':
-                if not socket.held and socket.ended == source.ended_before:
+                if not socket.accepted and socket.ended == source.ended_before:
                     raise PipelineCommandException('queue_full', 'the socket refused the source with none of its own open')
                 if any(upload.location is None for upload in job.source.uploads):
                     raise PipelineCommandException('queue_full', 'the socket refused an upload from a stream, which cannot be sent again')
-                # Sources whose refusal is still on its way count too, until it arrives.
-                socket.cap = min(len(socket.held), socket.cap or len(socket.held)) or None
+                # Sources still on their way count against the cap too, until they are taken or refused.
+                socket.cap = min(len(socket.accepted), socket.cap or len(socket.accepted)) or None
                 continue
             if retried or not _is_live(job.source):
                 raise PipelineCommandException('overloaded', 'the pipeline API has no capacity for another live source')
