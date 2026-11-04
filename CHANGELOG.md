@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `InferRequest.task` (`AutoAnnotateTask.object_detection` or `image_classification`) and `InferRequest.prompts` (a list of `AutoAnnotatePrompt`, `{label, prompt}`) for vlm-server's auto-label tasks (eyepop-vlm v3.14.0 / server v2.8.0, AWSU-324).
+  - The worker derives the prompt and output schema from the task, so `text_prompt`, `transform_into` and `response_schema` must stay unset. The server rejects them with 422.
+  - Object detection returns `objects`, image classification `classes`, labeled with the prompts' labels. A task takes one image.
+  - Worker releases that run tasks: `qwen3-instruct` (local Qwen), `gpt-6-astra` (OpenAI) and `gemini-4-argon` (Gemini on Vertex AI).
+  - A task request without an explicit `config.max_new_tokens` no longer sends the 200-token default, which would cut off a detection answer; the worker's own default applies. Plain requests still send 200.
+
 ## [3.25.4] - 2026-10-30
 
 ### Fixed

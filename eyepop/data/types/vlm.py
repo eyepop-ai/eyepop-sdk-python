@@ -1,12 +1,13 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Any, Literal, Sequence
+from typing import Annotated, Any, Literal, Self, Sequence
 
 from openapi_pydantic import Schema
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from eyepop.data.types.asset import Area
-from eyepop.data.types.enums import EvaluationStatus, VlmAbilityStatus
+from eyepop.data.types.dataset import AutoAnnotatePrompt
+from eyepop.data.types.enums import AutoAnnotateTask, EvaluationStatus, VlmAbilityStatus
 
 
 class InferRuntimeConfig(BaseModel):
@@ -101,6 +102,30 @@ class InferRequest(BaseModel):
             }
         ],
     )
+    task: AutoAnnotateTask | None = Field(
+        default=None,
+        description=(
+            "Auto-label task. The worker derives the prompt and output schema from the task "
+            "and `prompts`, so `text_prompt`, `transform_into` and `response_schema` must be "
+            "unset. Object detection returns `objects`, image classification `classes`, each "
+            "labeled with a prompt's label. One image per request."
+        ),
+        examples=[AutoAnnotateTask.object_detection],
+    )
+    prompts: list[AutoAnnotatePrompt] | None = Field(
+        default=None,
+        description="Labels and what each one means, for `task`; required with a task",
+        examples=[[AutoAnnotatePrompt(label="helmet", prompt="a safety helmet worn by a person")]],
+    )
+
+    @model_validator(mode="after")
+    def _task_uses_worker_token_limit(self) -> Self:
+        # The 200-token default would cut off a detection answer. Without an explicit limit,
+        # leave it unset so the worker's own default applies to the task.
+        if self.task is not None and "max_new_tokens" not in self.config.model_fields_set:
+            # A copy, so a config object the caller reuses is not changed.
+            self.config = self.config.model_copy(update={"max_new_tokens": None})
+        return self
 
 
 class EvaluateFilter(BaseModel):
