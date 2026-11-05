@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.25.6] - 2026-11-05
+
 ### Added
 
 - Compute units (AWSU-324). They report what remote calls used, such as a VLM ability's calls to vlm-server, which bills them to the caller; they are informational here.
