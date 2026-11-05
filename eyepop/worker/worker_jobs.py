@@ -103,6 +103,10 @@ class WorkerJob(Job):
         super().__init__(session, cast(Callable[[Job], Any] | None, on_ready), callback)
         self.backend = backend
         self.source = source
+        self.milli_compute_units: int | None = None
+        """What the source's remote calls (a VLM ability's calls to vlm-server) used so far, in milli compute
+        units, in pipeline mode: the running total while the source runs, its total once it ended. None until the
+        pipeline API reports any; a local model reports none. Informational: the called API bills its calls."""
 
     @property
     def cancelled(self) -> bool:

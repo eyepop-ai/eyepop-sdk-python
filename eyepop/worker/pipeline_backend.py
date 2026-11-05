@@ -157,6 +157,13 @@ class _Socket:
             await self.ws.send_bytes(data)
 
 
+def _note_milli_compute_units(job: WorkerJob, message: dict[str, Any]):
+    """Keep a usage's or an end's milliComputeUnits on the job: each carries the source's total so far."""
+    value = message.get('milliComputeUnits')
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        job.milli_compute_units = value
+
+
 class PipelineBackend(WorkerBackend):
     """Runs jobs on up to `pipeline_sockets` sockets to the pipeline API; connect() opens the first.
 
@@ -623,7 +630,10 @@ class PipelineBackend(WorkerBackend):
                     job.callback.first_result(job)
                     first = False
                 await job.push_message(message.get('prediction'))
+            elif type_ == 'usage':
+                _note_milli_compute_units(job, message)
             elif type_ == 'end':
+                _note_milli_compute_units(job, message)
                 reason = message.get('reason')
                 if reason == 'eos':
                     return None

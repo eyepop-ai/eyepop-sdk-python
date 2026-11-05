@@ -158,6 +158,12 @@ class _InferResponse(BaseModel):
     run_info: InferRunInfo | None = Field(
         default=None, description="Runtime information about the inference execution"
     )
+    milli_compute_units: int | None = Field(
+        default=None, description="Milli compute units the inference used; 0 on a cache hit"
+    )
+    compute_units: int | None = Field(
+        default=None, description="vlm-server's older name for the same milli compute units"
+    )
 
 class InferJob(Job):
     timeout: aiohttp.ClientTimeout | None
@@ -178,10 +184,19 @@ class InferJob(Job):
         self._priority = priority
 
         self._run_info = None
+        self._milli_compute_units: int | None = None
 
     @property
     def run_info(self) -> InferRunInfo | None:
         return self._run_info
+
+    @property
+    def milli_compute_units(self) -> int | None:
+        """The milli compute units vlm-server billed for the inference.
+
+        0 on a cache hit; None before it answered or when it reported none.
+        """
+        return self._milli_compute_units
 
     async def predict(self) -> dict[str, Any]:
         result = await self.pop_result()
@@ -222,6 +237,9 @@ class InferJob(Job):
                 elif resp.status == 200:
                     result = _InferResponse.model_validate(await resp.json())
                     self._run_info = result.run_info = result.run_info
+                    self._milli_compute_units = (
+                        result.milli_compute_units if result.milli_compute_units is not None else result.compute_units
+                    )
                     if result.predictions is not None:
                         for prediction in result.predictions:
                             await queue.put(prediction.model_dump(exclude_none=True))

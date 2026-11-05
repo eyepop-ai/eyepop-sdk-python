@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Compute units (AWSU-324). They report what remote calls used, such as a VLM ability's calls to vlm-server, which bills them to the caller; they are informational here.
+  - `WorkerJob.milli_compute_units` in pipeline mode: the source's running total from the pipeline API's `usage` messages while it runs, and its total from `end` once it ended, also when it failed. `None` until the pipeline API reports any; a local model reports none.
+  - `Prediction.compute_units` (whole units) and `Prediction.milli_compute_units`, which a parsed prediction used to drop.
+  - `InferJob.milli_compute_units`: what vlm-server billed for the inference, read from `milli_compute_units` or its older name `compute_units`; 0 on a cache hit.
+
 ## [3.25.5] - 2026-11-04
 
 ### Added

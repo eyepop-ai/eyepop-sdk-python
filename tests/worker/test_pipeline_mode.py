@@ -688,3 +688,40 @@ def test_the_sync_worker_runs_on_the_socket(tmp_path: Path):
     finally:
         loop.call_soon_threadsafe(stop.set)
         thread.join(5)
+
+
+# Compute units
+
+
+async def test_a_jobs_milli_compute_units_are_its_sources_total(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+    pipeline.usages = [300, 650]
+    pipeline.milli_compute_units = 700
+    async with worker(compute) as endpoint:
+        job = await endpoint.load_from("https://images.example/a.jpg")
+        assert await predictions(job) == [prediction(0), prediction(1)]
+        assert job.milli_compute_units == 700
+
+
+async def test_a_usage_is_the_total_while_the_end_reports_none(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+    pipeline.usages = [300]
+    async with worker(compute) as endpoint:
+        job = await endpoint.load_from("https://images.example/a.jpg")
+        await predictions(job)
+        assert job.milli_compute_units == 300
+
+
+async def test_a_job_without_usage_has_no_milli_compute_units(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+    async with worker(compute) as endpoint:
+        job = await endpoint.load_from("https://images.example/a.jpg")
+        await predictions(job)
+        assert job.milli_compute_units is None
+
+
+async def test_a_failed_job_keeps_what_its_calls_used(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+    pipeline.milli_compute_units = 40
+    async with worker(compute) as endpoint:
+        job = await endpoint.load_from("https://images.example/bad.jpg")
+        with pytest.raises(PipelineSourceException):
+            await predictions(job)
+        assert job.milli_compute_units == 40
+
