@@ -118,6 +118,16 @@ class Prediction(BaseModel):
         "and its selected object's trackId links it to the live predictions of that track.",
     )
 
+    compute_units: float | None = Field(
+        default=None,
+        description="Compute units the frame's remote calls (a VLM ability's calls to vlm-server) used, in whole "
+        "units. Absent when they used none, as for a local model.",
+    )
+    milli_compute_units: int | None = Field(
+        default=None,
+        description="The same in milli compute units; from prediction version 4.",
+    )
+
     objects: List[PredictedObject] | None = None
     classes: List[PredictedClass] | None = None
     texts: List[PredictedText] | None = None

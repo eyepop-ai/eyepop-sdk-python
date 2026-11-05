@@ -68,8 +68,10 @@ class FakePipelineAPI(_Server):
     `close_on_open` closes every socket as soon as it opens, `pop_delay`
     holds each setPop's answer that long, `queue_full_at` refuses a setSource
     `queue_full` while the socket has that many open sources (counted in
-    `queue_full_refused`), and `source_delay` holds each source that long
-    before its predictions.
+    `queue_full_refused`), `source_delay` holds each source that long
+    before its predictions, `usages` are the running totals of milli compute
+    units a source reports after its predictions, and `milli_compute_units`
+    its end's total.
     """
 
     def __init__(self):
@@ -91,6 +93,8 @@ class FakePipelineAPI(_Server):
         self.queue_full_at: int | None = None
         self.queue_full_refused = 0
         self.source_delay = 0.0
+        self.usages: list[int] = []
+        self.milli_compute_units: int | None = None
         app = web.Application()
         app.router.add_get("/api/v1/pipeline", self._upgrade)
         super().__init__(app)
@@ -283,11 +287,15 @@ class _Run:
                 continue
             for n in range(self.fake.frames):
                 await self.send({"type": "prediction", "id": id_, "prediction": prediction(n)})
+            for usage in self.fake.usages:
+                await self.send({"type": "usage", "id": id_, "milliComputeUnits": usage})
             await self.end(id_, "eos")
 
     async def end(self, id_: str, reason: str, message: str = ""):
         self.open.remove(id_)
-        await self.send({"type": "end", "id": id_, "reason": reason, **({"message": message} if message else {})})
+        total = self.fake.milli_compute_units
+        await self.send({"type": "end", "id": id_, "reason": reason, **({"message": message} if message else {}),
+                         **({"milliComputeUnits": total} if total is not None else {})})
         if not self.open:
             await self.send({"type": "done"})
             if self.fake.idle_after_done:
