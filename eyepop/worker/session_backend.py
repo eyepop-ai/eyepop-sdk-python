@@ -122,10 +122,8 @@ class SessionBackend(WorkerBackend):
             worker_config = self.worker_config
             assert worker_config is not None and self.client_session is not None
             try:
-                base_url = await self.dev_mode_base_url()
-                delete_pipeline_url = f'{base_url}/pipelines/{worker_config["pipeline_id"]}'
-                headers = await self._authorization_headers()
-                await self.client_session.delete(delete_pipeline_url, headers=headers, timeout=client_timeout)
+                await self._delete_pipeline(await self.dev_mode_base_url(), worker_config["pipeline_id"],
+                                            client_timeout)
             except Exception as e:
                 log.exception(e, exc_info=True)
             finally:
@@ -265,9 +263,28 @@ class SessionBackend(WorkerBackend):
                                              data=pop.model_dump_json())
         return response
 
+    async def _delete_pipeline(self, base_url: str, pipeline_id: str,
+                               timeout: aiohttp.ClientTimeout | None = None) -> None:
+        assert self.client_session is not None
+        headers = await self._authorization_headers()
+        async with self.client_session.delete(f'{base_url}/pipelines/{pipeline_id}', headers=headers,
+                                              timeout=timeout):
+            pass
+
     async def _set_pop_on_compute_transient(self, pop: Pop):
         assert self.compute_ctx is not None
         assert self.client_session is not None
+
+        # The session gives the new pop a pipeline of its own, so the pipeline this
+        # endpoint created for the old pop is stopped first: left running, it would keep
+        # its models loaded on the session's accelerator for as long as the session lives.
+        if self._owns_pipeline_id and self.worker_config is not None and self.worker_config.get("pipeline_id"):
+            try:
+                await self._delete_pipeline(await self.dev_mode_base_url(), self.worker_config["pipeline_id"])
+            except Exception as e:
+                log.warning("could not stop the pipeline of the previous pop: %s", e)
+            self.worker_config["pipeline_id"] = ""
+            self._owns_pipeline_id = False
 
         self.compute_ctx.pop = pop.model_dump()
         self.compute_ctx.pipeline_id = ""
