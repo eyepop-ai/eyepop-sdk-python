@@ -39,7 +39,7 @@ class Box(BaseModel):
 
 class Contour(BaseModel):
     points: List[Point2d]
-    cutouts: List[List[Point2d]]
+    cutouts: List[List[Point2d]] = []
 
 
 class Mask(BaseModel):

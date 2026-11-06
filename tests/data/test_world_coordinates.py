@@ -309,3 +309,8 @@ def test_from_prediction_without_a_scene_cloud_returns_only_the_masks():
         "depth": {"width": 2, "height": 2, "values": ""},
     }
     assert len(PointCloud.from_prediction(prediction)) == 1
+
+
+def test_contour_without_cutouts_has_no_holes():
+    contour = Contour(**{"points": [{"x": 1, "y": 2}, {"x": 3, "y": 2}, {"x": 3, "y": 4}]})
+    assert contour.cutouts == []
