@@ -216,6 +216,59 @@ class TestEndpointConnect(BaseEndpointTest):
         finally:
             await endpoint.disconnect()
 
+    @aioresponses()
+    async def test_compute_transient_set_pop_stops_the_pipeline_it_replaces(self, mock: aioresponses):
+        """set_pop deletes the pipeline it replaces before it asks for the new one.
+
+        Left running, the old pipeline keeps the old pop's models loaded in the session.
+        """
+        session = {
+            "session_uuid": "own-session",
+            "session_name": "user-0wn5e55",
+            "session_endpoint": self.test_worker_url,
+            "access_token": self.test_access_token,
+            "session_status": "running",
+        }
+        pipeline_ids = iter(["first-pipeline", "second-pipeline", "third-pipeline"])
+        calls: list[str] = []
+
+        def create_session(url, **kwargs) -> CallbackResult:
+            pipeline_id = next(pipeline_ids)
+            calls.append(f"create {pipeline_id}")
+            return CallbackResult(status=200, body=json.dumps([{**session, "pipelines": [{"pipeline_id": pipeline_id}]}]))
+
+        def delete_pipeline(url, **kwargs) -> CallbackResult:
+            calls.append(f"delete {url.path.rsplit('/', 1)[-1]}")
+            return CallbackResult(status=204)
+
+        mock.get("https://compute.eyepop.ai/v1/sessions", status=200, body=json.dumps([]), repeat=True)
+        mock.post("https://compute.eyepop.ai/v1/sessions?wait=true&transient=true", callback=create_session,
+                  repeat=True)
+        mock.get(f"{self.test_worker_url}/health", status=200, body=json.dumps({"message": "ok"}), repeat=True)
+        for pipeline_id in ("first-pipeline", "second-pipeline", "third-pipeline"):
+            mock.patch(f"{self.test_worker_url}/pipelines/{pipeline_id}/source?mode=preempt&processing=sync",
+                       status=204, repeat=True)
+            mock.delete(f"{self.test_worker_url}/pipelines/{pipeline_id}", callback=delete_pipeline)
+
+        endpoint = EyePopSdk.async_worker(
+            eyepop_url="https://compute.eyepop.ai",
+            api_key="test-api-key",
+            pop=Pop(components=[]),
+        )
+        try:
+            await endpoint.connect()
+            await endpoint.set_pop(Pop(components=[]))
+            await endpoint.set_pop(Pop(components=[]))
+            self.assertEqual(session_backend(endpoint).worker_config["pipeline_id"], "third-pipeline")
+        finally:
+            await endpoint.disconnect()
+        self.assertEqual(calls, [
+            "create first-pipeline",
+            "delete first-pipeline", "create second-pipeline",
+            "delete second-pipeline", "create third-pipeline",
+            "delete third-pipeline",
+        ])
+
     def test_local_mode_reaches_endpoint(self):
         endpoint = EyePopSdk.async_worker(is_local_mode=True, pop=Pop(components=[]))
 

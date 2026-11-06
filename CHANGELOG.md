@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `set_pop()` on a transient compute session stops the pipeline it replaces (AWSU-331). The session gives the new pop a pipeline of its own, and the old one used to keep running until the session ended, with its models still loaded: a session that switched through several model pops ran out of GPU memory. The old pipeline is deleted before the new one is requested, so its memory is free for the new pop's models; a failed delete is logged and does not fail `set_pop()`.
+
 ## [3.25.6] - 2026-11-05
 
 ### Added
