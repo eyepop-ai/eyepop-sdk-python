@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`eyepop.data.mflops` counts a model's MFLOPs for its ability's `mflops_per_invocation`**, behind the new `admin` extra (`pip install eyepop[admin]`, which brings onnx, onnxruntime and tflite). Whoever publishes a model's default export calls `with_mflops(root, model)` before uploading the export's `ability.json` or `model.json`. The worker's pipeline adds the value to its usage for every run of the model, and the pipeline API turns that usage into milli compute units. dataset-api copies the value into the model's other exports (optimized, quantized, compiled).
+  - It counts an ONNX model at the input size its root file declares, and a TensorFlow Lite model at the sizes it stores. The format is told apart by the model's contents, so an ONNX asset of a `ModelLess` export counts too. The model is a path or its bytes.
+  - A matrix product or convolution costs two FLOPs per multiply-accumulate; an elementwise operation costs one per output element.
+  - Where ONNX shape inference stops, as behind an `If` or a `NonZero`, the model runs on the CPU with random inputs. The run reports the shapes where inference stopped, and the values of the graph's small integer tensors, which become constants. One run usually resolves a model and holds little more than an ordinary run of it: SAM3's image encoder counts in 26 s at 6.8 GB.
+  - A root file that already declares the value keeps it. A model that cannot be counted (an input dimension the root file does not declare, a file that is no ONNX or TensorFlow Lite model) is logged and leaves the root file as it is; the pipeline then falls back to its default.
+
 ## [3.25.8] - 2026-11-06
 
 ### Fixed
