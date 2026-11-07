@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`eyepop.data.mflops` counts models it refused or ran out of memory on.** A staging backfill of the standard models left 10 without a value:
+  - ONNX Runtime's fused `com.microsoft` `Gelu`, `FastGelu`, `BiasGelu` and `QuickGelu` cost one FLOP per output element, like ONNX's own `Gelu`. Other `com.microsoft` operators are still refused. PARSeq (`eyepop.text.recognize.*`) now counts: 6,019 MFLOPs.
+  - `Einsum` costs two FLOPs per combination of its equation's indices, an ellipsis broadcasting like the operands; one operand costs one FLOP per combination when it sums an index, nothing when it only transposes. SAM3's segment decoder now counts: 426,235 MFLOPs.
+  - The weights stay on disk while counting (in a temporary directory under `TMPDIR`): shape inference needs only their shapes, and the run reads them from the file. The count held the weights several times over, so the 1.3 GB metric depth models peaked at 10 GB and failed under the backfill's 8 GiB; they now count at 3 to 4 GB. SAM3's image encoder drops from 7.1 to 5.6 GB. A model above protobuf's 2 GB limit counts too.
+
 ## [3.25.9] - 2026-11-07
 
 ### Added
