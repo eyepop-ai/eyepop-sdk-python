@@ -82,6 +82,12 @@ relay = [
     # at all.
     "av~=17.1.0",
 ]
+admin = [
+    # eyepop.data.mflops: counts a model's MFLOPs before its export is published
+    "onnx>=1.17.0,<2.0.0",
+    "onnxruntime>=1.22.0,<2.0.0",
+    "tflite>=2.18.0,<3.0.0",
+]
 dev = [
     "build>=1.0.0,<2.0.0",
     "mypy>=1.8.0,<2.0.0",
@@ -89,7 +95,7 @@ dev = [
     "types-aiofiles",
     "types-Pillow",
 ]
-all = ["eyepop[test,doc,example,relay,dev]"]
+all = ["eyepop[test,doc,example,relay,dev,admin]"]
 
 [tool.pytest.ini_options]
 addopts = [
