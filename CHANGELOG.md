@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.25.9] - 2026-11-07
+
 ### Added
 
 - **`eyepop.data.mflops` counts a model's MFLOPs for its ability's `mflops_per_invocation`**, behind the new `admin` extra (`pip install eyepop[admin]`, which brings onnx, onnxruntime and tflite). Whoever publishes a model's default export calls `with_mflops(root, model)` before uploading the export's `ability.json` or `model.json`. The worker's pipeline adds the value to its usage for every run of the model, and the pipeline API turns that usage into milli compute units. dataset-api copies the value into the model's other exports (optimized, quantized, compiled).
