@@ -1,3 +1,5 @@
+import math
+
 import flatbuffers
 import numpy as np
 import pytest
@@ -115,10 +117,12 @@ def test_a_shape_that_depends_on_values_is_taken_from_a_run(tmp_path, monkeypatc
 
 
 def test_a_run_gives_the_values_it_is_asked_for_and_leaves_the_model(tmp_path):
-    model = onnx.load(_value_dependent_model(tmp_path))
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    model = mflops._load_without_weights(_value_dependent_model(tmp_path), str(workdir))
     outputs = [o.name for o in model.graph.output]
 
-    found = mflops._run_for_shapes(model, ["indices", "rows"], {})
+    found = mflops._run_for_shapes(model, ["indices", "rows"], {}, str(workdir))
 
     assert found["indices"].shape == (3, 32)
     assert found["rows"].shape == (32, 3)
@@ -366,15 +370,107 @@ def test_a_quantized_matmul_counts_as_a_matmul(tmp_path):
 
 
 def test_an_operator_the_count_cannot_price_keeps_the_default(tmp_path):
-    weight = numpy_helper.from_array(np.zeros((1000, 1000), dtype=np.float32), "w")
-    node = helper.make_node("Einsum", ["a", "w"], ["out"], equation="ij,jk->ik")
+    weights = [
+        numpy_helper.from_array(np.zeros((1, 8, 4), dtype=np.float32), "w"),
+        numpy_helper.from_array(np.zeros((1, 8, 8), dtype=np.float32), "r"),
+    ]
+    node = helper.make_node("RNN", ["x", "w", "r"], ["out"], hidden_size=8)
     path = _one_node_model(
-        tmp_path, node, [helper.make_tensor_value_info("a", TensorProto.FLOAT, [1, 1000])], [weight], "einsum.onnx"
+        tmp_path, node, [helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 1, 4])], weights, "rnn.onnx"
     )
 
-    with pytest.raises(UnresolvedShapeError, match="Einsum"):
+    with pytest.raises(UnresolvedShapeError, match="RNN"):
         count_mflops(path, {})
     assert with_mflops({"inputs": []}, path) == {"inputs": []}
+
+
+def _einsum_flops(equation: str, *operand_shapes: list[int], output: list[int] | None = None) -> int:
+    names = [f"x{i}" for i in range(len(operand_shapes))]
+    node = helper.make_node("Einsum", names, ["out"], equation=equation)
+    return mflops._node_flops(node, {**dict(zip(names, operand_shapes, strict=False)), "out": output})
+
+
+def test_an_einsum_costs_one_multiply_accumulate_per_index_combination():
+    # SAM3's mask predictor: queries x channels against channels x pixels
+    assert _einsum_flops("bqc,bchw->bqhw", [1, 100, 256], [1, 256, 64, 64], output=[1, 100, 64, 64]) == (
+        2 * 100 * 256 * 64 * 64
+    )
+
+
+def test_an_einsum_ellipsis_broadcasts_its_dimensions():
+    flops = _einsum_flops("...ij,...jk->...ik", [2, 3, 10, 20], [3, 20, 30], output=[2, 3, 10, 30])
+
+    assert flops == 2 * (2 * 3) * 10 * 20 * 30
+
+
+def test_an_einsum_of_one_operand_costs_its_sums_and_nothing_to_transpose():
+    assert _einsum_flops("ij->i", [10, 20], output=[10]) == 10 * 20
+    assert _einsum_flops("ij->ji", [10, 20], output=[20, 10]) == 0
+    # a trace: the implicit output keeps the indices that appear once, so it sums the diagonal
+    assert _einsum_flops("ii", [10, 10]) == 10
+
+
+def test_an_einsum_is_counted_in_a_model(tmp_path):
+    node = helper.make_node("Einsum", ["a", "b"], ["out"], equation="ij,jk->ik")
+    path = _one_node_model(
+        tmp_path,
+        node,
+        [
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, [100, 200]),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, [200, 300]),
+        ],
+        [],
+        "einsum.onnx",
+    )
+
+    assert count_mflops(path, {}) == math.ceil(2 * 100 * 200 * 300 / 1_000_000)
+
+
+def test_a_gelu_onnx_runtime_fused_counts_as_elementwise(tmp_path):
+    # PARSeq's: inference knows no com.microsoft schema, so the MatMul after it needs a run
+    weight = numpy_helper.from_array(np.zeros((1000, 1000), dtype=np.float32), "w")
+    graph = helper.make_graph(
+        [
+            helper.make_node("Gelu", ["a"], ["g"], domain="com.microsoft"),
+            helper.make_node("MatMul", ["g", "w"], ["out"]),
+        ],
+        "gelu",
+        [helper.make_tensor_value_info("a", TensorProto.FLOAT, [1, 1000])],
+        [helper.make_tensor_value_info("out", TensorProto.FLOAT, None)],
+        initializer=[weight],
+    )
+    model = helper.make_model(
+        graph, opset_imports=[helper.make_opsetid("", 17), helper.make_opsetid("com.microsoft", 1)], ir_version=10
+    )
+    path = str(tmp_path / "gelu.onnx")
+    onnx.save(model, path)
+
+    assert count_mflops(path, {}) == math.ceil((1000 + 2 * 1000 * 1000) / 1_000_000)
+
+
+def test_a_gelu_without_an_inferred_output_is_priced_by_its_input():
+    node = helper.make_node("Gelu", ["a"], ["g"], domain="com.microsoft")
+
+    assert mflops._node_flops(node, {"a": [4, 1000], "g": None}) == 4000
+
+
+def test_the_weights_are_kept_on_disk_while_counting(tmp_path):
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+
+    model = mflops._load_without_weights(_conv_matmul_model(tmp_path), str(workdir))
+
+    assert all(len(i.raw_data) <= mflops._EXTERNAL_DATA_THRESHOLD for i in model.graph.initializer)
+    assert (workdir / "weights").stat().st_size > 0
+
+
+def test_a_model_with_external_weights_is_counted(tmp_path):
+    source = onnx.load(_conv_matmul_model(tmp_path))
+    external = tmp_path / "external"
+    external.mkdir()
+    onnx.save_model(source, str(external / "model.onnx"), save_as_external_data=True, location="model.data")
+
+    assert count_mflops(str(external / "model.onnx"), {"input": [1, 3, 224, 224]}) == CONV_MATMUL_MFLOPS
 
 
 def test_a_contrib_operator_keeps_the_default(tmp_path):

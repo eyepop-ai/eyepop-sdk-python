@@ -18,6 +18,7 @@ cost nothing.
 import logging
 import math
 import os
+import tempfile
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -36,8 +37,17 @@ _CONV_OPERANDS = {"Conv": (0, 1), "ConvTranspose": (0, 1), "ConvInteger": (0, 1)
 _MATMUL_OPERANDS = {"MatMul": (0, 1), "Gemm": (0, 1), "MatMulInteger": (0, 1), "QLinearMatMul": (0, 3)}
 _PRODUCT_OPS = frozenset({*_CONV_OPERANDS, *_MATMUL_OPERANDS})
 
+# operators whose every operand's shape the count needs: products, and Einsum
+_COUNTED_OPS = frozenset({*_PRODUCT_OPS, "Einsum"})
+
 # operators that compute but that the count cannot price: a model with one keeps the default
-_UNPRICED_OPS = frozenset({"Einsum", "LSTM", "GRU", "RNN", "Attention"})
+_UNPRICED_OPS = frozenset({"LSTM", "GRU", "RNN", "Attention"})
+
+# com.microsoft operators that ONNX Runtime fuses from elementwise ones: one FLOP per output element
+_CONTRIB_ELEMENTWISE_OPS = frozenset({"Gelu", "FastGelu", "BiasGelu", "QuickGelu"})
+
+# initializers larger than this are kept on disk while counting, not in memory
+_EXTERNAL_DATA_THRESHOLD = 1024
 
 # runs of the model, at most, to resolve the shapes inference cannot
 _MAX_RUNS = 8
@@ -175,33 +185,54 @@ def count_mflops(model: Model, input_shapes: Mapping[str, list[int]]) -> int:
     inference carries the shapes on from there. One run usually resolves a model, and a run
     holds little more than an ordinary run of it.
 
+    The weights are written to a temporary directory (under `TMPDIR`) and dropped from memory
+    first: inference needs only their shapes, and a run reads them from there. So the count
+    holds about one copy of the weights, in the run, and a model over protobuf's 2 GB limit
+    counts too.
+
     Raises:
         UnresolvedShapeError: an input has a dynamic dimension `input_shapes` does not
             declare, or a shape stays unresolved even after the runs.
     """
-    import onnx
     from onnx import shape_inference
 
-    proto = onnx.load_from_string(model) if isinstance(model, bytes) else onnx.load(os.fspath(model))
-    _fix_inputs(proto, input_shapes)
-    # the values a run has returned: not asked for again
-    frozen: set[str] = set()
-    for _ in range(_MAX_RUNS):
+    with tempfile.TemporaryDirectory(prefix="mflops-") as workdir:
+        proto = _load_without_weights(model, workdir)
+        _fix_inputs(proto, input_shapes)
+        # the values a run has returned: not asked for again
+        frozen: set[str] = set()
+        for _ in range(_MAX_RUNS):
+            inferred = shape_inference.infer_shapes(proto, strict_mode=False, data_prop=True)
+            shapes = _known_shapes(inferred)
+            if not _unresolved_operands(inferred, shapes):
+                return _mflops(inferred, shapes)
+            names = sorted(set(_frontier(inferred, shapes)) | _small_integers(proto, inferred, shapes, frozen))
+            if not names:
+                break
+            del inferred
+            found = _run_for_shapes(proto, names, input_shapes, workdir)
+            _freeze(proto, found)
+            frozen |= set(found)
         inferred = shape_inference.infer_shapes(proto, strict_mode=False, data_prop=True)
-        shapes = _known_shapes(inferred)
-        if not _unresolved_operands(inferred, shapes):
-            return _mflops(inferred, shapes)
-        names = sorted(set(_frontier(inferred, shapes)) | _small_integers(proto, inferred, shapes, frozen))
-        if not names:
-            break
-        # the weights are in proto too: the inferred copy is not needed during the run
-        del inferred
-        found = _run_for_shapes(proto, names, input_shapes)
-        _freeze(proto, found)
-        frozen |= set(found)
-    inferred = shape_inference.infer_shapes(proto, strict_mode=False, data_prop=True)
-    # raises UnresolvedShapeError on the first operand still unresolved
-    return _mflops(inferred, _known_shapes(inferred))
+        # raises UnresolvedShapeError on the first operand still unresolved
+        return _mflops(inferred, _known_shapes(inferred))
+
+
+def _load_without_weights(model: Model, workdir: str) -> Any:
+    """The model with its large initializers moved to a file in `workdir`; their shapes stay."""
+    import onnx
+
+    proto = onnx.load_from_string(model) if isinstance(model, bytes) else onnx.load(os.fspath(model))
+    # writing the weights out clears them from the proto
+    onnx.save_model(
+        proto,
+        os.path.join(workdir, "model.onnx"),
+        save_as_external_data=True,
+        all_tensors_to_one_file=True,
+        location="weights",
+        size_threshold=_EXTERNAL_DATA_THRESHOLD,
+    )
+    return proto
 
 
 def _mflops(model: Any, shapes: Mapping[str, list[int] | None]) -> int:
@@ -294,12 +325,14 @@ def _known_shapes(model: Any) -> dict[str, list[int] | None]:
 def _unresolved_operands(model: Any, shapes: Mapping[str, list[int] | None]) -> set[str]:
     missing: set[str] = set()
     for node in model.graph.node:
-        operands = _CONV_OPERANDS.get(node.op_type) or _MATMUL_OPERANDS.get(node.op_type)
-        if operands is None:
-            continue
-        for name in (node.input[operands[0]], node.input[operands[1]], node.output[0]):
-            if shapes.get(name) is None:
-                missing.add(name)
+        if node.op_type == "Einsum":
+            names: Iterable[str] = (*node.input, node.output[0])
+        else:
+            operands = _CONV_OPERANDS.get(node.op_type) or _MATMUL_OPERANDS.get(node.op_type)
+            if operands is None:
+                continue
+            names = (node.input[operands[0]], node.input[operands[1]], node.output[0])
+        missing.update(name for name in names if shapes.get(name) is None)
     return missing
 
 
@@ -359,28 +392,30 @@ def _freeze(model: Any, found: Mapping[str, Any]) -> None:
             model.graph.value_info.append(onnx.helper.make_tensor_value_info(name, elem_type, list(value.shape)))
 
 
-def _run_for_shapes(model: Any, names: list[str], input_shapes: Mapping[str, list[int]]) -> dict[str, Any]:
+def _run_for_shapes(
+    model: Any, names: list[str], input_shapes: Mapping[str, list[int]], workdir: str
+) -> dict[str, Any]:
     """The values of `names` in one CPU run of the model with random inputs, as numpy arrays.
 
-    The model is left as it was.
+    The model's weights are in `workdir` (`_load_without_weights`). The model is left as it was.
     """
     import numpy as np
     import onnx
     import onnxruntime
 
+    path = os.path.join(workdir, "run.onnx")
     outputs = len(model.graph.output)
     existing = {o.name for o in model.graph.output}
     model.graph.output.extend(onnx.ValueInfoProto(name=n) for n in names if n not in existing)
     try:
-        serialized = model.SerializeToString()
+        onnx.save_model(model, path)
     finally:
         del model.graph.output[outputs:]
     options = onnxruntime.SessionOptions()
     options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
     # the run is made once: an arena kept for later runs only adds to its peak
     options.enable_cpu_mem_arena = False
-    session = onnxruntime.InferenceSession(serialized, options, providers=["CPUExecutionProvider"])
-    del serialized
+    session = onnxruntime.InferenceSession(path, options, providers=["CPUExecutionProvider"])
     rng = np.random.default_rng(0)
     feeds = {
         graph_input.name: (rng.random(_feed_shape(graph_input, input_shapes)) * 255).astype(
@@ -426,6 +461,11 @@ def _attribute(node: Any, name: str, default: int) -> int:
 
 def _node_flops(node: Any, shapes: Mapping[str, list[int] | None]) -> int:
     op = node.op_type
+    if node.domain == "com.microsoft" and op in _CONTRIB_ELEMENTWISE_OPS:
+        # ONNX has no schema for them, so inference leaves the output unknown: it has the
+        # first input's shape
+        output = shapes.get(node.output[0]) or shapes.get(node.input[0])
+        return _product(output) if output else 0
     if node.domain not in ("", "ai.onnx"):
         # a contrib operator, such as com.microsoft's fused attention, may compute anything
         raise UnresolvedShapeError(f"{node.domain}.{op} '{node.name}' is not an operator the count can price")
@@ -445,6 +485,8 @@ def _node_flops(node: Any, shapes: Mapping[str, list[int] | None]) -> int:
             # every output element sums (in_channels / group) x kernel products
             macs = _product(output) * weight[1] * _product(weight[2:])
         return 2 * macs
+    if op == "Einsum":
+        return _einsum_flops(node, shapes)
     if op in _MATMUL_OPERANDS:
         a = _shape(node.input[_MATMUL_OPERANDS[op][0]], shapes, node)
         output = _shape(node.output[0], shapes, node)
@@ -461,6 +503,54 @@ def _node_flops(node: Any, shapes: Mapping[str, list[int] | None]) -> int:
     return 0
 
 
+def _einsum_flops(node: Any, shapes: Mapping[str, list[int] | None]) -> int:
+    """One multiply-accumulate per combination of the equation's indices, two FLOPs each.
+
+    A single operand that sums indices costs one FLOP per combination; one that only
+    transposes or takes a diagonal costs nothing.
+    """
+    equation = ""
+    for attribute in node.attribute:
+        if attribute.name == "equation":
+            equation = attribute.s.decode()
+    operands_part, arrow, output_part = equation.replace(" ", "").partition("->")
+    terms = operands_part.split(",")
+    if len(terms) != len(node.input):
+        raise UnresolvedShapeError(f"Einsum '{node.name}' has an equation for {len(terms)} operands")
+    sizes: dict[str, int] = {}
+    seen: list[str] = []
+    for term, name in zip(terms, node.input, strict=True):
+        shape = _shape(name, shapes, node)
+        labels = _einsum_labels(term, len(shape), node)
+        seen.extend(labels)
+        for label, size in zip(labels, shape, strict=True):
+            # an ellipsis dimension broadcasts: 1 beside n is n
+            sizes[label] = max(sizes.get(label, 1), size)
+    if arrow:
+        output_rank = len(_shape(node.output[0], shapes, node))
+        kept = set(_einsum_labels(output_part, output_rank, node))
+    else:
+        # the implicit output keeps the indices that appear once, and the ellipsis
+        kept = {label for label in seen if seen.count(label) == 1 or label.startswith(".")}
+    combinations = _product(sizes.values())
+    if len(terms) > 1:
+        return 2 * combinations
+    return combinations if set(sizes) - kept else 0
+
+
+def _einsum_labels(term: str, rank: int, node: Any) -> list[str]:
+    """A term's index labels, its ellipsis as one label per dimension, numbered from the right."""
+    head, ellipsis, tail = term.partition("...")
+    if not ellipsis:
+        if len(term) != rank:
+            raise UnresolvedShapeError(f"Einsum '{node.name}' has term '{term}' for a rank {rank} operand")
+        return list(term)
+    covered = rank - len(head) - len(tail)
+    if covered < 0:
+        raise UnresolvedShapeError(f"Einsum '{node.name}' has term '{term}' for a rank {rank} operand")
+    return [*head, *(f".{covered - i}" for i in range(covered)), *tail]
+
+
 def _subgraphs_compute(node: Any) -> bool:
     """Whether a subgraph of the node (an If's branch, a Loop's or Scan's body) runs a counted operator."""
     import onnx
@@ -469,7 +559,7 @@ def _subgraphs_compute(node: Any) -> bool:
         graphs = [attribute.g] if attribute.type == onnx.AttributeProto.GRAPH else list(attribute.graphs)
         for graph in graphs:
             for inner in graph.node:
-                if inner.op_type in _PRODUCT_OPS or inner.op_type in _UNPRICED_OPS or _subgraphs_compute(inner):
+                if inner.op_type in _COUNTED_OPS or inner.op_type in _UNPRICED_OPS or _subgraphs_compute(inner):
                     return True
     return False
 
