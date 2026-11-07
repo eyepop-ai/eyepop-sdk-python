@@ -30,7 +30,14 @@ Model = str | os.PathLike[str] | bytes
 
 _TFLITE_IDENTIFIER = b"TFL3"
 
-_PRODUCT_OPS = frozenset({"Conv", "ConvTranspose", "MatMul", "Gemm"})
+# where a counted operator's operands are: its input (or left operand) and its weight (or
+# right operand); the quantized operators count as their float counterparts
+_CONV_OPERANDS = {"Conv": (0, 1), "ConvTranspose": (0, 1), "ConvInteger": (0, 1), "QLinearConv": (0, 3)}
+_MATMUL_OPERANDS = {"MatMul": (0, 1), "Gemm": (0, 1), "MatMulInteger": (0, 1), "QLinearMatMul": (0, 3)}
+_PRODUCT_OPS = frozenset({*_CONV_OPERANDS, *_MATMUL_OPERANDS})
+
+# operators that compute but that the count cannot price: a model with one keeps the default
+_UNPRICED_OPS = frozenset({"Einsum", "LSTM", "GRU", "RNN", "Attention"})
 
 # runs of the model, at most, to resolve the shapes inference cannot
 _MAX_RUNS = 8
@@ -97,9 +104,13 @@ def with_mflops(root: Mapping[str, Any], model: Model) -> dict[str, Any]:
     """The export's root file (`ability.json` or `model.json`) with `mflops_per_invocation` set.
 
     A root file that already declares the value keeps it. A model that cannot be counted (an
-    input dimension the root file does not declare, a format other than ONNX or TensorFlow
-    Lite) is logged and leaves the root file as it is; the pipeline then falls back to its
-    default.
+    input dimension the root file does not declare, an operator the count cannot price, a file
+    that is no ONNX or TensorFlow Lite model) is logged and leaves the root file as it is; the
+    pipeline then falls back to its default.
+
+    Raises:
+        ImportError: the `admin` extra is not installed.
+        OSError: the model's file cannot be read.
 
     Args:
         root: The export's root file, as it will be uploaded.
@@ -110,6 +121,9 @@ def with_mflops(root: Mapping[str, Any], model: Model) -> dict[str, Any]:
         return result
     try:
         result[MFLOPS_PER_INVOCATION] = count_model_mflops(model, root)
+    except (ImportError, OSError):
+        # a setup error, not a model the count cannot price
+        raise
     except Exception:  # noqa: BLE001 - an uncounted model falls back to the pipeline's default
         log.warning("could not count the model's MFLOPs; the pipeline will use its default", exc_info=True)
     return result
@@ -134,7 +148,9 @@ def onnx_input_shapes(root: Mapping[str, Any]) -> dict[str, list[int]]:
     """The ONNX input shapes a root file feeds its model, by tensor name.
 
     A root file declares each input tensor's dimensions innermost first (`[width, height,
-    channels, batch]`), the reverse of the ONNX order. A batch of `-1` or `0` is one input.
+    channels, batch]`), the reverse of the ONNX order. A dimension of `-1` or `0` is variable
+    and counted as one: one run is one batch of one input, with one of each variable dimension
+    (as one token of a text input).
     """
     shapes: dict[str, list[int]] = {}
     for model_input in root.get("inputs") or []:
@@ -168,6 +184,7 @@ def count_mflops(model: Model, input_shapes: Mapping[str, list[int]]) -> int:
 
     proto = onnx.load_from_string(model) if isinstance(model, bytes) else onnx.load(os.fspath(model))
     _fix_inputs(proto, input_shapes)
+    # the values a run has returned: not asked for again
     frozen: set[str] = set()
     for _ in range(_MAX_RUNS):
         inferred = shape_inference.infer_shapes(proto, strict_mode=False, data_prop=True)
@@ -180,7 +197,8 @@ def count_mflops(model: Model, input_shapes: Mapping[str, list[int]]) -> int:
         # the weights are in proto too: the inferred copy is not needed during the run
         del inferred
         found = _run_for_shapes(proto, names, input_shapes)
-        frozen |= _freeze(proto, found)
+        _freeze(proto, found)
+        frozen |= set(found)
     inferred = shape_inference.infer_shapes(proto, strict_mode=False, data_prop=True)
     # raises UnresolvedShapeError on the first operand still unresolved
     return _mflops(inferred, _known_shapes(inferred))
@@ -276,9 +294,10 @@ def _known_shapes(model: Any) -> dict[str, list[int] | None]:
 def _unresolved_operands(model: Any, shapes: Mapping[str, list[int] | None]) -> set[str]:
     missing: set[str] = set()
     for node in model.graph.node:
-        if node.op_type not in _PRODUCT_OPS:
+        operands = _CONV_OPERANDS.get(node.op_type) or _MATMUL_OPERANDS.get(node.op_type)
+        if operands is None:
             continue
-        for name in (node.input[0], node.input[1], node.output[0]):
+        for name in (node.input[operands[0]], node.input[operands[1]], node.output[0]):
             if shapes.get(name) is None:
                 missing.add(name)
     return missing
@@ -313,8 +332,8 @@ def _small_integers(
     return names
 
 
-def _freeze(model: Any, found: Mapping[str, Any]) -> set[str]:
-    """Puts what a run found into the model; returns the names frozen to constants.
+def _freeze(model: Any, found: Mapping[str, Any]) -> None:
+    """Puts what a run found into the model.
 
     A small integer value becomes a constant, and a node whose outputs are all constants now
     is removed. Any other tensor's shape becomes a hint for inference.
@@ -331,15 +350,13 @@ def _freeze(model: Any, found: Mapping[str, Any]) -> set[str]:
     del model.graph.node[:]
     model.graph.node.extend(kept)
     produced = {o for node in model.graph.node for o in node.output}
-    frozen: set[str] = set()
     for name, value in found.items():
         if name in constants and name not in produced:
             model.graph.initializer.append(numpy_helper.from_array(value, name))
-            frozen.add(name)
         else:
+            # an output of a node that is kept, as a Split's beside a float output
             elem_type = onnx.helper.np_dtype_to_tensor_dtype(value.dtype)
             model.graph.value_info.append(onnx.helper.make_tensor_value_info(name, elem_type, list(value.shape)))
-    return frozen
 
 
 def _run_for_shapes(model: Any, names: list[str], input_shapes: Mapping[str, list[int]]) -> dict[str, Any]:
@@ -409,19 +426,27 @@ def _attribute(node: Any, name: str, default: int) -> int:
 
 def _node_flops(node: Any, shapes: Mapping[str, list[int] | None]) -> int:
     op = node.op_type
-    if op in ("Conv", "ConvTranspose"):
-        weight = _shape(node.input[1], shapes, node)
-        if op == "Conv":
+    if node.domain not in ("", "ai.onnx"):
+        # a contrib operator, such as com.microsoft's fused attention, may compute anything
+        raise UnresolvedShapeError(f"{node.domain}.{op} '{node.name}' is not an operator the count can price")
+    if op in _UNPRICED_OPS:
+        raise UnresolvedShapeError(f"{op} '{node.name}' is not an operator the count can price")
+    if _subgraphs_compute(node):
+        raise UnresolvedShapeError(f"{op} '{node.name}' computes in a subgraph the count does not follow")
+    if op in _CONV_OPERANDS:
+        source_index, weight_index = _CONV_OPERANDS[op]
+        weight = _shape(node.input[weight_index], shapes, node)
+        if op == "ConvTranspose":
+            source = _shape(node.input[source_index], shapes, node)
+            # every input element scatters into (out_channels / group) x kernel outputs
+            macs = _product(source) * weight[1] * _product(weight[2:])
+        else:
             output = _shape(node.output[0], shapes, node)
             # every output element sums (in_channels / group) x kernel products
             macs = _product(output) * weight[1] * _product(weight[2:])
-        else:
-            source = _shape(node.input[0], shapes, node)
-            # every input element scatters into (out_channels / group) x kernel outputs
-            macs = _product(source) * weight[1] * _product(weight[2:])
         return 2 * macs
-    if op in ("MatMul", "Gemm"):
-        a = _shape(node.input[0], shapes, node)
+    if op in _MATMUL_OPERANDS:
+        a = _shape(node.input[_MATMUL_OPERANDS[op][0]], shapes, node)
         output = _shape(node.output[0], shapes, node)
         transposed = op == "Gemm" and _attribute(node, "transA", 0) == 1
         inner = a[-2] if transposed else a[-1]
@@ -434,6 +459,19 @@ def _node_flops(node: Any, shapes: Mapping[str, list[int] | None]) -> int:
         output = shapes.get(node.output[0])
         return _product(output) if output else 0
     return 0
+
+
+def _subgraphs_compute(node: Any) -> bool:
+    """Whether a subgraph of the node (an If's branch, a Loop's or Scan's body) runs a counted operator."""
+    import onnx
+
+    for attribute in node.attribute:
+        graphs = [attribute.g] if attribute.type == onnx.AttributeProto.GRAPH else list(attribute.graphs)
+        for graph in graphs:
+            for inner in graph.node:
+                if inner.op_type in _PRODUCT_OPS or inner.op_type in _UNPRICED_OPS or _subgraphs_compute(inner):
+                    return True
+    return False
 
 
 def _tflite_shape(subgraph: Any, index: int) -> list[int]:

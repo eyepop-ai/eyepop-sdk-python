@@ -1,12 +1,16 @@
 import flatbuffers
 import numpy as np
-import onnx
 import pytest
-import tflite
-from onnx import TensorProto, helper, numpy_helper
 
-from eyepop.data import mflops
-from eyepop.data.mflops import (
+# the counter needs the admin extra
+onnx = pytest.importorskip("onnx")
+pytest.importorskip("onnxruntime")
+tflite = pytest.importorskip("tflite")
+
+from onnx import TensorProto, helper, numpy_helper  # noqa: E402
+
+from eyepop.data import mflops  # noqa: E402
+from eyepop.data.mflops import (  # noqa: E402
     MFLOPS_PER_INVOCATION,
     UnresolvedShapeError,
     count_mflops,
@@ -326,3 +330,104 @@ def test_with_mflops_leaves_a_file_that_is_no_model_as_it_is(tmp_path):
     path.write_bytes(b"not a model")
 
     assert with_mflops(ABILITY, str(path)) == ABILITY
+
+
+def test_a_variable_dimension_anywhere_is_counted_as_one():
+    # SAM3's decoder takes language features [256, -1, 32]: a variable token count in the middle
+    root = {"inputs": [{"tensor": {"name": "features", "dimensions": [256, -1, 32]}}]}
+
+    assert onnx_input_shapes(root) == {"features": [32, 1, 256]}
+
+
+def _one_node_model(tmp_path, node, inputs, initializers, name: str, out_type: int = TensorProto.FLOAT) -> str:
+    graph = helper.make_graph(
+        [node],
+        "one",
+        inputs,
+        [helper.make_tensor_value_info(node.output[0], out_type, None)],
+        initializer=initializers,
+    )
+    return _save(tmp_path, graph, name)
+
+
+def test_a_quantized_matmul_counts_as_a_matmul(tmp_path):
+    scale = numpy_helper.from_array(np.array(1.0, dtype=np.float32), "scale")
+    zero = numpy_helper.from_array(np.array(0, dtype=np.uint8), "zero")
+    weight = numpy_helper.from_array(np.zeros((1000, 1000), dtype=np.uint8), "w")
+    node = helper.make_node(
+        "QLinearMatMul", ["a", "scale", "zero", "w", "scale", "zero", "scale", "zero"], ["out"]
+    )
+    path = _one_node_model(
+        tmp_path, node, [helper.make_tensor_value_info("a", TensorProto.UINT8, [1, 1000])], [scale, zero, weight], "q.onnx", TensorProto.UINT8
+    )
+
+    # 2 x 1000 outputs x 1000 inner
+    assert count_mflops(path, {}) == 2
+
+
+def test_an_operator_the_count_cannot_price_keeps_the_default(tmp_path):
+    weight = numpy_helper.from_array(np.zeros((1000, 1000), dtype=np.float32), "w")
+    node = helper.make_node("Einsum", ["a", "w"], ["out"], equation="ij,jk->ik")
+    path = _one_node_model(
+        tmp_path, node, [helper.make_tensor_value_info("a", TensorProto.FLOAT, [1, 1000])], [weight], "einsum.onnx"
+    )
+
+    with pytest.raises(UnresolvedShapeError, match="Einsum"):
+        count_mflops(path, {})
+    assert with_mflops({"inputs": []}, path) == {"inputs": []}
+
+
+def test_a_contrib_operator_keeps_the_default(tmp_path):
+    node = helper.make_node("FusedGemm", ["a", "a"], ["out"], domain="com.microsoft")
+    graph = helper.make_graph(
+        [node],
+        "contrib",
+        [helper.make_tensor_value_info("a", TensorProto.FLOAT, [8, 8])],
+        [helper.make_tensor_value_info("out", TensorProto.FLOAT, [8, 8])],
+    )
+    model = helper.make_model(
+        graph,
+        opset_imports=[helper.make_opsetid("", 17), helper.make_opsetid("com.microsoft", 1)],
+        ir_version=10,
+    )
+    path = str(tmp_path / "contrib.onnx")
+    onnx.save(model, path)
+
+    with pytest.raises(UnresolvedShapeError, match="com.microsoft"):
+        count_mflops(path, {})
+
+
+def test_a_matmul_inside_a_branch_keeps_the_default(tmp_path):
+    weight = numpy_helper.from_array(np.zeros((8, 8), dtype=np.float32), "w")
+    branch = helper.make_graph(
+        [helper.make_node("MatMul", ["a", "w"], ["branch_out"])],
+        "branch",
+        [],
+        [helper.make_tensor_value_info("branch_out", TensorProto.FLOAT, [8, 8])],
+    )
+    nodes = [
+        helper.make_node("ReduceSum", ["a"], ["total"], keepdims=0),
+        helper.make_node("Greater", ["total", "zero"], ["positive"]),
+        helper.make_node("If", ["positive"], ["out"], then_branch=branch, else_branch=branch),
+    ]
+    graph = helper.make_graph(
+        nodes,
+        "branched",
+        [helper.make_tensor_value_info("a", TensorProto.FLOAT, [8, 8])],
+        [helper.make_tensor_value_info("out", TensorProto.FLOAT, [8, 8])],
+        initializer=[weight, numpy_helper.from_array(np.array(0, dtype=np.float32), "zero")],
+    )
+    path = _save(tmp_path, graph, "branched.onnx")
+
+    with pytest.raises(UnresolvedShapeError, match="subgraph"):
+        count_mflops(path, {})
+
+
+def test_a_value_a_run_returned_is_not_asked_for_again(tmp_path, monkeypatch):
+    asked: list[str] = []
+    run_for_shapes = mflops._run_for_shapes
+    monkeypatch.setattr(mflops, "_run_for_shapes", lambda *a: asked.extend(a[1]) or run_for_shapes(*a))
+
+    count_mflops(_value_dependent_model(tmp_path), {})
+
+    assert len(asked) == len(set(asked))
