@@ -7,13 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.26.0] - 2026-11-08
+
 ### Added
 
 - **User-defined VLM abilities take an auto-label task**, like `InferRequest` since 3.25.5: `VlmAbilityCreate`, `VlmAbilityUpdate` and `VlmAbilityResponse` have `task` (`AutoAnnotateTask.object_detection` or `image_classification`) and `prompts` (a list of `AutoAnnotatePrompt`, `{label, prompt}`).
   - An ability is free-form or a task. A free-form ability needs `text_prompt` and may have `transform_into` and `response_schema`, as before. A task ability needs `task` and at least one prompt; the worker derives the prompt and output schema from them, so `text_prompt`, `transform_into` and `response_schema` must stay unset. `VlmAbilityCreate` raises a `ValidationError` for any other combination, and `VlmAbilityUpdate` for a patch that sets a task with one of those fields or empties `prompts`.
   - `VlmAbilityCreate.text_prompt` is optional and `transform_into` may be `None`: a task ability has neither, and does not send them. A free-form ability still defaults `transform_into` to an empty `TransformInto`.
   - A task ability without an explicit `config.max_new_tokens` leaves the limit to the worker, as a task `InferRequest` does.
-  - The Dataset API has to store and run the two fields; until it does, it ignores them.
+  - The Dataset API stores and runs the two fields from eyepop-api-data#671 on; an older Dataset API ignores them.
 
 ## [3.25.10] - 2026-11-07
 
