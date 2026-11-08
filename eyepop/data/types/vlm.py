@@ -54,6 +54,80 @@ class TransformInto(BaseModel):
     )
 
 
+Task = Annotated[
+    AutoAnnotateTask | None,
+    Field(
+        description=(
+            "Auto-label task. The worker derives the prompt and output schema from the task "
+            "and `prompts`, so `text_prompt`, `transform_into` and `response_schema` must be "
+            "unset. Object detection returns `objects`, image classification `classes`, each "
+            "labeled with a prompt's label. One image per request."
+        ),
+        examples=[AutoAnnotateTask.object_detection],
+    ),
+]
+"""An auto-label task, shared by `InferRequest` and the VLM ability models."""
+
+TaskPrompts = Annotated[
+    list[AutoAnnotatePrompt] | None,
+    Field(
+        description="Labels and what each one means, for `task`; required with a task",
+        examples=[[AutoAnnotatePrompt(label="helmet", prompt="a safety helmet worn by a person")]],
+    ),
+]
+"""The labeled prompts of a `Task`."""
+
+
+def _leave_token_limit_to_worker(config: InferRuntimeConfig) -> InferRuntimeConfig:
+    """The config a task runs with: without an explicit `max_new_tokens`, the worker's own default.
+
+    The 200-token default would cut off a detection answer. Returns a copy, so a config object
+    the caller reuses is not changed.
+    """
+    if "max_new_tokens" in config.model_fields_set:
+        return config
+    return config.model_copy(update={"max_new_tokens": None})
+
+
+def _check_task_mode(
+    task: AutoAnnotateTask | None,
+    prompts: list[AutoAnnotatePrompt] | None,
+    *,
+    text_prompt: str | None,
+    transform_into: TransformInto | None,
+    response_schema: Schema | None,
+    partial: bool = False,
+) -> None:
+    """Raises `ValueError` unless the fields describe one mode: free-form or a task.
+
+    A task needs at least one prompt and derives the prompt and output schema, so `text_prompt`,
+    `transform_into` and `response_schema` must stay unset; `prompts` mean nothing without a task.
+    A `partial` model (an update) holds only the fields it changes: it may change `prompts`
+    without `task` and `task` without `prompts`, but not to an empty list.
+    """
+    if prompts is not None and not prompts:
+        raise ValueError("`prompts` require at least one entry")
+    if task is None:
+        if prompts is not None and not partial:
+            raise ValueError("`prompts` require a `task`")
+        return
+    if prompts is None and not partial:
+        raise ValueError(f"task {task} requires at least one entry in `prompts`")
+    conflicting = [
+        name
+        for name, value in (
+            ("text_prompt", text_prompt),
+            ("transform_into", transform_into),
+            ("response_schema", response_schema),
+        )
+        if value is not None
+    ]
+    if conflicting:
+        raise ValueError(
+            f"task {task} derives the prompt and output schema, so {', '.join(conflicting)} must be unset"
+        )
+
+
 class InferRequest(BaseModel):
     """Client-facing ad-hoc- inference request model [EXPERIMENTAL]."""
 
@@ -102,29 +176,13 @@ class InferRequest(BaseModel):
             }
         ],
     )
-    task: AutoAnnotateTask | None = Field(
-        default=None,
-        description=(
-            "Auto-label task. The worker derives the prompt and output schema from the task "
-            "and `prompts`, so `text_prompt`, `transform_into` and `response_schema` must be "
-            "unset. Object detection returns `objects`, image classification `classes`, each "
-            "labeled with a prompt's label. One image per request."
-        ),
-        examples=[AutoAnnotateTask.object_detection],
-    )
-    prompts: list[AutoAnnotatePrompt] | None = Field(
-        default=None,
-        description="Labels and what each one means, for `task`; required with a task",
-        examples=[[AutoAnnotatePrompt(label="helmet", prompt="a safety helmet worn by a person")]],
-    )
+    task: Task = None
+    prompts: TaskPrompts = None
 
     @model_validator(mode="after")
     def _task_uses_worker_token_limit(self) -> Self:
-        # The 200-token default would cut off a detection answer. Without an explicit limit,
-        # leave it unset so the worker's own default applies to the task.
-        if self.task is not None and "max_new_tokens" not in self.config.model_fields_set:
-            # A copy, so a config object the caller reuses is not changed.
-            self.config = self.config.model_copy(update={"max_new_tokens": None})
+        if self.task is not None:
+            self.config = _leave_token_limit_to_worker(self.config)
         return self
 
 
@@ -325,6 +383,14 @@ class AbilityAliasEntry(BaseModel):
 
 
 class VlmAbilityCreate(BaseModel):
+    """A new VLM ability: free-form with a `text_prompt`, or an auto-label `task` with `prompts`.
+
+    A free-form ability takes the `text_prompt` and optionally `transform_into` and
+    `response_schema`. A task ability takes `task` and at least one entry in `prompts`; the worker
+    derives the prompt and output schema from them, so `text_prompt`, `transform_into` and
+    `response_schema` stay unset.
+    """
+
     name: str = Field(
         description="The human readable name of the ability."
     )
@@ -335,12 +401,14 @@ class VlmAbilityCreate(BaseModel):
     worker_release: str = Field(
         description="The identifier of the worker release used to execute this ability."
     )
-    text_prompt: str = Field(
-        description="The full text prompt used for the ability."
+    text_prompt: str | None = Field(
+        default=None,
+        description="The full text prompt used for the ability; required unless the ability has a `task`.",
     )
-    transform_into: TransformInto = Field(
+    transform_into: TransformInto | None = Field(
         default_factory=TransformInto,
-        description="Optional transform instruction of the text result into structured response, e.g. classes.",
+        description="Optional transform instruction of the text result into structured response, e.g. classes. "
+                    "None for a task ability.",
     )
     response_schema: Schema | None = Field(
         default=None,
@@ -382,6 +450,27 @@ class VlmAbilityCreate(BaseModel):
         " e.g. -1.0 to have gaps of the same length as the chunk",
         examples=[0.1],
     )
+    task: Task = None
+    prompts: TaskPrompts = None
+
+    @model_validator(mode="after")
+    def _one_mode(self) -> Self:
+        if self.task is None:
+            if self.text_prompt is None:
+                raise ValueError("an ability without a `task` requires a `text_prompt`")
+        elif "transform_into" not in self.model_fields_set:
+            # The empty default is for free-form abilities; a task ability has none.
+            self.transform_into = None
+        _check_task_mode(
+            self.task,
+            self.prompts,
+            text_prompt=self.text_prompt,
+            transform_into=self.transform_into,
+            response_schema=self.response_schema,
+        )
+        if self.task is not None:
+            self.config = _leave_token_limit_to_worker(self.config)
+        return self
 
 
 class VlmAbilityUpdate(BaseModel):
@@ -445,6 +534,22 @@ class VlmAbilityUpdate(BaseModel):
         " e.g. -1.0 to have gaps of the same length as the chunk",
         examples=[0.1],
     )
+    task: Task = None
+    prompts: TaskPrompts = None
+
+    @model_validator(mode="after")
+    def _one_mode(self) -> Self:
+        _check_task_mode(
+            self.task,
+            self.prompts,
+            text_prompt=self.text_prompt,
+            transform_into=self.transform_into,
+            response_schema=self.response_schema,
+            partial=True,
+        )
+        if self.task is not None and self.config is not None:
+            self.config = _leave_token_limit_to_worker(self.config)
+        return self
 
 
 class VlmAbilityResponse(BaseModel):
@@ -512,6 +617,8 @@ class VlmAbilityResponse(BaseModel):
         default=None,
         description="Optional inference configuration for VLM inference of this ability.",
     )
+    task: Task = None
+    prompts: TaskPrompts = None
     is_public: bool = Field(
         default=False,
         description="Whether or not the ability is publicly accessible.",
