@@ -760,9 +760,13 @@ class VlmAbilityResponse(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _derive_model(cls, data: Any) -> Any:
-        # A Dataset API from before `model` sends only the worker release.
-        if isinstance(data, dict) and "model" not in data:
-            return {**data, "model": model_for_worker_release(data.get("worker_release"))}
+        if isinstance(data, dict):
+            # A Dataset API from before `model` sends only the worker release.
+            if "model" not in data:
+                return {**data, "model": model_for_worker_release(data.get("worker_release"))}
+            # A Dataset API newer than this SDK may name a model this SDK does not know.
+            if data["model"] is not None and data["model"] not in VLM_MODEL_WORKER_RELEASES:
+                return {**data, "model": None}
         return data
 
 

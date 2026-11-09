@@ -182,6 +182,8 @@ def test_worker_release_is_deprecated_in_the_json_schema() -> None:
         ({"worker_release": "gemini-4-argon"}, VlmModel.gemini_4_argon),
         ({"worker_release": "smol22b-instruct"}, None),
         ({}, VlmModel.qwen3),
+        # A Dataset API newer than this SDK may name a model it does not know.
+        ({"model": "a_future_model", "worker_release": "a-future-model"}, None),
     ],
 )
 def test_a_response_reports_the_model(fields: dict[str, Any], model: VlmModel | None) -> None:
