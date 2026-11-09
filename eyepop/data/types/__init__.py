@@ -119,6 +119,8 @@ from eyepop.data.types.workflow import (
 )
 
 from eyepop.data.types.vlm import (
+    DEFAULT_VLM_MODEL,
+    VLM_MODEL_WORKER_RELEASES,
     AbilityAliasEntry,
     EvaluateFilter,
     EvaluateRequest,
@@ -134,6 +136,10 @@ from eyepop.data.types.vlm import (
     VlmAbilityGroupUpdate,
     VlmAbilityResponse,
     VlmAbilityUpdate,
+    VlmModel,
+    model_for_worker_release,
+    normalize_worker_release,
+    resolve_worker_release,
 )
 
 __all__ = [
@@ -248,4 +254,10 @@ __all__ = [
     "VlmAbilityGroupUpdate",
     "VlmAbilityResponse",
     "VlmAbilityUpdate",
+    "VlmModel",
+    "DEFAULT_VLM_MODEL",
+    "VLM_MODEL_WORKER_RELEASES",
+    "model_for_worker_release",
+    "normalize_worker_release",
+    "resolve_worker_release",
 ]

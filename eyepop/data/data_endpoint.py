@@ -64,12 +64,34 @@ from eyepop.data.data_types import (
     VlmAbilityResponse,
     VlmAbilityUpdate,
 )
-from eyepop.data.types.vlm import AutoPromptConfig, AutoTask
+from eyepop.data.types.vlm import VLM_MODEL_WORKER_RELEASES, AutoPromptConfig, AutoTask
 from eyepop.endpoint import Endpoint, log_requests
 from eyepop.settings import settings
 
 WS_INITIAL_RECONNECT_DELAY = 1.0
 WS_MAX_RECONNECT_DELAY = 60.0
+
+
+def _warn_if_worker_release(fields: VlmAbilityCreate | VlmAbilityUpdate, stacklevel: int) -> None:
+    """Warns the caller who set the deprecated `worker_release` of a VLM ability.
+
+    The warning is the client's, not the model's: the Dataset API validates the same models.
+    """
+    if fields.__dict__.get("worker_release") is not None:
+        warnings.warn("worker_release is deprecated, set model to a VlmModel instead",
+                      DeprecationWarning, stacklevel=stacklevel + 1)
+
+
+def _vlm_ability_body(fields: VlmAbilityCreate | VlmAbilityUpdate, exclude_none: bool) -> str:
+    """The JSON a VLM ability create or update sends.
+
+    Transition shim, removed in the next major version: with `model` set, the body also names the
+    model's worker release, so a Dataset API that still requires `worker_release` accepts it.
+    """
+    body = fields.model_dump(mode="json", exclude_unset=True, exclude_none=exclude_none)
+    if fields.model is not None and body.get("worker_release") is None:
+        body["worker_release"] = VLM_MODEL_WORKER_RELEASES[fields.model]
+    return json.dumps(body)
 
 
 def _variant_query(variant: Mapping[str, str | list[str]] | None) -> str:
@@ -1246,6 +1268,15 @@ class DataEndpoint(Endpoint):
             account_uuid: str | None = None,
             vlm_ability_group_uuid: str | None = None,
     ) -> VlmAbilityResponse:
+        _warn_if_worker_release(create, stacklevel=2)
+        return await self._create_vlm_ability(create, account_uuid, vlm_ability_group_uuid)
+
+    async def _create_vlm_ability(
+            self,
+            create: VlmAbilityCreate,
+            account_uuid: str | None,
+            vlm_ability_group_uuid: str | None,
+    ) -> VlmAbilityResponse:
         if account_uuid is None:
             account_uuid = self.account_uuid
         if account_uuid is None:
@@ -1253,7 +1284,7 @@ class DataEndpoint(Endpoint):
         group_query = f'&vlm_ability_group_uuid={vlm_ability_group_uuid}' if vlm_ability_group_uuid else ''
         post_url = f'{await self.data_base_url()}/vlm_abilities?account_uuid={account_uuid}{group_query}'
         async with await self.request_with_retry("POST", post_url, content_type=APPLICATION_JSON,
-                                                 data=create.model_dump_json(exclude_unset=True, exclude_none=True)) as resp:
+                                                 data=_vlm_ability_body(create, exclude_none=True)) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
 
     async def refine_vlm_ability(
@@ -1304,9 +1335,13 @@ class DataEndpoint(Endpoint):
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
 
     async def update_vlm_ability(self, vlm_ability_uuid: str, update: VlmAbilityUpdate) -> VlmAbilityResponse:
+        _warn_if_worker_release(update, stacklevel=2)
+        return await self._update_vlm_ability(vlm_ability_uuid, update)
+
+    async def _update_vlm_ability(self, vlm_ability_uuid: str, update: VlmAbilityUpdate) -> VlmAbilityResponse:
         patch_url = f'{await self.data_base_url()}/vlm_abilities/{vlm_ability_uuid}'
         async with await self.request_with_retry("PATCH", patch_url, content_type=APPLICATION_JSON,
-                                                 data=update.model_dump_json(exclude_unset=True)) as resp:
+                                                 data=_vlm_ability_body(update, exclude_none=False)) as resp:
             return parse_obj_as(VlmAbilityResponse, await resp.json()) # type: ignore [no-any-return]
 
     async def delete_vlm_ability(self, vlm_ability_uuid: str) -> None:

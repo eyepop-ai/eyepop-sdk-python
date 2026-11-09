@@ -10,6 +10,81 @@ from eyepop.data.types.dataset import AutoAnnotatePrompt
 from eyepop.data.types.enums import AutoAnnotateTask, EvaluationStatus, VlmAbilityStatus
 
 
+class VlmModel(StrEnum):
+    """The VLM a user-defined ability runs on."""
+
+    qwen3 = "qwen3"
+    """Qwen3 VL instruct, run by EyePop; the default."""
+    gpt_6_astra = "gpt_6_astra"
+    """GPT-6 Astra, a remote model; images only."""
+    gemini_4_argon = "gemini_4_argon"
+    """Gemini 4 Argon, a remote model; images only."""
+
+
+DEFAULT_VLM_MODEL = VlmModel.qwen3
+"""The model of an ability that names neither `model` nor `worker_release`."""
+
+VLM_MODEL_WORKER_RELEASES: dict[VlmModel, str] = {
+    VlmModel.qwen3: "qwen3_instruct",
+    VlmModel.gpt_6_astra: "gpt-6-astra",
+    VlmModel.gemini_4_argon: "gemini-4-argon",
+}
+"""The worker release that runs each model, as the Dataset API stores it."""
+
+_WORKER_RELEASE_DEPRECATED = "Use `model` instead; `worker_release` will be removed in the next major version."
+
+
+def normalize_worker_release(worker_release: str) -> str:
+    """The comparable form of a worker release name: lowercase, `_` replaced by `-`.
+
+    `qwen3_instruct` and `Qwen3-Instruct` both normalize to `qwen3-instruct`.
+    """
+    return worker_release.lower().replace("_", "-")
+
+
+_MODELS_BY_WORKER_RELEASE: dict[str, VlmModel] = {
+    normalize_worker_release(release): model for model, release in VLM_MODEL_WORKER_RELEASES.items()
+}
+
+
+def model_for_worker_release(worker_release: str | None) -> VlmModel | None:
+    """The model a worker release runs: `qwen3` for `None`, `None` for a release that is no model's."""
+    if worker_release is None:
+        return DEFAULT_VLM_MODEL
+    return _MODELS_BY_WORKER_RELEASE.get(normalize_worker_release(worker_release))
+
+
+def _check_model_and_worker_release(model: VlmModel | None, worker_release: str | None) -> VlmModel | None:
+    """The model that `model` and `worker_release` name together, `None` when neither is set.
+
+    Raises `ValueError` when `worker_release` names no model's release or names another model than `model`.
+    """
+    if worker_release is None:
+        return model
+    release_model = model_for_worker_release(worker_release)
+    if release_model is None:
+        raise ValueError(
+            f"unknown worker_release {worker_release!r}; worker_release is deprecated, "
+            f"set `model` to one of {', '.join(m.value for m in VlmModel)}"
+        )
+    if model is not None and model != release_model:
+        raise ValueError(
+            f"worker_release {worker_release!r} runs model {release_model.value}, not {model.value}; "
+            "worker_release is deprecated, set only `model`"
+        )
+    return release_model
+
+
+def resolve_worker_release(model: VlmModel | None, worker_release: str | None) -> str:
+    """The worker release to store for an ability: the canonical release of the model the fields name.
+
+    `qwen3_instruct` when neither is set. Raises `ValueError` like `VlmAbilityCreate` does when
+    `worker_release` names no model's release or disagrees with `model`.
+    """
+    resolved = _check_model_and_worker_release(model, worker_release) or DEFAULT_VLM_MODEL
+    return VLM_MODEL_WORKER_RELEASES[resolved]
+
+
 class InferRuntimeConfig(BaseModel):
     """Runtime configuration for ad-hoc inference [EXPERIMENTAL].
 
@@ -398,8 +473,16 @@ class VlmAbilityCreate(BaseModel):
         default="",
         description="Human readable optional description of the ability."
     )
-    worker_release: str = Field(
-        description="The identifier of the worker release used to execute this ability."
+    model: VlmModel | None = Field(
+        default=None,
+        description="The VLM that runs this ability; `qwen3` when neither `model` nor `worker_release` is set.",
+        examples=[VlmModel.qwen3],
+    )
+    worker_release: str | None = Field(
+        default=None,
+        description="Deprecated: use `model`. The worker release that runs this ability; must be the release "
+                    "of one of the models, and agree with `model` when both are set.",
+        deprecated=_WORKER_RELEASE_DEPRECATED,
     )
     text_prompt: str | None = Field(
         default=None,
@@ -454,6 +537,12 @@ class VlmAbilityCreate(BaseModel):
     prompts: TaskPrompts = None
 
     @model_validator(mode="after")
+    def _one_model(self) -> Self:
+        # Read through __dict__: the attribute of a deprecated field warns, and the Dataset API runs this too.
+        _check_model_and_worker_release(self.model, self.__dict__.get("worker_release"))
+        return self
+
+    @model_validator(mode="after")
     def _one_mode(self) -> Self:
         if self.task is None:
             if self.text_prompt is None:
@@ -482,9 +571,16 @@ class VlmAbilityUpdate(BaseModel):
         default=None,
         description="Human readable optional description of the ability."
     )
+    model: VlmModel | None = Field(
+        default=None,
+        description="The VLM that runs this ability; unchanged when unset.",
+        examples=[VlmModel.qwen3],
+    )
     worker_release: str | None = Field(
         default=None,
-        description="The identifier of the worker release used to execute this ability."
+        description="Deprecated: use `model`. The worker release that runs this ability; must be the release "
+                    "of one of the models, and agree with `model` when both are set.",
+        deprecated=_WORKER_RELEASE_DEPRECATED,
     )
     text_prompt: str | None = Field(
         default=None,
@@ -538,6 +634,12 @@ class VlmAbilityUpdate(BaseModel):
     prompts: TaskPrompts = None
 
     @model_validator(mode="after")
+    def _one_model(self) -> Self:
+        # Read through __dict__: the attribute of a deprecated field warns, and the Dataset API runs this too.
+        _check_model_and_worker_release(self.model, self.__dict__.get("worker_release"))
+        return self
+
+    @model_validator(mode="after")
     def _one_mode(self) -> Self:
         _check_task_mode(
             self.task,
@@ -581,9 +683,14 @@ class VlmAbilityResponse(BaseModel):
         default="",
         description="Human readable optional description of the ability."
     )
+    model: VlmModel | None = Field(
+        default=None,
+        description="The VLM that runs this ability; `None` for an ability whose worker release is no model's.",
+    )
     worker_release: str | None = Field(
         default=None,
-        description="The identifier of the worker release used to execute this ability."
+        description="Deprecated: use `model`. The worker release that runs this ability.",
+        deprecated=_WORKER_RELEASE_DEPRECATED,
     )
     text_prompt: str | None = Field(
         default=None,
@@ -649,6 +756,14 @@ class VlmAbilityResponse(BaseModel):
                     "Replaces the deprecated auto_prompt.",
         default=None,
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _derive_model(cls, data: Any) -> Any:
+        # A Dataset API from before `model` sends only the worker release.
+        if isinstance(data, dict) and "model" not in data:
+            return {**data, "model": model_for_worker_release(data.get("worker_release"))}
+        return data
 
 
 class VlmAbilityGroupCreate(BaseModel):
