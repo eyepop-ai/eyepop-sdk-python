@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.27.0] - 2026-11-09
+
 ### Added
 
 - **A user-defined VLM ability names its model with `model`**: `VlmAbilityCreate`, `VlmAbilityUpdate` and `VlmAbilityResponse` have `model`, a `VlmModel` (`qwen3`, `gpt_6_astra` or `gemini_4_argon`). An ability that names neither `model` nor `worker_release` runs on `qwen3`.
