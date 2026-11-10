@@ -4,7 +4,7 @@ from typing import BinaryIO, Callable, List, Optional
 
 import aiohttp
 
-from eyepop.data.data_endpoint import DataEndpoint
+from eyepop.data.data_endpoint import DataEndpoint, _warn_if_worker_release
 from eyepop.data.data_jobs import DataJob, EvaluateJob, InferJob
 from eyepop.data.data_types import (
     AliasResolution,
@@ -835,7 +835,8 @@ class SyncDataEndpoint(SyncEndpoint):
             account_uuid: str | None = None,
             vlm_ability_group_uuid: str | None = None,
     ) -> VlmAbilityResponse:
-        return run_coro_thread_save(self.event_loop, self.endpoint.create_vlm_ability(create, account_uuid, vlm_ability_group_uuid))
+        _warn_if_worker_release(create, stacklevel=2)
+        return run_coro_thread_save(self.event_loop, self.endpoint._create_vlm_ability(create, account_uuid, vlm_ability_group_uuid))
 
     def refine_vlm_ability(
             self,
@@ -862,7 +863,8 @@ class SyncDataEndpoint(SyncEndpoint):
         return run_coro_thread_save(self.event_loop, self.endpoint.get_vlm_ability(vlm_ability_uuid))
 
     def update_vlm_ability(self, vlm_ability_uuid: str, update: VlmAbilityUpdate) -> VlmAbilityResponse:
-        return run_coro_thread_save(self.event_loop, self.endpoint.update_vlm_ability(vlm_ability_uuid, update))
+        _warn_if_worker_release(update, stacklevel=2)
+        return run_coro_thread_save(self.event_loop, self.endpoint._update_vlm_ability(vlm_ability_uuid, update))
 
     def delete_vlm_ability(self, vlm_ability_uuid: str):
         run_coro_thread_save(self.event_loop, self.endpoint.delete_vlm_ability(vlm_ability_uuid))

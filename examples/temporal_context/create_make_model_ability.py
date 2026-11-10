@@ -21,6 +21,7 @@ from eyepop.data.types.vlm import (
     InferRuntimeConfig,
     VlmAbilityCreate,
     VlmAbilityGroupCreate,
+    VlmModel,
 )
 
 PROMPT = """You see one vehicle, cropped from a camera mounted above a drive-through lane, so it
@@ -53,7 +54,7 @@ def main() -> None:
     ability = VlmAbilityCreate(
         name=alias,
         description="Names the make, model and color of one cropped vehicle",
-        worker_release="qwen3-instruct",
+        model=VlmModel.qwen3,
         text_prompt=PROMPT,
         response_schema=RESPONSE_SCHEMA,
         config=InferRuntimeConfig(image_size=512, max_new_tokens=100),

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A user-defined VLM ability names its model with `model`**: `VlmAbilityCreate`, `VlmAbilityUpdate` and `VlmAbilityResponse` have `model`, a `VlmModel` (`qwen3`, `gpt_6_astra` or `gemini_4_argon`). An ability that names neither `model` nor `worker_release` runs on `qwen3`.
+  - `VLM_MODEL_WORKER_RELEASES` maps each model to the worker release that runs it (`qwen3_instruct`, `gpt-6-astra`, `gemini-4-argon`), and `DEFAULT_VLM_MODEL` is `qwen3`. `normalize_worker_release`, `model_for_worker_release` and `resolve_worker_release(model, worker_release)` turn a release into its model and back; the Dataset API uses them too.
+  - `VlmAbilityResponse.model` is `None` for an ability whose worker release is no model's. From a Dataset API that does not send `model` yet, the SDK derives it from `worker_release`; a model this SDK does not know reads as `None`.
+  - Until the next major version, a create or update with `model` also sends the model's `worker_release`, so it works against a Dataset API that still requires `worker_release`.
+
+### Deprecated
+
+- **`worker_release` of a VLM ability**, in favor of `model`. It is optional now, and `create_vlm_ability` and `update_vlm_ability` warn with a `DeprecationWarning` when it is set. It is still accepted when it names one of the three releases, in any case and with `_` or `-` (`qwen3-instruct` is `qwen3_instruct`). `VlmAbilityCreate` and `VlmAbilityUpdate` raise a `ValidationError` for any other release, and when it names another model than `model`.
+
 ## [3.26.0] - 2026-11-08
 
 ### Added

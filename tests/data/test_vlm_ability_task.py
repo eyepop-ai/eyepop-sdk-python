@@ -5,12 +5,14 @@ import pytest
 from openapi_pydantic import Schema
 from pydantic import ValidationError
 
+from eyepop.data.data_endpoint import _vlm_ability_body
 from eyepop.data.types import (
     InferRuntimeConfig,
     TransformInto,
     VlmAbilityCreate,
     VlmAbilityResponse,
     VlmAbilityUpdate,
+    VlmModel,
 )
 from eyepop.data.types.dataset import AutoAnnotatePrompt
 from eyepop.data.types.enums import AutoAnnotateTask
@@ -19,17 +21,17 @@ PROMPTS = [AutoAnnotatePrompt(label="helmet", prompt="a safety helmet")]
 
 
 def _create(**fields: Any) -> VlmAbilityCreate:
-    return VlmAbilityCreate(name="helmets", worker_release="gpt-6-astra", **fields)
+    return VlmAbilityCreate(name="helmets", model=VlmModel.gpt_6_astra, **fields)
 
 
 def _create_body(create: VlmAbilityCreate) -> dict[str, Any]:
     # What DataEndpoint.create_vlm_ability posts.
-    return json.loads(create.model_dump_json(exclude_unset=True, exclude_none=True))
+    return json.loads(_vlm_ability_body(create, exclude_none=True))
 
 
 def _update_body(update: VlmAbilityUpdate) -> dict[str, Any]:
     # What DataEndpoint.update_vlm_ability patches.
-    return json.loads(update.model_dump_json(exclude_unset=True))
+    return json.loads(_vlm_ability_body(update, exclude_none=False))
 
 
 def test_a_free_form_create_is_unchanged() -> None:
@@ -39,6 +41,7 @@ def test_a_free_form_create_is_unchanged() -> None:
     assert create.config.max_new_tokens == 200
     assert _create_body(create) == {
         "name": "helmets",
+        "model": "gpt_6_astra",
         "worker_release": "gpt-6-astra",
         "text_prompt": "Is there a helmet?",
     }
@@ -111,7 +114,7 @@ def test_a_create_is_free_form_or_a_task(fields: dict[str, Any], message: str) -
 
 def test_a_task_create_round_trips_through_json() -> None:
     raw = (
-        '{"name": "helmets", "worker_release": "gpt-6-astra", "task": "image_classification",'
+        '{"name": "helmets", "model": "gpt_6_astra", "task": "image_classification",'
         ' "prompts": [{"label": "a", "prompt": "b"}]}'
     )
     create = VlmAbilityCreate.model_validate_json(raw)
