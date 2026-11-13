@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.28.0] - 2026-11-12
+
 ### Added
 
 - **Pipeline mode sends motion detection and the video mode** (BUG-327, AWSU-317). `motion_detect` on `upload`, `upload_stream`, `load_from` and `load_asset` goes out with the source's `setSource` as `motionDetect`, `motionSensitivity`, `motionThreshold`, `motionGap`, `motionGridX` and `motionGridY`, as on a worker session; it was dropped with a warning. `video_mode` on `upload` and `upload_stream` goes out as `videoMode` (`buffer` or `stream`); unset, the pipeline API buffers a video upload that is not live. Both need a pipeline API on eyepop-worker 4.15.0 or later, which refuses neither; an older one answers such a `setSource` `invalid_request`, which raises `PipelineCommandException`.
