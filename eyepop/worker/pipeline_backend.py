@@ -56,7 +56,7 @@ _MAX_RECONNECT_DELAY_SECS = 30.0
 # After the pipeline API refused another socket, the endpoint tries again only this much later.
 _EXTRA_SOCKET_RETRY_SECS = 10.0
 # What the socket's setSource does not take yet (AWSU-317).
-_NOT_SENT = ('video_mode', 'motion_detect', 'media_cache_seconds')
+_NOT_SENT = ('media_cache_seconds',)
 
 
 class _UploadEnded(Exception):
@@ -70,8 +70,13 @@ class _Upload:
         self.credit = 0
         self.granted = asyncio.Event()
         self.ended = False
+        # Whether the server sent its `send`: from then on it is the socket's sending upload.
+        self.sending = False
+        # Whether its `uploaded` went out.
+        self.uploaded = False
 
     def grant(self, n: int):
+        self.sending = True
         self.credit += n
         self.granted.set()
 
@@ -418,10 +423,13 @@ class PipelineBackend(WorkerBackend):
     def _dispatch(self, socket: _Socket, message: dict[str, Any]):
         type_, id_ = message.get('type'), message.get('id')
         source = socket.sources.get(id_) if isinstance(id_, str) else None
-        if type_ == 'end' or (type_ == 'error' and id_ in socket.held and message.get('error') != 'unknown_command'):
+        refused = (type_ == 'error' and id_ in socket.held and id_ not in socket.accepted
+                   and message.get('error') != 'unknown_command')
+        if type_ == 'end' or refused:
             # Also the end of a source its job already let go, a cancelled one: it frees room all the same.
-            # A refused source never ends, so the refusal frees it. unknown_command answers a stopSource on a
-            # pipeline API from before it, for a source still open.
+            # A refused source never ends, so the refusal frees it. An error for a source the pipeline took
+            # answers a later command, a stopSource or an uploaded, and frees nothing. unknown_command answers
+            # a stopSource on a pipeline API from before it, for a source still open.
             socket.held.discard(id_)
             socket.accepted.discard(id_)
             socket.lives.discard(id_)
@@ -502,10 +510,15 @@ class PipelineBackend(WorkerBackend):
     # Jobs
 
     def accept(self, source: WorkerSource):
-        """Warn once per endpoint for each option the socket does not take."""
+        """Refuse motion detection on a group, and warn once per endpoint for each option the socket does not take.
+
+        The pipeline API answers a group with motion detection invalid_request, since the pipeline
+        forces it off for a group; `video_mode` is sent with a single upload only, as on a session.
+        """
+        if source.group and source.motion_detect is not None:
+            raise ValueError('motion_detect is not taken for a group in pipeline mode: a group is still images')
         options = {
-            'video_mode': source.video_mode,
-            'motion_detect': source.motion_detect,
+            'video_mode': None if _takes_video_mode(source) else source.video_mode,
             'media_cache_seconds': source.media_cache_seconds,
             'rtsp_force_non_compliant_url': source.rtsp_force_non_compliant_url,
         }
@@ -560,6 +573,7 @@ class PipelineBackend(WorkerBackend):
                 if uploader is not None:
                     uploader.cancel()
                     await asyncio.gather(uploader, return_exceptions=True)
+                    await _finish_upload(socket, source)
             if refused is None:
                 return
             if refused == 'queue_full':
@@ -661,10 +675,8 @@ class PipelineBackend(WorkerBackend):
                     # The job closes a file it opened; a caller's stream stays open.
                     if upload_source.location is not None and not isinstance(stream, AsyncIterable):
                         stream.close()
-                uploaded: dict[str, Any] = {'type': 'uploaded', 'id': source.id}
-                if key is not None:
-                    uploaded['member'] = key
-                await socket.send_json(uploaded)
+                upload.uploaded = True
+                await socket.send_json(_uploaded(source.id, key))
         except (_UploadEnded, ConnectionError, aiohttp.ClientError):
             # The source ended or the socket closed; the job reports how.
             pass
@@ -700,7 +712,40 @@ def _set_source_command(id: str, source: WorkerSource) -> dict[str, Any]:
         command['fps'] = source.fps
     if source.is_live:
         command['live'] = True
+    if source.video_mode is not None and _takes_video_mode(source):
+        command['videoMode'] = source.video_mode.value
+    if source.motion_detect is not None and not source.group:
+        command.update(source.motion_detect.model_dump(exclude_none=True))
     return command
+
+
+def _takes_video_mode(source: WorkerSource) -> bool:
+    """The pipeline API takes `videoMode` with a single upload only (AWSU-317)."""
+    return bool(source.uploads) and not source.group
+
+
+def _uploaded(id: str, member: int | None) -> dict[str, Any]:
+    uploaded: dict[str, Any] = {'type': 'uploaded', 'id': id}
+    if member is not None:
+        uploaded['member'] = member
+    return uploaded
+
+
+async def _finish_upload(socket: _Socket, source: _Source):
+    """Send `uploaded` for the source's upload that got `send` but whose last bytes never went, as when it ended early.
+
+    A pipeline API keeps such an upload at the head of the socket's upload line, holding up every
+    later chunked upload, until its uploaded or its idle timeout; one that already let it go may
+    answer with an error under the source's id, which no job reads any more.
+    """
+    for member, upload in source.uploads.items():
+        if not upload.sending or upload.uploaded or not socket.open:
+            continue
+        upload.uploaded = True
+        try:
+            await socket.send_json(_uploaded(source.id, member))
+        except (ConnectionError, aiohttp.ClientError) as e:
+            log_requests.debug('could not send uploaded for an upload that ended early: %s', e)
 
 
 def _upload_keys(source: WorkerSource) -> list[int | None]:

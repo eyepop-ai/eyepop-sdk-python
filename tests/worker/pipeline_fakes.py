@@ -71,7 +71,12 @@ class FakePipelineAPI(_Server):
     `queue_full_refused`), `source_delay` holds each source that long
     before its predictions, `usages` are the running totals of milli compute
     units a source reports after its predictions, and `milli_compute_units`
-    its end's total.
+    its end's total. `fail_upload_at` ends the next chunked upload with reason
+    error once that many of its bytes arrived, without granting more credit;
+    its other members leave the upload line, and the sending one stays at its
+    head until its `uploaded`, as on eyepop-worker 4.15.1, or with
+    `drop_ended_upload` leaves it at once, and an `uploaded` for an upload that is not sending is then
+    answered invalid_request.
     """
 
     def __init__(self):
@@ -95,6 +100,8 @@ class FakePipelineAPI(_Server):
         self.source_delay = 0.0
         self.usages: list[int] = []
         self.milli_compute_units: int | None = None
+        self.fail_upload_at: int | None = None
+        self.drop_ended_upload = False
         app = web.Application()
         app.router.add_get("/api/v1/pipeline", self._upgrade)
         super().__init__(app)
@@ -133,6 +140,8 @@ class _Run:
         # Sources the client stopped; the live one playing ends at its next frame.
         self.stopped: set[str] = set()
         self.playing: str | None = None
+        # Sources whose upload failed; their bytes and uploaded are taken and discarded.
+        self.failed: set[str] = set()
 
     async def serve(self):
         if self.fake.close_on_open is not None:
@@ -181,9 +190,12 @@ class _Run:
                 if self.uploads and self.uploads[0] == key:
                     self.uploads.pop(0)
                     self.missing[id_] -= 1
-                    if self.missing[id_] == 0:
+                    if self.missing[id_] == 0 and id_ not in self.failed:
                         await self.queue.put((id_, self.commands[id_]))
                     await self.next_upload()
+                else:
+                    await self.send({"type": "error", "id": id_, "error": "invalid_request",
+                                     "message": "uploaded names no upload that is sending"})
             case "stopSource" if self.fake.knows_stop_source:
                 await self.stop_source(id_)
             case "ping":
@@ -196,8 +208,21 @@ class _Run:
     async def binary(self, data: bytes):
         if data[:1] == b"\x01":
             id_, member = self.uploads[0]
+            if id_ in self.failed:
+                return
             media = self.socket.media[id_]
             media[member] = media.get(member, b"") + data[1:]
+            if self.fake.fail_upload_at is not None and len(media[member]) >= self.fake.fail_upload_at:
+                self.fake.fail_upload_at = None
+                self.failed.add(id_)
+                await self.end(id_, "error", "stream error")
+                # The source's members that never got their send leave the line; the sending one stays
+                # until its uploaded, unless it is dropped.
+                head = [] if self.fake.drop_ended_upload else [self.uploads[0]]
+                self.uploads[:] = head + [upload for upload in self.uploads[1:] if upload[0] != id_]
+                if not head:
+                    await self.next_upload()
+                return
             await self.send({"type": "credit", "id": id_, "bytes": len(data) - 1, **_member(member)})
             return
         assert data[:1] == b"\x02", "a binary message starts with a kind byte"

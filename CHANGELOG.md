@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Pipeline mode sends motion detection and the video mode** (BUG-327, AWSU-317). `motion_detect` on `upload`, `upload_stream`, `load_from` and `load_asset` goes out with the source's `setSource` as `motionDetect`, `motionSensitivity`, `motionThreshold`, `motionGap`, `motionGridX` and `motionGridY`, as on a worker session; it was dropped with a warning. `video_mode` on `upload` and `upload_stream` goes out as `videoMode` (`buffer` or `stream`); unset, the pipeline API buffers a video upload that is not live. Both need a pipeline API on eyepop-worker 4.15.0 or later, which refuses neither; an older one answers such a `setSource` `invalid_request`, which raises `PipelineCommandException`.
+  - Motion detection on a group raises `ValueError` when the job is submitted, before anything is sent, as the pipeline API refuses it for a group. No public group method takes `motion_detect`.
+  - `video_mode` on a source that is not one upload still warns once per endpoint and is not sent, as the pipeline API takes it with an upload only. `media_cache_seconds` still warns and is not sent.
+
+### Fixed
+
+- **An upload that ends early no longer holds up every later chunked upload on its socket in pipeline mode.** When a source ended while its chunked upload was sending, failed or stopped, the SDK sent no `uploaded` for it, and a pipeline API that keeps such an upload at the head of the socket's upload line until its `uploaded` gave no later upload its `send`: the next upload on that socket hung. The SDK now sends `uploaded` for the upload, or the group member, that got its `send` and was not complete when the source ended or its job was cancelled. A pipeline API that already let the upload go may answer it with an error under the source's id, which fails nothing.
+
 ## [3.27.0] - 2026-11-09
 
 ### Added

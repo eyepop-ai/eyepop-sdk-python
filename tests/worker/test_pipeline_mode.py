@@ -19,8 +19,8 @@ from eyepop.exceptions import (
 from eyepop.settings import settings
 from eyepop.worker.pipeline_backend import PipelineBackend
 from eyepop.worker.worker_endpoint import WorkerEndpoint
-from eyepop.worker.worker_jobs import WorkerJob
-from eyepop.worker.worker_types import InferenceComponent, Pop
+from eyepop.worker.worker_jobs import WorkerJob, WorkerSource, _UploadSource
+from eyepop.worker.worker_types import InferenceComponent, MotionDetectConfig, Pop, VideoMode
 from tests.worker.pipeline_fakes import FakeComputeAPI, FakePipelineAPI, prediction
 
 PERSON = Pop(components=[InferenceComponent(ability="eyepop.person:latest")])
@@ -73,6 +73,15 @@ async def predictions(job: WorkerJob) -> list[dict]:
     while (result := await job.predict()) is not None:
         results.append(result)
     return results
+
+
+async def predictions_within(job: WorkerJob, seconds: float) -> list[dict]:
+    """The job's predictions; a job that has none in time is cancelled, so the test fails instead of hanging."""
+    try:
+        return await asyncio.wait_for(predictions(job), seconds)
+    except TimeoutError:
+        await job.cancel()
+        pytest.fail(f"the job got no predictions in {seconds} s")
 
 
 @pytest.fixture
@@ -140,7 +149,7 @@ async def test_local_mode_takes_eyepop_url_as_the_pipeline_api(pipeline: FakePip
     assert pipeline.sockets[0].authorization is None
 
 
-# 2. Options the socket does not take yet
+# 2. Source options
 
 
 async def test_an_option_not_sent_warns_once_per_endpoint_naming_awsu_317(compute: FakeComputeAPI,
@@ -153,6 +162,66 @@ async def test_an_option_not_sent_warns_once_per_endpoint_naming_awsu_317(comput
     assert [str(w.message) for w in caught] == [
         "media_cache_seconds is not sent to the pipeline API and has no effect in pipeline mode (AWSU-317)"]
     assert all("mediaCacheSeconds" not in source for source in pipeline.sockets[0].sources)
+
+
+async def test_motion_detection_is_sent_with_the_set_source(compute: FakeComputeAPI, pipeline: FakePipelineAPI,
+                                                           image: Path):
+    async with worker(compute) as endpoint:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            await predictions(await endpoint.load_from("https://videos.example/a.mp4",
+                                                       motion_detect=MotionDetectConfig(motionGap=1)))
+            await predictions(await endpoint.load_asset("asset-1", motion_detect=MotionDetectConfig(
+                motionDetect=True, motionSensitivity=0.4, motionThreshold=0.02, motionGap=3, motionGridX=8,
+                motionGridY=6)))
+            await predictions(await endpoint.upload(str(image), motion_detect=MotionDetectConfig(motionDetect=False)))
+    by_url, by_asset, by_upload = pipeline.sockets[0].sources
+    assert by_url == {"type": "setSource", "id": by_url["id"], "url": "https://videos.example/a.mp4",
+                      "motionDetect": True, "motionGap": 1}
+    assert {k: v for k, v in by_asset.items() if k.startswith("motion")} == {
+        "motionDetect": True, "motionSensitivity": 0.4, "motionThreshold": 0.02, "motionGap": 3, "motionGridX": 8,
+        "motionGridY": 6}
+    assert by_upload["motionDetect"] is False
+
+
+async def test_video_mode_is_sent_with_an_upload(compute: FakeComputeAPI, pipeline: FakePipelineAPI, image: Path):
+    async with worker(compute) as endpoint:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            await predictions(await endpoint.upload(str(image), video_mode=VideoMode.STREAM))
+            await predictions(await endpoint.upload_stream(io.BytesIO(b"mp4 bytes"), "video/mp4",
+                                                           video_mode=VideoMode.BUFFER))
+            await predictions(await endpoint.upload(str(image)))
+    combined, chunked, unset = pipeline.sockets[0].sources
+    assert combined["videoMode"] == "stream"
+    assert chunked["videoMode"] == "buffer"
+    assert "videoMode" not in unset
+
+
+async def test_video_mode_on_a_source_that_is_not_one_upload_warns_and_is_not_sent(compute: FakeComputeAPI,
+                                                                                   pipeline: FakePipelineAPI):
+    async with worker(compute) as endpoint:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            await predictions(await endpoint._submit(WorkerSource(urls=["https://videos.example/a.mp4"],
+                                                                  video_mode=VideoMode.STREAM), None))
+    assert [str(w.message) for w in caught] == [
+        "video_mode is not sent to the pipeline API and has no effect in pipeline mode"]
+    assert "videoMode" not in pipeline.sockets[0].sources[0]
+
+
+async def test_motion_detection_on_a_group_is_refused_before_it_is_sent(compute: FakeComputeAPI,
+                                                                        pipeline: FakePipelineAPI):
+    async with worker(compute) as endpoint:
+        for source in (
+                WorkerSource(urls=["https://images.example/a.jpg", "https://images.example/b.jpg"], group=True,
+                             motion_detect=MotionDetectConfig()),
+                WorkerSource(uploads=[_UploadSource(io.BytesIO(b"one"), "image/png")], group=True,
+                             motion_detect=MotionDetectConfig(motionDetect=False)),
+        ):
+            with pytest.raises(ValueError, match="motion_detect is not taken for a group"):
+                await endpoint._submit(source, None)
+    assert pipeline.sockets[0].sources == []
 
 
 # 3. Session-era methods
@@ -404,6 +473,53 @@ async def test_a_group_of_streams_uploads_each_member_in_chunks(compute: FakeCom
     assert source["group"] == [{"upload": {"contentType": "image/png"}}, {"upload": {"contentType": "image/jpeg"}}]
     assert socket.media[source["id"]] == {0: b"first", 1: b"second"}
     assert {"type": "uploaded", "id": source["id"], "member": 1} in socket.commands
+
+
+async def test_an_upload_that_ends_early_is_uploaded_so_the_next_upload_on_the_socket_goes(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, one_socket: None):
+    pipeline.fail_upload_at = pipeline.window
+    async with worker(compute) as endpoint:
+        with pytest.raises(PipelineSourceException, match="stream error"):
+            await predictions(await endpoint.upload_stream(io.BytesIO(b"x" * 64), "video/mp4"))
+        second = await endpoint.upload_stream(io.BytesIO(b"mp4 bytes"), "video/mp4")
+        assert await predictions_within(second, 5) == [prediction(0), prediction(1)]
+    socket = pipeline.sockets[0]
+    first_id, second_id = (source["id"] for source in socket.sources)
+    assert {"type": "uploaded", "id": first_id} in socket.commands
+    assert socket.media[second_id] == {None: b"mp4 bytes"}
+
+
+async def test_a_group_member_that_ends_early_is_uploaded_and_the_next_upload_goes(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, one_socket: None):
+    pipeline.fail_upload_at = pipeline.window
+    async with worker(compute) as endpoint:
+        with pytest.raises(PipelineSourceException, match="stream error"):
+            await predictions(await endpoint.upload_stream_group([io.BytesIO(b"x" * 64), io.BytesIO(b"second")],
+                                                                 mime_types=["image/png", "image/jpeg"]))
+        second = await endpoint.upload_stream(io.BytesIO(b"mp4 bytes"), "video/mp4")
+        assert await predictions_within(second, 5) == [prediction(0), prediction(1)]
+    socket = pipeline.sockets[0]
+    group_id = socket.sources[0]["id"]
+    uploaded = [c for c in socket.commands if c.get("type") == "uploaded" and c["id"] == group_id]
+    # The member that never got its send gets no uploaded.
+    assert uploaded == [{"type": "uploaded", "id": group_id, "member": 0}]
+
+
+async def test_an_error_for_the_uploaded_of_an_upload_that_ended_early_fails_nothing(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, one_socket: None):
+    pipeline.fail_upload_at = pipeline.window
+    pipeline.drop_ended_upload = True
+    async with worker(compute) as endpoint:
+        with pytest.raises(PipelineSourceException, match="stream error"):
+            await predictions(await endpoint.upload_stream(io.BytesIO(b"x" * 64), "video/mp4"))
+        second = await endpoint.upload_stream(io.BytesIO(b"mp4 bytes"), "video/mp4")
+        assert await predictions_within(second, 5) == [prediction(0), prediction(1)]
+        assert await predictions(await endpoint.load_from("https://images.example/a.jpg")) == [
+            prediction(0), prediction(1)]
+        assert len(pipeline.sockets) == 1
+        assert not pipeline_backend(endpoint)._sockets[0].held
+    socket = pipeline.sockets[0]
+    assert {"type": "uploaded", "id": socket.sources[0]["id"]} in socket.commands
 
 
 async def test_load_from_group_and_load_asset_name_their_source(compute: FakeComputeAPI, pipeline: FakePipelineAPI):

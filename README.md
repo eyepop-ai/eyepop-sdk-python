@@ -192,7 +192,9 @@ one. `set_pop` sets the pop on every open socket.
 | `upload_stream`, `upload_stream_group`, `upload(is_live=True)` | Sent in chunks as the pipeline reads them. |
 | `load_from`, `load_from_group`, `load_asset` | Supported. An `rtsp://` or `rtmp://` url is live. |
 | `params`, `roi`, `camera`, `fps` | Supported. |
-| `video_mode`, `motion_detect`, `media_cache_seconds` | Not sent yet; a warning names each once per endpoint (AWSU-317). |
+| `motion_detect` | Sent with `setSource` (`motionDetect`, `motionSensitivity`, `motionThreshold`, `motionGap`, `motionGridX`, `motionGridY`). Needs a pipeline API on eyepop-worker 4.15.0 or later. A group takes none: `ValueError` at submission. |
+| `video_mode` | Sent with a single upload (`upload`, `upload_stream`); unset, a video upload that is not live is buffered. Needs eyepop-worker 4.15.0 or later. Not sent for any other source; a warning names it once per endpoint. |
+| `media_cache_seconds` | Not sent yet; a warning names it once per endpoint (AWSU-317). |
 | `rtsp_force_non_compliant_url` | Not sent; a warning names it once per endpoint. |
 | `set_pop`, `get_pop` | Supported. A pop the pipeline refuses raises `PopConfigurationException`, and the last pop it took stays. |
 | `session()` | Returns `{"pipeline_api_url": ...}`. |
