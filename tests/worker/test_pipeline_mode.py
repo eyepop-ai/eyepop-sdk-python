@@ -522,6 +522,16 @@ async def test_an_error_for_the_uploaded_of_an_upload_that_ended_early_fails_not
     assert {"type": "uploaded", "id": socket.sources[0]["id"]} in socket.commands
 
 
+async def test_a_send_for_a_source_no_job_holds_is_answered_uploaded(compute: FakeComputeAPI,
+                                                                    pipeline: FakePipelineAPI):
+    # A cancelled job's upload whose send crossed its stopSource.
+    async with worker(compute) as endpoint:
+        await pipeline.runs[0].send({"type": "send", "id": "source-99", "credit": 16, "member": 1})
+        assert await predictions(await endpoint.load_from("https://images.example/a.jpg")) == [
+            prediction(0), prediction(1)]
+    assert {"type": "uploaded", "id": "source-99", "member": 1} in pipeline.sockets[0].commands
+
+
 async def test_load_from_group_and_load_asset_name_their_source(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
     async with worker(compute) as endpoint:
         await predictions(await endpoint.load_from_group(["https://images.example/a.jpg", "https://images.example/b.jpg"]))

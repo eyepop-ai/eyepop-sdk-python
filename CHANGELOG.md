@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **An upload that ends early no longer holds up every later chunked upload on its socket in pipeline mode.** When a source ended while its chunked upload was sending, failed or stopped, the SDK sent no `uploaded` for it, and a pipeline API that keeps such an upload at the head of the socket's upload line until its `uploaded` gave no later upload its `send`: the next upload on that socket hung. The SDK now sends `uploaded` for the upload, or the group member, that got its `send` and was not complete when the source ended or its job was cancelled. A pipeline API that already let the upload go may answer it with an error under the source's id, which fails nothing.
+- **An upload that ends early no longer holds up every later chunked upload on its socket in pipeline mode.** When a source ended while its chunked upload was sending, failed or stopped, the SDK sent no `uploaded` for it, and a pipeline API that keeps such an upload at the head of the socket's upload line until its `uploaded` gave no later upload its `send`: the next upload on that socket hung. The SDK now sends `uploaded` for the upload, or the group member, that got its `send` and was not complete when the source ended or its job was cancelled. A `send` that arrives for a source whose job already let go of it, such as one that crossed a cancelled job's `stopSource`, is answered `uploaded` at once. A pipeline API that already let the upload go may answer it with an error under the source's id, which fails nothing.
 
 ## [3.27.0] - 2026-11-09
 

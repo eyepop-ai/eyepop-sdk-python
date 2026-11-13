@@ -199,6 +199,8 @@ class PipelineBackend(WorkerBackend):
         self._no_extra_socket_until = 0.0
         self._room = asyncio.Event()
         self._open: dict[WorkerJob, tuple[_Socket, _Source]] = {}
+        # The uploaded answers to a late send, kept until written.
+        self._late_uploaded: set[asyncio.Task] = set()
         # Reconnects at once since a source last played.
         self._reconnects = 0
 
@@ -437,9 +439,16 @@ class PipelineBackend(WorkerBackend):
         elif type_ == 'result' and id_ in socket.held:
             socket.accepted.add(id_)
         if type_ in ('send', 'credit'):
-            upload = source.uploads.get(message.get('member')) if source is not None else None
+            member = message.get('member')
+            upload = source.uploads.get(member) if source is not None else None
             if upload is not None:
                 upload.grant(int(message['credit'] if type_ == 'send' else message['bytes']))
+            elif type_ == 'send' and source is None and isinstance(id_, str):
+                # The send of an upload whose job let go of its source, cancelled or ended, before its
+                # turn came: no byte of it is coming, so it leaves the upload line at once.
+                task = asyncio.create_task(_finish_upload(socket, id_, member))
+                self._late_uploaded.add(task)
+                task.add_done_callback(self._late_uploaded.discard)
             return
         if isinstance(id_, str) and id_ in socket.commands:
             answer = socket.commands.pop(id_)
@@ -573,7 +582,9 @@ class PipelineBackend(WorkerBackend):
                 if uploader is not None:
                     uploader.cancel()
                     await asyncio.gather(uploader, return_exceptions=True)
-                    await _finish_upload(socket, source)
+                    for member, upload in source.uploads.items():
+                        if upload.sending and not upload.uploaded:
+                            await _finish_upload(socket, source.id, member)
             if refused is None:
                 return
             if refused == 'queue_full':
@@ -675,8 +686,8 @@ class PipelineBackend(WorkerBackend):
                     # The job closes a file it opened; a caller's stream stays open.
                     if upload_source.location is not None and not isinstance(stream, AsyncIterable):
                         stream.close()
-                upload.uploaded = True
                 await socket.send_json(_uploaded(source.id, key))
+                upload.uploaded = True
         except (_UploadEnded, ConnectionError, aiohttp.ClientError):
             # The source ended or the socket closed; the job reports how.
             pass
@@ -731,21 +742,19 @@ def _uploaded(id: str, member: int | None) -> dict[str, Any]:
     return uploaded
 
 
-async def _finish_upload(socket: _Socket, source: _Source):
-    """Send `uploaded` for the source's upload that got `send` but whose last bytes never went, as when it ended early.
+async def _finish_upload(socket: _Socket, id: str, member: int | None):
+    """Send `uploaded` for an upload that got `send` but whose last bytes never went, as when its source ended early.
 
     A pipeline API keeps such an upload at the head of the socket's upload line, holding up every
     later chunked upload, until its uploaded or its idle timeout; one that already let it go may
     answer with an error under the source's id, which no job reads any more.
     """
-    for member, upload in source.uploads.items():
-        if not upload.sending or upload.uploaded or not socket.open:
-            continue
-        upload.uploaded = True
-        try:
-            await socket.send_json(_uploaded(source.id, member))
-        except (ConnectionError, aiohttp.ClientError) as e:
-            log_requests.debug('could not send uploaded for an upload that ended early: %s', e)
+    if not socket.open:
+        return
+    try:
+        await socket.send_json(_uploaded(id, member))
+    except (ConnectionError, aiohttp.ClientError) as e:
+        log_requests.debug('could not send uploaded for an upload that ended early: %s', e)
 
 
 def _upload_keys(source: WorkerSource) -> list[int | None]:
