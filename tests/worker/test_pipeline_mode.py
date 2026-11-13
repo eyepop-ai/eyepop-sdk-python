@@ -81,7 +81,7 @@ async def predictions_within(job: WorkerJob, seconds: float) -> list[dict]:
         return await asyncio.wait_for(predictions(job), seconds)
     except TimeoutError:
         await job.cancel()
-        pytest.fail(f"the job got no predictions in {seconds} s")
+        raise AssertionError(f"the job got no predictions in {seconds} s") from None
 
 
 @pytest.fixture
