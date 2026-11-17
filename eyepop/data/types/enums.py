@@ -52,6 +52,7 @@ class UserReview(enum.StrEnum):
 class AutoAnnotateTask(enum.StrEnum):
     object_detection = enum.auto()
     image_classification = enum.auto()
+    event_classification = enum.auto()
 
 
 class AutoAnnotateStatus(enum.StrEnum):

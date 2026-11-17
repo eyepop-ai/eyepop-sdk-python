@@ -115,3 +115,20 @@ def test_a_prediction_keeps_its_compute_units() -> None:
     )
 
     assert (prediction.compute_units, prediction.milli_compute_units) == (0.3, 300)
+
+
+def test_event_task_and_instructions_are_sent() -> None:
+    body = _body(
+        InferRequest(
+            task=AutoAnnotateTask.event_classification,
+            prompts=PROMPTS,
+            instructions="Focus on the main booth.",
+        )
+    )
+    assert body["task"] == "event_classification"
+    assert body["instructions"] == "Focus on the main booth."
+
+
+def test_instructions_without_task_rejected() -> None:
+    with pytest.raises(ValueError, match="`instructions` require a `task`"):
+        InferRequest(text_prompt="Describe", instructions="Focus.")

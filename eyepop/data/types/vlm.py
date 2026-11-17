@@ -135,8 +135,9 @@ Task = Annotated[
         description=(
             "Auto-label task. The worker derives the prompt and output schema from the task "
             "and `prompts`, so `text_prompt`, `transform_into` and `response_schema` must be "
-            "unset. Object detection returns `objects`, image classification `classes`, each "
-            "labeled with a prompt's label. One image per request."
+            "unset. Object detection returns `objects` and image classification `classes` for "
+            "one image; event classification returns `classes` for one video (or video chunk), "
+            "on qwen3 only. Each result is labeled with a prompt's label."
         ),
         examples=[AutoAnnotateTask.object_detection],
     ),
@@ -151,6 +152,25 @@ TaskPrompts = Annotated[
     ),
 ]
 """The labeled prompts of a `Task`."""
+
+MAX_TASK_INSTRUCTIONS_LENGTH = 2000
+
+TaskInstructions = Annotated[
+    str | None,
+    Field(
+        min_length=1,
+        max_length=MAX_TASK_INSTRUCTIONS_LENGTH,
+        description=(
+            "Optional instructions for `task`, added to the worker's own instructions for it. "
+            "They refine what the model looks at, not the shape of the answer; only with a task."
+        ),
+        examples=[
+            "The camera captures an entire ferry terminal, focus on the main booth area and "
+            "ignore adjacent roads and traffic."
+        ],
+    ),
+]
+"""The caller's own instructions for a `Task`."""
 
 
 def _leave_token_limit_to_worker(config: InferRuntimeConfig) -> InferRuntimeConfig:
@@ -171,20 +191,24 @@ def _check_task_mode(
     text_prompt: str | None,
     transform_into: TransformInto | None,
     response_schema: Schema | None,
+    instructions: str | None = None,
     partial: bool = False,
 ) -> None:
     """Raises `ValueError` unless the fields describe one mode: free-form or a task.
 
     A task needs at least one prompt and derives the prompt and output schema, so `text_prompt`,
-    `transform_into` and `response_schema` must stay unset; `prompts` mean nothing without a task.
-    A `partial` model (an update) holds only the fields it changes: it may change `prompts`
-    without `task` and `task` without `prompts`, but not to an empty list.
+    `transform_into` and `response_schema` must stay unset; `prompts` and `instructions` mean
+    nothing without a task. A `partial` model (an update) holds only the fields it changes: it
+    may change `prompts` or `instructions` without `task` and `task` without `prompts`, but not
+    `prompts` to an empty list.
     """
     if prompts is not None and not prompts:
         raise ValueError("`prompts` require at least one entry")
     if task is None:
         if prompts is not None and not partial:
             raise ValueError("`prompts` require a `task`")
+        if instructions is not None and not partial:
+            raise ValueError("`instructions` require a `task`")
         return
     if prompts is None and not partial:
         raise ValueError(f"task {task} requires at least one entry in `prompts`")
@@ -253,9 +277,12 @@ class InferRequest(BaseModel):
     )
     task: Task = None
     prompts: TaskPrompts = None
+    instructions: TaskInstructions = None
 
     @model_validator(mode="after")
     def _task_uses_worker_token_limit(self) -> Self:
+        if self.task is None and self.instructions is not None:
+            raise ValueError("`instructions` require a `task`")
         if self.task is not None:
             self.config = _leave_token_limit_to_worker(self.config)
         return self
@@ -535,6 +562,7 @@ class VlmAbilityCreate(BaseModel):
     )
     task: Task = None
     prompts: TaskPrompts = None
+    instructions: TaskInstructions = None
 
     @model_validator(mode="after")
     def _one_model(self) -> Self:
@@ -556,6 +584,7 @@ class VlmAbilityCreate(BaseModel):
             text_prompt=self.text_prompt,
             transform_into=self.transform_into,
             response_schema=self.response_schema,
+            instructions=self.instructions,
         )
         if self.task is not None:
             self.config = _leave_token_limit_to_worker(self.config)
@@ -632,6 +661,7 @@ class VlmAbilityUpdate(BaseModel):
     )
     task: Task = None
     prompts: TaskPrompts = None
+    instructions: TaskInstructions = None
 
     @model_validator(mode="after")
     def _one_model(self) -> Self:
@@ -647,6 +677,7 @@ class VlmAbilityUpdate(BaseModel):
             text_prompt=self.text_prompt,
             transform_into=self.transform_into,
             response_schema=self.response_schema,
+            instructions=self.instructions,
             partial=True,
         )
         if self.task is not None and self.config is not None:
@@ -726,6 +757,7 @@ class VlmAbilityResponse(BaseModel):
     )
     task: Task = None
     prompts: TaskPrompts = None
+    instructions: TaskInstructions = None
     is_public: bool = Field(
         default=False,
         description="Whether or not the ability is publicly accessible.",

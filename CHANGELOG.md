@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **An event classification task** (VREE-347): `AutoAnnotateTask.event_classification`, for `InferRequest` and user-defined VLM abilities. It answers which prompts' events (an action, an activity, something that happens) take place in one video or video chunk, returned as `classes`. It runs on `qwen3` only; the Dataset API refuses an event ability on `gpt_6_astra` or `gemini_4_argon`, and vlm-server answers such a request with a 400. A task ability may set `video_chunk_length_ns` only for this task.
+- **A task takes optional `instructions`** (VREE-347): `InferRequest`, `VlmAbilityCreate`, `VlmAbilityUpdate` and `VlmAbilityResponse` have `instructions`, the caller's own instructions for the task, added after the worker's. They refine what the model looks at, such as "The camera captures an entire ferry terminal, focus on the main booth area and ignore adjacent roads and traffic.", not the shape of the answer.
+  - They take 1 to 2000 characters (`MAX_TASK_INSTRUCTIONS_LENGTH`), and only with a `task`: `InferRequest` and `VlmAbilityCreate` raise a `ValidationError` for `instructions` without one. `VlmAbilityUpdate` may change `instructions` alone.
+  - They need eyepop-vlm with VREE-347 (eyepop-vlm#512) and a Dataset API that stores them; an older one ignores them.
+
 ## [3.28.0] - 2026-11-12
 
 ### Added
