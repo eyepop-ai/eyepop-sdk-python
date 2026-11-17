@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking: pipeline mode is the default for worker endpoints.** `EyePopSdk.sync_worker()`, `async_worker()` and `workerEndpoint()` run their jobs on the pipeline API unless `is_pipeline_mode=False` is passed or `EYEPOP_PIPELINE_MODE` is `false`, `no` or `0`; the argument wins over the environment. Pipeline mode refuses what only a worker session has, so a caller that passes `secret_key`, `pop_id`, `session_uuid`, `session_name`, `pipeline_image`, `pipeline_version`, `dataset_uuid` or `job_queue_length` above 256, or has `EYEPOP_SESSION_UUID` set, now gets a `ValueError` at construction. Such a caller opts out with `is_pipeline_mode=False` or `EYEPOP_PIPELINE_MODE=false`. Pipeline mode sets no pop unless `pop=` is passed. `WorkerEndpoint` itself still defaults to `is_pipeline_mode=False`.
+  - The README, the gitbook docs, the SDK skill and the examples show the pipeline-mode form; `examples/pop_demo.py` opts out because it takes a session and a dataset, and `examples/upload_image_timing.py` asks for 256 queued jobs, the most pipeline mode takes.
+
 ## [3.30.0] - 2026-11-19
 
 ### Added

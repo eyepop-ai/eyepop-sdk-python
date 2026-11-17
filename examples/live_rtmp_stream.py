@@ -4,6 +4,9 @@ from pathlib import Path
 
 from eyepop import EyePopSdk
 from eyepop.worker.worker_jobs import WorkerJob
+from eyepop.worker.worker_types import InferenceComponent, Pop
+
+PERSON = Pop(components=[InferenceComponent(ability='eyepop.person:latest')])
 
 source_path = Path(__file__).resolve()
 source_dir = source_path.parent
@@ -16,7 +19,7 @@ async def async_load_from_rtmp(url: str):
         while result := await job.predict():
             print(result)
 
-    async with EyePopSdk.async_worker() as endpoint:
+    async with EyePopSdk.async_worker(pop=PERSON) as endpoint:
         await endpoint.load_from(url, on_ready=on_ready)
 
 

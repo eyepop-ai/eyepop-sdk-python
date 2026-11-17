@@ -3,6 +3,9 @@ import time
 from pathlib import Path
 
 from eyepop import EyePopSdk
+from eyepop.worker.worker_types import InferenceComponent, Pop
+
+PERSON = Pop(components=[InferenceComponent(ability='eyepop.person:latest')])
 
 source_path = Path(__file__).resolve()
 source_dir = source_path.parent
@@ -10,7 +13,7 @@ example_url_1 = 'https://demo-eyepop-videos.s3.amazonaws.com/test1_vlog.mp4'
 
 
 def load_video_from_url(url: str):
-    with EyePopSdk.sync_worker() as endpoint:
+    with EyePopSdk.sync_worker(pop=PERSON) as endpoint:
         job = endpoint.load_from(url)
         while result := job.predict():
             print(result)
@@ -19,7 +22,7 @@ def load_video_from_url(url: str):
 
 
 async def async_load_video_from_url(url: str):
-    async with EyePopSdk.async_worker() as endpoint:
+    async with EyePopSdk.async_worker(pop=PERSON) as endpoint:
         job = await endpoint.load_from(url)
         while result := await job.predict():
             print(result)

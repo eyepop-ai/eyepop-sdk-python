@@ -97,10 +97,20 @@ def image(tmp_path: Path) -> Path:
 # 1. Selection
 
 
-def test_pipeline_mode_is_selected_by_the_argument_or_the_environment(monkeypatch: pytest.MonkeyPatch):
-    assert in_pipeline_mode(EyePopSdk.async_worker(is_pipeline_mode=True, access_token="t"))
-    monkeypatch.setenv("EYEPOP_PIPELINE_MODE", "true")
+def test_pipeline_mode_is_the_default():
     assert in_pipeline_mode(EyePopSdk.async_worker(access_token="t"))
+
+
+@pytest.mark.parametrize("value", ["false", "no", "0", "FALSE"])
+def test_the_environment_turns_pipeline_mode_off(monkeypatch: pytest.MonkeyPatch, value: str):
+    monkeypatch.setenv("EYEPOP_PIPELINE_MODE", value)
+    assert not in_pipeline_mode(EyePopSdk.async_worker(access_token="t"))
+
+
+def test_the_argument_wins_over_the_environment(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("EYEPOP_PIPELINE_MODE", "false")
+    assert in_pipeline_mode(EyePopSdk.async_worker(access_token="t", is_pipeline_mode=True))
+    monkeypatch.setenv("EYEPOP_PIPELINE_MODE", "true")
     assert not in_pipeline_mode(EyePopSdk.async_worker(access_token="t", is_pipeline_mode=False))
 
 

@@ -14,15 +14,16 @@ export EYEPOP_API_KEY=eyp_...
 You can pass it directly instead, though the environment variable keeps it out of your source:
 
 ```python
-endpoint = EyePopSdk.sync_worker(api_key="eyp_...")
+endpoint = EyePopSdk.sync_worker(api_key="eyp_...", pop=pop)
 ```
 
-If your backend already holds a short-lived token, pass it as `access_token=` instead of an API key. A token targets `https://api.eyepop.ai`, the legacy worker API. The Compute API requires an API key — pointing `eyepop_url` at it with only a token raises `Compute API endpoint (https://compute.eyepop.ai) requires EYEPOP_API_KEY` — so `session_uuid` and `EYEPOP_SESSION_UUID` are ignored on the token path, and a persistent Deployment needs `api_key`.
+If your backend already holds a short-lived token, pass it as `access_token=` instead of an API key. In pipeline mode the token is sent to the pipeline API as given. On a worker session (`is_pipeline_mode=False`) a token targets `https://api.eyepop.ai`, the legacy worker API. The Compute API requires an API key — pointing `eyepop_url` at it with only a token raises `Compute API endpoint (https://compute.eyepop.ai) requires EYEPOP_API_KEY` — so `session_uuid` and `EYEPOP_SESSION_UUID` are ignored on the token path, and a persistent Deployment needs `api_key`.
 
 ### Optional variables
 
 | Variable | Description |
 | --- | --- |
+| `EYEPOP_PIPELINE_MODE` | Worker endpoints run on the pipeline API by default. Set to `false` to run on a worker session instead, which the three variables below and the sections on persistent Deployments and local mode need. A named Pop, a session UUID or a secret key raises `ValueError` in pipeline mode. |
 | `EYEPOP_SECRET_KEY` | Secret key authentication, which works with named Pops. `EYEPOP_API_KEY` does not, and has to be unset — the SDK reads both, and a named Pop with an API key present raises `EYEPOP_API_KEY can only be used with transient pops`. |
 | `EYEPOP_POP_ID` | Named Pop to run. Defaults to `transient`. |
 | `EYEPOP_SESSION_UUID` | Attach to a persistent Deployment instead of creating a transient session. |
@@ -33,6 +34,8 @@ If your backend already holds a short-lived token, pass it as `access_token=` in
 
 ### Transient and persistent sessions
 
+This section and the next describe a worker session, so they pass `is_pipeline_mode=False` or set `EYEPOP_PIPELINE_MODE=false`. In the default pipeline mode there is no session: the endpoint opens a socket to the pipeline API and sets your `pop` on it.
+
 With no session UUID and a `pop` — the flow every example here uses — the SDK creates a new **transient** session each time it connects, and deletes the pipeline it created on exit. It does not delete the session itself. This is the right default for building and testing.
 
 With no `pop`, the SDK reuses an existing non-persistent session when one is available, and leaves both it and its pipeline untouched on exit.
@@ -40,7 +43,7 @@ With no `pop`, the SDK reuses an existing non-persistent session when one is ava
 To run against a persistent Deployment, pass its session UUID. The Pop is fixed when the Deployment is created, so you do not pass one:
 
 ```python
-with EyePopSdk.sync_worker(session_uuid="<your-session-uuid>") as endpoint:
+with EyePopSdk.sync_worker(session_uuid="<your-session-uuid>", is_pipeline_mode=False) as endpoint:
     result = endpoint.upload("photo.jpg").predict()
 ```
 
@@ -53,16 +56,17 @@ The instance serves one Pop, chosen when it is set up with `eyepop instance init
 ```python
 from eyepop import EyePopSdk
 
-with EyePopSdk.sync_worker(is_local_mode=True) as endpoint:
+with EyePopSdk.sync_worker(is_local_mode=True, is_pipeline_mode=False) as endpoint:
     result = endpoint.upload("image.jpg").predict()
     print(result)
 ```
 
-`EYEPOP_LOCAL_MODE=true` in the environment selects it without the argument. Port 8080 is the default of the worker mode shown here; in pipeline mode (`is_pipeline_mode=True`, or `EYEPOP_PIPELINE_MODE=true`) local mode means a local pipeline API on `http://127.0.0.1:9002` instead, not an instance. Pass `eyepop_url` for an instance on another port or host:
+`EYEPOP_LOCAL_MODE=true` in the environment selects it without the argument. The snippets here pass `is_pipeline_mode=False` (or set `EYEPOP_PIPELINE_MODE=false`) to reach the instance, on port 8080 by default; in the default pipeline mode local mode means a local pipeline API on `http://127.0.0.1:9002` instead, not an instance. Pass `eyepop_url` for an instance on another port or host:
 
 ```python
 endpoint = EyePopSdk.sync_worker(
     is_local_mode=True,
+    is_pipeline_mode=False,
     eyepop_url="http://127.0.0.1:9090",
 )
 ```

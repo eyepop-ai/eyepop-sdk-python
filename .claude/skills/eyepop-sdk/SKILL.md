@@ -38,7 +38,8 @@ The SDK reads `EYEPOP_API_KEY` from the environment automatically. Other env var
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `EYEPOP_API_KEY` | Yes | API key from dashboard.eyepop.ai |
-| `EYEPOP_POP_ID` | No | Pop Id from dashboard. Defaults to `"transient"` |
+| `EYEPOP_POP_ID` | No | Pop Id from dashboard. Defaults to `"transient"`. Worker session only: raises `ValueError` in pipeline mode |
+| `EYEPOP_PIPELINE_MODE` | No | Pipeline mode is the default for worker endpoints. `false` runs on a worker session instead |
 | `EYEPOP_ACCOUNT_UUID` | For Data API; workers when the key names no account | Account UUID for `EyePopSdk.dataEndpoint()` and for the compute session a worker opens (`account_id=` on either). `EYEPOP_ACCOUNT_ID` is still read, deprecated |
 | `EYEPOP_URL` | For staging | Compute API URL. Defaults to `https://compute.eyepop.ai` (production). Set to `https://compute.staging.eyepop.xyz` for staging. |
 
@@ -54,14 +55,16 @@ See `eyepop-auth` skill for full authentication details.
 from eyepop import EyePopSdk
 
 # Sync
-with EyePopSdk.sync_worker() as endpoint:
+with EyePopSdk.sync_worker(pop=pop) as endpoint:
     result = endpoint.upload('image.jpg').predict()
 
 # Async
-async with EyePopSdk.async_worker() as endpoint:
+async with EyePopSdk.async_worker(pop=pop) as endpoint:
     job = await endpoint.upload('image.jpg')
     result = await job.predict()
 ```
+
+Worker endpoints run in **pipeline mode** by default: jobs go to the pipeline API, and you pass `pop=`. Session-only options (`secret_key`, `pop_id`, `session_uuid`, `session_name`, `pipeline_image`, `pipeline_version`, `dataset_uuid`, `EYEPOP_SESSION_UUID`, `job_queue_length` above 256) raise `ValueError`. For those, pass `is_pipeline_mode=False` or set `EYEPOP_PIPELINE_MODE=false`.
 
 ### DataEndpoint (datasets, VLM, evaluation)
 
