@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.29.0] - 2026-11-17
+
 ### Added
 
 - **An event classification task** (VREE-347): `AutoAnnotateTask.event_classification`, for `InferRequest` and user-defined VLM abilities. It answers which prompts' events (an action, an activity, something that happens) take place in one video or video chunk, returned as `classes`. It runs on `qwen3` only; the Dataset API refuses an event ability on `gpt_6_astra` or `gemini_4_argon`, and vlm-server answers such a request with a 400. A task ability may set `video_chunk_length_ns` only for this task.
