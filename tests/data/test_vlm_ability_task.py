@@ -181,3 +181,64 @@ def test_a_free_form_response_has_no_task() -> None:
     )
 
     assert response.task is None and response.prompts is None
+
+
+def test_an_event_task_create_sends_task_instructions_and_chunking() -> None:
+    create = VlmAbilityCreate(
+        name="booth",
+        task=AutoAnnotateTask.event_classification,
+        prompts=PROMPTS,
+        instructions="Focus on the main booth.",
+        video_chunk_length_ns=3_000_000_000,
+    )
+
+    body = _create_body(create)
+    assert body["task"] == "event_classification"
+    assert body["instructions"] == "Focus on the main booth."
+    assert body["video_chunk_length_ns"] == 3_000_000_000
+
+
+def test_a_task_create_without_instructions_sends_none() -> None:
+    assert "instructions" not in _create_body(_create(task=AutoAnnotateTask.object_detection, prompts=PROMPTS))
+
+
+@pytest.mark.parametrize(
+    ("fields", "message"),
+    [
+        ({"text_prompt": "x", "instructions": "Focus."}, "`instructions` require a `task`"),
+        (
+            {"task": AutoAnnotateTask.object_detection, "prompts": PROMPTS, "instructions": ""},
+            "at least 1 character",
+        ),
+        (
+            {"task": AutoAnnotateTask.object_detection, "prompts": PROMPTS, "instructions": "x" * 2001},
+            "at most 2000 characters",
+        ),
+    ],
+)
+def test_a_create_checks_instructions(fields: dict[str, Any], message: str) -> None:
+    with pytest.raises(ValidationError, match=message):
+        _create(**fields)
+
+
+def test_an_update_may_change_instructions_alone() -> None:
+    assert _update_body(VlmAbilityUpdate(instructions="Ignore the road.")) == {
+        "instructions": "Ignore the road.",
+    }
+
+
+def test_a_response_reads_instructions() -> None:
+    response = VlmAbilityResponse.model_validate(
+        {
+            "uuid": "u",
+            "account_uuid": "a",
+            "status": "draft",
+            "name": "booth",
+            "task": "event_classification",
+            "prompts": [{"label": "helmet", "prompt": "a safety helmet"}],
+            "instructions": "Focus on the main booth.",
+        }
+    )
+
+    assert response.task is AutoAnnotateTask.event_classification
+    assert response.instructions == "Focus on the main booth."
