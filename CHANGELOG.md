@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.29.1] - 2026-11-17
+
 ### Fixed
 
 - An API key is exchanged for a token for the account the caller chose (AWSU-340). `account_uuid` (or `EYEPOP_ACCOUNT_UUID`) is now sent to compute-api's `POST /v1/auth/authenticate`, so in pipeline mode a user who belongs to several accounts gets a token naming the chosen account, and the pipeline API bills that account. Before, the exchange named no account, so such a user's pipeline usage was billed to their key's account or, for a key that names none, to no account at all.
