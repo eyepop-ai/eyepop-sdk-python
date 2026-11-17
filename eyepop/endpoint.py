@@ -222,7 +222,8 @@ class Endpoint(ClientSession):
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 }
-                async with self.client_session.post(authenticate_url, headers=api_auth_header) as response:
+                params = {'account_uuid': self.compute_ctx.account_uuid} if self.compute_ctx.account_uuid else None
+                async with self.client_session.post(authenticate_url, headers=api_auth_header, params=params) as response:
                     log.debug(f"POST /v1/auth/authenticate - status: {response.status}")
                     response_json = await response.json()
                     self.compute_ctx.m2m_access_token = response_json['access_token']

@@ -41,6 +41,22 @@ async def test_refresh_compute_token_success(aioresponses, mock_compute_context)
 
 
 @pytest.mark.asyncio
+async def test_refresh_compute_token_names_the_chosen_account(aioresponses, mock_compute_context):
+    """The account the caller chose is sent, so the token (and its billing) is for that account."""
+    mock_compute_context.account_uuid = "account-b"
+    aioresponses.post(
+        "https://compute.staging.eyepop.xyz/v1/auth/authenticate?account_uuid=account-b",
+        payload={"access_token": "token-for-b", "expires_at": "2025-10-18T12:00:00Z", "expires_in": 7200},
+        status=200
+    )
+
+    async with aiohttp.ClientSession() as session:
+        result = await refresh_compute_token(mock_compute_context, session)
+
+    assert result.m2m_access_token == "token-for-b"
+
+
+@pytest.mark.asyncio
 async def test_refresh_compute_token_missing_api_key():
     """Test token refresh fails when api_key is missing."""
     context = ComputeContext(

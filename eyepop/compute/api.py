@@ -248,9 +248,12 @@ async def refresh_compute_token(
     headers = {"Authorization": f"Bearer {compute_ctx.api_key}", "Accept": "application/json"}
 
     refresh_url = f"{compute_ctx.compute_url}/v1/auth/authenticate"
+    # The token's account is the one its usage is billed to; a key held by someone
+    # in several accounts names none, so the caller's chosen account must be sent.
+    params = {"account_uuid": compute_ctx.account_uuid} if compute_ctx.account_uuid else None
 
     try:
-        async with client_session.post(refresh_url, headers=headers) as response:
+        async with client_session.post(refresh_url, headers=headers, params=params) as response:
             response.raise_for_status()
             token_response = await response.json()
             log.debug(f"POST /v1/auth/authenticate - status: {response.status}")
