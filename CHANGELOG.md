@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.29.2] - 2026-11-19
+
 ### Changed
 
 - **Pipeline mode waits for capacity instead of failing.** A pipeline API at capacity refuses a new socket with HTTP 503 or 429 (a new GPU node takes minutes to arrive). The SDK waits the `Retry-After` seconds the answer names (at least 1, with 0 to 50 % more so that sockets do not retry in step, and a repeated one growing by half each time up to 10 s), else a jittered backoff of 1, 2, 4, 8 and 10 s, for up to `EYEPOP_PIPELINE_WAIT_TIMEOUT` seconds (`pipeline_wait_timeout` in `eyepop.settings.settings`; `0` does not wait). The first wait is logged at `WARNING` on `eyepop.requests`, each retry at `DEBUG`. What this changes for a caller:
