@@ -187,14 +187,24 @@ idle socket or a new one, which the 4 do not count, and no other job is sent on 
 one. `set_pop` sets the pop on every open socket.
 
 **Waiting for capacity.** A pipeline API with no capacity refuses a new socket with HTTP 503 (or
-429). A new GPU node takes minutes to arrive, so the SDK waits and asks again: it waits the
-`Retry-After` seconds the answer names (at least 1), else 1, 2, 4, 8 and then 10 s, each with jitter,
-for up to `EYEPOP_PIPELINE_WAIT_TIMEOUT` seconds (default 600, `pipeline_wait_timeout` in
-`eyepop.settings.settings`). It logs the wait once at `INFO` and each retry at `DEBUG` on
-`eyepop.requests`. After that it raises `PipelineOverloadedException`; `0` does not wait and raises at
-the first refusal. Any other refusal, such as a 401 (the API key is exchanged once more) or a 404,
+429). A new GPU node takes minutes to arrive, so the SDK waits and asks again, for up to
+`EYEPOP_PIPELINE_WAIT_TIMEOUT` seconds (default 600, `pipeline_wait_timeout` in
+`eyepop.settings.settings`; `0` does not wait). Each wait is the `Retry-After` the answer names (at
+least 1 s) with 0 to 50 % more, so that sockets do not retry in step; a `Retry-After` that repeats
+grows by half each time, up to 10 s (or itself, when it asks for more). Without `Retry-After` the
+waits are 1, 2, 4, 8 and then 10 s, each between half and all of it. The first wait is logged at
+`WARNING` on `eyepop.requests` (the status, its `Retry-After` and the time left), each retry at
+`DEBUG`. A wait that would pass the limit is not started and no try is sent before `Retry-After`
+passed: the SDK raises `PipelineOverloadedException` (a `PipelineCommandException`; tell it from a
+refused source with `isinstance`) with the refusal as `__cause__`. It is not an `aiohttp.ClientError`,
+so a caller that caught `aiohttp.ClientResponseError` for a 503 or 429 must catch it instead, also
+with `0`. Jobs queued behind a wait that gave up fail with it at once for the next 5 s, instead of
+starting a wait each. `disconnect()`, and the end of `async with`, end a wait at once with
+`PipelineSocketClosedException`. A wait holds the endpoint's send lock, so jobs submitted after it
+queue behind it. Any other refusal, such as a 401 (the API key is exchanged once more) or a 404,
 raises at once. This holds for `connect()` and for any job or reconnect that opens a socket, except
-the extra sockets of a batch, which the job does not wait for (see above).
+the extra sockets of a batch, which the job does not wait for (see above). A script or a test suite
+that should fail fast on a full pipeline API sets `EYEPOP_PIPELINE_WAIT_TIMEOUT=0` or a few seconds.
 
 | | Pipeline mode |
 |---|---|

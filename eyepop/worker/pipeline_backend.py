@@ -61,6 +61,15 @@ _EXTRA_SOCKET_RETRY_SECS = 10.0
 _AT_CAPACITY = (429, 503)
 # Without Retry-After the wait doubles from a second and stops growing here; each wait is jittered down by up to half.
 _MAX_BACKOFF_SECS = 10.0
+# A Retry-After that repeats grows by this factor per refusal, up to the larger of _MAX_BACKOFF_SECS and the
+# Retry-After itself, and gets up to this fraction more on top, so waiting sockets do not retry in step.
+_RETRY_AFTER_GROWTH = 1.5
+_RETRY_AFTER_JITTER = 0.5
+# The refusals counted for the growth, so that the power cannot overflow.
+_MAX_COUNTED_REFUSALS = 16
+# After a socket's wait gave up, a send that queued behind it fails at once with the same error for this long,
+# instead of starting a wait of its own.
+_GAVE_UP_MEMORY_SECS = 5.0
 # The upgrade's clock and sleep, so that a test need not wait minutes.
 _sleep = asyncio.sleep
 _monotonic = time.monotonic
@@ -201,6 +210,9 @@ class PipelineBackend(WorkerBackend):
         self._connect_lock = asyncio.Lock()
         self._reconnecting: asyncio.Task | None = None
         self._disconnecting = False
+        self._stopped = asyncio.Event()
+        # When and how the last wait for capacity gave up.
+        self._gave_up: tuple[float, PipelineOverloadedException] | None = None
         self._token: str | None = None
         self._token_expires = 0.0
         self._next_id = 0
@@ -222,11 +234,14 @@ class PipelineBackend(WorkerBackend):
 
     async def connect(self):
         self._disconnecting = False
+        self._stopped = asyncio.Event()
+        self._gave_up = None
         async with self._send_lock:
             await self._ensure_socket()
 
     async def disconnect(self, timeout: float | None = None):
         self._disconnecting = True
+        self._stopped.set()
         tasks = list(self.endpoint.tasks)
         try:
             if tasks:
@@ -283,7 +298,7 @@ class PipelineBackend(WorkerBackend):
             return min(sockets, key=lambda socket: (not socket.has_room, len(socket.held)))
 
     async def _open_socket(self, patient: bool) -> _Socket:
-        """A new socket with the last pop set on it; `patient` waits through 503 with Retry-After."""
+        """A new socket with the last pop set on it; `patient` waits through 503 and 429, up to `pipeline_wait_timeout`."""
         if self.endpoint.client_session is None:
             raise PipelineSocketClosedException(None, 'the endpoint is not connected')
         url = await self._socket_url()
@@ -346,17 +361,27 @@ class PipelineBackend(WorkerBackend):
     async def _upgrade(self, url: str, patient: bool = True) -> aiohttp.ClientWebSocketResponse:
         """Open the socket, and exchange the API key again after a 401.
 
-        A 503 or 429 means no capacity yet. When `patient` it is waited through, `Retry-After` seconds, else a
-        backoff, until `pipeline_wait_timeout`, then PipelineOverloadedException. Any other refusal raises.
+        A 503 or 429 means no capacity yet. When `patient` it is waited through, `Retry-After` seconds (else a
+        backoff, see `_refusal_wait`), until `pipeline_wait_timeout` or until the next wait would pass it, then
+        PipelineOverloadedException. A wait that gave up lately fails a send queued behind it at once. Any other
+        refusal raises, and so does a disconnect, which also ends a wait.
         """
         client_session = self.endpoint.client_session
         assert client_session is not None
+        if patient and self._gave_up is not None and _monotonic() - self._gave_up[0] < _GAVE_UP_MEMORY_SECS:
+            earlier = self._gave_up[1]
+            raise PipelineOverloadedException(earlier.message, waited_secs=earlier.waited_secs) from earlier
         started = _monotonic()
         deadline = started + settings.pipeline_wait_timeout
-        rejected = False
+        force = False
+        exchanged = False
         refusals = 0
         while True:
-            token = await self._pipeline_token(force=rejected)
+            if self._disconnecting:
+                raise PipelineSocketClosedException(None, 'the endpoint is disconnecting')
+            # Only the try after a 401 exchanges the API key again, not each one after it.
+            token = await self._pipeline_token(force=force)
+            force = False
             headers = {'Authorization': f'Bearer {token}'} if token is not None else {}
             try:
                 log_requests.debug('before upgrade %s', url)
@@ -368,28 +393,49 @@ class PipelineBackend(WorkerBackend):
                     max_msg_size=0,
                 )
             except aiohttp.ClientResponseError as e:
-                if (e.status == 401 and not rejected and self.endpoint.provided_access_token is None
+                if (e.status == 401 and not exchanged and self.endpoint.provided_access_token is None
                         and self._token is not None):
                     log_requests.debug('the pipeline API answered 401, exchanging the API key again')
-                    rejected = True
+                    exchanged = force = True
                     continue
                 if not patient or e.status not in _AT_CAPACITY:
                     raise
+                waited = _monotonic() - started
                 left = deadline - _monotonic()
-                if left <= 0:
-                    waited = _monotonic() - started
-                    raise PipelineOverloadedException(
-                        f'the pipeline API stayed at capacity for {waited:.0f} seconds (HTTP {e.status}); '
-                        f'the wait is limited by pipeline_wait_timeout ({settings.pipeline_wait_timeout:g} s)',
-                        waited_secs=waited) from e
-                wait = min(_refusal_wait(e.headers, refusals), left)
+                wait = _refusal_wait(e.headers, refusals)
+                if wait > left:
+                    # Not a try before the server said it is ready, and not a sleep to the end of the limit.
+                    limit = settings.pipeline_wait_timeout
+                    if waited < 0.5:
+                        message = (f'the pipeline API is at capacity (HTTP {e.status}) and pipeline_wait_timeout '
+                                   f'({limit:g} s) leaves no time to wait for it')
+                    else:
+                        message = (f'the pipeline API stayed at capacity for {waited:.0f} seconds (HTTP {e.status}); '
+                                   f'the wait is limited by pipeline_wait_timeout ({limit:g} s)')
+                    refused = PipelineOverloadedException(message, waited_secs=waited)
+                    self._gave_up = (_monotonic(), refused)
+                    raise refused from e
                 if refusals == 0:
-                    log_requests.info('the pipeline API answered %d, it has no capacity: waiting up to %.0f s for it',
-                                      e.status, left)
+                    # Warning, not info: eyepop.requests shows nothing below it unless the level is DEBUG, and
+                    # a call that used to fail at once now waits.
+                    log_requests.warning(
+                        'the pipeline API answered %d (Retry-After %s), it has no capacity: waiting up to %.0f s for it',
+                        e.status, (e.headers or {}).get('Retry-After', 'none'), left)
                 log_requests.debug('the pipeline API answered %d, retrying in %.1f s (%.0f s left)',
                                    e.status, wait, left)
                 refusals += 1
-                await _sleep(wait)
+                await self._wait(wait)
+
+    async def _wait(self, seconds: float):
+        """Sleep, or return early when the endpoint disconnects."""
+        sleeper = asyncio.ensure_future(_sleep(seconds))
+        stopper = asyncio.ensure_future(self._stopped.wait())
+        try:
+            await asyncio.wait({sleeper, stopper}, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            for task in (sleeper, stopper):
+                task.cancel()
+            await asyncio.gather(sleeper, stopper, return_exceptions=True)
 
     async def _read(self, socket: _Socket):
         code: int | None = None
@@ -855,11 +901,17 @@ def _is_loopback(host: str) -> bool:
 
 
 def _refusal_wait(headers: Mapping[str, str] | None, refusals: int) -> float:
-    """Seconds to wait after the `refusals`th refusal: its Retry-After, else a jittered backoff of 1, 2, 4, 8, 10 s."""
-    wait = _retry_after(headers)
-    if wait is not None:
-        return wait
-    return min(2.0 ** refusals, _MAX_BACKOFF_SECS) * random.uniform(0.5, 1.0)
+    """Seconds to wait after the `refusals`th refusal (0 for the first).
+
+    With a Retry-After: it, at least 1, grown by 1.5 for each earlier refusal up to the larger of 10 and itself,
+    and 0 to 50 % more, never less than it asked. Without: 1, 2, 4, 8, 10 s, each between half and all of it.
+    """
+    refusals = min(refusals, _MAX_COUNTED_REFUSALS)
+    asked = _retry_after(headers)
+    if asked is None:
+        return min(2.0 ** refusals, _MAX_BACKOFF_SECS) * random.uniform(0.5, 1.0)
+    base = min(asked * _RETRY_AFTER_GROWTH ** refusals, max(asked, _MAX_BACKOFF_SECS))
+    return base * random.uniform(1.0, 1.0 + _RETRY_AFTER_JITTER)
 
 
 def _retry_after(headers: Mapping[str, str] | None) -> float | None:
