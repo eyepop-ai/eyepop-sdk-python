@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Pipeline mode waits for capacity instead of failing.** A pipeline API at capacity refuses a new socket with HTTP 503 or 429 (a new GPU node takes minutes to arrive). The SDK now waits the `Retry-After` seconds the answer names, else a jittered backoff of 1, 2, 4, 8 and 10 s, and asks again, for up to `EYEPOP_PIPELINE_WAIT_TIMEOUT` seconds (`pipeline_wait_timeout` in `eyepop.settings.settings`, default 600; `0` does not wait). Before, it waited only through a 503 that carried `Retry-After`, for at most 30 s (`max_retry_time_secs`), and raised `aiohttp.ClientResponseError` otherwise; a 429 was not retried. The wait is logged once at `INFO` and each retry at `DEBUG` on `eyepop.requests`. Any other status, and a 401's one new API key exchange, are unchanged.
+- **`PipelineOverloadedException`**, a `PipelineCommandException` with `error == 'overloaded'`. It is raised when a socket stayed refused for the whole wait (`waited_secs` says how long) and when a live source is refused `overloaded` twice, which raised a plain `PipelineCommandException` before; code that catches that still works.
+
 ## [3.29.1] - 2026-11-17
 
 ### Fixed

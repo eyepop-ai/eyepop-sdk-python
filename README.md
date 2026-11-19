@@ -186,6 +186,16 @@ only 10 s later. A live source never ends, so nothing queued behind it would pla
 idle socket or a new one, which the 4 do not count, and no other job is sent on a socket that has
 one. `set_pop` sets the pop on every open socket.
 
+**Waiting for capacity.** A pipeline API with no capacity refuses a new socket with HTTP 503 (or
+429). A new GPU node takes minutes to arrive, so the SDK waits and asks again: it waits the
+`Retry-After` seconds the answer names (at least 1), else 1, 2, 4, 8 and then 10 s, each with jitter,
+for up to `EYEPOP_PIPELINE_WAIT_TIMEOUT` seconds (default 600, `pipeline_wait_timeout` in
+`eyepop.settings.settings`). It logs the wait once at `INFO` and each retry at `DEBUG` on
+`eyepop.requests`. After that it raises `PipelineOverloadedException`; `0` does not wait and raises at
+the first refusal. Any other refusal, such as a 401 (the API key is exchanged once more) or a 404,
+raises at once. This holds for `connect()` and for any job or reconnect that opens a socket, except
+the extra sockets of a batch, which the job does not wait for (see above).
+
 | | Pipeline mode |
 |---|---|
 | `upload`, `upload_group` | Files up to 8 MiB go in one message (`EYEPOP_COMBINED_UPLOAD_MAX_BYTES`), larger ones in chunks. |
@@ -213,9 +223,11 @@ raises only when none of them is open. When the socket closes under a job, the j
 yet sent go out on a new socket. After the pipeline stops itself when idle, the next job opens a
 new socket and sets the pop again; after `credential_expired`, `overloaded` or `shutting_down`, a
 new socket is opened at once. A live source refused `overloaded` is sent once more on the new
-socket. Cancelling a job stops its source on the pipeline with `stopSource`, queued or playing, so a
-cancelled live source frees its place; a pipeline API from before `stopSource` lets the source run
-until it ends or the endpoint disconnects.
+socket, and when that one is refused too, raises `PipelineOverloadedException` (a
+`PipelineCommandException`, as is the one a socket that stayed refused raises above); the SDK does
+not send it a third time. Cancelling a job stops its source on the pipeline with `stopSource`, queued
+or playing, so a cancelled live source frees its place; a pipeline API from before `stopSource` lets
+the source run until it ends or the endpoint disconnects.
 
 ## Composable Pops
 
