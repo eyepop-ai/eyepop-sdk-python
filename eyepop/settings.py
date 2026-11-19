@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     # Pipeline mode: the most sockets an endpoint opens. Each runs its own pipeline, which plays its
     # sources one after another; a new one opens only while every open one has a source.
     pipeline_sockets: int = 4
+    # Pipeline mode: how long a refused socket (HTTP 503 or 429) is retried, honouring Retry-After, before
+    # PipelineOverloadedException. A new GPU node takes minutes to arrive. 0 does not wait.
+    pipeline_wait_timeout: float = 600.0
 
 
 settings = Settings()

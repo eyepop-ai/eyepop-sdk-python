@@ -28,6 +28,7 @@ If your backend already holds a short-lived token, pass it as `access_token=` in
 | `EYEPOP_SESSION_UUID` | Attach to a persistent Deployment instead of creating a transient session. |
 | `EYEPOP_ACCOUNT_UUID` | The account to work in. Required for some Data API calls, and names the account a worker's compute session runs for when the API key does not (same as `account_id=`). `EYEPOP_ACCOUNT_ID` is still read when this is unset, with a `DeprecationWarning`. |
 | `EYEPOP_URL` | Override the API base URL. |
+| `EYEPOP_PIPELINE_WAIT_TIMEOUT` | Pipeline mode: how many seconds a refused socket (HTTP 503 or 429 from a pipeline API at capacity) is retried, waiting the `Retry-After` it names plus jitter, before `PipelineOverloadedException`. Defaults to 600; `0` does not wait. The first wait is logged at `WARNING`. A script or test suite that should fail fast sets `0` or a few seconds. |
 | `EYEPOP_LOG_LEVEL` | Log verbosity for the `eyepop` logger tree. Unset, the SDK installs no handler of its own and its records fall through to your application's logging configuration. `eyepop.requests` stays at `WARNING` unless the level is `DEBUG`; `LOG_LEVEL` is accepted as a fallback. |
 
 ### Transient and persistent sessions

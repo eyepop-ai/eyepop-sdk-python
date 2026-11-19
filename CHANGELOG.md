@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Pipeline mode waits for capacity instead of failing.** A pipeline API at capacity refuses a new socket with HTTP 503 or 429 (a new GPU node takes minutes to arrive). The SDK waits the `Retry-After` seconds the answer names (at least 1, with 0 to 50 % more so that sockets do not retry in step, and a repeated one growing by half each time up to 10 s), else a jittered backoff of 1, 2, 4, 8 and 10 s, for up to `EYEPOP_PIPELINE_WAIT_TIMEOUT` seconds (`pipeline_wait_timeout` in `eyepop.settings.settings`; `0` does not wait). The first wait is logged at `WARNING` on `eyepop.requests`, each retry at `DEBUG`. What this changes for a caller:
+  - The default wait for a refused socket goes from 30 s (`max_retry_time_secs`, for a 503 with `Retry-After` only) to 600 s. A script or a test suite that should fail fast sets `EYEPOP_PIPELINE_WAIT_TIMEOUT=0` or a few seconds.
+  - A 429 is retried too, and a 503 without `Retry-After`; before, both raised at once.
+  - A socket that stayed refused raises `PipelineOverloadedException`, not `aiohttp.ClientResponseError`. It is not an `aiohttp.ClientError`, so `except aiohttp.ClientResponseError` and `.status` checks for 429 or 503 miss it, also with the option at `0`; the refusal is its `__cause__`.
+  - `disconnect()` and the end of `async with` end a wait at once with `PipelineSocketClosedException`, and cancelling a job ends its own wait and lets go of the send lock. Jobs queued behind a wait that gave up fail with the same error (and its own `waited_secs`, 0 when that wait did not wait) at once, instead of one wait each. A queue of any length fails at once, since only the sends already queued when the wait gave up fail with it; a job submitted after the give-up tries and waits for itself, since capacity may be back; a socket that opens, `connect()` and `disconnect()` clear it.
+  - A 401 still exchanges the API key once more, now only for the next try. Any other status still raises at once.
+
+### Added
+
+- **`PipelineOverloadedException`**, a `PipelineCommandException` with `error == 'overloaded'` and `waited_secs`. It is raised for a socket that stayed refused, and when a live source is refused `overloaded` twice, which raised a plain `PipelineCommandException` before; code that catches that still works, and now also catches the refused socket. Tell them apart with `isinstance(e, PipelineOverloadedException)` and `waited_secs`.
+
 ## [3.29.1] - 2026-11-17
 
 ### Fixed

@@ -58,6 +58,21 @@ class PipelineCommandException(Exception):
         super().__init__(f'the pipeline API refused the command: {error} {message}'.rstrip())
 
 
+class PipelineOverloadedException(PipelineCommandException):
+    """Thrown when the pipeline API had no capacity for what the caller asked.
+
+    That is a live source refused `overloaded` twice, or a socket refused (HTTP 503 or 429) for
+    up to `pipeline_wait_timeout` seconds. `waited_secs` is how long the SDK waited for a socket before it
+    gave up; it is None for a source.
+    """
+    def __init__(self, message: str, waited_secs: float | None = None):
+        # The message is the whole text; the parent would prefix it with 'refused the command'.
+        Exception.__init__(self, message)
+        self.error = 'overloaded'
+        self.message = message
+        self.waited_secs = waited_secs
+
+
 class PipelineSourceException(ValueError):
     """Thrown when a source ended with reason `error` or `preempted` rather than at its end of stream."""
     def __init__(self, source_id: str, reason: str, message: str = ''):
