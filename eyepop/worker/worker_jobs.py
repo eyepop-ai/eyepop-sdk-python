@@ -123,18 +123,18 @@ class WorkerJob(Job):
                 return None
             else:
                 event = result.get('event', None)
-                if event is not None:
-                    if event == 'error':
-                        source_id = result.get('source_id', None)
-                        message = result.get('message', None)
-                        raise ValueError(f"Error in source {source_id}: {message}")
-                    type_ = event.get('type', None)
-                    if type_ == 'error':
-                        source_id = event.get('source_id', None)
-                        message = event.get('message', None)
-                        raise ValueError(f"Error in source {source_id}: {message}")
-                else:
+                if event is None:
                     return result
+                # An event is the pipeline's line, {"event": "<type>", ...}, or the
+                # instance's own, {"event": {"type": "<type>", ...}}. Only an error ends
+                # the stream; any other event, including a type added after this SDK
+                # (such as "warning"), is skipped.
+                details = event if isinstance(event, dict) else result
+                type_ = event.get('type', None) if isinstance(event, dict) else event
+                if type_ == 'error':
+                    source_id = details.get('source_id', None)
+                    message = details.get('message', None)
+                    raise ValueError(f"Error in source {source_id}: {message}")
 
     def set_response(self, response: Any):
         """The response a backend reads predictions from; cancel() closes it."""

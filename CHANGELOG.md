@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`PipelineOverloadedException`**, a `PipelineCommandException` with `error == 'overloaded'` and `waited_secs`. It is raised for a socket that stayed refused, and when a live source is refused `overloaded` twice, which raised a plain `PipelineCommandException` before; code that catches that still works, and now also catches the refused socket. Tell them apart with `isinstance(e, PipelineOverloadedException)` and `waited_secs`.
 
+### Fixed
+
+- `WorkerJob.predict()` on a worker session skips an event line it does not know instead of raising `AttributeError: 'str' object has no attribute 'get'`. A session forwards the pipeline's events as `{"event": "<type>", ...}`, and `predict()` handled that form only for `error`: a v4 source's `start`, `eos`, `usage`, or the `warning` that eyepop-worker v4.19.11 adds (a long gap between keyframes in a recorded camera), ended the caller's loop. Only an error ends it now, in either form. Pipeline mode was not affected (eyepop-instance#699).
+
 ## [3.29.1] - 2026-11-17
 
 ### Fixed
