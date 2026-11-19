@@ -67,18 +67,15 @@ _RETRY_AFTER_GROWTH = 1.5
 _RETRY_AFTER_JITTER = 0.5
 # The refusals counted for the growth, so that the power cannot overflow.
 _MAX_COUNTED_REFUSALS = 16
-# After a socket's wait gave up, a send that was already queued behind it fails at once with the same error,
-# instead of starting a wait of its own, so a queue of any length fails at once. A send submitted after the
-# give-up waits afresh: capacity may be back, and only a try can tell.
-
-
-class _WaitCancelled(Exception):
-    """The job that waited for a socket was cancelled."""
 # The upgrade's clock and sleep, so that a test need not wait minutes.
 _sleep = asyncio.sleep
 _monotonic = time.monotonic
 # What the socket's setSource does not take yet (AWSU-317).
 _NOT_SENT = ('media_cache_seconds',)
+
+
+class _WaitCancelled(Exception):
+    """The job that waited for a socket was cancelled."""
 
 
 class _UploadEnded(Exception):
@@ -215,7 +212,9 @@ class PipelineBackend(WorkerBackend):
         self._reconnecting: asyncio.Task | None = None
         self._disconnecting = False
         self._stopped = asyncio.Event()
-        # When and how the last wait for capacity gave up.
+        # When and how the last wait for capacity gave up. A send that was already queued behind it fails at once
+        # with the same error instead of starting a wait of its own, so a queue of any length fails at once; a send
+        # submitted after the give-up waits afresh: capacity may be back, and only a try can tell.
         self._gave_up: tuple[float, PipelineOverloadedException] | None = None
         # Set by a job's cancel, for the job whose wait for capacity it ends.
         self._cancel_events: dict[WorkerJob, asyncio.Event] = {}
@@ -308,7 +307,8 @@ class PipelineBackend(WorkerBackend):
     async def _open_socket(self, patient: bool, sending: tuple[float, WorkerJob] | None = None) -> _Socket:
         """A new socket with the last pop set on it; `patient` waits through 503 and 429, up to `pipeline_wait_timeout`.
 
-        `sending` is when the send that needs the socket was submitted, and its job."""
+        `sending` is when the send that needs the socket was submitted, and its job.
+        """
         if self.endpoint.client_session is None:
             raise PipelineSocketClosedException(None, 'the endpoint is not connected')
         url = await self._socket_url()
