@@ -388,3 +388,106 @@ async def test_the_reconnect_and_a_later_refusal_are_not_failed_by_a_given_up_wa
         assert await (await endpoint.load_from("https://images.example/c.jpg")).predict() == prediction(0)
     assert clock.sleeps == [3.0], "the refusal was waited through, not failed at once"
     assert len(pipeline.sockets) == 3
+
+
+async def give_up(endpoint: WorkerEndpoint, pipeline: FakePipelineAPI, retry_after: str = "40") -> PipelineOverloadedException:
+    """Close the endpoint's socket and refuse the next upgrade for longer than the limit, so a job gives up."""
+    pipeline.closes = {1: (1011, "pipeline_stopped")}
+    with pytest.raises(PipelineSocketClosedException):
+        await (await endpoint.load_from("https://images.example/first.jpg")).predict()
+    pipeline.upgrade_answers = [(503, {"Retry-After": retry_after})] * 5
+    with pytest.raises(PipelineOverloadedException) as refused:
+        await (await endpoint.load_from("https://images.example/gave-up.jpg")).predict()
+    return refused.value
+
+
+async def test_a_long_queue_of_jobs_a_round_trip_apart_all_fail_at_once(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, clock: Clock, monkeypatch: pytest.MonkeyPatch,
+        no_jitter: None):
+    monkeypatch.setattr(settings, "pipeline_wait_timeout", 10.0)
+    original = PipelineBackend._open_socket
+
+    async def two_seconds_each(self: PipelineBackend, patient: bool):
+        clock.now += 2.0  # what each send's own round trip takes
+        return await original(self, patient)
+
+    async with worker(compute) as endpoint:
+        pipeline.closes = {1: (1011, "pipeline_stopped")}
+        with pytest.raises(PipelineSocketClosedException):
+            await (await endpoint.load_from("https://images.example/first.jpg")).predict()
+        monkeypatch.setattr(PipelineBackend, "_open_socket", two_seconds_each)
+        pipeline.upgrade_answers = [(503, {"Retry-After": "1"})] * 1000
+        started = clock.now
+        jobs = [await endpoint.load_from(f"https://images.example/{n}.jpg") for n in range(5)]
+        outcomes = await asyncio.wait_for(
+            asyncio.gather(*(job.predict() for job in jobs), return_exceptions=True), 5)
+        tries = 1000 - len(pipeline.upgrade_answers)
+    assert all(isinstance(o, PipelineOverloadedException) for o in outcomes), outcomes
+    assert sum(clock.sleeps) <= 10.0, "one wait for the five jobs"
+    assert tries == len(clock.sleeps) + 1, "only the first job asked"
+    assert clock.now - started > 5.0, "the queue took longer than the old fixed window"
+
+
+async def test_a_job_after_thirty_quiet_seconds_waits_afresh_and_one_before_that_does_not(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, clock: Clock, monkeypatch: pytest.MonkeyPatch,
+        no_jitter: None):
+    monkeypatch.setattr(settings, "pipeline_wait_timeout", 30.0)
+    async with worker(compute) as endpoint:
+        await give_up(endpoint, pipeline)
+        for _ in range(3):
+            clock.now += 29.0  # each fail-fast renews the record, so the gaps add up to far more than 30 s
+            with pytest.raises(PipelineOverloadedException):
+                await (await endpoint.load_from("https://images.example/queued.jpg")).predict()
+        assert len(pipeline.upgrade_answers) == 4, "no try went out for the three"
+        clock.now += 31.0
+        pipeline.upgrade_answers = [(503, {"Retry-After": "3"})]
+        assert await (await endpoint.load_from("https://images.example/b.jpg")).predict() == prediction(0)
+    assert clock.sleeps == [3.0]
+
+
+async def test_connect_and_disconnect_each_clear_a_given_up_wait(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, clock: Clock):
+    async with worker(compute) as endpoint:
+        backend = endpoint.backend
+        assert isinstance(backend, PipelineBackend)
+        earlier = PipelineOverloadedException("earlier", waited_secs=1.0)
+        backend._gave_up = (clock.now, earlier)
+        await backend.connect()
+        assert backend._gave_up is None
+        backend._gave_up = (clock.now, earlier)
+        await backend.disconnect()
+        assert backend._gave_up is None
+
+
+async def test_a_fail_fast_reports_the_give_ups_own_wait_not_the_time_since(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, clock: Clock, monkeypatch: pytest.MonkeyPatch,
+        no_jitter: None):
+    monkeypatch.setattr(settings, "pipeline_wait_timeout", 20.0)
+    async with worker(compute) as endpoint:
+        first = await give_up(endpoint, pipeline, retry_after="8")  # waits 8 s, then 10 s would pass the limit
+        assert first.waited_secs == 18.0
+        pipeline.upgrade_answers = [(503, {"Retry-After": "8"})] * 5
+        clock.now += 25.0
+        with pytest.raises(PipelineOverloadedException) as again:
+            await (await endpoint.load_from("https://images.example/a.jpg")).predict()
+    assert again.value.waited_secs == 18.0
+    assert str(again.value) == str(first)
+    assert "3610" not in str(again.value)
+
+
+async def test_a_fail_fast_after_a_give_up_that_did_not_wait_reports_no_wait_and_a_late_job_its_own(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, clock: Clock):
+    async with worker(compute) as endpoint:
+        first = await give_up(endpoint, pipeline, retry_after="1e9")
+        assert first.waited_secs is not None and first.waited_secs < 0.5
+        clock.now += 20.0
+        with pytest.raises(PipelineOverloadedException) as again:
+            await (await endpoint.load_from("https://images.example/a.jpg")).predict()
+        assert again.value.waited_secs == first.waited_secs
+        assert "leaves no time to wait" in str(again.value)
+        # An hour later the record has lapsed: this job's own try is refused, and it reports its own wait.
+        clock.now += 3600.0
+        with pytest.raises(PipelineOverloadedException) as late:
+            await (await endpoint.load_from("https://images.example/b.jpg")).predict()
+        assert late.value.waited_secs is not None and late.value.waited_secs < 0.5
+        assert late.value is not again.value

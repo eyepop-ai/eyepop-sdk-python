@@ -67,9 +67,10 @@ _RETRY_AFTER_GROWTH = 1.5
 _RETRY_AFTER_JITTER = 0.5
 # The refusals counted for the growth, so that the power cannot overflow.
 _MAX_COUNTED_REFUSALS = 16
-# After a socket's wait gave up, a send that queued behind it fails at once with the same error for this long,
-# instead of starting a wait of its own.
-_GAVE_UP_MEMORY_SECS = 5.0
+# After a socket's wait gave up, a send that queued behind it fails at once with the same error, instead of
+# starting a wait of its own. Each such failure renews the record, so a queue of any length fails at once; it
+# lapses after this long with none, and a later send waits afresh.
+_GAVE_UP_QUIET_SECS = 30.0
 # The upgrade's clock and sleep, so that a test need not wait minutes.
 _sleep = asyncio.sleep
 _monotonic = time.monotonic
@@ -242,6 +243,7 @@ class PipelineBackend(WorkerBackend):
     async def disconnect(self, timeout: float | None = None):
         self._disconnecting = True
         self._stopped.set()
+        self._gave_up = None
         tasks = list(self.endpoint.tasks)
         try:
             if tasks:
@@ -363,13 +365,15 @@ class PipelineBackend(WorkerBackend):
 
         A 503 or 429 means no capacity yet. When `patient` it is waited through, `Retry-After` seconds (else a
         backoff, see `_refusal_wait`), until `pipeline_wait_timeout` or until the next wait would pass it, then
-        PipelineOverloadedException. A wait that gave up lately fails a send queued behind it at once. Any other
+        PipelineOverloadedException. A wait that gave up fails a send queued behind it at once, until 30 s pass with none. Any other
         refusal raises, and so does a disconnect, which also ends a wait.
         """
         client_session = self.endpoint.client_session
         assert client_session is not None
-        if patient and self._gave_up is not None and _monotonic() - self._gave_up[0] < _GAVE_UP_MEMORY_SECS:
+        if patient and self._gave_up is not None and _monotonic() - self._gave_up[0] < _GAVE_UP_QUIET_SECS:
             earlier = self._gave_up[1]
+            self._gave_up = (_monotonic(), earlier)
+            # The give-up's own error and wait (0 when it did not wait), not the time since it.
             raise PipelineOverloadedException(earlier.message, waited_secs=earlier.waited_secs) from earlier
         started = _monotonic()
         deadline = started + settings.pipeline_wait_timeout

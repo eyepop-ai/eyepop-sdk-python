@@ -198,11 +198,14 @@ waits are 1, 2, 4, 8 and then 10 s, each between half and all of it. The first w
 passed: the SDK raises `PipelineOverloadedException` (a `PipelineCommandException`; tell it from a
 refused source with `isinstance`) with the refusal as `__cause__`. It is not an `aiohttp.ClientError`,
 so a caller that caught `aiohttp.ClientResponseError` for a 503 or 429 must catch it instead, also
-with `0`. Jobs queued behind a wait that gave up fail with it at once for the next 5 s, instead of
-starting a wait each. Whatever `Retry-After` says, a wait that goes on settles at 10 to 15 s between
-tries, so a client may notice a new replica up to 15 s after it came up. `disconnect()`, and the end of `async with`, end a wait at once with
-`PipelineSocketClosedException`. A wait holds the endpoint's send lock, so jobs submitted after it
-queue behind it. Any other refusal, such as a 401 (the API key is exchanged once more) or a 404,
+with `0`. Jobs queued behind a wait that gave up fail with it at once, instead of starting a wait
+each: each such failure keeps the record for 30 s more, so a queue of any length fails at once, and
+a job submitted after 30 s without one waits afresh. A socket that opens, `connect()` and
+`disconnect()` clear the record. The error carries the give-up's own `waited_secs`, 0 when it did not
+wait. Whatever `Retry-After` says, a wait that goes on settles at 10 to 15 s between tries, so a
+client may notice a new replica up to 15 s after it came up. `disconnect()`, and the end of
+`async with`, end a wait at once with `PipelineSocketClosedException`. A wait holds the endpoint's
+send lock, so jobs submitted after it queue behind it. Any other refusal, such as a 401 (the API key is exchanged once more) or a 404,
 raises at once. This holds for `connect()` and for any job or reconnect that opens a socket, except
 the extra sockets of a batch, which the job does not wait for (see above). A script or a test suite
 that should fail fast on a full pipeline API sets `EYEPOP_PIPELINE_WAIT_TIMEOUT=0` or a few seconds.
