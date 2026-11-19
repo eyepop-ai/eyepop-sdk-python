@@ -14,7 +14,7 @@ from eyepop.exceptions import (
 )
 from eyepop.settings import Settings, settings
 from eyepop.worker import pipeline_backend
-from eyepop.worker.pipeline_backend import _refusal_wait
+from eyepop.worker.pipeline_backend import PipelineBackend, _refusal_wait
 from eyepop.worker.worker_endpoint import WorkerEndpoint
 from tests.worker.pipeline_fakes import FakeComputeAPI, FakePipelineAPI, prediction
 
@@ -351,3 +351,40 @@ async def test_disconnect_ends_a_wait_at_once(
         with pytest.raises(PipelineSocketClosedException, match="disconnecting"):
             await job.predict()
     assert len(pipeline.upgrade_answers) == 999, "no try after the disconnect"
+
+
+async def test_a_successful_upgrade_clears_a_given_up_wait(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, clock: Clock):
+    async with worker(compute) as endpoint:
+        backend = endpoint.backend
+        assert isinstance(backend, PipelineBackend)
+        backend._gave_up = (clock.now, PipelineOverloadedException("earlier", waited_secs=1.0))
+        ws = await backend._upgrade(await backend._socket_url(), patient=False)
+        await ws.close()
+        assert backend._gave_up is None
+
+
+async def test_the_reconnect_and_a_later_refusal_are_not_failed_by_a_given_up_wait(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, clock: Clock, monkeypatch: pytest.MonkeyPatch,
+        no_jitter: None):
+    monkeypatch.setattr(settings, "pipeline_wait_timeout", 30.0)
+    async with worker(compute) as endpoint:
+        backend = endpoint.backend
+        assert isinstance(backend, PipelineBackend)
+        pipeline.closes = {1: (1011, "pipeline_stopped")}
+        with pytest.raises(PipelineSocketClosedException):
+            await (await endpoint.load_from("https://images.example/first.jpg")).predict()
+        pipeline.upgrade_answers = [(503, {"Retry-After": "40"})]
+        with pytest.raises(PipelineOverloadedException):
+            await (await endpoint.load_from("https://images.example/a.jpg")).predict()
+        assert backend._gave_up is not None
+        # No time has passed, so the record is still inside its window.
+        await backend._reconnect_at_once()
+        assert len(pipeline.sockets) == 2 and backend._gave_up is None
+        pipeline.closes = {1: (1011, "pipeline_stopped")}
+        with pytest.raises(PipelineSocketClosedException):
+            await (await endpoint.load_from("https://images.example/b.jpg")).predict()
+        pipeline.upgrade_answers = [(503, {"Retry-After": "3"})]
+        assert await (await endpoint.load_from("https://images.example/c.jpg")).predict() == prediction(0)
+    assert clock.sleeps == [3.0], "the refusal was waited through, not failed at once"
+    assert len(pipeline.sockets) == 3

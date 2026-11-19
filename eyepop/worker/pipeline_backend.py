@@ -385,13 +385,16 @@ class PipelineBackend(WorkerBackend):
             headers = {'Authorization': f'Bearer {token}'} if token is not None else {}
             try:
                 log_requests.debug('before upgrade %s', url)
-                return await client_session.ws_connect(
+                ws = await client_session.ws_connect(
                     url,
                     protocols=(SUBPROTOCOL,),
                     headers=headers,
                     heartbeat=settings.pipeline_heartbeat_secs,
                     max_msg_size=0,
                 )
+                # Capacity came back: what an earlier wait gave up on is no longer true.
+                self._gave_up = None
+                return ws
             except aiohttp.ClientResponseError as e:
                 if (e.status == 401 and not exchanged and self.endpoint.provided_access_token is None
                         and self._token is not None):
@@ -485,6 +488,8 @@ class PipelineBackend(WorkerBackend):
         # long, so a pipeline API that keeps closing is not reconnected to in a loop.
         delay = 0.0 if self._reconnects == 0 else min(2.0 ** (self._reconnects - 1), _MAX_RECONNECT_DELAY_SECS)
         self._reconnects += 1
+        # The reconnect is a try of its own, not a send queued behind a wait that gave up.
+        self._gave_up = None
         try:
             if delay > 0:
                 log_requests.info('reopening the pipeline API socket in %.0f s', delay)

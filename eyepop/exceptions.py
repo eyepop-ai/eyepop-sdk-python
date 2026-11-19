@@ -62,7 +62,7 @@ class PipelineOverloadedException(PipelineCommandException):
     """Thrown when the pipeline API had no capacity for what the caller asked.
 
     That is a live source refused `overloaded` twice, or a socket refused (HTTP 503 or 429) for
-    `pipeline_wait_timeout` seconds. `waited_secs` is how long the SDK waited for a socket before it
+    up to `pipeline_wait_timeout` seconds. `waited_secs` is how long the SDK waited for a socket before it
     gave up; it is None for a source.
     """
     def __init__(self, message: str, waited_secs: float | None = None):

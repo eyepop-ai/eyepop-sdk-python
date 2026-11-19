@@ -199,7 +199,8 @@ passed: the SDK raises `PipelineOverloadedException` (a `PipelineCommandExceptio
 refused source with `isinstance`) with the refusal as `__cause__`. It is not an `aiohttp.ClientError`,
 so a caller that caught `aiohttp.ClientResponseError` for a 503 or 429 must catch it instead, also
 with `0`. Jobs queued behind a wait that gave up fail with it at once for the next 5 s, instead of
-starting a wait each. `disconnect()`, and the end of `async with`, end a wait at once with
+starting a wait each. Whatever `Retry-After` says, a wait that goes on settles at 10 to 15 s between
+tries, so a client may notice a new replica up to 15 s after it came up. `disconnect()`, and the end of `async with`, end a wait at once with
 `PipelineSocketClosedException`. A wait holds the endpoint's send lock, so jobs submitted after it
 queue behind it. Any other refusal, such as a 401 (the API key is exchanged once more) or a 404,
 raises at once. This holds for `connect()` and for any job or reconnect that opens a socket, except
