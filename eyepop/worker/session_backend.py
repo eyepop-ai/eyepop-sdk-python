@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import time
+import warnings
 from io import StringIO
 from typing import TYPE_CHECKING, Any, AsyncIterable, Callable
 from urllib.parse import urlencode, urljoin
@@ -579,6 +580,10 @@ class SessionBackend(WorkerBackend):
             query_params.update(source.motion_detect.model_dump(exclude_none=True))
         if source.media_cache_seconds is not None:
             query_params['mediaCacheSeconds'] = source.media_cache_seconds
+        if source.media_cache_reencode is not None:
+            # A session's upload routes take mediaCacheSeconds but not mediaCacheReencode.
+            warnings.warn('media_cache_reencode is not taken by a session for an upload, and has no effect; '
+                          'it applies to a url or an asset', UserWarning, stacklevel=2)
 
         # A single item with no extra parts can stream its raw body; anything
         # else (extra parts, or a multi-item image group) is sent as multipart.
@@ -710,6 +715,8 @@ def _url_body(source: WorkerSource) -> dict[str, Any]:
             body['camera'] = source.camera.model_dump(exclude_none=True)
         if source.media_cache_seconds is not None:
             body['mediaCacheSeconds'] = source.media_cache_seconds
+        if source.media_cache_reencode is not None:
+            body['mediaCacheReencode'] = source.media_cache_reencode
         if source.rtsp_force_non_compliant_url is not None:
             body['rtspForceNonCompliantUrl'] = source.rtsp_force_non_compliant_url
         return body
@@ -727,6 +734,8 @@ def _url_body(source: WorkerSource) -> dict[str, Any]:
         body['camera'] = source.camera.model_dump(exclude_none=True)
     if source.media_cache_seconds is not None:
         body['mediaCacheSeconds'] = source.media_cache_seconds
+    if source.media_cache_reencode is not None:
+        body['mediaCacheReencode'] = source.media_cache_reencode
     return body
 
 
@@ -746,4 +755,6 @@ def _asset_body(source: WorkerSource) -> dict[str, Any]:
         body['camera'] = source.camera.model_dump(exclude_none=True)
     if source.media_cache_seconds is not None:
         body['mediaCacheSeconds'] = source.media_cache_seconds
+    if source.media_cache_reencode is not None:
+        body['mediaCacheReencode'] = source.media_cache_reencode
     return body

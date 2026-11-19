@@ -291,7 +291,11 @@ class _Run:
             if id_ in self.stopped:
                 continue
             self.playing = id_
-            await self.send({"type": "start", "id": id_})
+            start = {"type": "start", "id": id_}
+            if (command.get("mediaCacheSeconds") or 0) > 0:
+                # as the pipeline API does for a source that records (spec 024): opaque to the client
+                start["mediaId"] = f"v1.media-of-{id_}"
+            await self.send(start)
             if command.get("live") or str(command.get("url", "")).startswith(("rtsp://", "rtmp://")):
                 n = 0
                 while not self.ws.closed and id_ not in self.stopped:

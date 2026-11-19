@@ -25,6 +25,11 @@ class SyncWorkerJob:
     def cancel(self):
         run_coro_thread_save(self.event_loop, self.job.cancel())
 
+    @property
+    def media_id(self) -> str | None:
+        """The recording's mediaId, once the source started; see WorkerJob.media_id."""
+        return self.job.media_id
+
 
 class SyncWorkerEndpoint(SyncEndpoint):
     def __init__(self, endpoint: "WorkerEndpoint"):
@@ -41,7 +46,9 @@ class SyncWorkerEndpoint(SyncEndpoint):
             camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
-            on_ready: typing.Callable[[WorkerJob], None] | None = None
+            on_ready: typing.Callable[[WorkerJob], None] | None = None,
+            *,
+            media_cache_reencode: bool | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -57,6 +64,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
+            media_cache_reencode=media_cache_reencode,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
@@ -77,6 +85,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             # them, and `params` must keep its slot.
             *,
             is_live: bool | None = None,
+            media_cache_reencode: bool | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -93,6 +102,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
+            media_cache_reencode=media_cache_reencode,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
@@ -105,7 +115,9 @@ class SyncWorkerEndpoint(SyncEndpoint):
             roi: Area | None = None,
             camera: Camera | None = None,
             media_cache_seconds: int | None = None,
-            on_ready: typing.Callable[[WorkerJob], None] | None = None
+            on_ready: typing.Callable[[WorkerJob], None] | None = None,
+            *,
+            media_cache_reencode: bool | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -118,6 +130,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             roi=roi,
             camera=camera,
             media_cache_seconds=media_cache_seconds,
+            media_cache_reencode=media_cache_reencode,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
@@ -129,7 +142,9 @@ class SyncWorkerEndpoint(SyncEndpoint):
             roi: Area | None = None,
             camera: Camera | None = None,
             media_cache_seconds: int | None = None,
-            on_ready: typing.Callable[[WorkerJob], None] | None = None
+            on_ready: typing.Callable[[WorkerJob], None] | None = None,
+            *,
+            media_cache_reencode: bool | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -141,6 +156,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             roi=roi,
             camera=camera,
             media_cache_seconds=media_cache_seconds,
+            media_cache_reencode=media_cache_reencode,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
@@ -155,7 +171,9 @@ class SyncWorkerEndpoint(SyncEndpoint):
             fps: str | None = None,
             media_cache_seconds: int | None = None,
             rtsp_force_non_compliant_url: bool | None = None,
-            on_ready: typing.Callable[[WorkerJob], None] | None = None
+            on_ready: typing.Callable[[WorkerJob], None] | None = None,
+            *,
+            media_cache_reencode: bool | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -169,6 +187,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
+            media_cache_reencode=media_cache_reencode,
             rtsp_force_non_compliant_url=rtsp_force_non_compliant_url,
             on_ready=None
         ))
@@ -181,7 +200,9 @@ class SyncWorkerEndpoint(SyncEndpoint):
             roi: Area | None = None,
             camera: Camera | None = None,
             media_cache_seconds: int | None = None,
-            on_ready: typing.Callable[[WorkerJob], None] | None = None
+            on_ready: typing.Callable[[WorkerJob], None] | None = None,
+            *,
+            media_cache_reencode: bool | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -193,6 +214,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             roi=roi,
             camera=camera,
             media_cache_seconds=media_cache_seconds,
+            media_cache_reencode=media_cache_reencode,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
@@ -206,7 +228,9 @@ class SyncWorkerEndpoint(SyncEndpoint):
             camera: Camera | None = None,
             fps: str | None = None,
             media_cache_seconds: int | None = None,
-            on_ready: typing.Callable[[WorkerJob], None] | None = None
+            on_ready: typing.Callable[[WorkerJob], None] | None = None,
+            *,
+            media_cache_reencode: bool | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -220,6 +244,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             camera=camera,
             fps=fps,
             media_cache_seconds=media_cache_seconds,
+            media_cache_reencode=media_cache_reencode,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)

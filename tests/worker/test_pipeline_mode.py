@@ -152,16 +152,35 @@ async def test_local_mode_takes_eyepop_url_as_the_pipeline_api(pipeline: FakePip
 # 2. Source options
 
 
-async def test_an_option_not_sent_warns_once_per_endpoint_naming_awsu_317(compute: FakeComputeAPI,
-                                                                         pipeline: FakePipelineAPI):
+async def test_a_recording_is_sent_and_its_job_gets_the_media_id(compute: FakeComputeAPI,
+                                                                  pipeline: FakePipelineAPI):
+    # media_cache_seconds and media_cache_reencode are sent as the instance's names, without a
+    # warning, and the job keeps the mediaId its start carries (spec 024)
     async with worker(compute) as endpoint:
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            for _ in range(2):
-                await predictions(await endpoint.load_from("https://images.example/a.jpg", media_cache_seconds=10))
-    assert [str(w.message) for w in caught] == [
-        "media_cache_seconds is not sent to the pipeline API and has no effect in pipeline mode (AWSU-317)"]
-    assert all("mediaCacheSeconds" not in source for source in pipeline.sockets[0].sources)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            recorded = await endpoint.load_from("https://images.example/a.jpg", media_cache_seconds=600,
+                                                media_cache_reencode=True)
+            await predictions(recorded)
+            plain = await endpoint.load_from("https://images.example/b.jpg")
+            await predictions(plain)
+    sources = pipeline.sockets[0].sources
+    assert sources[0]["mediaCacheSeconds"] == 600
+    assert sources[0]["mediaCacheReencode"] is True
+    assert "mediaCacheSeconds" not in sources[1] and "mediaCacheReencode" not in sources[1]
+    assert recorded.media_id is not None and recorded.media_id.startswith("v1.")
+    assert plain.media_id is None
+
+
+async def test_a_group_is_not_recorded_in_pipeline_mode(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+    # the pipeline API refuses a group with either option, since a group is still images
+    async with worker(compute) as endpoint:
+        with pytest.raises(ValueError, match="group"):
+            await endpoint.load_from_group(["https://images.example/a.jpg", "https://images.example/b.jpg"],
+                                           media_cache_seconds=60)
+        with pytest.raises(ValueError, match="group"):
+            await endpoint.load_from_group(["https://images.example/a.jpg", "https://images.example/b.jpg"],
+                                           media_cache_reencode=True)
 
 
 async def test_motion_detection_is_sent_with_the_set_source(compute: FakeComputeAPI, pipeline: FakePipelineAPI,

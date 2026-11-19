@@ -81,6 +81,7 @@ class WorkerSource:
     fps: str | None = None
     camera: Camera | None = None
     media_cache_seconds: int | None = None
+    media_cache_reencode: bool | None = None
     rtsp_force_non_compliant_url: bool | None = None
     version: PredictionVersion = DEFAULT_PREDICTION_VERSION
 
@@ -107,6 +108,10 @@ class WorkerJob(Job):
         """What the source's remote calls (a VLM ability's calls to vlm-server) used so far, in milli compute
         units, in pipeline mode: the running total while the source runs, its total once it ended. None until the
         pipeline API reports any; a local model reports none. Informational: the called API bills its calls."""
+        self.media_id: str | None = None
+        """The recording's mediaId in pipeline mode, once a source that records to the media cache
+        (`media_cache_seconds`) has started: an opaque string to pass back unchanged to read the recording.
+        None until then, for a source that does not record, and on a session."""
 
     @property
     def cancelled(self) -> bool:
