@@ -378,7 +378,6 @@ async def test_the_reconnect_and_a_later_refusal_are_not_failed_by_a_given_up_wa
         with pytest.raises(PipelineOverloadedException):
             await (await endpoint.load_from("https://images.example/a.jpg")).predict()
         assert backend._gave_up is not None
-        # No time has passed, so the record is still inside its window.
         await backend._reconnect_at_once()
         assert len(pipeline.sockets) == 2 and backend._gave_up is None
         pipeline.closes = {1: (1011, "pipeline_stopped")}
@@ -407,9 +406,9 @@ async def test_a_long_queue_of_jobs_a_round_trip_apart_all_fail_at_once(
     monkeypatch.setattr(settings, "pipeline_wait_timeout", 10.0)
     original = PipelineBackend._open_socket
 
-    async def two_seconds_each(self: PipelineBackend, patient: bool):
+    async def two_seconds_each(self: PipelineBackend, patient: bool, sending=None):
         clock.now += 2.0  # what each send's own round trip takes
-        return await original(self, patient)
+        return await original(self, patient, sending)
 
     async with worker(compute) as endpoint:
         pipeline.closes = {1: (1011, "pipeline_stopped")}
@@ -428,21 +427,67 @@ async def test_a_long_queue_of_jobs_a_round_trip_apart_all_fail_at_once(
     assert clock.now - started > 5.0, "the queue took longer than the old fixed window"
 
 
-async def test_a_job_after_thirty_quiet_seconds_waits_afresh_and_one_before_that_does_not(
+async def test_a_job_submitted_after_a_give_up_tries_for_itself_however_soon_it_comes(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, clock: Clock, monkeypatch: pytest.MonkeyPatch,
+        no_jitter: None):
+    # A caller that submits a job every 20 s must reach the pipeline API again once capacity is back
+    monkeypatch.setattr(settings, "pipeline_wait_timeout", 30.0)
+    async with worker(compute) as endpoint:
+        await give_up(endpoint, pipeline)
+        for _ in range(3):
+            clock.now += 20.0
+            pipeline.upgrade_answers = [(503, {"Retry-After": "40"})]
+            with pytest.raises(PipelineOverloadedException):
+                await (await endpoint.load_from("https://images.example/later.jpg")).predict()
+            assert pipeline.upgrade_answers == [], "each job's own try went out"
+        clock.now += 20.0
+        pipeline.upgrade_answers = []
+        assert await (await endpoint.load_from("https://images.example/b.jpg")).predict() == prediction(0)
+    assert len(pipeline.sockets) == 2
+
+
+async def test_a_job_submitted_after_a_give_up_waits_a_wait_of_its_own(
         compute: FakeComputeAPI, pipeline: FakePipelineAPI, clock: Clock, monkeypatch: pytest.MonkeyPatch,
         no_jitter: None):
     monkeypatch.setattr(settings, "pipeline_wait_timeout", 30.0)
     async with worker(compute) as endpoint:
         await give_up(endpoint, pipeline)
-        for _ in range(3):
-            clock.now += 29.0  # each fail-fast renews the record, so the gaps add up to far more than 30 s
-            with pytest.raises(PipelineOverloadedException):
-                await (await endpoint.load_from("https://images.example/queued.jpg")).predict()
-        assert len(pipeline.upgrade_answers) == 4, "no try went out for the three"
-        clock.now += 31.0
+        clock.now += 1.0
         pipeline.upgrade_answers = [(503, {"Retry-After": "3"})]
         assert await (await endpoint.load_from("https://images.example/b.jpg")).predict() == prediction(0)
-    assert clock.sleeps == [3.0]
+    assert clock.sleeps[-1] == 3.0
+
+
+async def test_cancelling_a_job_ends_its_wait_and_lets_go_of_the_send_lock(
+        compute: FakeComputeAPI, pipeline: FakePipelineAPI, monkeypatch: pytest.MonkeyPatch):
+    async def never(seconds: float) -> None:
+        await asyncio.Event().wait()
+
+    async with worker(compute) as endpoint:
+        backend = endpoint.backend
+        assert isinstance(backend, PipelineBackend)
+        pipeline.closes = {1: (1011, "pipeline_stopped")}
+        with pytest.raises(PipelineSocketClosedException):
+            await (await endpoint.load_from("https://images.example/first.jpg")).predict()
+        monkeypatch.setattr(pipeline_backend, "_sleep", never)
+        pipeline.upgrade_answers = [(503, {"Retry-After": "1"})] * 1000
+        job = await endpoint.load_from("https://images.example/a.jpg")
+        for _ in range(200):
+            if len(pipeline.upgrade_answers) < 1000:
+                break
+            await asyncio.sleep(0.01)
+        assert len(pipeline.upgrade_answers) == 999, "the job is waiting for capacity"
+        assert backend._send_lock.locked()
+
+        await asyncio.wait_for(job.cancel(), 5)
+
+        for _ in range(200):
+            if not backend._send_lock.locked():
+                break
+            await asyncio.sleep(0.01)
+        assert not backend._send_lock.locked(), "the cancelled job let go of the send lock"
+        assert len(pipeline.upgrade_answers) == 999, "no try after the cancel"
+        assert not backend._cancel_events
 
 
 async def test_connect_and_disconnect_each_clear_a_given_up_wait(
@@ -464,30 +509,37 @@ async def test_a_fail_fast_reports_the_give_ups_own_wait_not_the_time_since(
         no_jitter: None):
     monkeypatch.setattr(settings, "pipeline_wait_timeout", 20.0)
     async with worker(compute) as endpoint:
-        first = await give_up(endpoint, pipeline, retry_after="8")  # waits 8 s, then 10 s would pass the limit
-        assert first.waited_secs == 18.0
-        pipeline.upgrade_answers = [(503, {"Retry-After": "8"})] * 5
-        clock.now += 25.0
-        with pytest.raises(PipelineOverloadedException) as again:
-            await (await endpoint.load_from("https://images.example/a.jpg")).predict()
-    assert again.value.waited_secs == 18.0
-    assert str(again.value) == str(first)
-    assert "3610" not in str(again.value)
+        pipeline.closes = {1: (1011, "pipeline_stopped")}
+        with pytest.raises(PipelineSocketClosedException):
+            await (await endpoint.load_from("https://images.example/first.jpg")).predict()
+        pipeline.upgrade_answers = [(503, {"Retry-After": "8"})] * 1000  # waits 8 s, then 10 s would pass the limit
+        jobs = [await endpoint.load_from(f"https://images.example/{n}.jpg") for n in range(2)]
+        gave_up, queued = await asyncio.wait_for(
+            asyncio.gather(*(job.predict() for job in jobs), return_exceptions=True), 5)
+    assert isinstance(gave_up, PipelineOverloadedException) and isinstance(queued, PipelineOverloadedException)
+    assert gave_up.waited_secs == 18.0
+    assert queued.waited_secs == 18.0
+    assert str(queued) == str(gave_up)
 
 
 async def test_a_fail_fast_after_a_give_up_that_did_not_wait_reports_no_wait_and_a_late_job_its_own(
         compute: FakeComputeAPI, pipeline: FakePipelineAPI, clock: Clock):
     async with worker(compute) as endpoint:
-        first = await give_up(endpoint, pipeline, retry_after="1e9")
-        assert first.waited_secs is not None and first.waited_secs < 0.5
-        clock.now += 20.0
-        with pytest.raises(PipelineOverloadedException) as again:
-            await (await endpoint.load_from("https://images.example/a.jpg")).predict()
-        assert again.value.waited_secs == first.waited_secs
-        assert "leaves no time to wait" in str(again.value)
-        # An hour later the record has lapsed: this job's own try is refused, and it reports its own wait.
+        pipeline.closes = {1: (1011, "pipeline_stopped")}
+        with pytest.raises(PipelineSocketClosedException):
+            await (await endpoint.load_from("https://images.example/first.jpg")).predict()
+        pipeline.upgrade_answers = [(503, {"Retry-After": "1e9"})] * 1000
+        jobs = [await endpoint.load_from(f"https://images.example/{n}.jpg") for n in range(2)]
+        first, queued = await asyncio.wait_for(
+            asyncio.gather(*(job.predict() for job in jobs), return_exceptions=True), 5)
+        assert isinstance(first, PipelineOverloadedException) and first.waited_secs is not None
+        assert first.waited_secs < 0.5
+        assert isinstance(queued, PipelineOverloadedException)
+        assert queued.waited_secs == first.waited_secs
+        assert "leaves no time to wait" in str(queued)
+        # A job submitted later tries for itself, is refused, and reports its own wait.
         clock.now += 3600.0
         with pytest.raises(PipelineOverloadedException) as late:
             await (await endpoint.load_from("https://images.example/b.jpg")).predict()
         assert late.value.waited_secs is not None and late.value.waited_secs < 0.5
-        assert late.value is not again.value
+        assert late.value is not queued
