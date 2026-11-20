@@ -1045,7 +1045,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, WorldPointColle
                     if (world := summarize_world_coordinates(result)) is not None:
                         print(world)
             if args.visualize:
-                async with EyePopSdk.dataEndpoint(is_async=True) as dataEndpoint:
+                async with EyePopSdk.async_data() as dataEndpoint:
                     buffer = await dataEndpoint.download_asset(
                         args.asset_uuid,
                         transcode_mode=TranscodeMode.image_original_size

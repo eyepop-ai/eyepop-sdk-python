@@ -72,7 +72,7 @@ def main():
         domain=main_args.domain,
         audience=main_args.audience
     )
-    with EyePopSdk.dataEndpoint(access_token=access_token) as endpoint:
+    with EyePopSdk.sync_data(access_token=access_token) as endpoint:
         datasets = endpoint.list_datasets(account_uuid=main_args.account_uuid)
         print(TypeAdapter(Sequence[Dataset]).dump_json(datasets, indent=2))
 

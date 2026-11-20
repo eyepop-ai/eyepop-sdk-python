@@ -377,17 +377,16 @@ class EyePopSdk:
     """
 
     @staticmethod
-    def dataEndpoint(
+    def async_data(
         account_id: str | None = None,
         secret_key: str | None = None,
         access_token: str | None = None,
         api_key: str | None = None,
         eyepop_url: str | None = None,
         job_queue_length: int = 1024,
-        is_async: bool = False,
         request_tracer_max_buffer: int = 1204,
         disable_ws: bool = True,
-    ) -> DataEndpoint | SyncDataEndpoint:
+    ) -> DataEndpoint:
         if access_token is None and secret_key is None and api_key is None:
             secret_key = os.getenv("EYEPOP_SECRET_KEY")
             api_key = os.getenv("EYEPOP_API_KEY")
@@ -405,7 +404,7 @@ class EyePopSdk:
         if account_id is None:
             account_id = account_uuid_from_env()
 
-        endpoint = DataEndpoint(
+        return DataEndpoint(
             secret_key=secret_key,
             access_token=access_token,
             account_id=account_id,
@@ -416,10 +415,52 @@ class EyePopSdk:
             disable_ws=disable_ws,
         )
 
-        if not is_async:
-            return SyncDataEndpoint(endpoint)
+    @staticmethod
+    def sync_data(
+        account_id: str | None = None,
+        secret_key: str | None = None,
+        access_token: str | None = None,
+        api_key: str | None = None,
+        eyepop_url: str | None = None,
+        job_queue_length: int = 1024,
+        request_tracer_max_buffer: int = 1204,
+        disable_ws: bool = True,
+    ) -> SyncDataEndpoint:
+        return SyncDataEndpoint(EyePopSdk.async_data(
+            account_id=account_id,
+            secret_key=secret_key,
+            access_token=access_token,
+            api_key=api_key,
+            eyepop_url=eyepop_url,
+            job_queue_length=job_queue_length,
+            request_tracer_max_buffer=request_tracer_max_buffer,
+            disable_ws=disable_ws,
+        ))
 
-        return endpoint
+    @deprecated("use EyePopSdk.sync_data() or EyePopSdk.async_data() instead")
+    @staticmethod
+    def dataEndpoint(
+        account_id: str | None = None,
+        secret_key: str | None = None,
+        access_token: str | None = None,
+        api_key: str | None = None,
+        eyepop_url: str | None = None,
+        job_queue_length: int = 1024,
+        is_async: bool = False,
+        request_tracer_max_buffer: int = 1204,
+        disable_ws: bool = True,
+    ) -> DataEndpoint | SyncDataEndpoint:
+        endpoint = EyePopSdk.async_data(
+            account_id=account_id,
+            secret_key=secret_key,
+            access_token=access_token,
+            api_key=api_key,
+            eyepop_url=eyepop_url,
+            job_queue_length=job_queue_length,
+            request_tracer_max_buffer=request_tracer_max_buffer,
+            disable_ws=disable_ws,
+        )
+        return endpoint if is_async else SyncDataEndpoint(endpoint)
 
     from matplotlib.axes import Axes
     @staticmethod

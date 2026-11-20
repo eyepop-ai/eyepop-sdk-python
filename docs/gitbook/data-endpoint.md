@@ -12,7 +12,7 @@ import asyncio
 from eyepop import EyePopSdk
 
 async def main():
-    async with EyePopSdk.dataEndpoint(is_async=True) as endpoint:
+    async with EyePopSdk.async_data() as endpoint:
         datasets = await endpoint.list_datasets()
         print(datasets)
 
@@ -33,7 +33,7 @@ import asyncio
 from eyepop.data.data_types import InferRequest, TranscodeMode
 
 async def main():
-    async with EyePopSdk.dataEndpoint(is_async=True) as endpoint:
+    async with EyePopSdk.async_data() as endpoint:
         job = await endpoint.infer_asset(
             asset_uuid="your-asset-uuid",
             infer_request=InferRequest(text_prompt="Describe this image."),
@@ -58,7 +58,7 @@ request = EvaluateRequest(
 )
 
 async def main():
-    async with EyePopSdk.dataEndpoint(is_async=True, job_queue_length=4) as endpoint:
+    async with EyePopSdk.async_data(job_queue_length=4) as endpoint:
         job = await endpoint.evaluate_dataset(evaluate_request=request)
         response = await job.response
         print(response.model_dump_json(indent=2))

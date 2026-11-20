@@ -20,10 +20,9 @@ workflow = cast(click.Group, _workflow)
 def start_workflow(template_name: str, body: str | None) -> None:
     """Start a new workflow."""
     params = CreateWorkflowBody(**json.loads(body)) if body else None
-    with EyePopSdk.dataEndpoint(
+    with EyePopSdk.sync_data(
         account_id=os.getenv("EYEPOP_ACCOUNT_UUID"),
-        api_key=os.getenv("EYEPOP_API_KEY"),
-        is_async=False
+        api_key=os.getenv("EYEPOP_API_KEY")
     ) as data_endpoint:
         result = data_endpoint.start_workflow(
             template_name=template_name,
@@ -37,10 +36,9 @@ def start_workflow(template_name: str, body: str | None) -> None:
 @click.option('--phase', multiple=True, type=click.Choice([p.value for p in ArgoWorkflowPhase]), help='Workflow phase')
 def list_workflows(dataset_uuid: tuple[str, ...], model_uuid: tuple[str, ...], phase: tuple[str, ...]) -> None:
     """List workflows."""
-    with EyePopSdk.dataEndpoint(
+    with EyePopSdk.sync_data(
         account_id=os.getenv("EYEPOP_ACCOUNT_UUID"),
-        api_key=os.getenv("EYEPOP_API_KEY"),
-        is_async=False
+        api_key=os.getenv("EYEPOP_API_KEY")
     ) as data_endpoint:
         result = data_endpoint.list_workflows(
             dataset_uuid=list(dataset_uuid) if dataset_uuid else None,
@@ -54,10 +52,9 @@ def list_workflows(dataset_uuid: tuple[str, ...], model_uuid: tuple[str, ...], p
 @click.argument('workflow_id')
 def get_workflow(workflow_id: str) -> None:
     """Get workflow details by ID."""
-    with EyePopSdk.dataEndpoint(
+    with EyePopSdk.sync_data(
         account_id=os.getenv("EYEPOP_ACCOUNT_UUID"),
-        api_key=os.getenv("EYEPOP_API_KEY"),
-        is_async=False
+        api_key=os.getenv("EYEPOP_API_KEY")
     ) as data_endpoint:
         result = data_endpoint.get_workflow(workflow_id)
         click.echo(result)

@@ -1,19 +1,19 @@
+import datetime
 import json
 import unittest
-import datetime
 
 from aioresponses import aioresponses
 
 from eyepop import EyePopSdk
-from eyepop.data.data_types import DatasetCreate, Dataset, DatasetUpdate
+from eyepop.data.data_types import Dataset, DatasetCreate, DatasetUpdate
 from tests.data.base_endpoint_test import BaseEndpointTest
 
 
 class TestEndpointConnect(BaseEndpointTest):
 
     def test_missing_secret(self):
-        with self.assertRaises(Exception):
-            EyePopSdk.dataEndpoint()
+        with self.assertRaises(KeyError):
+            EyePopSdk.sync_data()
 
     @aioresponses()
     def test_crud_dataset(self, mock: aioresponses):
@@ -50,7 +50,7 @@ class TestEndpointConnect(BaseEndpointTest):
         ).model_dump_json())
         mock.delete(f'{self.test_data_url}/datasets/{self.test_dataset_id}', status=204)
 
-        with EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+        with EyePopSdk.sync_data(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                     account_id=self.test_eyepop_account_id) as endpoint:
             endpoint.connect()
             dataset = endpoint.create_dataset(DatasetCreate(

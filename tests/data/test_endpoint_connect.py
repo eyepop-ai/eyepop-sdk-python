@@ -1,7 +1,8 @@
 import json
 import unittest
+
 from aiohttp import ClientResponseError
-from aioresponses import aioresponses, CallbackResult
+from aioresponses import CallbackResult, aioresponses
 
 from eyepop import EyePopSdk
 from tests.data.base_endpoint_test import BaseEndpointTest
@@ -10,8 +11,8 @@ from tests.data.base_endpoint_test import BaseEndpointTest
 class TestEndpointConnect(BaseEndpointTest):
 
     def test_missing_secret(self):
-        with self.assertRaises(Exception):
-            EyePopSdk.dataEndpoint()
+        with self.assertRaises(KeyError):
+            EyePopSdk.sync_data()
 
     @aioresponses()
     def test_connect_ok(self, mock: aioresponses):
@@ -20,7 +21,7 @@ class TestEndpointConnect(BaseEndpointTest):
 
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=200, body=json.dumps(
             {'expires_in': 1000 * 1000, 'token_type': 'Bearer', 'access_token': self.test_access_token}))
-        endpoint = EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+        endpoint = EyePopSdk.sync_data(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                           account_id=self.test_eyepop_account_id)
         try:
             endpoint.connect()
@@ -35,7 +36,7 @@ class TestEndpointConnect(BaseEndpointTest):
 
         mock.post(f'{self.test_eyepop_url}/authentication/token', status=401, body="test unauthorized")
         # automatic call to get pop comp and store
-        endpoint = EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+        endpoint = EyePopSdk.sync_data(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                           account_id=self.test_eyepop_account_id)
         with self.assertRaises(ClientResponseError) as context:
             try:
@@ -65,7 +66,7 @@ class TestEndpointConnect(BaseEndpointTest):
 
         mock.post(f'{self.test_eyepop_url}/authentication/token', callback=first_auth)
         mock.post(f'{self.test_eyepop_url}/authentication/token', callback=second_auth)
-        endpoint = EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+        endpoint = EyePopSdk.sync_data(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                           account_id=self.test_eyepop_account_id)
         try:
             endpoint.connect()
@@ -94,7 +95,7 @@ class TestEndpointConnect(BaseEndpointTest):
             return result
 
         mock.post(f'{self.test_eyepop_url}/authentication/token', callback=auth, repeat=True)
-        endpoint = EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+        endpoint = EyePopSdk.sync_data(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                           account_id=self.test_eyepop_account_id)
         try:
             endpoint.connect()

@@ -67,7 +67,7 @@ async def test_transient_pop_load_from_url_async():
 
 @requires_api_key()
 def test_data_endpoint_connect():
-    with EyePopSdk.dataEndpoint() as endpoint:
+    with EyePopSdk.sync_data() as endpoint:
         session_info = endpoint.session()
         assert session_info is not None
 
@@ -75,6 +75,6 @@ def test_data_endpoint_connect():
 @requires_api_key()
 @pytest.mark.asyncio
 async def test_data_endpoint_connect_async():
-    async with EyePopSdk.dataEndpoint(is_async=True) as endpoint:
+    async with EyePopSdk.async_data() as endpoint:
         session_info = await endpoint.session()
         assert session_info is not None
