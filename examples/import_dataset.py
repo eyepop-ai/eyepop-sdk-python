@@ -2,7 +2,7 @@ import argparse
 import asyncio
 import logging
 import os
-from typing import Any, Callable
+from typing import Any
 from uuid import uuid4
 
 import aiohttp
@@ -28,7 +28,7 @@ logging.getLogger('eyepop.requests').setLevel(logging.DEBUG)
 
 log = logging.getLogger(__name__)
 
-class LocalAsset(Callable[[], Any]):
+class LocalAsset:
     def __init__(self, path: str) -> None:
         self.path = path
         self.file = None
@@ -120,13 +120,13 @@ main_args = parser.parse_args()
 
 async def main():
     async with EyePopSdk.async_data(job_queue_length=10) as endpoint:
+        if main_args.dataset_uuid is None:
+            dataset = await endpoint.create_dataset(DatasetCreate(name="test import dataset"))
+            log.debug("using newly created dataset: %s", dataset.uuid)
+        else:
+            dataset = await endpoint.get_dataset(main_args.dataset_uuid)
+            log.debug("using existing dataset: %s", dataset.uuid)
         try:
-            if main_args.dataset_uuid is None:
-                dataset = await endpoint.create_dataset(DatasetCreate(name="test import dataset"))
-                log.debug("using newly created dataset: %s", dataset.uuid)
-            else:
-                dataset = await endpoint.get_dataset(main_args.dataset_uuid)
-                log.debug("using existing dataset: %s", dataset.uuid)
             await import_assets(endpoint, dataset, main_args.assets_path)
 
             source = f"ep_evaluate:{uuid4().hex}"
