@@ -213,7 +213,7 @@ class TestVlmAbilityEndpoint(BaseEndpointTest):
         return json.loads(calls[0].kwargs["data"])
 
     def endpoint(self):
-        return EyePopSdk.dataEndpoint(
+        return EyePopSdk.sync_data(
             eyepop_url=self.test_eyepop_url,
             secret_key=self.test_eyepop_secret_key,
             account_id=self.test_eyepop_account_id,
@@ -286,11 +286,10 @@ class TestVlmAbilityEndpoint(BaseEndpointTest):
     @aioresponses()
     async def test_the_async_client_warns_at_the_caller(self, mock: aioresponses) -> None:
         self.setup_mock(mock)
-        async with EyePopSdk.dataEndpoint(
+        async with EyePopSdk.async_data(
             eyepop_url=self.test_eyepop_url,
             secret_key=self.test_eyepop_secret_key,
             account_id=self.test_eyepop_account_id,
-            is_async=True,
         ) as endpoint:
             with self.assertWarnsRegex(DeprecationWarning, "worker_release is deprecated") as caught:
                 await endpoint.create_vlm_ability(_create(worker_release="gpt-6-astra"))

@@ -119,7 +119,7 @@ parser.add_argument('-d', '--dataset-uuid', required=False, help="use this datas
 main_args = parser.parse_args()
 
 async def main():
-    async with EyePopSdk.dataEndpoint(is_async=True, job_queue_length=10) as endpoint:
+    async with EyePopSdk.async_data(job_queue_length=10) as endpoint:
         try:
             if main_args.dataset_uuid is None:
                 dataset = await endpoint.create_dataset(DatasetCreate(name="test import dataset"))

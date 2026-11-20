@@ -20,7 +20,7 @@ parser.add_argument('-e', '--end', required=False, type=float, help="end at this
 main_args = parser.parse_args()
 
 async def main():
-    async with EyePopSdk.dataEndpoint(is_async=True) as endpoint:
+    async with EyePopSdk.async_data() as endpoint:
         result = await endpoint.download_asset(
             asset_uuid=main_args.asset_uuid,
             transcode_mode=TranscodeMode.video_original_size,

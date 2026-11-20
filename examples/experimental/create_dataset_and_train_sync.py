@@ -120,7 +120,7 @@ def main():
     auto_annotate: str = "grounding_dino_base"
     auto_annotate_params = AutoAnnotateParams(candidate_labels=["person", "car", "toy"])
 
-    with EyePopSdk.dataEndpoint(is_async=False, disable_ws=False) as e:
+    with EyePopSdk.sync_data(disable_ws=False) as e:
         endpoint = cast(SyncDataEndpoint, e)
         dataset = endpoint.create_dataset(dataset=DatasetCreate(name="test_dataset"))
         try:

@@ -61,7 +61,7 @@ def main() -> None:
         is_public=False,
     )
 
-    with EyePopSdk.dataEndpoint(account_id=args.account) as endpoint:
+    with EyePopSdk.sync_data(account_id=args.account) as endpoint:
         # An ability group holds the versions of one ability.
         group = next((g for g in endpoint.list_vlm_ability_groups() if g.name == alias), None)
         if group is None:

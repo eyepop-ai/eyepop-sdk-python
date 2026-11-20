@@ -37,7 +37,7 @@ def requires_data_api():
 
 @requires_data_api()
 def test_model_artifact_variant_lifecycle():
-    with EyePopSdk.dataEndpoint() as endpoint:
+    with EyePopSdk.sync_data() as endpoint:
         endpoint.connect()
         model = endpoint.create_model(ModelCreate(
             name=f'sdk-integration-variants-{uuid.uuid4().hex[:8]}',

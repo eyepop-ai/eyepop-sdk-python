@@ -68,7 +68,7 @@ async def main(args):
 
     infer_request = InferRequest(text_prompt=args.prompt)
 
-    async with EyePopSdk.dataEndpoint(is_async=True, job_queue_length=4) as endpoint:
+    async with EyePopSdk.async_data(job_queue_length=4) as endpoint:
         if args.asset_uuid is not None:
             asset = await endpoint.get_asset(args.asset_uuid)
             job = await infer(

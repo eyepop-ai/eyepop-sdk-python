@@ -278,7 +278,7 @@ class SyncDataEndpoint(SyncEndpoint):
     ) -> DataJob | SyncDataJob:
         if on_ready is not None:
             raise TypeError("'on_ready' callback not supported for sync endpoints. "
-                            "Use 'EyePopSdk.dataEndpoint(is_async=True)` to create "
+                            "Use 'EyePopSdk.async_data()` to create "
                             "an endpoint with callback support")
         job = run_coro_thread_save(
             self.event_loop,
@@ -310,7 +310,7 @@ class SyncDataEndpoint(SyncEndpoint):
     ) -> DataJob | SyncDataJob:
         if on_ready is not None:
             raise TypeError("'on_ready' callback not supported for sync endpoints. "
-                            "Use 'EyePopSdk.dataEndpoint(is_async=True)` to create "
+                            "Use 'EyePopSdk.async_data()` to create "
                             "an endpoint with callback support")
         job = run_coro_thread_save(
             self.event_loop,

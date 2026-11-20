@@ -120,7 +120,7 @@ async def main():
     auto_annotate: str = "grounding_dino_base"
     auto_annotate_params = AutoAnnotateParams(candidate_labels=["person"])
 
-    async with EyePopSdk.dataEndpoint(is_async=True, disable_ws=False) as endpoint:
+    async with EyePopSdk.async_data(disable_ws=False) as endpoint:
         dataset = await endpoint.create_dataset(DatasetCreate(name="test_dataset"))
         try:
             log.info("created dataset: %s", dataset.uuid)

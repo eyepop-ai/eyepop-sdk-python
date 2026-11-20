@@ -43,7 +43,7 @@ class TestEndpointModelExports(BaseEndpointTest):
                    f'/formats/{ModelExportFormat.ONNX}/artifacts/model.onnx')
         mock.put(put_url, status=204)
 
-        with EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+        with EyePopSdk.sync_data(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                     account_id=self.test_eyepop_account_id) as endpoint:
             endpoint.upload_model_artifact(TEST_MODEL_UUID, ModelExportFormat.ONNX, 'model.onnx',
                                            io.BytesIO(b'test artifact'))
@@ -63,7 +63,7 @@ class TestEndpointModelExports(BaseEndpointTest):
                    f'&variant=target_runtime%3Dcuda_cc_86&variant=target_runtime%3Dcuda_cc_87')
         mock.put(put_url, status=204)
 
-        with EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+        with EyePopSdk.sync_data(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                     account_id=self.test_eyepop_account_id) as endpoint:
             endpoint.upload_model_artifact(TEST_MODEL_UUID, ModelExportFormat.ONNX, 'model.onnx',
                                            io.BytesIO(b'test artifact'),
@@ -92,7 +92,7 @@ class TestEndpointModelExports(BaseEndpointTest):
             exported_url='http://example-storage.test/model.onnx',
         ).model_dump()]))
 
-        with EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+        with EyePopSdk.sync_data(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                     account_id=self.test_eyepop_account_id) as endpoint:
             urls = endpoint.export_model_urls([TEST_MODEL_UUID], [ModelExportFormat.ONNX],
                                               variant={
@@ -117,7 +117,7 @@ class TestEndpointModelExports(BaseEndpointTest):
                    f'&model_format={ModelExportFormat.ONNX}&device_name=Test+Device&')
         mock.get(get_url, status=200, body=json.dumps([]))
 
-        with EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+        with EyePopSdk.sync_data(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                     account_id=self.test_eyepop_account_id) as endpoint:
             with self.assertWarns(DeprecationWarning):
                 endpoint.export_model_urls([TEST_MODEL_UUID], [ModelExportFormat.ONNX], 'Test Device')
@@ -135,7 +135,7 @@ class TestEndpointModelExports(BaseEndpointTest):
                    f'&variant=quantization%3Dint8')
         mock.get(get_url, status=200, body=b'test artifact bytes')
 
-        with EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+        with EyePopSdk.sync_data(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                     account_id=self.test_eyepop_account_id) as endpoint:
             stream = endpoint.export_model_artifacts([TEST_MODEL_UUID], [ModelExportFormat.ONNX],
                                                      artifact_type=ArtifactType.eyepop_bundle,
@@ -154,7 +154,7 @@ class TestEndpointModelExports(BaseEndpointTest):
                    f'&model_format={ModelExportFormat.ONNX}&device_name=Test+Device&')
         mock.get(get_url, status=200, body=b'')
 
-        with EyePopSdk.dataEndpoint(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
+        with EyePopSdk.sync_data(eyepop_url=self.test_eyepop_url, secret_key=self.test_eyepop_secret_key,
                                     account_id=self.test_eyepop_account_id) as endpoint:
             with self.assertWarns(DeprecationWarning):
                 endpoint.export_model_artifacts([TEST_MODEL_UUID], [ModelExportFormat.ONNX], 'Test Device')

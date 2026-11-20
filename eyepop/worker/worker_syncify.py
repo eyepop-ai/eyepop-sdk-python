@@ -133,7 +133,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
         if on_ready is not None:
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
-                "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
+                "Use 'EyePopSdk.async_worker()` to create an async endpoint with callback support")
         job = run_coro_thread_save(self.event_loop, self.endpoint.upload(
             location=location,
             video_mode=video_mode,
@@ -170,7 +170,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
         if on_ready is not None:
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
-                "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
+                "Use 'EyePopSdk.async_worker()` to create an async endpoint with callback support")
         job = run_coro_thread_save(self.event_loop, self.endpoint.upload_stream(
             stream=stream,
             mime_type=mime_type,
@@ -202,7 +202,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
         if on_ready is not None:
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
-                "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
+                "Use 'EyePopSdk.async_worker()` to create an async endpoint with callback support")
         job = run_coro_thread_save(self.event_loop, self.endpoint.upload_stream_group(
             streams=streams,
             mime_types=mime_types,
@@ -229,7 +229,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
         if on_ready is not None:
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
-                "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
+                "Use 'EyePopSdk.async_worker()` to create an async endpoint with callback support")
         job = run_coro_thread_save(self.event_loop, self.endpoint.upload_group(
             locations=locations,
             params=params,
@@ -258,7 +258,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
         if on_ready is not None:
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
-                "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
+                "Use 'EyePopSdk.async_worker()` to create an async endpoint with callback support")
         job = run_coro_thread_save(self.event_loop, self.endpoint.load_from(
             location=location,
             params=params,
@@ -287,7 +287,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
         if on_ready is not None:
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
-                "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
+                "Use 'EyePopSdk.async_worker()` to create an async endpoint with callback support")
         job = run_coro_thread_save(self.event_loop, self.endpoint.load_from_group(
             locations=locations,
             params=params,
@@ -315,7 +315,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
         if on_ready is not None:
             raise TypeError(
                 "'on_ready' callback not supported for sync endpoints. "
-                "Use 'EyePopSdk.workerEndpoint(is_async=True)` to create an async endpoint with callback support")
+                "Use 'EyePopSdk.async_worker()` to create an async endpoint with callback support")
         job = run_coro_thread_save(self.event_loop, self.endpoint.load_asset(
             asset_uuid=asset_uuid,
             params=params,
