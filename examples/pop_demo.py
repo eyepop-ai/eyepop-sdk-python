@@ -904,7 +904,7 @@ async def main(args) -> tuple[dict[str, Any] | None, str | None, WorldPointColle
         if params:
             print("Params:", TypeAdapter(list[ComponentParams]).dump_json(params, exclude_none=True, indent=2).decode("utf-8"))
 
-    async with EyePopSdk.async_worker(dataset_uuid=args.dataset_uuid, session_uuid=args.session) as endpoint:
+    async with EyePopSdk.async_worker(dataset_uuid=args.dataset_uuid, session_uuid=args.session, is_pipeline_mode=False) as endpoint:
         if pop:
             await endpoint.set_pop(pop)
 

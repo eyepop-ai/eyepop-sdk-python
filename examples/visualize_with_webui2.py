@@ -6,6 +6,9 @@ from pybars import Compiler
 from webui import webui
 
 from eyepop import EyePopSdk
+from eyepop.worker.worker_types import InferenceComponent, Pop
+
+PERSON = Pop(components=[InferenceComponent(ability='eyepop.person:latest')])
 
 script_dir = os.path.dirname(__file__)
 
@@ -15,7 +18,7 @@ with open(os.path.join(script_dir, 'viewer.html')) as file:
     compiler = Compiler()
     html_template = compiler.compile(file.read())
 
-with EyePopSdk.sync_worker() as endpoint:
+with EyePopSdk.sync_worker(pop=PERSON) as endpoint:
     result = endpoint.upload(example_image_path).predict()
     preview = html_template({
         'image_src': example_image_path,

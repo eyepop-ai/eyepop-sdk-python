@@ -13,7 +13,7 @@ PERSON = Pop(components=[InferenceComponent(ability='eyepop.person:latest')])
 
 
 async def main(paths: list[str]):
-    async with EyePopSdk.async_worker(is_pipeline_mode=True, pop=PERSON) as endpoint:
+    async with EyePopSdk.async_worker(pop=PERSON) as endpoint:
         # Every job goes out at once on the one socket; the pipeline runs them in order.
         jobs = [await endpoint.upload(path) for path in paths]
         for path, job in zip(paths, jobs, strict=True):

@@ -61,6 +61,7 @@ def in_pipeline_mode(endpoint: object) -> bool:
 
 def worker(compute: FakeComputeAPI, **options) -> WorkerEndpoint:
     options.setdefault("api_key", "the api key")
+    options.setdefault("pop", PERSON)
     endpoint = EyePopSdk.async_worker(eyepop_url=compute.url, is_pipeline_mode=True, **options)
     assert in_pipeline_mode(endpoint)
     return endpoint
@@ -97,11 +98,48 @@ def image(tmp_path: Path) -> Path:
 # 1. Selection
 
 
-def test_pipeline_mode_is_selected_by_the_argument_or_the_environment(monkeypatch: pytest.MonkeyPatch):
-    assert in_pipeline_mode(EyePopSdk.async_worker(is_pipeline_mode=True, access_token="t"))
-    monkeypatch.setenv("EYEPOP_PIPELINE_MODE", "true")
+def test_pipeline_mode_is_the_default():
     assert in_pipeline_mode(EyePopSdk.async_worker(access_token="t"))
-    assert not in_pipeline_mode(EyePopSdk.async_worker(access_token="t", is_pipeline_mode=False))
+
+
+@pytest.mark.parametrize("open_endpoint", [EyePopSdk.async_worker, EyePopSdk.sync_worker])
+def test_a_worker_session_is_deprecated_and_the_warning_names_the_caller(open_endpoint: Callable[..., object]):
+    with pytest.warns(DeprecationWarning, match="worker sessions") as caught:
+        open_endpoint(api_key="k", is_pipeline_mode=False)
+    assert caught[0].filename == __file__
+
+
+def test_the_deprecated_worker_endpoint_names_the_caller_too():
+    with pytest.warns(DeprecationWarning, match="worker sessions") as caught:
+        EyePopSdk.workerEndpoint(api_key="k", is_pipeline_mode=False)
+    assert [w.filename for w in caught if "worker sessions" in str(w.message)] == [__file__]
+
+
+def test_a_secret_key_in_the_environment_alone_names_the_opt_out(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("EYEPOP_API_KEY", raising=False)
+    monkeypatch.delenv("EYEPOP_ACCESS_TOKEN", raising=False)
+    monkeypatch.setenv("EYEPOP_SECRET_KEY", "a secret key")
+    with pytest.raises(KeyError, match="EYEPOP_SECRET_KEY.*is_pipeline_mode=False"):
+        EyePopSdk.async_worker(is_pipeline_mode=True)
+
+
+def test_pipeline_mode_does_not_warn():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        EyePopSdk.async_worker(access_token="t")
+
+
+@pytest.mark.parametrize("value", ["false", "no", "0", "FALSE", " false "])
+def test_the_environment_turns_pipeline_mode_off(monkeypatch: pytest.MonkeyPatch, value: str):
+    monkeypatch.setenv("EYEPOP_PIPELINE_MODE", value)
+    assert not in_pipeline_mode(EyePopSdk.async_worker(api_key="k"))
+
+
+def test_the_argument_wins_over_the_environment(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("EYEPOP_PIPELINE_MODE", "false")
+    assert in_pipeline_mode(EyePopSdk.async_worker(access_token="t", is_pipeline_mode=True))
+    monkeypatch.setenv("EYEPOP_PIPELINE_MODE", "true")
+    assert not in_pipeline_mode(EyePopSdk.async_worker(api_key="k", is_pipeline_mode=False))
 
 
 @pytest.mark.parametrize("option", [
@@ -146,7 +184,7 @@ async def test_plain_http_is_refused_for_a_pipeline_api_off_loopback():
 
 
 async def test_local_mode_takes_eyepop_url_as_the_pipeline_api(pipeline: FakePipelineAPI):
-    endpoint = EyePopSdk.async_worker(is_pipeline_mode=True, is_local_mode=True, eyepop_url=pipeline.url)
+    endpoint = EyePopSdk.async_worker(is_pipeline_mode=True, is_local_mode=True, eyepop_url=pipeline.url, pop=PERSON)
     async with endpoint:
         assert await predictions(await endpoint.load_from("https://images.example/a.jpg")) == [prediction(0), prediction(1)]
     assert pipeline.sockets[0].authorization is None
@@ -286,13 +324,21 @@ async def test_connect_opens_the_socket_and_sets_the_pop(compute: FakeComputeAPI
 
 
 async def test_set_pop_sends_set_pop_and_a_refused_pop_raises(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
-    async with worker(compute) as endpoint:
+    async with worker(compute, pop=None) as endpoint:
         await endpoint.set_pop(PERSON)
         pipeline.pop_error = "invalid_request"
         with pytest.raises(PopConfigurationException, match="invalid_request"):
             await endpoint.set_pop(VEHICLE)
         assert await endpoint.get_pop() == PERSON, "the refused pop is not the one a reconnect sets"
     assert len(pipeline.sockets[0].pops) == 2
+
+
+async def test_a_job_with_no_pop_is_refused_before_anything_is_sent(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+    async with worker(compute, pop=None) as endpoint:
+        with pytest.raises(ValueError, match="no pop to run"):
+            await endpoint.load_from("https://images.example/a.jpg")
+        await endpoint.set_pop(PERSON)
+        assert await predictions(await endpoint.load_from("https://images.example/a.jpg")) == [prediction(0), prediction(1)]
 
 
 async def test_a_job_cancelled_before_its_source_went_out_ends(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
@@ -371,7 +417,7 @@ async def test_closes_one_after_another_wait_longer_before_each_reconnect(comput
     # Every socket is closed `1001 shutting_down` as it opens: the first reconnect is at once, the
     # next waits a second, the one after two
     pipeline.close_on_open = (1001, "shutting_down")
-    async with worker(compute):
+    async with worker(compute, pop=None):
         await asyncio.sleep(0.5)
         assert len(pipeline.sockets) == 2
         await asyncio.sleep(1)

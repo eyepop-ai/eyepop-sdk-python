@@ -3,7 +3,9 @@ import sys
 import time
 
 from eyepop import EyePopSdk
-from eyepop.worker.worker_types import VideoMode
+from eyepop.worker.worker_types import InferenceComponent, Pop, VideoMode
+
+PERSON = Pop(components=[InferenceComponent(ability='eyepop.person:latest')])
 
 example_file_1 = sys.argv[1]
 
@@ -12,7 +14,7 @@ is_streaming = len(sys.argv) > 2 and sys.argv[2].startswith("s")
 
 def upload_video(location: str):
     try:
-        with EyePopSdk.sync_worker() as endpoint:
+        with EyePopSdk.sync_worker(pop=PERSON) as endpoint:
             job = endpoint.upload(
                 location=location,
                 video_mode=VideoMode.BUFFER,

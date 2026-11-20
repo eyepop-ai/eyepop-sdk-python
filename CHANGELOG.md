@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking: pipeline mode is the default for worker endpoints.** `EyePopSdk.sync_worker()`, `async_worker()` and `workerEndpoint()` run their jobs on the pipeline API unless `is_pipeline_mode=False` is passed or `EYEPOP_PIPELINE_MODE` is `false`, `no` or `0`; the argument wins over the environment. Pipeline mode refuses what only a worker session has, so a caller that passes `secret_key`, a `pop_id` other than `"transient"`, `session_uuid`, `session_name`, `pipeline_image`, `pipeline_version`, `dataset_uuid` or `job_queue_length` above 256, or has `EYEPOP_SESSION_UUID` or an `EYEPOP_POP_ID` other than `transient` set, now gets a `ValueError` at construction. Such a caller opts out with `is_pipeline_mode=False` or `EYEPOP_PIPELINE_MODE=false`. Pipeline mode sets no pop unless `pop=` is passed or `set_pop()` is called, and a job submitted with no pop raises `ValueError` instead of ending with no result, which is what the pipeline API does with a source it has no pop for. `WorkerEndpoint` itself still defaults to `is_pipeline_mode=False`.
+  - **Local mode follows the default.** `is_local_mode=True` or `EYEPOP_LOCAL_MODE=true` now talks to the pipeline API on `http://127.0.0.1:9002` instead of the worker on `8080`. Pass `is_pipeline_mode=False` to keep the worker.
+  - **`https://api.eyepop.ai` is gone as a default.** A worker session or a `dataEndpoint()` opened with only an `access_token` and no `eyepop_url` (or `EYEPOP_URL`) now defaults to `https://compute.eyepop.ai`, like every other caller; the host `api.eyepop.ai` no longer exists. A worker session on the Compute API still needs an API key, so a token alone there raises `ValueError`; pipeline mode takes the token as given.
+  - **A caller whose only credential is `EYEPOP_SECRET_KEY` in the environment** gets a `KeyError` at construction, not a `ValueError`: pipeline mode takes an API key or an access token. It opts out the same way.
+  - **Deprecated: the worker session.** `workerEndpoint()` (so `sync_worker()` and `async_worker()`) warns with a `DeprecationWarning` when it opens one, with `is_pipeline_mode=False` or `EYEPOP_PIPELINE_MODE=false`. The warning names the caller's line. Python shows a `DeprecationWarning` only for code in `__main__` unless a filter says otherwise (`-W default`, or pytest). Pipeline mode is the replacement; there is no removal date yet.
+  - The README, the gitbook docs, the SDK skill and the examples show the pipeline-mode form; `examples/pop_demo.py` opts out because it takes a session and a dataset, and `examples/upload_image_timing.py` asks for 256 queued jobs, the most pipeline mode takes.
+
 ## [3.30.0] - 2026-11-19
 
 ### Added

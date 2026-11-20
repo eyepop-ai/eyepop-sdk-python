@@ -468,4 +468,5 @@ def _refuse_session_options(**options: Any):
                          "it takes no dataset_uuid")
     if named == ['secret_key']:
         raise ValueError("pipeline mode takes an API key or a user access token, not a secret key")
-    raise ValueError(f"pipeline mode runs no worker session; it takes no {', '.join(named)}")
+    raise ValueError(f"pipeline mode runs no worker session; it takes no {', '.join(named)}. "
+                     "For a worker session pass is_pipeline_mode=False or set EYEPOP_PIPELINE_MODE=false")

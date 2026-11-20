@@ -97,7 +97,7 @@ class TestEndpointConnect(BaseEndpointTest):
         with patch.dict(os.environ, {"EYEPOP_ACCOUNT_ID": "env-id"}, clear=False):
             os.environ.pop("EYEPOP_ACCOUNT_UUID", None)
             with warnings.catch_warnings():
-                warnings.simplefilter("error", DeprecationWarning)
+                warnings.filterwarnings("error", message="EYEPOP_ACCOUNT_ID", category=DeprecationWarning)
                 endpoint = EyePopSdk.async_worker(
                     eyepop_url="https://compute.eyepop.ai",
                     api_key="test-api-key",
@@ -494,7 +494,7 @@ class TestEndpointConnect(BaseEndpointTest):
     @aioresponses()
     async def test_disconnect_transient_existing_pipeline_deletes_pipeline(self, mock: aioresponses):
         mock.get(
-            "https://api.eyepop.ai/workers/config",
+            "https://worker-api.eyepop.test/workers/config",
             status=200,
             body=json.dumps({
                 "base_url": self.test_worker_url,
@@ -505,6 +505,7 @@ class TestEndpointConnect(BaseEndpointTest):
 
         endpoint = EyePopSdk.async_worker(
             access_token=self.test_access_token,
+            eyepop_url="https://worker-api.eyepop.test",
             pop_id="transient",
             stop_jobs=False,
             pop=Pop(components=[]),

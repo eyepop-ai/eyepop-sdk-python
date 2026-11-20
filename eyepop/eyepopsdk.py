@@ -1,5 +1,7 @@
 import logging
 import os
+import sys
+import warnings
 
 from typing_extensions import deprecated
 
@@ -47,7 +49,7 @@ def _pipeline_endpoint(
         if api_key is None:
             access_token = os.getenv("EYEPOP_ACCESS_TOKEN")
         if api_key is None and access_token is None:
-            raise KeyError("pipeline mode needs EYEPOP_API_KEY, EYEPOP_ACCESS_TOKEN, api_key or access_token")
+            raise KeyError("pipeline mode needs EYEPOP_API_KEY, EYEPOP_ACCESS_TOKEN, api_key or access_token (EYEPOP_SECRET_KEY is for a worker session: pass is_pipeline_mode=False or set EYEPOP_PIPELINE_MODE=false)")
 
     if job_queue_length is None:
         job_queue_length = MAX_OPEN_SOURCES
@@ -78,6 +80,11 @@ def _pipeline_endpoint(
         account_id=account_id,
         is_pipeline_mode=True,
     )
+
+
+# The file whose wrapper `deprecated` puts between workerEndpoint and its caller: typing_extensions, or the
+# standard library's warnings module from Python 3.13.
+_NOT_THE_CALLER = (os.path.dirname(__file__) + os.sep, deprecated.__call__.__code__.co_filename)
 
 
 class EyePopSdk:
@@ -215,18 +222,20 @@ class EyePopSdk:
     ) -> WorkerEndpoint:
         """A worker endpoint.
 
-        With `is_pipeline_mode`, or `EYEPOP_PIPELINE_MODE` set to true, its
-        jobs run on the pipeline API's socket rather than on a worker session;
+        Its jobs run on the pipeline API's socket rather than on a worker
+        session, unless `is_pipeline_mode` is False or `EYEPOP_PIPELINE_MODE`
+        is false;
         the compute API at `eyepop_url` names the pipeline API in its
         `/v1/configs`. Pipeline mode takes an API key or a user access token,
-        and no option that names a session or a pop.
+        and no option that names a session or a pop. A worker session is
+        deprecated and warns with a `DeprecationWarning`.
         """
         if is_local_mode is None:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
             is_local_mode = local_mode_env.lower() in ("true", "yes")
 
         if is_pipeline_mode is None:
-            is_pipeline_mode = os.getenv("EYEPOP_PIPELINE_MODE", "").lower() in ("true", "yes", "1")
+            is_pipeline_mode = os.getenv("EYEPOP_PIPELINE_MODE", "").strip().lower() not in ("false", "no", "0")
 
         if is_pipeline_mode:
             return _pipeline_endpoint(
@@ -245,6 +254,14 @@ class EyePopSdk:
                 pop=pop,
                 account_id=account_id,
             )
+
+        # The warning has to blame the caller's line, not an SDK frame or the wrapper of
+        # the deprecated workerEndpoint: Python shows a DeprecationWarning only when the blamed module is __main__.
+        level, frame = 1, sys._getframe(0)
+        while frame is not None and frame.f_code.co_filename.startswith(_NOT_THE_CALLER):
+            level, frame = level + 1, frame.f_back
+        warnings.warn("worker sessions (is_pipeline_mode=False) are deprecated, use pipeline mode, the default",
+                      DeprecationWarning, stacklevel=level)
 
         if job_queue_length is None:
             job_queue_length = settings.default_job_queue_length
@@ -271,10 +288,8 @@ class EyePopSdk:
             if eyepop_url is None:
                 if is_local_mode:
                     eyepop_url = 'http://127.0.0.1:8080'
-                elif api_key:
-                    eyepop_url = "https://compute.eyepop.ai"
                 else:
-                    eyepop_url = "https://api.eyepop.ai"
+                    eyepop_url = "https://compute.eyepop.ai"
 
         is_transient_pop = pop_id == "transient"
 
@@ -346,10 +361,7 @@ class EyePopSdk:
         if eyepop_url is None:
             eyepop_url = os.getenv("EYEPOP_URL")
             if eyepop_url is None:
-                if api_key:
-                    eyepop_url = "https://compute.eyepop.ai"
-                else:
-                    eyepop_url = "https://api.eyepop.ai"
+                eyepop_url = "https://compute.eyepop.ai"
 
         if account_id is None:
             account_id = account_uuid_from_env()

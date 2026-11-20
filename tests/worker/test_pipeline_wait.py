@@ -16,6 +16,7 @@ from eyepop.settings import Settings, settings
 from eyepop.worker import pipeline_backend
 from eyepop.worker.pipeline_backend import PipelineBackend, _refusal_wait
 from eyepop.worker.worker_endpoint import WorkerEndpoint
+from eyepop.worker.worker_types import InferenceComponent, Pop
 from tests.worker.pipeline_fakes import FakeComputeAPI, FakePipelineAPI, prediction
 
 
@@ -69,6 +70,7 @@ def no_jitter(monkeypatch: pytest.MonkeyPatch):
 
 def worker(compute: FakeComputeAPI, **options) -> WorkerEndpoint:
     options.setdefault("api_key", "the api key")
+    options.setdefault("pop", Pop(components=[InferenceComponent(ability="eyepop.person:latest")]))
     return EyePopSdk.async_worker(eyepop_url=compute.url, is_pipeline_mode=True, **options)
 
 

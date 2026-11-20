@@ -14,8 +14,11 @@ Requires Python 3.12+.
 
 ```python
 from eyepop import EyePopSdk
+from eyepop.worker.worker_types import InferenceComponent, Pop
 
-with EyePopSdk.sync_worker() as endpoint:
+pop = Pop(components=[InferenceComponent(ability='eyepop.person:latest')])
+
+with EyePopSdk.sync_worker(pop=pop) as endpoint:
     result = endpoint.upload('photo.jpg').predict()
     print(result)
 ```
@@ -23,7 +26,7 @@ with EyePopSdk.sync_worker() as endpoint:
 Set `EYEPOP_API_KEY` in your environment (get one at [dashboard.eyepop.ai](https://dashboard.eyepop.ai)), or pass `api_key=...` to `sync_worker()`:
 
 ```python
-endpoint = EyePopSdk.sync_worker(api_key='my-api-key')
+endpoint = EyePopSdk.sync_worker(api_key='my-api-key', pop=pop)
 ```
 
 ## Configuration
@@ -34,23 +37,26 @@ Credentials are read from environment variables. Set **one** auth method:
 |---|---|
 | `EYEPOP_API_KEY` | API key from your dashboard. |
 | `EYEPOP_ACCESS_TOKEN` | Pre-issued OAuth access token. |
-| `EYEPOP_SECRET_KEY` | Secret key for a named pop. |
+| `EYEPOP_SECRET_KEY` | Secret key for a named pop. Worker session only: see [Pipeline mode](#pipeline-mode). |
 
 Optional:
 
 | Variable | Description |
 |---|---|
-| `EYEPOP_POP_ID` | Named pop ID. Defaults to `transient`. |
+| `EYEPOP_POP_ID` | Named pop ID. Defaults to `transient`. Worker session only. |
+| `EYEPOP_PIPELINE_MODE` | Pipeline mode is on by default. Set to `false` to run on a worker session instead. |
 | `EYEPOP_ACCOUNT_UUID` | The account to work in. Required for some Data API calls, and names the account a worker's compute session runs for when the API key does not (same as `account_id=`). `EYEPOP_ACCOUNT_ID` is still read when this is unset, with a `DeprecationWarning`. |
 
 ## Usage
+
+The snippets below use the `pop` from the Quickstart.
 
 ### Single image
 
 ```python
 from eyepop import EyePopSdk
 
-with EyePopSdk.sync_worker() as endpoint:
+with EyePopSdk.sync_worker(pop=pop) as endpoint:
     result = endpoint.upload('photo.jpg').predict()
     print(result)
 ```
@@ -60,7 +66,7 @@ with EyePopSdk.sync_worker() as endpoint:
 ### Binary streams
 
 ```python
-with EyePopSdk.sync_worker() as endpoint:
+with EyePopSdk.sync_worker(pop=pop) as endpoint:
     with open('photo.jpg', 'rb') as file:
         result = endpoint.upload_stream(file, 'image/jpeg').predict()
 ```
@@ -68,14 +74,14 @@ with EyePopSdk.sync_worker() as endpoint:
 ### URLs (HTTP, RTSP, RTMP)
 
 ```python
-with EyePopSdk.sync_worker() as endpoint:
+with EyePopSdk.sync_worker(pop=pop) as endpoint:
     result = endpoint.load_from('https://example.com/image.jpg').predict()
 ```
 
 ### Videos
 
 ```python
-with EyePopSdk.sync_worker() as endpoint:
+with EyePopSdk.sync_worker(pop=pop) as endpoint:
     job = endpoint.load_from('https://example.com/video.mp4')
     while result := job.predict():
         print(result)
@@ -91,7 +97,7 @@ one inference unit — for example a multi-image VLM prompt. The group yields
 each image is an independent inference.
 
 ```python
-with EyePopSdk.sync_worker() as endpoint:
+with EyePopSdk.sync_worker(pop=pop) as endpoint:
     # local files
     result = endpoint.upload_group(['a.jpg', 'b.jpg', 'c.jpg']).predict()
 
@@ -117,7 +123,7 @@ Queue multiple uploads, then collect results:
 ```python
 file_paths = ['photo1.jpg', 'photo2.jpg']
 
-with EyePopSdk.sync_worker() as endpoint:
+with EyePopSdk.sync_worker(pop=pop) as endpoint:
     jobs = [endpoint.upload(p) for p in file_paths]
     for job in jobs:
         print(job.predict())
@@ -133,7 +139,7 @@ async def main(paths):
     async def on_ready(job: Job):
         print(await job.predict())
 
-    async with EyePopSdk.async_worker() as endpoint:
+    async with EyePopSdk.async_worker(pop=pop) as endpoint:
         for p in paths:
             await endpoint.upload(p, on_ready=on_ready)
 
@@ -147,7 +153,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from eyepop import EyePopSdk
 
-with EyePopSdk.sync_worker() as endpoint:
+with EyePopSdk.sync_worker(pop=pop) as endpoint:
     result = endpoint.upload('photo.jpg').predict()
 
 with Image.open('photo.jpg') as image:
@@ -205,15 +211,21 @@ A job also keeps the pipeline's `warning` events on `job.warnings`, in both mode
 
 ## Pipeline mode
 
-With `is_pipeline_mode=True`, or `EYEPOP_PIPELINE_MODE=true`, a worker endpoint runs its jobs on
-the pipeline API instead of a worker session. The code that uses the endpoint stays the same:
+A worker endpoint runs its jobs on the pipeline API by default, not on a worker session. Pass
+`is_pipeline_mode=False`, or set `EYEPOP_PIPELINE_MODE=false`, to use a worker session, which is deprecated and warns with a `DeprecationWarning`; the argument
+wins over the environment. Code that names a session (`secret_key`, a `pop_id` other than `"transient"`, `session_uuid`,
+`session_name`, `pipeline_image`, `pipeline_version`, `dataset_uuid`, or `EYEPOP_SESSION_UUID` in the
+environment) raises `ValueError` in pipeline mode and needs the opt-out. Pass `pop=` (or call `set_pop()` before the first job): a job with no pop
+raises `ValueError`, since a pipeline with no pop runs nothing.
+
+The code that uses the endpoint stays the same:
 
 ```python
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import InferenceComponent, Pop
 
 pop = Pop(components=[InferenceComponent(ability='eyepop.person:latest')])
-with EyePopSdk.sync_worker(is_pipeline_mode=True, pop=pop) as endpoint:
+with EyePopSdk.sync_worker(pop=pop) as endpoint:
     print(endpoint.upload('photo.jpg').predict())
 ```
 
@@ -271,7 +283,7 @@ that should fail fast on a full pipeline API sets `EYEPOP_PIPELINE_WAIT_TIMEOUT=
 | `session()` | Returns `{"pipeline_api_url": ...}`. |
 | `pipeline_get/post/patch/delete`, `dev_mode_base_url`, `dev_mode_pipeline_base_url` | Raise `NotImplementedError`: there is no worker session. |
 | `api_key`, `access_token` | An API key is exchanged at the compute API and never sent to the pipeline API; an access token is sent as given. |
-| `secret_key`, `pop_id`, `session_uuid`, `session_name`, `pipeline_image`, `pipeline_version` | Raise `ValueError` at construction. |
+| `secret_key`, a `pop_id` other than `"transient"`, `session_uuid`, `session_name`, `pipeline_image`, `pipeline_version` | Raise `ValueError` at construction. |
 | `dataset_uuid` | Raises `ValueError` at construction until the pipeline API writes to datasets (AWSU-316). |
 | Prediction version | The pipeline API's own (V3); none is sent. |
 
