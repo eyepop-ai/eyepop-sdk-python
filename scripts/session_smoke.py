@@ -206,6 +206,9 @@ def async_worker_kwargs(args: argparse.Namespace, eyepop_url: str) -> tuple[dict
         "api_key": args.api_key,
         "eyepop_url": eyepop_url,
     }
+    # The smoke tests the worker session, which pipeline mode (the SDK default) refuses a session_name for.
+    if "is_pipeline_mode" in inspect.signature(EyePopSdk.async_worker).parameters:
+        kwargs["is_pipeline_mode"] = False
     session_name_supported = sdk_supports_session_name()
     if args.session_name and session_name_supported:
         kwargs["session_name"] = args.session_name

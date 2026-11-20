@@ -213,7 +213,7 @@ A job also keeps the pipeline's `warning` events on `job.warnings`, in both mode
 
 A worker endpoint runs its jobs on the pipeline API by default, not on a worker session. Pass
 `is_pipeline_mode=False`, or set `EYEPOP_PIPELINE_MODE=false`, to use a worker session, which is deprecated and warns with a `DeprecationWarning`; the argument
-wins over the environment. Code that names a session (`secret_key`, `pop_id`, `session_uuid`,
+wins over the environment. Code that names a session (`secret_key`, a `pop_id` other than `"transient"`, `session_uuid`,
 `session_name`, `pipeline_image`, `pipeline_version`, `dataset_uuid`, or `EYEPOP_SESSION_UUID` in the
 environment) raises `ValueError` in pipeline mode and needs the opt-out. Pass `pop=`: without one,
 pipeline mode sets no pop.
@@ -283,7 +283,7 @@ that should fail fast on a full pipeline API sets `EYEPOP_PIPELINE_WAIT_TIMEOUT=
 | `session()` | Returns `{"pipeline_api_url": ...}`. |
 | `pipeline_get/post/patch/delete`, `dev_mode_base_url`, `dev_mode_pipeline_base_url` | Raise `NotImplementedError`: there is no worker session. |
 | `api_key`, `access_token` | An API key is exchanged at the compute API and never sent to the pipeline API; an access token is sent as given. |
-| `secret_key`, `pop_id`, `session_uuid`, `session_name`, `pipeline_image`, `pipeline_version` | Raise `ValueError` at construction. |
+| `secret_key`, a `pop_id` other than `"transient"`, `session_uuid`, `session_name`, `pipeline_image`, `pipeline_version` | Raise `ValueError` at construction. |
 | `dataset_uuid` | Raises `ValueError` at construction until the pipeline API writes to datasets (AWSU-316). |
 | Prediction version | The pipeline API's own (V3); none is sent. |
 

@@ -156,6 +156,12 @@ def test_sdk_install_or_resolution_failure_writes_fallback_summary(
     assert summary["duration_seconds"] > 0
 
 
+def test_the_smoke_opens_a_worker_session_not_pipeline_mode(tmp_path: Path) -> None:
+    kwargs, _ = session_smoke.async_worker_kwargs(smoke_args(tmp_path / "image.jpg"), "https://compute.eyepop.ai")
+    assert kwargs["is_pipeline_mode"] is False
+    assert kwargs["session_name"] == "smoke-test"
+
+
 @pytest.mark.asyncio
 async def test_auth_setup_failure_has_complete_summary(tmp_path: Path) -> None:
     image = tmp_path / "image.jpg"

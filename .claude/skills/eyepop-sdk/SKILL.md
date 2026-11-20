@@ -64,7 +64,7 @@ async with EyePopSdk.async_worker(pop=pop) as endpoint:
     result = await job.predict()
 ```
 
-Worker endpoints run in **pipeline mode** by default: jobs go to the pipeline API, and you pass `pop=`. Session-only options (`secret_key`, `pop_id`, `session_uuid`, `session_name`, `pipeline_image`, `pipeline_version`, `dataset_uuid`, `EYEPOP_SESSION_UUID`, `job_queue_length` above 256) raise `ValueError`. For those, pass `is_pipeline_mode=False` or set `EYEPOP_PIPELINE_MODE=false`; a worker session is deprecated and warns with a `DeprecationWarning`, so prefer pipeline mode.
+Worker endpoints run in **pipeline mode** by default: jobs go to the pipeline API, and you pass `pop=`. Session-only options (`secret_key`, a `pop_id` other than `"transient"`, `session_uuid`, `session_name`, `pipeline_image`, `pipeline_version`, `dataset_uuid`, `EYEPOP_SESSION_UUID`, `job_queue_length` above 256) raise `ValueError`. For those, pass `is_pipeline_mode=False` or set `EYEPOP_PIPELINE_MODE=false`; a worker session is deprecated and warns with a `DeprecationWarning`, so prefer pipeline mode.
 
 ### DataEndpoint (datasets, VLM, evaluation)
 

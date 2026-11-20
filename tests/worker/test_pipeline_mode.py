@@ -108,6 +108,14 @@ def test_a_worker_session_is_deprecated_and_the_warning_names_the_caller(open_en
     assert caught[0].filename == __file__
 
 
+def test_a_secret_key_in_the_environment_alone_names_the_opt_out(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("EYEPOP_API_KEY", raising=False)
+    monkeypatch.delenv("EYEPOP_ACCESS_TOKEN", raising=False)
+    monkeypatch.setenv("EYEPOP_SECRET_KEY", "a secret key")
+    with pytest.raises(KeyError, match="EYEPOP_SECRET_KEY.*is_pipeline_mode=False"):
+        EyePopSdk.async_worker(is_pipeline_mode=True)
+
+
 def test_pipeline_mode_does_not_warn():
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)

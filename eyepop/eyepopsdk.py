@@ -48,7 +48,7 @@ def _pipeline_endpoint(
         if api_key is None:
             access_token = os.getenv("EYEPOP_ACCESS_TOKEN")
         if api_key is None and access_token is None:
-            raise KeyError("pipeline mode needs EYEPOP_API_KEY, EYEPOP_ACCESS_TOKEN, api_key or access_token")
+            raise KeyError("pipeline mode needs EYEPOP_API_KEY, EYEPOP_ACCESS_TOKEN, api_key or access_token (EYEPOP_SECRET_KEY is for a worker session: pass is_pipeline_mode=False or set EYEPOP_PIPELINE_MODE=false)")
 
     if job_queue_length is None:
         job_queue_length = MAX_OPEN_SOURCES
@@ -252,7 +252,7 @@ class EyePopSdk:
         # skip_file_prefixes blames the caller's line however many SDK frames sit above it, which a
         # DeprecationWarning needs: Python shows one only when the blamed module is __main__.
         warnings.warn("worker sessions (is_pipeline_mode=False) are deprecated, use pipeline mode, the default",
-                      DeprecationWarning, skip_file_prefixes=(os.path.dirname(__file__),))
+                      DeprecationWarning, skip_file_prefixes=(os.path.dirname(__file__) + os.sep,))
 
         if job_queue_length is None:
             job_queue_length = settings.default_job_queue_length
