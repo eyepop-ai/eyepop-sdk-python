@@ -1,10 +1,12 @@
 import json
 import time
 import warnings
+from importlib import resources
 
 import aiohttp
 from aioresponses import CallbackResult, aioresponses
 
+import tests
 from eyepop import EyePopSdk
 from eyepop.worker.worker_types import DEFAULT_PREDICTION_VERSION, Pop
 from tests.worker.base_endpoint_test import BaseEndpointTest
@@ -86,3 +88,28 @@ class TestEndpointMediaCache(BaseEndpointTest):
                 'url': self.test_url,
                 'version': DEFAULT_PREDICTION_VERSION,
             })
+
+    @aioresponses()
+    async def test_upload_warns_at_submit_that_reencode_has_no_effect(self, mock: aioresponses):
+        # A session's upload routes take mediaCacheSeconds but not mediaCacheReencode: the call that
+        # asks for it is warned, once, where it is made, and the upload goes on without it.
+        self._setup_worker(mock)
+        async with EyePopSdk.async_worker(
+                eyepop_url=self.test_eyepop_url,
+                secret_key=self.test_eyepop_secret_key,
+                pop_id=self.test_eyepop_pop_id,
+        ) as endpoint:
+            mock.post(f'{self.test_worker_url}/pipelines/{self.test_pipeline_id}'
+                      f'/source?mode=queue&processing=sync&version={DEFAULT_PREDICTION_VERSION}',
+                      body=json.dumps({'source_id': self.test_source_id, 'seconds': 0,
+                                       'system_timestamp': time.time() * 1000 * 1000 * 1000}))
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always", UserWarning)
+                job = await endpoint.upload(resources.files(tests) / 'test.jpg', media_cache_reencode=True)
+                submitted = [w for w in caught if issubclass(w.category, UserWarning)]
+                self.assertIsNotNone(await job.predict())
+            self.assertEqual([str(w.message) for w in submitted], [
+                'media_cache_reencode is not taken by a session for an upload, and has no effect; '
+                'it applies to a url or an asset'])
+            self.assertEqual(submitted[0].filename, __file__)
+            self.assertEqual(len([w for w in caught if issubclass(w.category, UserWarning)]), 1)
