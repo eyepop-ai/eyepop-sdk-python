@@ -45,7 +45,7 @@ Optional:
 |---|---|
 | `EYEPOP_POP_ID` | Named pop ID. Defaults to `transient`. Worker session only. |
 | `EYEPOP_PIPELINE_MODE` | Pipeline mode is on by default. Set to `false` to run on a worker session instead. |
-| `EYEPOP_ENV` | Pipeline mode: `staging`, `production` or `local` picks the pipeline API and the compute API that mints the token. `pipeline_api_url` and `eyepop_url` win over it. |
+| `EYEPOP_ENV` | Pipeline mode: `staging`, `production` or `local` picks the pipeline API and the compute API that mints the token. `pipeline_api_url` wins over it for the pipeline API. A named compute API (`eyepop_url` or `EYEPOP_URL`) means `EYEPOP_ENV` is not read: that compute API names the pipeline API in its `/v1/configs`, unless `pipeline_api_url` is given. |
 | `EYEPOP_ACCOUNT_UUID` | The account to work in. Required for some Data API calls, and names the account a worker's compute session runs for when the API key does not (same as `account_id=`). `EYEPOP_ACCOUNT_ID` is still read when this is unset, with a `DeprecationWarning`. |
 
 ## Usage

@@ -58,17 +58,18 @@ def _pipeline_endpoint(
         session_uuid = os.getenv("EYEPOP_SESSION_UUID")
 
     env_name = (os.getenv("EYEPOP_ENV") or "").strip().lower()
-    if env_name == "local" and pipeline_api_url is None and eyepop_url is None:
+    # A compute API named by the caller names the environment: EYEPOP_ENV is read only when none is, so a
+    # token minted by one environment never goes to the pipeline API of another.
+    compute_named = eyepop_url is not None or os.getenv("EYEPOP_URL") is not None
+    if env_name == "local" and not compute_named:
         # A local environment is local mode: no compute API mints a token for it.
         is_local_mode = True
-    if env_name and not is_local_mode:
+    if env_name and not is_local_mode and not compute_named:
         if env_name not in _PIPELINE_API_URLS:
             raise ValueError(f"EYEPOP_ENV={env_name} is not one of {', '.join(_PIPELINE_API_URLS)}")
+        eyepop_url = _COMPUTE_API_URLS[env_name]
         if pipeline_api_url is None:
             pipeline_api_url = _PIPELINE_API_URLS[env_name]
-        # The token must come from the same environment as the pipeline API, however that API was named.
-        if eyepop_url is None and os.getenv("EYEPOP_URL") is None:
-            eyepop_url = _COMPUTE_API_URLS.get(env_name)
 
     if access_token is None and api_key is None and secret_key is None and not is_local_mode:
         api_key = os.getenv("EYEPOP_API_KEY")
@@ -288,6 +289,10 @@ class EyePopSdk:
                 account_id=account_id,
                 pipeline_api_url=pipeline_api_url,
             )
+
+        if pipeline_api_url is not None:
+            raise ValueError("pipeline_api_url names the pipeline API, which only pipeline mode uses; "
+                             "drop it, or leave is_pipeline_mode and EYEPOP_PIPELINE_MODE at their defaults")
 
         # The warning has to blame the caller's line, not an SDK frame or the wrapper of
         # the deprecated workerEndpoint: Python shows a DeprecationWarning only when the blamed module is __main__.

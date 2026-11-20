@@ -41,7 +41,7 @@ The SDK reads `EYEPOP_API_KEY` from the environment automatically. Other env var
 | `EYEPOP_POP_ID` | No | Pop Id from dashboard. Defaults to `"transient"`. Worker session only: raises `ValueError` in pipeline mode |
 | `EYEPOP_PIPELINE_MODE` | No | Pipeline mode is the default for worker endpoints. `false` runs on a worker session instead |
 | `EYEPOP_ACCOUNT_UUID` | For Data API; workers when the key names no account | Account UUID for `EyePopSdk.dataEndpoint()` and for the compute session a worker opens (`account_id=` on either). `EYEPOP_ACCOUNT_ID` is still read, deprecated |
-| `EYEPOP_ENV` | No | Pipeline mode: `staging`, `production` or `local` picks the pipeline API and the compute API that mints the token (replaces setting `EYEPOP_URL` for staging). `pipeline_api_url=` overrides the pipeline API |
+| `EYEPOP_ENV` | No | Pipeline mode: `staging`, `production` or `local` picks the pipeline API and the compute API that mints the token (replaces setting `EYEPOP_URL` for staging). `pipeline_api_url=` overrides the pipeline API; an explicit `EYEPOP_URL` means `EYEPOP_ENV` is not read |
 | `EYEPOP_URL` | For staging | Compute API URL. Defaults to `https://compute.eyepop.ai` (production). Set to `https://compute.staging.eyepop.xyz` for staging. |
 
 **Important:** `EYEPOP_SECRET_KEY` is deprecated and should NOT be used in any code or documentation.
