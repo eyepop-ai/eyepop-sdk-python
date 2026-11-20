@@ -89,7 +89,8 @@ class FakePipelineAPI(_Server):
     `drop_ended_upload` leaves it at once, and an `uploaded` for an upload that is not sending is then
     answered invalid_request. `media_answers` answer the reads by mediaId on `/api/v1/media/{mediaId}/...`
     first, as (status, headers, body); after them `range`, `frame` and `clip` answer with `media_range`,
-    `media_frame` and `media_clip`, and each read is kept in `media_reads`.
+    `media_frame` and `media_clip`, and each read is kept in `media_reads`. `media_stalls` hold the
+    reads back first, a number of seconds each, in turn; `media_clip_chunk_delay` paces a clip's chunks.
     """
 
     def __init__(self):
@@ -121,6 +122,8 @@ class FakePipelineAPI(_Server):
         self.media_range = (1_000, 9_000)
         self.media_frame = b"\xff\xd8 a jpeg"
         self.media_clip = b"an mp4 " * 50_000
+        self.media_stalls: list[float] = []
+        self.media_clip_chunk_delay = 0.0
         app = web.Application()
         app.router.add_get("/api/v1/pipeline", self._upgrade)
         app.router.add_get("/api/v1/media/{media_id}/{read}", self._media)
@@ -130,6 +133,8 @@ class FakePipelineAPI(_Server):
         read = MediaRead(request.match_info["media_id"], request.match_info["read"], dict(request.query),
                          request.headers.get("Authorization"), request.headers.get("Accept"))
         self.media_reads.append(read)
+        if self.media_stalls:
+            await asyncio.sleep(self.media_stalls.pop(0))
         if self.media_answers:
             status, headers, body = self.media_answers.pop(0)
             return web.Response(status=status, headers=headers, body=body, content_type="application/json")
@@ -146,6 +151,7 @@ class FakePipelineAPI(_Server):
                     "X-Milli-Compute-Units": "12"})
                 await response.prepare(request)
                 for at in range(0, len(self.media_clip), 64 * 1024):
+                    await asyncio.sleep(self.media_clip_chunk_delay)
                     await response.write(self.media_clip[at:at + 64 * 1024])
                 await response.write_eof()
                 return response

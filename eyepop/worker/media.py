@@ -166,22 +166,48 @@ def _nanoseconds(value: Any, name: str) -> int:
 
 async def _request(backend: 'WorkerBackend', media_id: str, read: MediaRead, params: dict[str, Any],
                    accept: str) -> aiohttp.ClientResponse:
-    """The read's answer when it succeeded; a 425 is retried after its Retry-After, within max_retry_time_secs."""
+    """The read's answer when it succeeded.
+
+    A `425` (not cached yet) and a `503 overloaded` (the pipeline API's limiter, which reads pass as sockets
+    do) are asked again after their Retry-After, within max_retry_time_secs. Each retry, its answer and the
+    reading of a refusal's body, is bounded by what is left of that budget; when it runs out the last
+    refusal is raised. An accepted clip streams outside the budget: only its headers are waited for here.
+    """
     if not media_id:
         raise ValueError('a media read needs a mediaId')
     deadline = time.monotonic() + settings.max_retry_time_secs
+    outcome = await _attempt(backend, media_id, read, params, accept)
     while True:
-        response = await backend.media_get(media_id, read, params, accept)
-        if response.ok:
-            return response
-        error = await _error_of(response)
-        if response.status == 425:
-            wait = error.retry_after if error.retry_after is not None else 1.0
-            if time.monotonic() + wait <= deadline:
-                log_requests.debug('media %s %s not cached yet, retrying in %.1f s', read, media_id, wait)
-                await asyncio.sleep(wait)
-                continue
-        raise error
+        if isinstance(outcome, aiohttp.ClientResponse):
+            return outcome
+        error = outcome
+        if not _retried(error):
+            raise error
+        wait = error.retry_after if error.retry_after is not None else 1.0
+        if time.monotonic() + wait > deadline:
+            raise error
+        log_requests.debug('media %s %s refused %d %s, retrying in %.1f s', read, media_id, error.status,
+                           error.reason or error.error, wait)
+        await asyncio.sleep(wait)
+        try:
+            outcome = await asyncio.wait_for(_attempt(backend, media_id, read, params, accept),
+                                             max(deadline - time.monotonic(), 0.0))
+        except TimeoutError:
+            raise error from None
+
+
+async def _attempt(backend: 'WorkerBackend', media_id: str, read: MediaRead, params: dict[str, Any],
+                   accept: str) -> aiohttp.ClientResponse | MediaReadException:
+    """One read: its answer when it succeeded, else the refusal, its body read and the answer let go."""
+    response = await backend.media_get(media_id, read, params, accept)
+    if response.ok:
+        return response
+    return await _error_of(response)
+
+
+def _retried(error: MediaReadException) -> bool:
+    """A moment not cached yet (`425`), or a pipeline API at capacity (`503 overloaded`)."""
+    return error.status == 425 or (error.status == 503 and 'overloaded' in (error.error, error.reason))
 
 
 async def _error_of(response: aiohttp.ClientResponse) -> MediaReadException:

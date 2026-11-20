@@ -955,6 +955,64 @@ async def test_a_moment_still_missing_at_the_deadline_raises(compute: FakeComput
     assert len(pipeline.media_reads) == 1
 
 
+async def test_a_retry_is_bounded_by_what_is_left_of_the_budget(compute: FakeComputeAPI, pipeline: FakePipelineAPI,
+                                                                  monkeypatch: pytest.MonkeyPatch):
+    # the retry after a 425 hangs: it is given up when the budget runs out, and the 425 is raised
+    monkeypatch.setattr(settings, "max_retry_time_secs", 1.0)
+    not_yet = json.dumps({"error": "not yet", "reason": "media_not_yet_available", "message": "wait"}).encode()
+    pipeline.media_answers = [(425, {"Retry-After": "0"}, not_yet)]
+    pipeline.media_stalls = [0.0, 30.0]
+    async with worker(compute) as endpoint:
+        started = asyncio.get_running_loop().time()
+        with pytest.raises(MediaReadException) as raised:
+            await endpoint.media_frame("v1.a-recording", 5_000)
+        elapsed = asyncio.get_running_loop().time() - started
+    assert (raised.value.status, raised.value.reason) == (425, "media_not_yet_available")
+    assert len(pipeline.media_reads) == 2
+    assert 0.9 <= elapsed < 5.0, elapsed
+
+
+async def test_an_accepted_clip_streams_past_the_budget(compute: FakeComputeAPI, pipeline: FakePipelineAPI,
+                                                        monkeypatch: pytest.MonkeyPatch):
+    # only the answer's headers are bounded: the clip it starts is read for as long as it streams
+    monkeypatch.setattr(settings, "max_retry_time_secs", 1.0)
+    not_yet = json.dumps({"error": "not yet", "reason": "media_not_yet_available", "message": "wait"}).encode()
+    pipeline.media_answers = [(425, {"Retry-After": "0"}, not_yet)]
+    pipeline.media_clip_chunk_delay = 0.2
+    async with worker(compute) as endpoint:
+        started = asyncio.get_running_loop().time()
+        clip = await endpoint.media_clip("v1.a-recording", 2_000, 4_000)
+        assert await clip.read() == pipeline.media_clip
+        assert asyncio.get_running_loop().time() - started > 1.0
+    assert len(pipeline.media_reads) == 2
+
+
+@pytest.mark.parametrize("refusal", [
+    {"error": "overloaded", "message": "at capacity"},
+    {"error": "service unavailable", "reason": "overloaded", "message": "at capacity"},
+])
+async def test_a_read_refused_overloaded_is_asked_again_after_retry_after(compute: FakeComputeAPI,
+                                                                         pipeline: FakePipelineAPI,
+                                                                         refusal: dict):
+    # reads pass the pipeline API's limiter as sockets do: a 503 overloaded is retried as a 425 is
+    pipeline.media_answers = [(503, {"Retry-After": "0"}, json.dumps(refusal).encode())]
+    async with worker(compute) as endpoint:
+        assert await endpoint.media_range("v1.a-recording") == (1_000, 9_000)
+    assert len(pipeline.media_reads) == 2
+
+
+async def test_a_read_still_overloaded_at_the_deadline_raises(compute: FakeComputeAPI, pipeline: FakePipelineAPI,
+                                                              monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(settings, "max_retry_time_secs", 1.0)
+    overloaded = json.dumps({"error": "overloaded", "reason": "overloaded", "message": "at capacity"}).encode()
+    pipeline.media_answers = [(503, {"Retry-After": "0"}, overloaded), (503, {"Retry-After": "5"}, overloaded)]
+    async with worker(compute) as endpoint:
+        with pytest.raises(MediaReadException) as raised:
+            await endpoint.media_frame("v1.a-recording", 5_000)
+    assert (raised.value.status, raised.value.reason, raised.value.retry_after) == (503, "overloaded", 5.0)
+    assert len(pipeline.media_reads) == 2
+
+
 @pytest.mark.parametrize(("status", "reason"), [
     (400, "invalid_media_id"), (403, "no_account"), (404, "stream_not_found"), (410, "media_expired"),
     (503, "media_cache_not_configured"),

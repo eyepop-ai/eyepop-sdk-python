@@ -399,8 +399,8 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         aspect kept and never enlarged. `wait_ms` is how long the server waits for a moment it has not
         cached yet (2000 ms by default, at most 10000); after it the server answers 425 with `Retry-After`,
         which the SDK waits out and asks again, for up to `max_retry_time_secs` (EYEPOP_MAX_RETRY_TIME_SECS,
-        30 s), before it raises. The pipeline API prices a frame read (`X-Milli-Compute-Units`); an
-        instance does not. A refused read raises MediaReadException. See `media_range` for where it reads.
+        30 s), before it raises; a 503 overloaded from the pipeline API at capacity is retried alike. The
+        pipeline API prices a frame read (`X-Milli-Compute-Units`); an instance does not. A refused read raises MediaReadException. See `media_range` for where it reads.
         """
         return await read_frame(self._backend, media_id, timestamp_ns, bbox=bbox, max_width=max_width,
                                 max_height=max_height, png=png, wait_ms=wait_ms)
@@ -420,8 +420,10 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
         than its cap (300 s by default, `clip_too_long`); `mode='keyframe'` copies it without encoding,
         from the keyframe at or before `start_ns`. The clip's `start_ns` and `end_ns` are its real bounds.
         Read it with `await clip.read()`, iterate it with `async for chunk in clip`, or hold it with
-        `async with`; it keeps a connection until then. `wait_ms` and the retries of a 425 are
-        `media_frame`'s. A refused read raises MediaReadException. See `media_range` for where it reads.
+        `async with`; it keeps a connection until then. `wait_ms` and the retries of a 425 or a
+        503 overloaded are `media_frame`'s; the clip's `milli_compute_units` is the pipeline API's
+        `X-Milli-Compute-Units` header, priced in full when it starts streaming. A refused read raises
+        MediaReadException. See `media_range` for where it reads.
         """
         return await open_clip(self._backend, media_id, start_ns, end_ns, mode=mode, wait_ms=wait_ms)
 

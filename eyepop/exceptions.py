@@ -90,7 +90,7 @@ class MediaReadException(Exception):
     (400), `no_account` (403), `stream_not_found` (404, also for a mediaId of another session or account),
     `media_expired` or `media_gap` (410), `media_not_yet_available` (425, raised once the SDK's own retries
     after `Retry-After` ran out of time), `media_cache_not_configured`, `media_cache_scope_unresolved` or
-    `overloaded` (503). `retry_after` is the answer's `Retry-After` in seconds, when it has one.
+    `overloaded` (503, raised once the SDK's retries after `Retry-After` ran out of time). `retry_after` is the answer's `Retry-After` in seconds, when it has one.
     """
     def __init__(self, status: int, error: str | None = None, reason: str | None = None, message: str = '',
                  retry_after: float | None = None):
