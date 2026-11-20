@@ -1,8 +1,10 @@
 import json
 import unittest
+
 from aioresponses import aioresponses
 
 from eyepop import EyePopSdk
+
 from .base_endpoint_test import BaseEndpointTest
 
 
