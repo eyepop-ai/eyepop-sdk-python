@@ -3,7 +3,6 @@ import os
 import sys
 import warnings
 
-import typing_extensions
 from typing_extensions import deprecated
 
 from eyepop import __version__
@@ -83,7 +82,9 @@ def _pipeline_endpoint(
     )
 
 
-_NOT_THE_CALLER = (os.path.dirname(__file__) + os.sep, typing_extensions.__file__)
+# The file whose wrapper `deprecated` puts between workerEndpoint and its caller: typing_extensions, or the
+# standard library's warnings module from Python 3.13.
+_NOT_THE_CALLER = (os.path.dirname(__file__) + os.sep, deprecated.__call__.__code__.co_filename)
 
 
 class EyePopSdk:
@@ -254,7 +255,7 @@ class EyePopSdk:
                 account_id=account_id,
             )
 
-        # The warning has to blame the caller's line, not an SDK frame or the typing_extensions wrapper of
+        # The warning has to blame the caller's line, not an SDK frame or the wrapper of
         # the deprecated workerEndpoint: Python shows a DeprecationWarning only when the blamed module is __main__.
         level, frame = 1, sys._getframe(0)
         while frame is not None and frame.f_code.co_filename.startswith(_NOT_THE_CALLER):
