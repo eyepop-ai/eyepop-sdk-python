@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-11-20
+
 ### Added
 
 - **`pipeline_api_url`** on `sync_worker()`, `async_worker()` and `workerEndpoint()` (and `WorkerEndpoint`), and **`EYEPOP_ENV`**, as in the Node SDK. In pipeline mode `eyepop_url` stays the compute API that mints the token, and `pipeline_api_url` names the pipeline API, so `/v1/configs` is not asked. `EYEPOP_ENV` picks both: `staging` (`pipeline.staging.eyepop.xyz`, `compute.staging.eyepop.xyz`), `production` (`pipeline.eyepop.ai`, `compute.eyepop.ai`), or `local` (local mode on `http://127.0.0.1:9002`). `local` is local mode whenever no compute API is named (a `pipeline_api_url` alone does not name one), so no key goes to a compute API. A compute API named by `eyepop_url` or `EYEPOP_URL` means `EYEPOP_ENV` is not read: that compute API names the pipeline API in its `/v1/configs`, unless `pipeline_api_url` is given, so a token minted by one environment never goes to another's pipeline API. `pipeline_api_url` wins over `EYEPOP_ENV`. An unknown `EYEPOP_ENV` raises `ValueError` in pipeline mode only when it is read; a worker session ignores it, and raises `ValueError` for a `pipeline_api_url`. Unset, the compute API names the pipeline API as before.
