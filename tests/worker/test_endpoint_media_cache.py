@@ -57,7 +57,9 @@ class TestEndpointMediaCache(BaseEndpointTest):
         ) as endpoint:
             self._mock_source(mock)
             with warnings.catch_warnings():
-                warnings.simplefilter("error")
+                # The SDK's own warnings are UserWarning. Not every warning: aioresponses raises a
+                # DeprecationWarning on Python 3.14 (asyncio.iscoroutinefunction) on each request.
+                warnings.simplefilter("error", UserWarning)
                 endpoint.load_from(self.test_url, media_cache_seconds=600, media_cache_reencode=True).predict()
 
             self._assert_body(mock, {

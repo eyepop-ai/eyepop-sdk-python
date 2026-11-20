@@ -159,7 +159,8 @@ async def test_a_recording_is_sent_and_its_job_gets_the_media_id(compute: FakeCo
     # warning, and the job keeps the mediaId its start carries (spec 024)
     async with worker(compute) as endpoint:
         with warnings.catch_warnings():
-            warnings.simplefilter("error")
+            # the SDK's own warnings are UserWarning; a dependency's DeprecationWarning is not this test's
+            warnings.simplefilter("error", UserWarning)
             recorded = await endpoint.load_from("https://images.example/a.jpg", media_cache_seconds=600,
                                                 media_cache_reencode=True)
             await predictions(recorded)
