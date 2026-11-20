@@ -288,10 +288,8 @@ class EyePopSdk:
             if eyepop_url is None:
                 if is_local_mode:
                     eyepop_url = 'http://127.0.0.1:8080'
-                elif api_key:
-                    eyepop_url = "https://compute.eyepop.ai"
                 else:
-                    eyepop_url = "https://api.eyepop.ai"
+                    eyepop_url = "https://compute.eyepop.ai"
 
         is_transient_pop = pop_id == "transient"
 
@@ -363,10 +361,7 @@ class EyePopSdk:
         if eyepop_url is None:
             eyepop_url = os.getenv("EYEPOP_URL")
             if eyepop_url is None:
-                if api_key:
-                    eyepop_url = "https://compute.eyepop.ai"
-                else:
-                    eyepop_url = "https://api.eyepop.ai"
+                eyepop_url = "https://compute.eyepop.ai"
 
         if account_id is None:
             account_id = account_uuid_from_env()

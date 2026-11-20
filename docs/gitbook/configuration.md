@@ -17,7 +17,7 @@ You can pass it directly instead, though the environment variable keeps it out o
 endpoint = EyePopSdk.sync_worker(api_key="eyp_...", pop=pop)
 ```
 
-If your backend already holds a short-lived token, pass it as `access_token=` instead of an API key. In pipeline mode the token is sent to the pipeline API as given. On a worker session (`is_pipeline_mode=False`) a token targets `https://api.eyepop.ai`, the legacy worker API. On a worker session the Compute API requires an API key — pointing `eyepop_url` at it with only a token raises `Compute API endpoint (https://compute.eyepop.ai) requires EYEPOP_API_KEY` — so `session_uuid` and `EYEPOP_SESSION_UUID` are ignored on the token path, and a persistent Deployment needs `api_key`. In pipeline mode `session_uuid` raises `ValueError`.
+If your backend already holds a short-lived token, pass it as `access_token=` instead of an API key. In pipeline mode the token is sent to the pipeline API as given. On a worker session (`is_pipeline_mode=False`) the Compute API, the default `eyepop_url`, requires an API key — a token alone raises `Compute API endpoint (https://compute.eyepop.ai) requires EYEPOP_API_KEY` — so `session_uuid` and `EYEPOP_SESSION_UUID` are ignored on the token path, and a persistent Deployment needs `api_key`. In pipeline mode `session_uuid` raises `ValueError`.
 
 ### Optional variables
 
