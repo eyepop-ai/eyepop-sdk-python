@@ -1,9 +1,11 @@
 import logging
 import typing
+from collections.abc import Iterator, Mapping, Sequence
 
 from eyepop.data.types.asset import Area
 from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 from eyepop.worker.camera import Camera
+from eyepop.worker.media import ClipMode, MediaClip
 from eyepop.worker.worker_jobs import WorkerJob
 from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, Pop, VideoMode
 
@@ -32,8 +34,81 @@ class SyncWorkerJob:
 
     @property
     def warnings(self) -> list[dict]:
-        """The warnings the pipeline API sent about the source; see WorkerJob.warnings."""
+        """The warnings the pipeline sent about the source; see WorkerJob.warnings."""
         return self.job.warnings
+
+    def media_frame(
+            self,
+            prediction: Mapping[str, typing.Any],
+            obj: Mapping[str, typing.Any] | None = None,
+            *,
+            max_width: int | None = None,
+            max_height: int | None = None,
+            png: bool = False,
+            wait_ms: int | None = None,
+    ) -> bytes:
+        """The recorded frame a prediction was made on, cropped to `obj`; see WorkerJob.media_frame."""
+        frame: bytes = run_coro_thread_save(self.event_loop, self.job.media_frame(
+            prediction, obj, max_width=max_width, max_height=max_height, png=png, wait_ms=wait_ms))
+        return frame
+
+
+class SyncMediaClip:
+    """A clip of a recording, read in the sync endpoint's thread; see MediaClip.
+
+    Iterate it for its bytes, `read()` it whole, or use it as a context manager, which closes it.
+    """
+
+    def __init__(self, clip: MediaClip, event_loop):
+        self.clip = clip
+        self.event_loop = event_loop
+
+    @property
+    def start_ns(self) -> int | None:
+        return self.clip.start_ns
+
+    @property
+    def end_ns(self) -> int | None:
+        return self.clip.end_ns
+
+    @property
+    def milli_compute_units(self) -> int | None:
+        return self.clip.milli_compute_units
+
+    @property
+    def content_type(self) -> str:
+        return self.clip.content_type
+
+    def read(self) -> bytes:
+        data: bytes = run_coro_thread_save(self.event_loop, self.clip.read())
+        return data
+
+    def __iter__(self) -> Iterator[bytes]:
+        """The clip's bytes, chunk by chunk."""
+        chunks = aiter(self.clip)
+
+        async def next_chunk() -> bytes | None:
+            try:
+                return await anext(chunks)
+            except StopAsyncIteration:
+                return None
+
+        while (chunk := run_coro_thread_save(self.event_loop, next_chunk())) is not None:
+            yield chunk
+
+    def close(self) -> None:
+        async def close():
+            # in the endpoint's loop, which owns the connection
+            self.clip.close()
+        run_coro_thread_save(self.event_loop, close())
+
+    def __enter__(self) -> "SyncMediaClip":
+        """The clip, closed when the block ends."""
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        """Close the clip."""
+        self.close()
 
 
 class SyncWorkerEndpoint(SyncEndpoint):
@@ -253,6 +328,42 @@ class SyncWorkerEndpoint(SyncEndpoint):
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
+
+    def media_range(self, media_id: str) -> tuple[int, int]:
+        """The recording's first and last nanosecond; see WorkerEndpoint.media_range."""
+        bounds: tuple[int, int] = run_coro_thread_save(self.event_loop, self.endpoint.media_range(media_id))
+        return bounds
+
+    def media_frame(
+            self,
+            media_id: str,
+            timestamp_ns: int,
+            *,
+            bbox: Sequence[float] | None = None,
+            max_width: int | None = None,
+            max_height: int | None = None,
+            png: bool = False,
+            wait_ms: int | None = None,
+    ) -> bytes:
+        """The recorded frame at a prediction's timestamp; see WorkerEndpoint.media_frame."""
+        frame: bytes = run_coro_thread_save(self.event_loop, self.endpoint.media_frame(
+            media_id, timestamp_ns, bbox=bbox, max_width=max_width, max_height=max_height, png=png,
+            wait_ms=wait_ms))
+        return frame
+
+    def media_clip(
+            self,
+            media_id: str,
+            start_ns: int,
+            end_ns: int,
+            *,
+            mode: ClipMode = 'exact',
+            wait_ms: int | None = None,
+    ) -> SyncMediaClip:
+        """An MP4 clip of a recording; see WorkerEndpoint.media_clip."""
+        clip = run_coro_thread_save(self.event_loop, self.endpoint.media_clip(
+            media_id, start_ns, end_ns, mode=mode, wait_ms=wait_ms))
+        return SyncMediaClip(clip, self.event_loop)
 
     def get_pop(self) -> Pop | None:
         return run_coro_thread_save(self.event_loop, self.endpoint.get_pop())

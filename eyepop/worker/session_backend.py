@@ -5,7 +5,7 @@ import time
 import warnings
 from io import StringIO
 from typing import TYPE_CHECKING, Any, AsyncIterable, Callable
-from urllib.parse import urlencode, urljoin
+from urllib.parse import quote, urlencode, urljoin
 
 import aiohttp
 from pydantic import TypeAdapter
@@ -20,6 +20,7 @@ from eyepop.exceptions import (
 )
 from eyepop.settings import settings
 from eyepop.worker.load_balancer import EndpointLoadBalancer
+from eyepop.worker.media import MEDIA_READ_TIMEOUT
 from eyepop.worker.worker_backend import WorkerBackend
 from eyepop.worker.worker_jobs import WorkerJob, WorkerSource, _iter_lines, _UploadSource
 from eyepop.worker.worker_types import ComponentParams, Pop
@@ -533,6 +534,46 @@ class SessionBackend(WorkerBackend):
         raise PopNotReachableException(self.endpoint.pop_id, [])
 
     #
+    # Recordings by mediaId (spec 025), on the session's instance
+    #
+
+    async def _instance_base_url(self) -> str:
+        """The instance's own root, where `/media/{mediaId}` is, not under a pipeline."""
+        if self.worker_config is None:
+            await self.connect()
+        config: dict[str, Any] | None = self.worker_config
+        if config is None:
+            raise PopNotStartedException(pop_id=self.endpoint.pop_id)
+        if config.get('session_endpoint') or config.get('base_url'):
+            return await self.dev_mode_base_url()
+        entry = self.load_balancer.next_entry(settings.max_retry_time_secs + 1)
+        if entry is None:
+            raise PopNotReachableException(self.endpoint.pop_id, self.load_balancer.get_debug_status())
+        base_url: str = entry.base_url
+        return base_url.rstrip("/")
+
+    async def media_get(self, media_id: str, read: str, params: dict[str, Any],
+                        accept: str) -> aiohttp.ClientResponse:
+        if self.client_session is None:
+            raise PopNotStartedException(pop_id=self.endpoint.pop_id)
+        url = f'{await self._instance_base_url()}/media/{quote(media_id, safe="")}/{read}'
+        failed_attempts = 0
+        while True:
+            headers = await self._authorization_headers()
+            headers['Accept'] = accept
+            log_requests.debug('before GET %s', url)
+            response = await self.client_session.get(url, params=params, headers=headers, raise_for_status=False,
+                                                     timeout=MEDIA_READ_TIMEOUT)
+            retry_401 = self.endpoint.retry_handlers.get(401)
+            if response.status == 401 and retry_401 is not None and failed_attempts == 0:
+                # once more with a fresh token, as the pipeline routes do
+                failed_attempts += 1
+                if await retry_401(401, failed_attempts):
+                    response.release()
+                    continue
+            return response
+
+    #
     # Jobs
     #
 
@@ -664,6 +705,8 @@ async def _read_response(job: WorkerJob) -> bool:
                 if not got_results:
                     got_results = True
                 prediction = json.loads(line)
+                # the recording's mediaId and the pipeline's warnings, as they arrive (spec 025)
+                job.note_event(prediction)
                 await job.push_message(prediction)
         finally:
             response.close()

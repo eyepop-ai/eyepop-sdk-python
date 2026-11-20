@@ -80,3 +80,24 @@ class PipelineSourceException(ValueError):
         self.reason = reason
         self.message = message
         super().__init__(f'Error in source {source_id}: {reason} {message}'.rstrip())
+
+
+class MediaReadException(Exception):
+    """Thrown when a read of a recording by its mediaId was refused (eyepop-instance spec 025).
+
+    `status` is the HTTP status; `error`, `reason` and `message` are the answer's JSON body, `reason`
+    being the code to act on: `invalid_media_id`, `invalid_request`, `invalid_bbox` or `clip_too_long`
+    (400), `no_account` (403), `stream_not_found` (404, also for a mediaId of another session or account),
+    `media_expired` or `media_gap` (410), `media_not_yet_available` (425, raised once the SDK's own retries
+    after `Retry-After` ran out of time), `media_cache_not_configured`, `media_cache_scope_unresolved` or
+    `overloaded` (503, raised once the SDK's retries after `Retry-After` ran out of time). `retry_after` is the answer's `Retry-After` in seconds, when it has one.
+    """
+    def __init__(self, status: int, error: str | None = None, reason: str | None = None, message: str = '',
+                 retry_after: float | None = None):
+        self.status = status
+        self.error = error
+        self.reason = reason
+        self.message = message
+        self.retry_after = retry_after
+        detail = ' '.join(part for part in (reason or error, message) if part)
+        super().__init__(f'the media read was refused: HTTP {status} {detail}'.rstrip())

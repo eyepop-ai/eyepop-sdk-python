@@ -43,6 +43,15 @@ class WorkerBackend(ABC):
     async def cancelled(self, job: "WorkerJob") -> None:  # noqa: B027
         """The job was cancelled; stop delivering its predictions."""
 
+    @abstractmethod
+    async def media_get(self, media_id: str, read: str, params: dict[str, Any],
+                        accept: str) -> aiohttp.ClientResponse:
+        """Ask for a read of a recording by its mediaId (`range`, `frame` or `clip`), where this backend reads.
+
+        A session asks its instance, the pipeline API its own route. The answer is returned whatever its
+        status, unread; a 401 is answered once with a fresh credential first.
+        """
+
     # Worker session routes, which only a session backend has.
 
     async def dev_mode_base_url(self) -> str:

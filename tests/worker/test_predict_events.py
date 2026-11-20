@@ -36,6 +36,7 @@ async def all_predictions(job: WorkerJob) -> list[dict[str, Any]]:
     {"event": "eos", "source_id": "s"},
     {"event": "a_type_no_sdk_knows_yet", "source_id": "s", "info": {"anything": [1, 2]}},
     {"event": {"type": "prepared", "source_id": "s"}},
+    {"event": {"type": "recording", "mediaId": "v2.opaque"}},
 ])
 async def test_an_event_between_predictions_is_skipped(event: dict[str, Any]):
     first, second = {"seconds": 0.0, "objects": []}, {"seconds": 1.0, "objects": []}
