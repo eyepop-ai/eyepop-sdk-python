@@ -330,7 +330,9 @@ class PipelineBackend(WorkerBackend):
     async def _http_url(self) -> str:
         """The pipeline API's http(s) base, which the socket's url is made from."""
         if self.pipeline_api_url is None:
-            if self.endpoint.is_local_mode:
+            if self.endpoint.pipeline_api_url:
+                base = self.endpoint.pipeline_api_url
+            elif self.endpoint.is_local_mode:
                 base = self.endpoint.eyepop_url
             else:
                 base = urljoin(self.endpoint.eyepop_url, await self._configured_pipeline_api_url())

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`pipeline_api_url`** on `sync_worker()`, `async_worker()` and `workerEndpoint()` (and `WorkerEndpoint`), and **`EYEPOP_ENV`**, as in the Node SDK. In pipeline mode `eyepop_url` stays the compute API that mints the token, and `pipeline_api_url` names the pipeline API, so `/v1/configs` is not asked. `EYEPOP_ENV` picks both: `staging` (`pipeline.staging.eyepop.xyz`, `compute.staging.eyepop.xyz`), `production` (`pipeline.eyepop.ai`, `compute.eyepop.ai`), or `local` (local mode on `http://127.0.0.1:9002`, when neither `pipeline_api_url` nor `eyepop_url` is passed). The argument wins over `EYEPOP_ENV`, and `eyepop_url` or `EYEPOP_URL` wins over the compute API `EYEPOP_ENV` names. An unknown `EYEPOP_ENV` raises `ValueError` in pipeline mode; a worker session ignores it. Unset, the compute API names the pipeline API as before.
+
 ## [4.0.0] - 2026-11-20
 
 ### Changed

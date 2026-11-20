@@ -171,6 +171,56 @@ async def test_the_pipeline_api_url_comes_from_the_compute_apis_configs(compute:
     assert compute.config_authorizations == ["Bearer minted-1"]
 
 
+async def test_a_given_pipeline_api_url_is_used_without_asking_the_compute_api(compute: FakeComputeAPI,
+                                                                                  pipeline: FakePipelineAPI):
+    async with worker(compute, pipeline_api_url=pipeline.url) as endpoint:
+        assert await endpoint.session() == {"pipeline_api_url": pipeline.url}
+    assert compute.config_authorizations == [], "the compute API still mints the token, and names nothing"
+    assert pipeline.sockets[0].authorization == "Bearer minted-1"
+
+
+@pytest.mark.parametrize("env_name, pipeline_url, compute_url", [
+    ("staging", "https://pipeline.staging.eyepop.xyz", "https://compute.staging.eyepop.xyz"),
+    ("PRODUCTION", "https://pipeline.eyepop.ai", "https://compute.eyepop.ai"),
+])
+def test_eyepop_env_names_the_pipeline_api_and_the_compute_api_that_mints_the_token(
+        monkeypatch: pytest.MonkeyPatch, env_name: str, pipeline_url: str, compute_url: str):
+    monkeypatch.setenv("EYEPOP_ENV", env_name)
+    monkeypatch.delenv("EYEPOP_URL", raising=False)
+    endpoint = EyePopSdk.async_worker(is_pipeline_mode=True, api_key="k")
+    assert (endpoint.pipeline_api_url, endpoint.eyepop_url) == (pipeline_url, compute_url)
+
+
+def test_the_pipeline_api_url_argument_and_the_compute_url_win_over_eyepop_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("EYEPOP_ENV", "staging")
+    endpoint = EyePopSdk.async_worker(is_pipeline_mode=True, api_key="k", pipeline_api_url="https://p.example",
+                                      eyepop_url="https://c.example")
+    assert (endpoint.pipeline_api_url, endpoint.eyepop_url) == ("https://p.example", "https://c.example")
+    monkeypatch.setenv("EYEPOP_URL", "https://env-compute.example")
+    endpoint = EyePopSdk.async_worker(is_pipeline_mode=True, api_key="k")
+    assert endpoint.eyepop_url == "https://env-compute.example"
+    assert endpoint.pipeline_api_url == "https://pipeline.staging.eyepop.xyz"
+
+
+def test_eyepop_env_local_is_local_mode_on_the_pipeline_api(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("EYEPOP_ENV", "local")
+    monkeypatch.delenv("EYEPOP_URL", raising=False)
+    endpoint = EyePopSdk.async_worker(is_pipeline_mode=True)
+    assert endpoint.is_local_mode
+    assert endpoint.eyepop_url == "http://127.0.0.1:9002"
+
+
+def test_an_unknown_eyepop_env_is_refused(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("EYEPOP_ENV", "prod")
+    with pytest.raises(ValueError, match="EYEPOP_ENV=prod is not one of staging, production, local"):
+        EyePopSdk.async_worker(is_pipeline_mode=True, api_key="k")
+
+
+def test_eyepop_env_does_not_touch_a_worker_session(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("EYEPOP_ENV", "prod")
+    EyePopSdk.async_worker(is_pipeline_mode=False, api_key="k")
+
+
 async def test_a_compute_api_without_a_pipeline_api_fails_the_connect_naming_the_key(pipeline: FakePipelineAPI):
     async with FakeComputeAPI(None) as compute:
         with pytest.raises(PopConfigurationException, match="pipeline_api_url"):
