@@ -123,6 +123,11 @@ pythonpath = [
 markers = [
     "integration: marks tests as integration tests (require API keys)",
 ]
+# Most worker tests open a worker session on purpose. test_pipeline_mode.py asserts the warning itself
+# with pytest.warns, which sees it through this filter.
+filterwarnings = [
+    "ignore:worker sessions .is_pipeline_mode=False. are deprecated:DeprecationWarning",
+]
 asyncio_mode = "auto"
 [tool.coverage.run]
 source = ["eyepop"]

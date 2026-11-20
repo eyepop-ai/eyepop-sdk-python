@@ -97,7 +97,7 @@ class TestEndpointConnect(BaseEndpointTest):
         with patch.dict(os.environ, {"EYEPOP_ACCOUNT_ID": "env-id"}, clear=False):
             os.environ.pop("EYEPOP_ACCOUNT_UUID", None)
             with warnings.catch_warnings():
-                warnings.simplefilter("error", DeprecationWarning)
+                warnings.filterwarnings("error", message="EYEPOP_ACCOUNT_ID", category=DeprecationWarning)
                 endpoint = EyePopSdk.async_worker(
                     eyepop_url="https://compute.eyepop.ai",
                     api_key="test-api-key",

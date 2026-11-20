@@ -34,7 +34,7 @@ If your backend already holds a short-lived token, pass it as `access_token=` in
 
 ### Transient and persistent sessions
 
-This section and the next describe a worker session, so they pass `is_pipeline_mode=False` or set `EYEPOP_PIPELINE_MODE=false`. In the default pipeline mode there is no session: the endpoint opens a socket to the pipeline API and sets your `pop` on it.
+A worker session is deprecated: opening one warns with a `DeprecationWarning`, and pipeline mode replaces it. This section and the next describe it, so they pass `is_pipeline_mode=False` or set `EYEPOP_PIPELINE_MODE=false`. In the default pipeline mode there is no session: the endpoint opens a socket to the pipeline API and sets your `pop` on it.
 
 With no session UUID and a `pop` — the flow every example here uses — the SDK creates a new **transient** session each time it connects, and deletes the pipeline it created on exit. It does not delete the session itself. This is the right default for building and testing.
 

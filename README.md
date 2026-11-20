@@ -212,7 +212,7 @@ A job also keeps the pipeline's `warning` events on `job.warnings`, in both mode
 ## Pipeline mode
 
 A worker endpoint runs its jobs on the pipeline API by default, not on a worker session. Pass
-`is_pipeline_mode=False`, or set `EYEPOP_PIPELINE_MODE=false`, to use a worker session; the argument
+`is_pipeline_mode=False`, or set `EYEPOP_PIPELINE_MODE=false`, to use a worker session, which is deprecated and warns with a `DeprecationWarning`; the argument
 wins over the environment. Code that names a session (`secret_key`, `pop_id`, `session_uuid`,
 `session_name`, `pipeline_image`, `pipeline_version`, `dataset_uuid`, or `EYEPOP_SESSION_UUID` in the
 environment) raises `ValueError` in pipeline mode and needs the opt-out. Pass `pop=`: without one,

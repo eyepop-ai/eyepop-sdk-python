@@ -1,5 +1,6 @@
 import logging
 import os
+import warnings
 
 from typing_extensions import deprecated
 
@@ -220,7 +221,8 @@ class EyePopSdk:
         is false;
         the compute API at `eyepop_url` names the pipeline API in its
         `/v1/configs`. Pipeline mode takes an API key or a user access token,
-        and no option that names a session or a pop.
+        and no option that names a session or a pop. A worker session is
+        deprecated and warns with a `DeprecationWarning`.
         """
         if is_local_mode is None:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
@@ -246,6 +248,11 @@ class EyePopSdk:
                 pop=pop,
                 account_id=account_id,
             )
+
+        # skip_file_prefixes blames the caller's line however many SDK frames sit above it, which a
+        # DeprecationWarning needs: Python shows one only when the blamed module is __main__.
+        warnings.warn("worker sessions (is_pipeline_mode=False) are deprecated, use pipeline mode, the default",
+                      DeprecationWarning, skip_file_prefixes=(os.path.dirname(__file__),))
 
         if job_queue_length is None:
             job_queue_length = settings.default_job_queue_length
