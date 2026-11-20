@@ -645,12 +645,17 @@ class PipelineBackend(WorkerBackend):
     # Jobs
 
     def accept(self, source: WorkerSource):
-        """Refuse motion detection or recording on a group, and warn once per endpoint for each option the socket does not take.
+        """Refuse a job with no pop, motion detection or recording on a group, and warn once per endpoint for each option the socket does not take.
+
+        A socket's pipeline with no pop runs nothing: the pipeline API accepts the source and the job ends
+        with no result, so the job fails here instead.
 
         The pipeline API answers a group with motion detection or a recording invalid_request: the pipeline
         forces motion detection off for a group, and a group is still images, which are not recorded to the
         media cache. `video_mode` is sent with a single upload only, as on a session.
         """
+        if self.endpoint.pop is None:
+            raise ValueError('pipeline mode has no pop to run: pass pop= to the endpoint or call set_pop() before a job')
         if source.group and source.motion_detect is not None:
             raise ValueError('motion_detect is not taken for a group in pipeline mode: a group is still images')
         if source.group and (source.media_cache_seconds is not None or source.media_cache_reencode is not None):

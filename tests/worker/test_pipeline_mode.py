@@ -61,6 +61,7 @@ def in_pipeline_mode(endpoint: object) -> bool:
 
 def worker(compute: FakeComputeAPI, **options) -> WorkerEndpoint:
     options.setdefault("api_key", "the api key")
+    options.setdefault("pop", PERSON)
     endpoint = EyePopSdk.async_worker(eyepop_url=compute.url, is_pipeline_mode=True, **options)
     assert in_pipeline_mode(endpoint)
     return endpoint
@@ -183,7 +184,7 @@ async def test_plain_http_is_refused_for_a_pipeline_api_off_loopback():
 
 
 async def test_local_mode_takes_eyepop_url_as_the_pipeline_api(pipeline: FakePipelineAPI):
-    endpoint = EyePopSdk.async_worker(is_pipeline_mode=True, is_local_mode=True, eyepop_url=pipeline.url)
+    endpoint = EyePopSdk.async_worker(is_pipeline_mode=True, is_local_mode=True, eyepop_url=pipeline.url, pop=PERSON)
     async with endpoint:
         assert await predictions(await endpoint.load_from("https://images.example/a.jpg")) == [prediction(0), prediction(1)]
     assert pipeline.sockets[0].authorization is None
@@ -323,13 +324,21 @@ async def test_connect_opens_the_socket_and_sets_the_pop(compute: FakeComputeAPI
 
 
 async def test_set_pop_sends_set_pop_and_a_refused_pop_raises(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
-    async with worker(compute) as endpoint:
+    async with worker(compute, pop=None) as endpoint:
         await endpoint.set_pop(PERSON)
         pipeline.pop_error = "invalid_request"
         with pytest.raises(PopConfigurationException, match="invalid_request"):
             await endpoint.set_pop(VEHICLE)
         assert await endpoint.get_pop() == PERSON, "the refused pop is not the one a reconnect sets"
     assert len(pipeline.sockets[0].pops) == 2
+
+
+async def test_a_job_with_no_pop_is_refused_before_anything_is_sent(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+    async with worker(compute, pop=None) as endpoint:
+        with pytest.raises(ValueError, match="no pop to run"):
+            await endpoint.load_from("https://images.example/a.jpg")
+        await endpoint.set_pop(PERSON)
+        assert await predictions(await endpoint.load_from("https://images.example/a.jpg")) == [prediction(0), prediction(1)]
 
 
 async def test_a_job_cancelled_before_its_source_went_out_ends(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
@@ -408,7 +417,7 @@ async def test_closes_one_after_another_wait_longer_before_each_reconnect(comput
     # Every socket is closed `1001 shutting_down` as it opens: the first reconnect is at once, the
     # next waits a second, the one after two
     pipeline.close_on_open = (1001, "shutting_down")
-    async with worker(compute):
+    async with worker(compute, pop=None):
         await asyncio.sleep(0.5)
         assert len(pipeline.sockets) == 2
         await asyncio.sleep(1)

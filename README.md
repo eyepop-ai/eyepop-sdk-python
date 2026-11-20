@@ -215,8 +215,8 @@ A worker endpoint runs its jobs on the pipeline API by default, not on a worker 
 `is_pipeline_mode=False`, or set `EYEPOP_PIPELINE_MODE=false`, to use a worker session, which is deprecated and warns with a `DeprecationWarning`; the argument
 wins over the environment. Code that names a session (`secret_key`, a `pop_id` other than `"transient"`, `session_uuid`,
 `session_name`, `pipeline_image`, `pipeline_version`, `dataset_uuid`, or `EYEPOP_SESSION_UUID` in the
-environment) raises `ValueError` in pipeline mode and needs the opt-out. Pass `pop=`: without one,
-pipeline mode sets no pop.
+environment) raises `ValueError` in pipeline mode and needs the opt-out. Pass `pop=` (or call `set_pop()` before the first job): a job with no pop
+raises `ValueError`, since a pipeline with no pop runs nothing.
 
 The code that uses the endpoint stays the same:
 
