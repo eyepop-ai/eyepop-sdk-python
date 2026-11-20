@@ -53,6 +53,9 @@ See `eyepop-auth` skill for full authentication details.
 
 ```python
 from eyepop import EyePopSdk
+from eyepop.worker.worker_types import InferenceComponent, Pop
+
+pop = Pop(components=[InferenceComponent(ability='eyepop.person:latest')])
 
 # Sync
 with EyePopSdk.sync_worker(pop=pop) as endpoint:

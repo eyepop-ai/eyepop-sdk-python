@@ -17,16 +17,16 @@ You can pass it directly instead, though the environment variable keeps it out o
 endpoint = EyePopSdk.sync_worker(api_key="eyp_...", pop=pop)
 ```
 
-If your backend already holds a short-lived token, pass it as `access_token=` instead of an API key. In pipeline mode the token is sent to the pipeline API as given. On a worker session (`is_pipeline_mode=False`) a token targets `https://api.eyepop.ai`, the legacy worker API. The Compute API requires an API key — pointing `eyepop_url` at it with only a token raises `Compute API endpoint (https://compute.eyepop.ai) requires EYEPOP_API_KEY` — so `session_uuid` and `EYEPOP_SESSION_UUID` are ignored on the token path, and a persistent Deployment needs `api_key`.
+If your backend already holds a short-lived token, pass it as `access_token=` instead of an API key. In pipeline mode the token is sent to the pipeline API as given. On a worker session (`is_pipeline_mode=False`) a token targets `https://api.eyepop.ai`, the legacy worker API. On a worker session the Compute API requires an API key — pointing `eyepop_url` at it with only a token raises `Compute API endpoint (https://compute.eyepop.ai) requires EYEPOP_API_KEY` — so `session_uuid` and `EYEPOP_SESSION_UUID` are ignored on the token path, and a persistent Deployment needs `api_key`. In pipeline mode `session_uuid` raises `ValueError`.
 
 ### Optional variables
 
 | Variable | Description |
 | --- | --- |
 | `EYEPOP_PIPELINE_MODE` | Worker endpoints run on the pipeline API by default. Set to `false` to run on a worker session instead, which the three variables below and the sections on persistent Deployments and local mode need. A named Pop, a session UUID or a secret key raises `ValueError` in pipeline mode. |
-| `EYEPOP_SECRET_KEY` | Secret key authentication, which works with named Pops. `EYEPOP_API_KEY` does not, and has to be unset — the SDK reads both, and a named Pop with an API key present raises `EYEPOP_API_KEY can only be used with transient pops`. |
-| `EYEPOP_POP_ID` | Named Pop to run. Defaults to `transient`. |
-| `EYEPOP_SESSION_UUID` | Attach to a persistent Deployment instead of creating a transient session. |
+| `EYEPOP_SECRET_KEY` | Worker session only (`is_pipeline_mode=False`): secret key authentication, which works with named Pops. In pipeline mode a secret key alone raises `KeyError`. `EYEPOP_API_KEY` does not, and has to be unset — the SDK reads both, and a named Pop with an API key present raises `EYEPOP_API_KEY can only be used with transient pops`. |
+| `EYEPOP_POP_ID` | Worker session only: named Pop to run. Defaults to `transient`. A named Pop raises `ValueError` in pipeline mode. |
+| `EYEPOP_SESSION_UUID` | Worker session only: attach to a persistent Deployment instead of creating a transient session. Raises `ValueError` in pipeline mode. |
 | `EYEPOP_ACCOUNT_UUID` | The account to work in. Required for some Data API calls, and names the account a worker's compute session runs for when the API key does not (same as `account_id=`). `EYEPOP_ACCOUNT_ID` is still read when this is unset, with a `DeprecationWarning`. |
 | `EYEPOP_URL` | Override the API base URL. |
 | `EYEPOP_PIPELINE_WAIT_TIMEOUT` | Pipeline mode: how many seconds a refused socket (HTTP 503 or 429 from a pipeline API at capacity) is retried, waiting the `Retry-After` it names plus jitter, before `PipelineOverloadedException`. Defaults to 600; `0` does not wait. The first wait is logged at `WARNING`. A script or test suite that should fail fast sets `0` or a few seconds. |

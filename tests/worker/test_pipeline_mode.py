@@ -108,6 +108,12 @@ def test_a_worker_session_is_deprecated_and_the_warning_names_the_caller(open_en
     assert caught[0].filename == __file__
 
 
+def test_the_deprecated_worker_endpoint_names_the_caller_too():
+    with pytest.warns(DeprecationWarning, match="worker sessions") as caught:
+        EyePopSdk.workerEndpoint(access_token="t", is_pipeline_mode=False)
+    assert [w.filename for w in caught if "worker sessions" in str(w.message)] == [__file__]
+
+
 def test_a_secret_key_in_the_environment_alone_names_the_opt_out(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("EYEPOP_API_KEY", raising=False)
     monkeypatch.delenv("EYEPOP_ACCESS_TOKEN", raising=False)
@@ -122,7 +128,7 @@ def test_pipeline_mode_does_not_warn():
         EyePopSdk.async_worker(access_token="t")
 
 
-@pytest.mark.parametrize("value", ["false", "no", "0", "FALSE"])
+@pytest.mark.parametrize("value", ["false", "no", "0", "FALSE", " false "])
 def test_the_environment_turns_pipeline_mode_off(monkeypatch: pytest.MonkeyPatch, value: str):
     monkeypatch.setenv("EYEPOP_PIPELINE_MODE", value)
     assert not in_pipeline_mode(EyePopSdk.async_worker(access_token="t"))

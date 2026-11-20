@@ -37,6 +37,13 @@ async def all_of(job) -> list[dict]:
     return results
 
 
+async def test_the_default_is_pipeline_mode(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("EYEPOP_PIPELINE_MODE", raising=False)
+    async with EyePopSdk.async_worker(pop=PERSON) as endpoint:
+        assert endpoint.is_pipeline_mode
+        assert persons(await (await endpoint.upload(TEST_IMAGE)).predict()) >= MIN_PERSONS
+
+
 async def test_one_image():
     async with EyePopSdk.async_worker(is_pipeline_mode=True, pop=PERSON) as endpoint:
         [result] = await all_of(await endpoint.upload(TEST_IMAGE))

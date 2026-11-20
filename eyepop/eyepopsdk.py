@@ -1,7 +1,9 @@
 import logging
 import os
+import sys
 import warnings
 
+import typing_extensions
 from typing_extensions import deprecated
 
 from eyepop import __version__
@@ -79,6 +81,9 @@ def _pipeline_endpoint(
         account_id=account_id,
         is_pipeline_mode=True,
     )
+
+
+_NOT_THE_CALLER = (os.path.dirname(__file__) + os.sep, typing_extensions.__file__)
 
 
 class EyePopSdk:
@@ -229,7 +234,7 @@ class EyePopSdk:
             is_local_mode = local_mode_env.lower() in ("true", "yes")
 
         if is_pipeline_mode is None:
-            is_pipeline_mode = os.getenv("EYEPOP_PIPELINE_MODE", "").lower() not in ("false", "no", "0")
+            is_pipeline_mode = os.getenv("EYEPOP_PIPELINE_MODE", "").strip().lower() not in ("false", "no", "0")
 
         if is_pipeline_mode:
             return _pipeline_endpoint(
@@ -249,10 +254,13 @@ class EyePopSdk:
                 account_id=account_id,
             )
 
-        # skip_file_prefixes blames the caller's line however many SDK frames sit above it, which a
-        # DeprecationWarning needs: Python shows one only when the blamed module is __main__.
+        # The warning has to blame the caller's line, not an SDK frame or the typing_extensions wrapper of
+        # the deprecated workerEndpoint: Python shows a DeprecationWarning only when the blamed module is __main__.
+        level, frame = 1, sys._getframe(0)
+        while frame is not None and frame.f_code.co_filename.startswith(_NOT_THE_CALLER):
+            level, frame = level + 1, frame.f_back
         warnings.warn("worker sessions (is_pipeline_mode=False) are deprecated, use pipeline mode, the default",
-                      DeprecationWarning, skip_file_prefixes=(os.path.dirname(__file__) + os.sep,))
+                      DeprecationWarning, stacklevel=level)
 
         if job_queue_length is None:
             job_queue_length = settings.default_job_queue_length
