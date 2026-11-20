@@ -125,16 +125,19 @@ range still held through the endpoint, in either mode:
 
 ```python
 job = endpoint.load_from("rtsp://camera.example.com/stream1", media_cache_seconds=3600)
-while (result := job.predict()) is not None:
+for _ in range(300):  # a live source never ends on its own: take its first 300 results
+    if (result := job.predict()) is None:
+        break
     for person in result.get("objects", []):
         # the frame the prediction was made on, cropped to the object's box, fit to 160 x 160, JPEG
         thumbnail = job.media_frame(result, person, max_width=160, max_height=160)
 
 start_ns, end_ns = endpoint.media_range(job.media_id)
-with endpoint.media_clip(job.media_id, end_ns - 10_000_000_000, end_ns) as clip:  # the last 10 s, MP4
+with endpoint.media_clip(job.media_id, max(start_ns, end_ns - 10_000_000_000), end_ns) as clip:  # the last 10 s, MP4
     with open("clip.mp4", "wb") as file:
         for chunk in clip:
             file.write(chunk)
+job.cancel()  # stop the live source
 ```
 
 | Method | Returns |
@@ -150,7 +153,8 @@ instance, which knows only its own session's recordings (`v2.` ids, from the `re
 a recording source's results); a pipeline endpoint reads from the pipeline API, which knows every
 recording of the token's account, a session's too once its instance is gone. A frame read right after its
 prediction waits on the server for the moment to be cached (`wait_ms`, 2000 by default, at most 10000);
-an answer `425` is asked again after its `Retry-After` for up to `EYEPOP_MAX_RETRY_TIME_SECS` (30 s).
+an answer `425`, or `503 overloaded` from a pipeline API at capacity, is asked again after its
+`Retry-After` for up to `EYEPOP_MAX_RETRY_TIME_SECS` (30 s), each retry bounded by what is left of it.
 Any other refusal raises `MediaReadException` with the `status` and the answer's `error`, `reason` (the
 code to act on, such as `stream_not_found`, `media_expired` or `clip_too_long`) and `message`. The pipeline
 API prices frame and clip reads in milli compute units, in dry run; a session's reads are part of its
