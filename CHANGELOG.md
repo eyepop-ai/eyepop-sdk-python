@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-11-20
+
 ### Changed
 
 - **Breaking: pipeline mode is the default for worker endpoints.** `EyePopSdk.sync_worker()`, `async_worker()` and `workerEndpoint()` run their jobs on the pipeline API unless `is_pipeline_mode=False` is passed or `EYEPOP_PIPELINE_MODE` is `false`, `no` or `0`; the argument wins over the environment. Pipeline mode refuses what only a worker session has, so a caller that passes `secret_key`, a `pop_id` other than `"transient"`, `session_uuid`, `session_name`, `pipeline_image`, `pipeline_version`, `dataset_uuid` or `job_queue_length` above 256, or has `EYEPOP_SESSION_UUID` or an `EYEPOP_POP_ID` other than `transient` set, now gets a `ValueError` at construction. Such a caller opts out with `is_pipeline_mode=False` or `EYEPOP_PIPELINE_MODE=false`. Pipeline mode sets no pop unless `pop=` is passed or `set_pop()` is called, and a job submitted with no pop raises `ValueError` instead of ending with no result, which is what the pipeline API does with a source it has no pop for. `WorkerEndpoint` itself still defaults to `is_pipeline_mode=False`.
