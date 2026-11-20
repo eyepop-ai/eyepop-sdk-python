@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Pipeline mode records to the media cache** (eyepop-instance spec 024, AWSU-342). A job's `media_cache_seconds` is now sent to the pipeline API, which takes it from eyepop-worker v4.20.6 on, and no longer warns. A source that records gets a `mediaId` in its `start`, which the job keeps as `WorkerJob.media_id` (and `SyncWorkerJob.media_id`): an opaque string to pass back unchanged to read the recording. It is None until the source started, for a source that does not record, and on a session. A group with `media_cache_seconds` or `media_cache_reencode` raises `ValueError` in pipeline mode, since a group is still images and is not recorded.
+- **`media_cache_reencode`** on every job method (keyword-only), in both modes: the source is recorded re-encoded from its decode, with a keyframe every 2 s, for a camera that sends keyframes too rarely. On a session it is sent for a url or an asset; a session's upload routes do not take it, so for an upload it warns and has no effect.
+- **`WorkerJob.warnings`** (and `SyncWorkerJob.warnings`): the pipeline API's `warning` messages about a source in pipeline mode, in order, each a dict with its `message` and its `info` (`code`, `level` and details). Each is also logged at `WARNING` on `eyepop`. The pipeline API sends one when a source that records goes more than 10 s without a keyframe (`media_cache_gop_too_long`, with `gap_ms` and `threshold_ms`); the source runs on, and `media_cache_reencode` avoids it. The SDK used to drop these messages.
+
 ## [3.29.2] - 2026-11-19
 
 ### Changed

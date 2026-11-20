@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import time
+import warnings
 from io import StringIO
 from typing import TYPE_CHECKING, Any, AsyncIterable, Callable
 from urllib.parse import urlencode, urljoin
@@ -535,6 +536,17 @@ class SessionBackend(WorkerBackend):
     # Jobs
     #
 
+    def accept(self, source: WorkerSource):
+        """Warn when an upload asks for media_cache_reencode, which a session's upload routes do not take.
+
+        Warned here, when the job is submitted, so that the warning names the caller's line and is given
+        once per call, not from the job's task on each attempt.
+        """
+        if source.uploads and source.media_cache_reencode is not None:
+            # The caller of the endpoint's method, past accept, _submit and that method.
+            warnings.warn('media_cache_reencode is not taken by a session for an upload, and has no effect; '
+                          'it applies to a url or an asset', UserWarning, stacklevel=4)
+
     async def run(self, job: WorkerJob):
         source = job.source
         self._running.add(job)
@@ -710,6 +722,8 @@ def _url_body(source: WorkerSource) -> dict[str, Any]:
             body['camera'] = source.camera.model_dump(exclude_none=True)
         if source.media_cache_seconds is not None:
             body['mediaCacheSeconds'] = source.media_cache_seconds
+        if source.media_cache_reencode is not None:
+            body['mediaCacheReencode'] = source.media_cache_reencode
         if source.rtsp_force_non_compliant_url is not None:
             body['rtspForceNonCompliantUrl'] = source.rtsp_force_non_compliant_url
         return body
@@ -727,6 +741,8 @@ def _url_body(source: WorkerSource) -> dict[str, Any]:
         body['camera'] = source.camera.model_dump(exclude_none=True)
     if source.media_cache_seconds is not None:
         body['mediaCacheSeconds'] = source.media_cache_seconds
+    if source.media_cache_reencode is not None:
+        body['mediaCacheReencode'] = source.media_cache_reencode
     return body
 
 
@@ -746,4 +762,6 @@ def _asset_body(source: WorkerSource) -> dict[str, Any]:
         body['camera'] = source.camera.model_dump(exclude_none=True)
     if source.media_cache_seconds is not None:
         body['mediaCacheSeconds'] = source.media_cache_seconds
+    if source.media_cache_reencode is not None:
+        body['mediaCacheReencode'] = source.media_cache_reencode
     return body

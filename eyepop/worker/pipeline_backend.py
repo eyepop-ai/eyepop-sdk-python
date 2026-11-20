@@ -70,8 +70,6 @@ _MAX_COUNTED_REFUSALS = 16
 # The upgrade's clock and sleep, so that a test need not wait minutes.
 _sleep = asyncio.sleep
 _monotonic = time.monotonic
-# What the socket's setSource does not take yet (AWSU-317).
-_NOT_SENT = ('media_cache_seconds',)
 
 
 class _WaitCancelled(Exception):
@@ -616,16 +614,19 @@ class PipelineBackend(WorkerBackend):
     # Jobs
 
     def accept(self, source: WorkerSource):
-        """Refuse motion detection on a group, and warn once per endpoint for each option the socket does not take.
+        """Refuse motion detection or recording on a group, and warn once per endpoint for each option the socket does not take.
 
-        The pipeline API answers a group with motion detection invalid_request, since the pipeline
-        forces it off for a group; `video_mode` is sent with a single upload only, as on a session.
+        The pipeline API answers a group with motion detection or a recording invalid_request: the pipeline
+        forces motion detection off for a group, and a group is still images, which are not recorded to the
+        media cache. `video_mode` is sent with a single upload only, as on a session.
         """
         if source.group and source.motion_detect is not None:
             raise ValueError('motion_detect is not taken for a group in pipeline mode: a group is still images')
+        if source.group and (source.media_cache_seconds is not None or source.media_cache_reencode is not None):
+            raise ValueError('media_cache_seconds and media_cache_reencode are not taken for a group in pipeline mode: '
+                             'a group is still images and is not recorded')
         options = {
             'video_mode': None if _takes_video_mode(source) else source.video_mode,
-            'media_cache_seconds': source.media_cache_seconds,
             'rtsp_force_non_compliant_url': source.rtsp_force_non_compliant_url,
         }
         for name, value in options.items():
@@ -633,8 +634,6 @@ class PipelineBackend(WorkerBackend):
                 continue
             self._warned.add(name)
             message = f'{name} is not sent to the pipeline API and has no effect in pipeline mode'
-            if name in _NOT_SENT:
-                message += ' (AWSU-317)'
             # The caller of the endpoint's method, past accept and that method.
             warnings.warn(message, UserWarning, stacklevel=4)
 
@@ -765,6 +764,11 @@ class PipelineBackend(WorkerBackend):
                     job.callback.first_result(job)
                     first = False
                 await job.push_message(message.get('prediction'))
+            elif type_ == 'start':
+                # a source that records to the media cache carries the id its recording is read by (spec 024)
+                media_id = message.get('mediaId')
+                if isinstance(media_id, str):
+                    job.media_id = media_id
             elif type_ == 'usage':
                 _note_milli_compute_units(job, message)
             elif type_ == 'end':
@@ -777,6 +781,13 @@ class PipelineBackend(WorkerBackend):
                 if message.get('error') in ('overloaded', 'queue_full'):
                     return message['error']
                 raise PipelineCommandException(message.get('error', ''), message.get('message', ''))
+            elif type_ == 'warning':
+                # the source runs on: say so, and keep it for the caller (media_cache_gop_too_long, spec 024)
+                warning = {'message': message.get('message', '')}
+                if isinstance(message.get('info'), dict):
+                    warning['info'] = message['info']
+                job.warnings.append(warning)
+                log.warning('the pipeline API warns about source %s: %s', source.id, warning['message'])
             elif type_ == 'dropped':
                 log.debug('the pipeline API dropped %s predictions of a live source', message.get('count'))
 
@@ -837,6 +848,10 @@ def _set_source_command(id: str, source: WorkerSource) -> dict[str, Any]:
         command['videoMode'] = source.video_mode.value
     if source.motion_detect is not None and not source.group:
         command.update(source.motion_detect.model_dump(exclude_none=True))
+    if source.media_cache_seconds is not None:
+        command['mediaCacheSeconds'] = source.media_cache_seconds
+    if source.media_cache_reencode is not None:
+        command['mediaCacheReencode'] = source.media_cache_reencode
     return command
 
 
