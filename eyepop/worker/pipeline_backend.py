@@ -17,7 +17,7 @@ import warnings
 from collections.abc import AsyncIterable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, BinaryIO
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import quote, urljoin, urlsplit
 
 import aiohttp
 from pydantic import TypeAdapter
@@ -31,6 +31,7 @@ from eyepop.exceptions import (
     PopConfigurationException,
 )
 from eyepop.settings import settings
+from eyepop.worker.media import MEDIA_READ_TIMEOUT
 from eyepop.worker.worker_backend import WorkerBackend
 from eyepop.worker.worker_jobs import WorkerJob, WorkerSource, _UploadSource
 from eyepop.worker.worker_types import ComponentParams, Pop
@@ -42,6 +43,8 @@ log = logging.getLogger('eyepop')
 log_requests = logging.getLogger('eyepop.requests')
 
 PIPELINE_PATH = '/api/v1/pipeline'
+# Where a recording is read by its mediaId (eyepop-instance spec 025).
+MEDIA_PATH = '/api/v1/media'
 SUBPROTOCOL = 'eyepop.v1'
 # A socket may have this many open sources; one more is answered queue_full.
 MAX_OPEN_SOURCES = 256
@@ -324,14 +327,42 @@ class PipelineBackend(WorkerBackend):
                 raise
         return socket
 
-    async def _socket_url(self) -> str:
+    async def _http_url(self) -> str:
+        """The pipeline API's http(s) base, which the socket's url is made from."""
         if self.pipeline_api_url is None:
             if self.endpoint.is_local_mode:
                 base = self.endpoint.eyepop_url
             else:
                 base = urljoin(self.endpoint.eyepop_url, await self._configured_pipeline_api_url())
             self.pipeline_api_url = _checked_url(base)
-        return 'ws' + self.pipeline_api_url.removeprefix('http') + PIPELINE_PATH
+        return self.pipeline_api_url
+
+    async def _socket_url(self) -> str:
+        return 'ws' + (await self._http_url()).removeprefix('http') + PIPELINE_PATH
+
+    async def media_get(self, media_id: str, read: str, params: dict[str, Any],
+                        accept: str) -> aiohttp.ClientResponse:
+        """A read on the pipeline API's `/api/v1/media/{mediaId}`, with the token the socket sends."""
+        client_session = self.endpoint.client_session
+        if client_session is None:
+            raise PipelineSocketClosedException(None, 'the endpoint is not connected')
+        url = f'{await self._http_url()}{MEDIA_PATH}/{quote(media_id, safe="")}/{read}'
+        force = False
+        while True:
+            token = await self._pipeline_token(force=force)
+            headers = {'Accept': accept}
+            if token is not None:
+                headers['Authorization'] = f'Bearer {token}'
+            log_requests.debug('before GET %s', url)
+            response = await client_session.get(url, params=params, headers=headers, raise_for_status=False,
+                                                timeout=MEDIA_READ_TIMEOUT)
+            if (response.status == 401 and not force and self.endpoint.provided_access_token is None
+                    and self._token is not None):
+                # an exchanged token the pipeline API no longer takes: exchange the API key once more
+                response.release()
+                force = True
+                continue
+            return response
 
     async def _configured_pipeline_api_url(self) -> str:
         client_session = self.endpoint.client_session

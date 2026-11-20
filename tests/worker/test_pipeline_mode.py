@@ -2,6 +2,7 @@
 import asyncio
 import contextlib
 import io
+import json
 import logging
 import threading
 import warnings
@@ -12,6 +13,7 @@ import pytest
 
 from eyepop import EyePopSdk
 from eyepop.exceptions import (
+    MediaReadException,
     PipelineCommandException,
     PipelineSocketClosedException,
     PipelineSourceException,
@@ -887,3 +889,91 @@ async def test_a_failed_job_keeps_what_its_calls_used(compute: FakeComputeAPI, p
             await predictions(job)
         assert job.milli_compute_units == 40
 
+
+
+# 10. Reads by mediaId (spec 025)
+
+PERSON_BOX = {"classLabel": "person", "x": 10.4, "y": 20.0, "width": 30.2, "height": 40.0}
+
+
+async def test_a_recording_reads_from_the_pipeline_api_by_its_media_id(compute: FakeComputeAPI,
+                                                                       pipeline: FakePipelineAPI):
+    async with worker(compute) as endpoint:
+        job = await endpoint.load_from("https://images.example/a.jpg", media_cache_seconds=600)
+        first = (await predictions(job))[0]
+        media_id = job.media_id
+        assert media_id is not None
+
+        assert await endpoint.media_range(media_id) == (1_000, 9_000)
+        assert await endpoint.media_frame(media_id, 5_000, bbox=(1, 2, 3, 4), max_width=160, max_height=120,
+                                          wait_ms=500) == pipeline.media_frame
+        await endpoint.media_frame(media_id, 5_000, png=True)
+        assert await job.media_frame(first, PERSON_BOX) == pipeline.media_frame
+        with pytest.raises(ValueError, match="no box"):
+            await job.media_frame(first, first["objects"][0])
+
+    reads = pipeline.media_reads
+    assert [(r.media_id, r.read) for r in reads] == [(media_id, "range"), (media_id, "frame"), (media_id, "frame"),
+                                                     (media_id, "frame")]
+    assert {r.authorization for r in reads} == {"Bearer minted-1"}, "the token the socket sends"
+    assert reads[1].query == {"timestamp": "5000", "bbox": "1,2,3,4", "maxWidth": "160", "maxHeight": "120",
+                              "wait": "500"}
+    assert reads[1].accept == "image/jpeg" and reads[2].accept == "image/png"
+    # the prediction's timestamp, and the smallest box of whole pixels that holds the object's
+    assert reads[3].query == {"timestamp": str(first["timestamp"]), "bbox": "10,20,31,40"}
+
+
+async def test_a_clip_streams_with_its_bounds_and_units(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
+    async with worker(compute) as endpoint:
+        async with await endpoint.media_clip("v1.a-recording", 2_000, 4_000) as clip:
+            assert (clip.start_ns, clip.end_ns, clip.milli_compute_units) == (2_000, 4_000, 12)
+            assert b"".join([chunk async for chunk in clip]) == pipeline.media_clip
+        clip = await endpoint.media_clip("v1.a-recording", 2_000, 4_000, mode="keyframe", wait_ms=0)
+        assert await clip.read() == pipeline.media_clip
+    assert pipeline.media_reads[0].query == {"start": "2000", "end": "4000", "mode": "exact"}
+    assert pipeline.media_reads[1].query == {"start": "2000", "end": "4000", "mode": "keyframe", "wait": "0"}
+
+
+async def test_a_moment_not_cached_yet_is_asked_again_after_retry_after(compute: FakeComputeAPI,
+                                                                        pipeline: FakePipelineAPI):
+    not_yet = json.dumps({"error": "not yet", "reason": "media_not_yet_available", "message": "wait"}).encode()
+    pipeline.media_answers = [(425, {"Retry-After": "0"}, not_yet)]
+    async with worker(compute) as endpoint:
+        assert await endpoint.media_frame("v1.a-recording", 5_000) == pipeline.media_frame
+    assert len(pipeline.media_reads) == 2
+
+
+async def test_a_moment_still_missing_at_the_deadline_raises(compute: FakeComputeAPI, pipeline: FakePipelineAPI,
+                                                             monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(settings, "max_retry_time_secs", 0.0)
+    not_yet = json.dumps({"error": "not yet", "reason": "media_not_yet_available", "message": "wait"}).encode()
+    pipeline.media_answers = [(425, {"Retry-After": "1"}, not_yet)]
+    async with worker(compute) as endpoint:
+        with pytest.raises(MediaReadException) as raised:
+            await endpoint.media_frame("v1.a-recording", 5_000)
+    assert (raised.value.status, raised.value.reason, raised.value.retry_after) == (425, "media_not_yet_available", 1.0)
+    assert len(pipeline.media_reads) == 1
+
+
+@pytest.mark.parametrize(("status", "reason"), [
+    (400, "invalid_media_id"), (403, "no_account"), (404, "stream_not_found"), (410, "media_expired"),
+    (503, "media_cache_not_configured"),
+])
+async def test_a_refused_read_raises_with_the_answers_reason(compute: FakeComputeAPI, pipeline: FakePipelineAPI,
+                                                             status: int, reason: str):
+    body = json.dumps({"error": "refused", "reason": reason, "message": "the answer's message"}).encode()
+    pipeline.media_answers = [(status, {}, body)]
+    async with worker(compute) as endpoint:
+        with pytest.raises(MediaReadException) as raised:
+            await endpoint.media_range("v1.a-recording")
+    assert (raised.value.status, raised.value.error, raised.value.reason, raised.value.message) == (
+        status, "refused", reason, "the answer's message")
+    assert len(pipeline.media_reads) == 1, "only a 425 is asked again"
+
+
+async def test_a_read_answered_401_exchanges_the_api_key_once_more(compute: FakeComputeAPI,
+                                                                   pipeline: FakePipelineAPI):
+    pipeline.media_answers = [(401, {}, b'{"error": "unauthorized"}')]
+    async with worker(compute) as endpoint:
+        assert await endpoint.media_range("v1.a-recording") == (1_000, 9_000)
+    assert [r.authorization for r in pipeline.media_reads] == ["Bearer minted-1", "Bearer minted-2"]

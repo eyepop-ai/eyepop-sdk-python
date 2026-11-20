@@ -37,6 +37,17 @@ class Socket:
         return [c["pop"] for c in self.commands if c.get("type") == "setPop"]
 
 
+@dataclass
+class MediaRead:
+    """One read by mediaId the fake pipeline API answered."""
+
+    media_id: str
+    read: str
+    query: dict[str, str]
+    authorization: str | None
+    accept: str | None
+
+
 class _Server:
     def __init__(self, app: web.Application):
         self.server = TestServer(app, host="127.0.0.1")
@@ -76,7 +87,9 @@ class FakePipelineAPI(_Server):
     its other members leave the upload line, and the sending one stays at its
     head until its `uploaded`, as on eyepop-worker 4.15.1, or with
     `drop_ended_upload` leaves it at once, and an `uploaded` for an upload that is not sending is then
-    answered invalid_request.
+    answered invalid_request. `media_answers` answer the reads by mediaId on `/api/v1/media/{mediaId}/...`
+    first, as (status, headers, body); after them `range`, `frame` and `clip` answer with `media_range`,
+    `media_frame` and `media_clip`, and each read is kept in `media_reads`.
     """
 
     def __init__(self):
@@ -103,9 +116,40 @@ class FakePipelineAPI(_Server):
         self.milli_compute_units: int | None = None
         self.fail_upload_at: int | None = None
         self.drop_ended_upload = False
+        self.media_answers: list[tuple[int, dict[str, str], bytes]] = []
+        self.media_reads: list[MediaRead] = []
+        self.media_range = (1_000, 9_000)
+        self.media_frame = b"\xff\xd8 a jpeg"
+        self.media_clip = b"an mp4 " * 50_000
         app = web.Application()
         app.router.add_get("/api/v1/pipeline", self._upgrade)
+        app.router.add_get("/api/v1/media/{media_id}/{read}", self._media)
         super().__init__(app)
+
+    async def _media(self, request: web.Request) -> web.StreamResponse:
+        read = MediaRead(request.match_info["media_id"], request.match_info["read"], dict(request.query),
+                         request.headers.get("Authorization"), request.headers.get("Accept"))
+        self.media_reads.append(read)
+        if self.media_answers:
+            status, headers, body = self.media_answers.pop(0)
+            return web.Response(status=status, headers=headers, body=body, content_type="application/json")
+        match read.read:
+            case "range":
+                return web.json_response({"start_ns": self.media_range[0], "end_ns": self.media_range[1]})
+            case "frame":
+                content_type = "image/png" if read.accept == "image/png" else "image/jpeg"
+                return web.Response(body=self.media_frame, content_type=content_type,
+                                    headers={"X-Milli-Compute-Units": "7"})
+            case "clip":
+                response = web.StreamResponse(headers={
+                    "Content-Type": "video/mp4", "X-Start-Ns": read.query["start"], "X-End-Ns": read.query["end"],
+                    "X-Milli-Compute-Units": "12"})
+                await response.prepare(request)
+                for at in range(0, len(self.media_clip), 64 * 1024):
+                    await response.write(self.media_clip[at:at + 64 * 1024])
+                await response.write_eof()
+                return response
+        return web.json_response({"error": "not found", "reason": "not_found", "message": read.read}, status=404)
 
     async def _upgrade(self, request: web.Request) -> web.StreamResponse:
         if self.upgrade_answers:
