@@ -69,6 +69,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             account_id: str | None = None,
             *,
             is_pipeline_mode: bool = False,
+            pipeline_api_url: str | None = None,
     ):
         if is_pipeline_mode:
             _refuse_session_options(
@@ -109,6 +110,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             self.compute_ctx.account_uuid = account_id if account_id is not None else account_uuid_from_env()
 
         self.is_pipeline_mode = is_pipeline_mode
+        self.pipeline_api_url = pipeline_api_url
         self._backend: WorkerBackend
         if is_pipeline_mode:
             self._backend = PipelineBackend(self)

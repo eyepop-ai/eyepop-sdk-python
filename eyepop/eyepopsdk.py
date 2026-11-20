@@ -15,6 +15,18 @@ from eyepop.worker.worker_syncify import SyncWorkerEndpoint
 from eyepop.worker.worker_types import Pop
 
 log = logging.getLogger('eyepop')
+
+# EYEPOP_ENV names the pipeline API, and the compute API that mints the token it takes.
+_PIPELINE_API_URLS = {
+    "staging": "https://pipeline.staging.eyepop.xyz",
+    "production": "https://pipeline.eyepop.ai",
+    "local": "http://127.0.0.1:9002",
+}
+_COMPUTE_API_URLS = {
+    "staging": "https://compute.staging.eyepop.xyz",
+    "production": "https://compute.eyepop.ai",
+}
+
 log.debug(f"EyePop SDK v{__version__} initializing...")
 
 def _pipeline_endpoint(
@@ -32,6 +44,7 @@ def _pipeline_endpoint(
         session_name: str | None,
         pop: Pop | dict[str, object] | None,
         account_id: str | None,
+        pipeline_api_url: str | None,
 ) -> WorkerEndpoint:
     """A worker endpoint whose jobs run on the pipeline API (SDK-24).
 
@@ -43,6 +56,20 @@ def _pipeline_endpoint(
         pop_id = os.getenv("EYEPOP_POP_ID", "transient")
     if session_uuid is None:
         session_uuid = os.getenv("EYEPOP_SESSION_UUID")
+
+    env_name = (os.getenv("EYEPOP_ENV") or "").strip().lower()
+    # A compute API named by the caller names the environment: EYEPOP_ENV is read only when none is, so a
+    # token minted by one environment never goes to the pipeline API of another.
+    compute_named = eyepop_url is not None or os.getenv("EYEPOP_URL") is not None
+    if env_name == "local" and not compute_named:
+        # A local environment is local mode: no compute API mints a token for it.
+        is_local_mode = True
+    if env_name and not is_local_mode and not compute_named:
+        if env_name not in _PIPELINE_API_URLS:
+            raise ValueError(f"EYEPOP_ENV={env_name} is not one of {', '.join(_PIPELINE_API_URLS)}")
+        eyepop_url = _COMPUTE_API_URLS[env_name]
+        if pipeline_api_url is None:
+            pipeline_api_url = _PIPELINE_API_URLS[env_name]
 
     if access_token is None and api_key is None and secret_key is None and not is_local_mode:
         api_key = os.getenv("EYEPOP_API_KEY")
@@ -79,6 +106,7 @@ def _pipeline_endpoint(
         is_local_mode=is_local_mode,
         account_id=account_id,
         is_pipeline_mode=True,
+        pipeline_api_url=pipeline_api_url,
     )
 
 
@@ -112,6 +140,7 @@ class EyePopSdk:
             pop: Pop | dict[str, object] | None = None,
             account_id: str | None = None,
             is_pipeline_mode: bool | None = None,
+            pipeline_api_url: str | None = None,
     ) -> WorkerEndpoint | SyncWorkerEndpoint:
         if is_async:
             return EyePopSdk.async_worker(
@@ -133,6 +162,7 @@ class EyePopSdk:
                 pop=pop,
                 account_id=account_id,
                 is_pipeline_mode=is_pipeline_mode,
+                pipeline_api_url=pipeline_api_url,
             )
         else:
             return EyePopSdk.sync_worker(
@@ -154,6 +184,7 @@ class EyePopSdk:
                 pop=pop,
                 account_id=account_id,
                 is_pipeline_mode=is_pipeline_mode,
+                pipeline_api_url=pipeline_api_url,
             )
 
     @staticmethod
@@ -176,6 +207,7 @@ class EyePopSdk:
             pop: Pop | dict[str, object] | None = None,
             account_id: str | None = None,
             is_pipeline_mode: bool | None = None,
+            pipeline_api_url: str | None = None,
     ) -> SyncWorkerEndpoint:
         endpoint = EyePopSdk.async_worker(
             pop_id=pop_id,
@@ -196,6 +228,7 @@ class EyePopSdk:
             pop=pop,
             account_id=account_id,
             is_pipeline_mode=is_pipeline_mode,
+            pipeline_api_url=pipeline_api_url,
         )
         return SyncWorkerEndpoint(endpoint)
 
@@ -219,14 +252,15 @@ class EyePopSdk:
             pop: Pop | dict[str, object] | None = None,
             account_id: str | None = None,
             is_pipeline_mode: bool | None = None,
+            pipeline_api_url: str | None = None,
     ) -> WorkerEndpoint:
         """A worker endpoint.
 
         Its jobs run on the pipeline API's socket rather than on a worker
         session, unless `is_pipeline_mode` is False or `EYEPOP_PIPELINE_MODE`
         is false;
-        the compute API at `eyepop_url` names the pipeline API in its
-        `/v1/configs`. Pipeline mode takes an API key or a user access token,
+        `pipeline_api_url` or `EYEPOP_ENV` names the pipeline API; unset, the
+        compute API at `eyepop_url` names it in its `/v1/configs`. Pipeline mode takes an API key or a user access token,
         and no option that names a session or a pop. A worker session is
         deprecated and warns with a `DeprecationWarning`.
         """
@@ -253,7 +287,12 @@ class EyePopSdk:
                 session_name=session_name,
                 pop=pop,
                 account_id=account_id,
+                pipeline_api_url=pipeline_api_url,
             )
+
+        if pipeline_api_url is not None:
+            raise ValueError("pipeline_api_url names the pipeline API, which only pipeline mode uses; "
+                             "drop it, or leave is_pipeline_mode and EYEPOP_PIPELINE_MODE at their defaults")
 
         # The warning has to blame the caller's line, not an SDK frame or the wrapper of
         # the deprecated workerEndpoint: Python shows a DeprecationWarning only when the blamed module is __main__.

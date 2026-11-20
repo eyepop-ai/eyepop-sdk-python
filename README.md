@@ -45,6 +45,7 @@ Optional:
 |---|---|
 | `EYEPOP_POP_ID` | Named pop ID. Defaults to `transient`. Worker session only. |
 | `EYEPOP_PIPELINE_MODE` | Pipeline mode is on by default. Set to `false` to run on a worker session instead. |
+| `EYEPOP_ENV` | Pipeline mode: `staging`, `production` or `local` picks the pipeline API and the compute API that mints the token. `pipeline_api_url` wins over it for the pipeline API. A named compute API (`eyepop_url` or `EYEPOP_URL`) means `EYEPOP_ENV` is not read: that compute API names the pipeline API in its `/v1/configs`, unless `pipeline_api_url` is given. |
 | `EYEPOP_ACCOUNT_UUID` | The account to work in. Required for some Data API calls, and names the account a worker's compute session runs for when the API key does not (same as `account_id=`). `EYEPOP_ACCOUNT_ID` is still read when this is unset, with a `DeprecationWarning`. |
 
 ## Usage
@@ -229,9 +230,11 @@ with EyePopSdk.sync_worker(pop=pop) as endpoint:
     print(endpoint.upload('photo.jpg').predict())
 ```
 
-The endpoint opens a socket to the pipeline API at `connect()` and sets its pop there. The
-compute API at `EYEPOP_URL` names the pipeline API in its `/v1/configs` (`pipeline_api_url`); with
-`is_local_mode`, `eyepop_url` is the pipeline API itself (default `http://127.0.0.1:9002`). Jobs go
+The endpoint opens a socket to the pipeline API at `connect()` and sets its pop there. `eyepop_url`
+(or `EYEPOP_URL`) is the compute API, which mints the token. `pipeline_api_url`, or `EYEPOP_ENV`
+(`staging`, `production` or `local`, which picks both URLs), names the pipeline API; unset, the compute
+API names it in its `/v1/configs`. With `is_local_mode`, `eyepop_url` is the pipeline API itself
+(default `http://127.0.0.1:9002`). Jobs go
 out in the order they are submitted, each queued behind the ones before it on its socket, up to 256
 at a time: `job_queue_length` defaults to 256 and may not exceed it.
 
