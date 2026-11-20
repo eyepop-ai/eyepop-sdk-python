@@ -30,6 +30,11 @@ class SyncWorkerJob:
         """The recording's mediaId, once the source started; see WorkerJob.media_id."""
         return self.job.media_id
 
+    @property
+    def warnings(self) -> list[dict]:
+        """The warnings the pipeline API sent about the source; see WorkerJob.warnings."""
+        return self.job.warnings
+
 
 class SyncWorkerEndpoint(SyncEndpoint):
     def __init__(self, endpoint: "WorkerEndpoint"):

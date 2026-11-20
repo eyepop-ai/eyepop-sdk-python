@@ -99,6 +99,7 @@ class FakePipelineAPI(_Server):
         self.queue_full_refused = 0
         self.source_delay = 0.0
         self.usages: list[int] = []
+        self.warnings: list[dict] = []
         self.milli_compute_units: int | None = None
         self.fail_upload_at: int | None = None
         self.drop_ended_upload = False
@@ -296,6 +297,8 @@ class _Run:
                 # as the pipeline API does for a source that records (spec 024): opaque to the client
                 start["mediaId"] = f"v1.media-of-{id_}"
             await self.send(start)
+            for warning in self.fake.warnings:
+                await self.send({"type": "warning", "id": id_, **warning})
             if command.get("live") or str(command.get("url", "")).startswith(("rtsp://", "rtmp://")):
                 n = 0
                 while not self.ws.closed and id_ not in self.stopped:

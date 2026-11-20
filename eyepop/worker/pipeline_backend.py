@@ -781,6 +781,13 @@ class PipelineBackend(WorkerBackend):
                 if message.get('error') in ('overloaded', 'queue_full'):
                     return message['error']
                 raise PipelineCommandException(message.get('error', ''), message.get('message', ''))
+            elif type_ == 'warning':
+                # the source runs on: say so, and keep it for the caller (media_cache_gop_too_long, spec 024)
+                warning = {'message': message.get('message', '')}
+                if isinstance(message.get('info'), dict):
+                    warning['info'] = message['info']
+                job.warnings.append(warning)
+                log.warning('the pipeline API warns about source %s: %s', source.id, warning['message'])
             elif type_ == 'dropped':
                 log.debug('the pipeline API dropped %s predictions of a live source', message.get('count'))
 

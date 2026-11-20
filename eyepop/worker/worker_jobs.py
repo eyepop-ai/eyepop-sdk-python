@@ -112,6 +112,11 @@ class WorkerJob(Job):
         """The recording's mediaId in pipeline mode, once a source that records to the media cache
         (`media_cache_seconds`) has started: an opaque string to pass back unchanged to read the recording.
         None until then, for a source that does not record, and on a session."""
+        self.warnings: list[dict[str, Any]] = []
+        """The warnings the pipeline API sent about the source in pipeline mode, in order, each with its
+        `message` and, when it has one, its `info` (a `code`, a `level` and details, such as `gap_ms` for
+        `media_cache_gop_too_long`). The source still runs; each is also logged once on the `eyepop`
+        logger. Empty on a session."""
 
     @property
     def cancelled(self) -> bool:

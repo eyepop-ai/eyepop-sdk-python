@@ -2,6 +2,7 @@
 import asyncio
 import contextlib
 import io
+import logging
 import threading
 import warnings
 from collections.abc import AsyncIterator, Callable
@@ -170,6 +171,21 @@ async def test_a_recording_is_sent_and_its_job_gets_the_media_id(compute: FakeCo
     assert "mediaCacheSeconds" not in sources[1] and "mediaCacheReencode" not in sources[1]
     assert recorded.media_id is not None and recorded.media_id.startswith("v1.")
     assert plain.media_id is None
+
+
+async def test_a_warning_reaches_the_job_and_the_log(compute: FakeComputeAPI, pipeline: FakePipelineAPI,
+                                                    caplog: pytest.LogCaptureFixture):
+    # the pipeline API warns about a source that records with a long keyframe gap; the source runs on,
+    # and the job keeps the warning and logs it (spec 024)
+    gap = {"message": "the source went 12.0 s without a keyframe",
+           "info": {"code": "media_cache_gop_too_long", "level": "warn", "gap_ms": 12000, "threshold_ms": 10000}}
+    pipeline.warnings = [gap]
+    async with worker(compute) as endpoint:
+        with caplog.at_level(logging.WARNING, logger="eyepop"):
+            job = await endpoint.load_from("https://images.example/a.jpg", media_cache_seconds=600)
+            assert len(await predictions(job)) == pipeline.frames
+    assert job.warnings == [gap]
+    assert any("12.0 s without a keyframe" in record.getMessage() for record in caplog.records)
 
 
 async def test_a_group_is_not_recorded_in_pipeline_mode(compute: FakeComputeAPI, pipeline: FakePipelineAPI):
