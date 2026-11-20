@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.30.0] - 2026-11-19
+
 ### Added
 
 - **Pipeline mode records to the media cache** (eyepop-instance spec 024, AWSU-342). A job's `media_cache_seconds` is now sent to the pipeline API, which takes it from eyepop-worker v4.20.6 on, and no longer warns. A source that records gets a `mediaId` in its `start`, which the job keeps as `WorkerJob.media_id` (and `SyncWorkerJob.media_id`): an opaque string to pass back unchanged to read the recording. It is None until the source started and for a source that does not record; a session sets it too (below). A group with `media_cache_seconds` or `media_cache_reencode` raises `ValueError` in pipeline mode, since a group is still images and is not recorded.
