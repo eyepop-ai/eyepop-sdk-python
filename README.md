@@ -233,8 +233,10 @@ with EyePopSdk.sync_worker(pop=pop) as endpoint:
 The endpoint opens a socket to the pipeline API at `connect()` and sets its pop there. `eyepop_url`
 (or `EYEPOP_URL`) is the compute API, which mints the token. `pipeline_api_url`, or `EYEPOP_ENV`
 (`staging`, `production` or `local`, which picks both URLs), names the pipeline API; unset, the compute
-API names it in its `/v1/configs`. With `is_local_mode`, `eyepop_url` is the pipeline API itself
-(default `http://127.0.0.1:9002`). Jobs go
+API names it in its `/v1/configs`. Local mode alone is not pipeline mode: it reaches an on-premise instance
+as a worker session. With `is_local_mode` and pipeline mode said so (`is_pipeline_mode=True`,
+`EYEPOP_PIPELINE_MODE=true`, `pipeline_api_url` or `EYEPOP_ENV=local`), `eyepop_url` is the pipeline API
+itself (default `http://127.0.0.1:9002`). Jobs go
 out in the order they are submitted, each queued behind the ones before it on its socket, up to 256
 at a time: `job_queue_length` defaults to 256 and may not exceed it.
 

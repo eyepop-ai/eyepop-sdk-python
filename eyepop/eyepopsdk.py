@@ -29,6 +29,21 @@ _COMPUTE_API_URLS = {
 
 log.debug(f"EyePop SDK v{__version__} initializing...")
 
+def _pipeline_mode_default(is_local_mode: bool, pipeline_api_url: str | None) -> bool:
+    """Whether an endpoint runs in pipeline mode when the caller did not say.
+
+    `EYEPOP_PIPELINE_MODE` decides when it is set. Otherwise pipeline mode is the default, except in local mode:
+    an on-premise instance serves worker sessions only, so local mode reaches it unless the caller names a local
+    pipeline API, with `pipeline_api_url` or `EYEPOP_ENV=local`.
+    """
+    env = os.getenv("EYEPOP_PIPELINE_MODE", "").strip().lower()
+    if env:
+        return env not in ("false", "no", "0")
+    if not is_local_mode:
+        return True
+    return pipeline_api_url is not None or (os.getenv("EYEPOP_ENV") or "").strip().lower() == "local"
+
+
 def _pipeline_endpoint(
         pop_id: str | None,
         session_uuid: str | None,
@@ -258,7 +273,11 @@ class EyePopSdk:
 
         Its jobs run on the pipeline API's socket rather than on a worker
         session, unless `is_pipeline_mode` is False or `EYEPOP_PIPELINE_MODE`
-        is false;
+        is false. Local mode (`is_local_mode` or `EYEPOP_LOCAL_MODE`) without
+        either is a worker session: the on-premise instance on
+        `http://127.0.0.1:8080`, which has no pipeline API. A pipeline API run
+        locally is pipeline mode said so: `is_pipeline_mode=True`,
+        `EYEPOP_PIPELINE_MODE=true`, `pipeline_api_url` or `EYEPOP_ENV=local`;
         `pipeline_api_url` or `EYEPOP_ENV` names the pipeline API; unset, the
         compute API at `eyepop_url` names it in its `/v1/configs`. Pipeline mode takes an API key or a user access token,
         and no option that names a session or a pop. A worker session in
@@ -271,7 +290,7 @@ class EyePopSdk:
             is_local_mode = local_mode_env.lower() in ("true", "yes")
 
         if is_pipeline_mode is None:
-            is_pipeline_mode = os.getenv("EYEPOP_PIPELINE_MODE", "").strip().lower() not in ("false", "no", "0")
+            is_pipeline_mode = _pipeline_mode_default(is_local_mode, pipeline_api_url)
 
         if is_pipeline_mode:
             return _pipeline_endpoint(
