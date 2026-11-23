@@ -315,7 +315,7 @@ Build multi-stage inference pipelines by chaining models. Configure at runtime w
 
 | Component | Purpose |
 |---|---|
-| `InferenceComponent` | Run a model. Supports chunked video via `videoChunkLengthSeconds` / `videoChunkOverlap`. |
+| `InferenceComponent` | Run a model. Supports chunked video via `videoChunkLengthSeconds` (seconds, above 0) and `videoChunkOverlap` (a share of the chunk length below 0.5 that the next chunk repeats; negative leaves gaps). A source overrides both with the same keys in its `ComponentParams` values. |
 | `TrackingComponent` | Track detected objects across frames. |
 | `ContourFinderComponent` | Extract contours from segmentation masks. |
 | `ComponentFinderComponent` | Extract connected components from masks. |

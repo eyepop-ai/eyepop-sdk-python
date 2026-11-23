@@ -1,4 +1,5 @@
 import enum
+import math
 from typing import Annotated, Any, List, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -168,6 +169,10 @@ class InferenceType(enum.StrEnum):
     RAW = "raw"
 
 
+# A chunk overlap is a share of the chunk length below this; a negative one leaves gaps.
+VIDEO_CHUNK_OVERLAP_LIMIT = 0.5
+
+
 class InferenceComponent(BaseComponent):
     type: Literal[PopComponentType.INFERENCE] = PopComponentType.INFERENCE  # pyright: ignore[reportIncompatibleVariableOverride]
     inferenceTypes: List[InferenceType] | None = None
@@ -183,8 +188,21 @@ class InferenceComponent(BaseComponent):
     topKClasses: int | None = None
     classes: List[str] | None = None
     targetFps: str | None = None
-    videoChunkLengthSeconds: float | None = None
-    videoChunkOverlap: float | None = None
+    videoChunkLengthSeconds: float | None = Field(
+        default=None,
+        gt=0,
+        allow_inf_nan=False,
+        description="For an ability that reasons over a span of video, the length of each chunk in seconds. "
+                    "A source sets its own with the same key in its component params.",
+    )
+    videoChunkOverlap: float | None = Field(
+        default=None,
+        lt=VIDEO_CHUNK_OVERLAP_LIMIT,
+        allow_inf_nan=False,
+        description="The share of the chunk length the next chunk repeats, below 0.5; negative leaves that share "
+                    "out between chunks. Repeated frames are processed, and billed, again: overlap x sends about "
+                    "1 / (1 - x) of the frames. A source sets its own with the same key in its component params.",
+    )
     params: dict[str, Any] | None = None
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
@@ -417,9 +435,35 @@ def SelectForward(
 
 
 class ComponentParams(BaseModel):
+    """A source's params for one component of the Pop, by the component's id.
+
+    For a component that chunks video, ``values`` may set the source's own chunking with the
+    component's attribute names, ``videoChunkLengthSeconds`` (above 0) and ``videoChunkOverlap``
+    (below 0.5, negative for gaps); they win over the Pop's for that source. The params
+    ``video_chunk_length_ns`` and ``video_chunk_overlap`` are deprecated in favour of those.
+    """
     componentId: int
     values: dict[str, Any]
     model_config = ConfigDict(arbitrary_types_allowed=True, extra='forbid')
+
+    @model_validator(mode='after')
+    def _check_video_chunking(self) -> 'ComponentParams':
+        length = self.values.get('videoChunkLengthSeconds')
+        if length is not None and (not _is_number(length) or not math.isfinite(length) or length <= 0):
+            raise ValueError('videoChunkLengthSeconds must be a number of seconds above 0')
+        overlap = self.values.get('videoChunkOverlap')
+        if overlap is not None and (
+            not _is_number(overlap) or not math.isfinite(overlap) or overlap >= VIDEO_CHUNK_OVERLAP_LIMIT
+        ):
+            raise ValueError(
+                f'videoChunkOverlap must be a number below {VIDEO_CHUNK_OVERLAP_LIMIT} '
+                '(a share of the chunk length, negative for gaps)'
+            )
+        return self
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
 class MotionDetectConfig(BaseModel):

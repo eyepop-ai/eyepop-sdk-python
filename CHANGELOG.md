@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A video chunking out of range is refused in the SDK** (VREE-352). `InferenceComponent.videoChunkLengthSeconds` must be above 0 and `videoChunkOverlap` below 0.5, both finite; the worker now refuses anything else, so the SDK raises a `ValidationError` before sending it. A negative overlap leaves that share of the chunk length out between chunks.
+
+### Added
+
+- **A source sets its own chunking.** `ComponentParams(componentId=..., values={"videoChunkLengthSeconds": 4, "videoChunkOverlap": 0.25})` overrides the Pop component's chunking for that source, under the same names; invalid values raise a `ValidationError`. The overlap now takes effect in the worker: overlap x repeats the last x of each chunk at the start of the next, so about 1 / (1 - x) of the frames are processed and billed. The params `video_chunk_length_ns` and `video_chunk_overlap` are deprecated in favour of the component attributes.
+
 ## [4.1.2] - 2026-11-23
 
 ### Fixed
