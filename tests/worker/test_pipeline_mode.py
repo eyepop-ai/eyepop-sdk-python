@@ -134,6 +134,38 @@ def test_an_on_premise_instance_is_reached_without_a_deprecation_warning(
         open_endpoint()
 
 
+@pytest.mark.parametrize("open_endpoint", [EyePopSdk.async_worker, EyePopSdk.sync_worker])
+def test_local_mode_alone_reaches_the_on_premise_instance(
+        open_endpoint: Callable[..., object], monkeypatch: pytest.MonkeyPatch):
+    # An on-premise instance serves worker sessions only, so local mode means a worker session on
+    # 127.0.0.1:8080 unless the caller names a local pipeline API.
+    monkeypatch.delenv("EYEPOP_ENV", raising=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        by_argument = open_endpoint(is_local_mode=True)
+        monkeypatch.setenv("EYEPOP_LOCAL_MODE", "true")
+        by_environment = open_endpoint()
+    for endpoint in (by_argument, by_environment):
+        endpoint = getattr(endpoint, "endpoint", endpoint)
+        assert not in_pipeline_mode(endpoint)
+        assert endpoint.eyepop_url == "http://127.0.0.1:8080"
+
+
+@pytest.mark.parametrize("named", ["argument", "environment", "pipeline_api_url", "eyepop_env"])
+def test_a_local_pipeline_api_is_pipeline_mode_said_so(named: str, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("EYEPOP_ENV", raising=False)
+    options: dict = {"is_local_mode": True}
+    if named == "argument":
+        options["is_pipeline_mode"] = True
+    elif named == "environment":
+        monkeypatch.setenv("EYEPOP_PIPELINE_MODE", "true")
+    elif named == "pipeline_api_url":
+        options["pipeline_api_url"] = "http://127.0.0.1:9100"
+    else:
+        monkeypatch.setenv("EYEPOP_ENV", "local")
+    assert in_pipeline_mode(EyePopSdk.async_worker(**options))
+
+
 def test_pipeline_mode_does_not_warn():
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)

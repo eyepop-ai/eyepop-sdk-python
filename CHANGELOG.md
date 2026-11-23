@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.2] - 2026-11-23
+
+### Fixed
+
+- **Local mode reaches an on-premise instance again.** Since 4.0.0, pipeline mode is the default, and `is_local_mode=True` (or `EYEPOP_LOCAL_MODE=true`) alone connected to a pipeline API on `http://127.0.0.1:9002`, which an on-premise instance does not serve: it failed with `Cannot connect to host 127.0.0.1:9002`. Local mode is now a worker session on the instance at `http://127.0.0.1:8080` unless pipeline mode is said so: `is_pipeline_mode=True`, `EYEPOP_PIPELINE_MODE=true`, `pipeline_api_url` or `EYEPOP_ENV=local` still reach a local pipeline API as before. `is_pipeline_mode=False` keeps working.
+
 ## [4.1.1] - 2026-11-23
 
 ### Fixed

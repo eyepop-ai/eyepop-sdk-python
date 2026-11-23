@@ -23,7 +23,7 @@ If your backend already holds a short-lived token, pass it as `access_token=` in
 
 | Variable | Description |
 | --- | --- |
-| `EYEPOP_PIPELINE_MODE` | Worker endpoints run on the pipeline API by default. Set to `false` to run on a worker session instead, which the three variables below and the sections on persistent Deployments and local mode need. A named Pop, a session UUID or a secret key raises `ValueError` in pipeline mode. |
+| `EYEPOP_PIPELINE_MODE` | Worker endpoints run on the pipeline API by default. Set to `false` to run on a worker session instead, which the three variables below and the section on persistent Deployments need. Local mode is a worker session unless this is `true`. A named Pop, a session UUID or a secret key raises `ValueError` in pipeline mode. |
 | `EYEPOP_SECRET_KEY` | Worker session only (`is_pipeline_mode=False`): secret key authentication, which works with named Pops. In pipeline mode a secret key alone raises `KeyError`. `EYEPOP_API_KEY` does not, and has to be unset — the SDK reads both, and a named Pop with an API key present raises `EYEPOP_API_KEY can only be used with transient pops`. |
 | `EYEPOP_POP_ID` | Worker session only: named Pop to run. Defaults to `transient`. A named Pop raises `ValueError` in pipeline mode. |
 | `EYEPOP_SESSION_UUID` | Worker session only: attach to a persistent Deployment instead of creating a transient session. Raises `ValueError` in pipeline mode. |
@@ -52,22 +52,21 @@ with EyePopSdk.sync_worker(session_uuid="<your-session-uuid>", is_pipeline_mode=
 
 An [on-premise instance](https://docs.eyepop.ai/developer-documentation/cli/on-premise) serves the EyePop runtime on your own machine. **Local mode** points the SDK at the instance on `http://127.0.0.1:8080` instead of the cloud and sends no account credentials — the instance is already registered to your account, and reaching the loopback port is what authorizes the client.
 
-The instance serves one Pop, chosen when it is set up with `eyepop instance init` and changed with `eyepop instance set`, so you do not pass one from the SDK. This needs `eyepop` 3.25.2 or later.
+The instance serves one Pop, chosen when it is set up with `eyepop instance init` and changed with `eyepop instance set`, so you do not pass one from the SDK. This needs `eyepop` 4.1.2 or later.
 
 ```python
 from eyepop import EyePopSdk
 
-with EyePopSdk.sync_worker(is_local_mode=True, is_pipeline_mode=False) as endpoint:
+with EyePopSdk.sync_worker(is_local_mode=True) as endpoint:
     result = endpoint.upload("image.jpg").predict()
     print(result)
 ```
 
-`EYEPOP_LOCAL_MODE=true` in the environment selects it without the argument. The snippets here pass `is_pipeline_mode=False` (or set `EYEPOP_PIPELINE_MODE=false`) to reach the instance, on port 8080 by default; in the default pipeline mode local mode means a local pipeline API on `http://127.0.0.1:9002` instead, not an instance. Pass `eyepop_url` for an instance on another port or host:
+`EYEPOP_LOCAL_MODE=true` in the environment selects it without the argument. Local mode reaches the instance on port 8080 by default, as a worker session: an instance has no pipeline API. A pipeline API you run yourself on `http://127.0.0.1:9002` is local mode with pipeline mode turned on: `is_pipeline_mode=True`, `EYEPOP_PIPELINE_MODE=true`, `pipeline_api_url` or `EYEPOP_ENV=local`. Pass `eyepop_url` for an instance on another port or host:
 
 ```python
 endpoint = EyePopSdk.sync_worker(
     is_local_mode=True,
-    is_pipeline_mode=False,
     eyepop_url="http://127.0.0.1:9090",
 )
 ```
