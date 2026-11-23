@@ -261,8 +261,10 @@ class EyePopSdk:
         is false;
         `pipeline_api_url` or `EYEPOP_ENV` names the pipeline API; unset, the
         compute API at `eyepop_url` names it in its `/v1/configs`. Pipeline mode takes an API key or a user access token,
-        and no option that names a session or a pop. A worker session is
-        deprecated and warns with a `DeprecationWarning`.
+        and no option that names a session or a pop. A worker session in
+        EyePop's cloud is deprecated and warns with a `DeprecationWarning`; a
+        local one, an on-premise instance (`is_local_mode`), is how an instance
+        is reached and does not.
         """
         if is_local_mode is None:
             local_mode_env = os.getenv("EYEPOP_LOCAL_MODE", "")
@@ -294,13 +296,16 @@ class EyePopSdk:
             raise ValueError("pipeline_api_url names the pipeline API, which only pipeline mode uses; "
                              "drop it, or leave is_pipeline_mode and EYEPOP_PIPELINE_MODE at their defaults")
 
-        # The warning has to blame the caller's line, not an SDK frame or the wrapper of
-        # the deprecated workerEndpoint: Python shows a DeprecationWarning only when the blamed module is __main__.
-        level, frame = 1, sys._getframe(0)
-        while frame is not None and frame.f_code.co_filename.startswith(_NOT_THE_CALLER):
-            level, frame = level + 1, frame.f_back
-        warnings.warn("worker sessions (is_pipeline_mode=False) are deprecated, use pipeline mode, the default",
-                      DeprecationWarning, stacklevel=level)
+        # An on-premise instance (local mode) is a worker session with nothing to move to:
+        # pipeline mode is the cloud's pipeline API, or one run locally on its own port.
+        if not is_local_mode:
+            # The warning has to blame the caller's line, not an SDK frame or the wrapper of the deprecated
+            # workerEndpoint: Python shows a DeprecationWarning only when the blamed module is __main__.
+            level, frame = 1, sys._getframe(0)
+            while frame is not None and frame.f_code.co_filename.startswith(_NOT_THE_CALLER):
+                level, frame = level + 1, frame.f_back
+            warnings.warn("worker sessions (is_pipeline_mode=False) are deprecated, use pipeline mode, the default",
+                          DeprecationWarning, stacklevel=level)
 
         if job_queue_length is None:
             job_queue_length = settings.default_job_queue_length

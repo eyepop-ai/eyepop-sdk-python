@@ -123,6 +123,17 @@ def test_a_secret_key_in_the_environment_alone_names_the_opt_out(monkeypatch: py
         EyePopSdk.async_worker(is_pipeline_mode=True)
 
 
+@pytest.mark.parametrize("open_endpoint", [EyePopSdk.async_worker, EyePopSdk.sync_worker])
+def test_an_on_premise_instance_is_reached_without_a_deprecation_warning(
+        open_endpoint: Callable[..., object], monkeypatch: pytest.MonkeyPatch):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        open_endpoint(is_local_mode=True, is_pipeline_mode=False)
+        monkeypatch.setenv("EYEPOP_LOCAL_MODE", "true")
+        monkeypatch.setenv("EYEPOP_PIPELINE_MODE", "false")
+        open_endpoint()
+
+
 def test_pipeline_mode_does_not_warn():
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
