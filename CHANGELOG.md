@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **An on-premise instance no longer warns that worker sessions are deprecated.** `is_local_mode=True` with `is_pipeline_mode=False` (or `EYEPOP_LOCAL_MODE=true` with `EYEPOP_PIPELINE_MODE=false`) is how an instance is reached, so it gets no `DeprecationWarning`; a worker session in EyePop's cloud still does.
+
 ## [4.1.0] - 2026-11-20
 
 ### Added
