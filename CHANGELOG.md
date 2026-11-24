@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.3] - 2026-11-23
+
 ### Changed
 
 - **A video chunking out of range is refused in the SDK** (VREE-352). `InferenceComponent.videoChunkLengthSeconds` must be above 0 and `videoChunkOverlap` below 0.5, both finite; the worker now refuses anything else, so the SDK raises a `ValidationError` before sending it. A negative overlap leaves that share of the chunk length out between chunks.
