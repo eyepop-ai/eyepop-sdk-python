@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-11-24
+
 ### Added
 
 - **A source can be scaled down to a target resolution** (AIW-190). Every upload and load method takes `target_resolution=TargetResolution(width=..., height=...)`, sent as `targetResolution` in session and pipeline mode, and as a multipart part on uploads. The worker scales the video, or a group's images, down to fit inside the box after `fps` and motion detection, keeping the aspect ratio and never scaling up. Each side must be a whole number from 64 to 16384; anything else raises a `ValidationError`. Needs a worker with the matching eyepop-pipeline; an older one ignores it.
