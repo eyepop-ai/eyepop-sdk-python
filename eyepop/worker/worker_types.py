@@ -466,6 +466,18 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+class TargetResolution(BaseModel):
+    """The box a source's video, or images, are scaled down to fit inside.
+
+    The worker scales after `fps` and motion detection, keeps the display aspect
+    ratio, gives a scaled frame square pixels and even sides, and never scales up:
+    a frame that fits already keeps its own size. Each side is a whole number from
+    64 to 16384 pixels.
+    """
+    width: int = Field(ge=64, le=16384, description="Width of the box in pixels")
+    height: int = Field(ge=64, le=16384, description="Height of the box in pixels")
+
+
 class MotionDetectConfig(BaseModel):
     motionDetect: bool = Field(description="Whether or not to pause processing based on motion detection", default=True)
     motionSensitivity: float | None = Field(description="Sensitivity of motion detection as percentage of pixels that must not change to not detect a motion in that cell, default is 0.5 ", default=None)

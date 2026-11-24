@@ -19,6 +19,7 @@ from eyepop.worker.worker_types import (
     ComponentParams,
     MotionDetectConfig,
     Pop,
+    TargetResolution,
     VideoMode,
 )
 
@@ -164,6 +165,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             *,
             is_live: bool | None = None,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> WorkerJob:
         return await self._submit(WorkerSource(
             uploads=[_file_upload(location)],
@@ -176,6 +178,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 
@@ -194,6 +197,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             on_ready: Callable[[WorkerJob], None] | None = None,
             *,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> WorkerJob:
         return await self._submit(WorkerSource(
             uploads=[_stream_upload(stream, mime_type)],
@@ -206,6 +210,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 
@@ -220,6 +225,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             on_ready: Callable[[WorkerJob], None] | None = None,
             *,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> WorkerJob:
         """Uploads multiple in-memory streams as a single image group (one inference unit).
 
@@ -242,6 +248,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             camera=camera,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 
@@ -255,6 +262,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             on_ready: Callable[[WorkerJob], None] | None = None,
             *,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> WorkerJob:
         """Uploads multiple local images as a single image group (one inference unit).
 
@@ -273,6 +281,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             camera=camera,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 
@@ -289,6 +298,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             on_ready: Callable[[WorkerJob], None] | None = None,
             *,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> WorkerJob:
         """Loads a server-fetched URL as a single source.
 
@@ -307,6 +317,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             rtsp_force_non_compliant_url=rtsp_force_non_compliant_url,
             version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
@@ -321,6 +332,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             on_ready: Callable[[WorkerJob], None] | None = None,
             *,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> WorkerJob:
         """Loads multiple server-fetched URLs as a single image group (one inference unit).
 
@@ -339,6 +351,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             camera=camera,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 
@@ -354,6 +367,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             on_ready: Callable[[WorkerJob], None] | None = None,
             *,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> WorkerJob:
         return await self._submit(WorkerSource(
             asset_uuid=asset_uuid,
@@ -364,6 +378,7 @@ class WorkerEndpoint(Endpoint, WorkerClientSession):
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             version=DEFAULT_PREDICTION_VERSION,
         ), on_ready)
 

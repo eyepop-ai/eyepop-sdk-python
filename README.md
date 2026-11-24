@@ -280,6 +280,7 @@ that should fail fast on a full pipeline API sets `EYEPOP_PIPELINE_WAIT_TIMEOUT=
 | `upload_stream`, `upload_stream_group`, `upload(is_live=True)` | Sent in chunks as the pipeline reads them. |
 | `load_from`, `load_from_group`, `load_asset` | Supported. An `rtsp://` or `rtmp://` url is live. |
 | `params`, `roi`, `camera`, `fps` | Supported. |
+| `target_resolution` | Sent with `setSource` as `targetResolution`. Needs a worker with eyepop-pipeline target resolution (AIW-190); an older one ignores it. |
 | `motion_detect` | Sent with `setSource` (`motionDetect`, `motionSensitivity`, `motionThreshold`, `motionGap`, `motionGridX`, `motionGridY`). Needs a pipeline API on eyepop-worker 4.15.0 or later. A group takes none: `ValueError` at submission. |
 | `video_mode` | Sent with a single upload (`upload`, `upload_stream`); unset, a video upload that is not live is buffered. Needs eyepop-worker 4.15.0 or later. Not sent for any other source; a warning names it once per endpoint. |
 | `media_cache_seconds`, `media_cache_reencode` | Sent with `setSource`; a source that records gets its `media_id` from its `start`. A group takes neither: `ValueError` at submission. |

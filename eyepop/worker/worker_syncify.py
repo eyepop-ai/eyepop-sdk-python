@@ -7,7 +7,7 @@ from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 from eyepop.worker.camera import Camera
 from eyepop.worker.media import ClipMode, MediaClip
 from eyepop.worker.worker_jobs import WorkerJob
-from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, Pop, VideoMode
+from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, Pop, TargetResolution, VideoMode
 
 if typing.TYPE_CHECKING:
     from eyepop.worker.worker_endpoint import WorkerEndpoint
@@ -129,6 +129,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             on_ready: typing.Callable[[WorkerJob], None] | None = None,
             *,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -145,6 +146,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
@@ -166,6 +168,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             *,
             is_live: bool | None = None,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -183,6 +186,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
@@ -198,6 +202,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             on_ready: typing.Callable[[WorkerJob], None] | None = None,
             *,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -211,6 +216,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             camera=camera,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
@@ -225,6 +231,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             on_ready: typing.Callable[[WorkerJob], None] | None = None,
             *,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -237,6 +244,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             camera=camera,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
@@ -254,6 +262,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             on_ready: typing.Callable[[WorkerJob], None] | None = None,
             *,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -268,6 +277,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             rtsp_force_non_compliant_url=rtsp_force_non_compliant_url,
             on_ready=None
         ))
@@ -283,6 +293,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             on_ready: typing.Callable[[WorkerJob], None] | None = None,
             *,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -295,6 +306,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             camera=camera,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
@@ -311,6 +323,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             on_ready: typing.Callable[[WorkerJob], None] | None = None,
             *,
             media_cache_reencode: bool | None = None,
+            target_resolution: TargetResolution | None = None,
     ) -> SyncWorkerJob:
         if on_ready is not None:
             raise TypeError(
@@ -325,6 +338,7 @@ class SyncWorkerEndpoint(SyncEndpoint):
             fps=fps,
             media_cache_seconds=media_cache_seconds,
             media_cache_reencode=media_cache_reencode,
+            target_resolution=target_resolution,
             on_ready=None
         ))
         return SyncWorkerJob(job, self.event_loop)
