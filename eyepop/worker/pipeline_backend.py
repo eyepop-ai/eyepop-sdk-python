@@ -880,6 +880,8 @@ def _set_source_command(id: str, source: WorkerSource) -> dict[str, Any]:
         command['camera'] = source.camera.model_dump(exclude_none=True)
     if source.fps is not None:
         command['fps'] = source.fps
+    if source.target_resolution is not None:
+        command['targetResolution'] = source.target_resolution.model_dump()
     if source.is_live:
         command['live'] = True
     if source.video_mode is not None and _takes_video_mode(source):

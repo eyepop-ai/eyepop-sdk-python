@@ -17,6 +17,7 @@ from eyepop.worker.worker_types import (
     ComponentParams,
     MotionDetectConfig,
     PredictionVersion,
+    TargetResolution,
     VideoMode,
 )
 
@@ -82,6 +83,7 @@ class WorkerSource:
     motion_detect: MotionDetectConfig | None = None
     roi: Area | None = None
     fps: str | None = None
+    target_resolution: TargetResolution | None = None
     camera: Camera | None = None
     media_cache_seconds: int | None = None
     media_cache_reencode: bool | None = None

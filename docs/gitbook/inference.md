@@ -164,6 +164,18 @@ A job also keeps the pipeline's `warning` events on `job.warnings`, in both mode
 `WARNING` on `eyepop`; one says a recorded camera sends keyframes too rarely
 (`media_cache_gop_too_long`), which `media_cache_reencode=True` avoids.
 
+### Target resolution
+
+Every upload and load method takes a `target_resolution`, the box a video, or a group's images, is scaled down to fit inside before the Pop runs on it. The worker scales after `fps` and motion detection, keeps the aspect ratio and never scales up, so a frame that fits already keeps its own size. Each side is a whole number from 64 to 16384 pixels:
+
+```python
+from eyepop.worker.worker_types import TargetResolution
+
+job = endpoint.load_from("rtsp://camera.example.com/stream1", target_resolution=TargetResolution(width=1280, height=720))
+```
+
+A smaller frame costs less to process; a model still sees its own input size, so scale down only as far as the objects you need stay large enough.
+
 ### Camera calibration
 
 Every upload and load method takes a `camera`, which is what lets a [depth map](../../platform/depth-and-world-coordinates/depth-maps.md) become positions in meters:

@@ -637,7 +637,8 @@ class SessionBackend(WorkerBackend):
         # else (extra parts, or a multi-item image group) is sent as multipart.
         single_source = uploads[0] if len(uploads) == 1 else None
         no_extra_parts = (source.component_params is None and source.roi is None
-                          and source.fps is None and source.camera is None)
+                          and source.fps is None and source.camera is None
+                          and source.target_resolution is None)
         # Full duplex is only used for a single video upload; an image group is
         # always posted as one sync multipart request.
         needs_full_duplex = (
@@ -729,6 +730,9 @@ def _multipart(source: WorkerSource) -> aiohttp.MultipartWriter:
     if source.camera is not None:
         camera_part = mp_writer.append_json(source.camera.model_dump(exclude_none=True))
         camera_part.set_content_disposition('form-data', name='camera', filename='blob')
+    if source.target_resolution is not None:
+        target_part = mp_writer.append_json(source.target_resolution.model_dump())
+        target_part.set_content_disposition('form-data', name='targetResolution', filename='blob')
 
     for upload in source.uploads:
         file_part = _file_part(mp_writer, upload)
@@ -761,6 +765,8 @@ def _url_body(source: WorkerSource) -> dict[str, Any]:
             body['roi'] = source.roi.model_dump(exclude_none=True)
         if source.fps is not None:
             body['fps'] = source.fps
+        if source.target_resolution is not None:
+            body['targetResolution'] = source.target_resolution.model_dump()
         if source.camera is not None:
             body['camera'] = source.camera.model_dump(exclude_none=True)
         if source.media_cache_seconds is not None:
@@ -782,6 +788,8 @@ def _url_body(source: WorkerSource) -> dict[str, Any]:
         body['roi'] = source.roi.model_dump(exclude_none=True)
     if source.camera is not None:
         body['camera'] = source.camera.model_dump(exclude_none=True)
+    if source.target_resolution is not None:
+        body['targetResolution'] = source.target_resolution.model_dump()
     if source.media_cache_seconds is not None:
         body['mediaCacheSeconds'] = source.media_cache_seconds
     if source.media_cache_reencode is not None:
@@ -803,6 +811,8 @@ def _asset_body(source: WorkerSource) -> dict[str, Any]:
         body['params'] = TypeAdapter(list[ComponentParams]).dump_python(source.component_params)
     if source.camera is not None:
         body['camera'] = source.camera.model_dump(exclude_none=True)
+    if source.target_resolution is not None:
+        body['targetResolution'] = source.target_resolution.model_dump()
     if source.media_cache_seconds is not None:
         body['mediaCacheSeconds'] = source.media_cache_seconds
     if source.media_cache_reencode is not None:
