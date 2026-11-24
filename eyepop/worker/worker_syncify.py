@@ -7,7 +7,13 @@ from eyepop.syncify import SyncEndpoint, run_coro_thread_save
 from eyepop.worker.camera import Camera
 from eyepop.worker.media import ClipMode, MediaClip
 from eyepop.worker.worker_jobs import WorkerJob
-from eyepop.worker.worker_types import ComponentParams, MotionDetectConfig, Pop, TargetResolution, VideoMode
+from eyepop.worker.worker_types import (
+    ComponentParams,
+    MotionDetectConfig,
+    Pop,
+    TargetResolution,
+    VideoMode,
+)
 
 if typing.TYPE_CHECKING:
     from eyepop.worker.worker_endpoint import WorkerEndpoint
